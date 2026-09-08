@@ -445,3 +445,185 @@ should be fixed in the same pass.
 This is a scoped engineering assessment of one slice at one revision. It is not a legal
 certification, not a statement about the integrated system, and not evidence that Yoann can defend
 the code.
+
+---
+
+# Re-review at 2026-09-08T18:10:00+00:00
+
+Scope: the B10 corrections, merged into `main` at `3017d0e` and renumbered at `010a6fe`, read at
+working-tree state `e110a7c`. Production reported `e7b5913` throughout the deployed part of this
+re-review, and `e7b5913` contains `010a6fe`. The prior findings and the FAIL verdict above are
+left exactly as they were; this section is appended, not substituted.
+
+Fix commits read line by line: `29fe3be` (F-B10-02), `dd7da42` (F-B10-01), `fc5a64c` (F-B10-03),
+`c3977ec` (F-B10-06), `0aeb436` (the screen and F-B10-05), `d7a21a3` (the new checks), `8005b63`
+and `010a6fe` (the migration number), `9007c60` and `f6bf1e2` (the scheduled window). Files:
+`db/migrations/0017_reconciliation_item_record_date.sql`, `lib/reconciliation/breaks.ts`,
+`read.ts`, `run.ts`, `diff.ts`, `stripe-records.ts`, the new `clearing-balances.ts`,
+`app/api/jobs/daily/route.ts`, `app/ops/reconciliation/page.tsx`, `scripts/check-reconciliation.ts`.
+
+## Verdict: PASS
+
+Every finding I raised is genuinely fixed, and I verified each one myself rather than reading the
+notes. Two new findings are recorded below: one MEDIUM that must be fixed before submission, one
+LOW. Neither blocks the slice under the register's own scale, and neither reintroduces the
+visibility violation that caused the FAIL.
+
+| Finding | Status |
+|---|---|
+| F-B10-01 | RESOLVED at `dd7da42`, verified by re-running my own reproduction |
+| F-B10-02 | RESOLVED at `29fe3be`, verified in the stored keys |
+| F-B10-03 | RESOLVED at `fc5a64c`, rendered on production |
+| F-B10-04 | RESOLVED at `dd7da42` and the `runSources` loop, three new proof lines |
+| F-B10-05 | RESOLVED at `0aeb436` |
+| F-B10-06 | RESOLVED at `c3977ec`, visible in the deployed run note |
+| F-B10-07 | OPEN by decision, with a rationale I accept |
+| F-B10-08 | OPEN, demo observation |
+| F-B10-09 | OPEN, defensive note |
+| F-B10-11 | NEW, MEDIUM |
+| F-B10-12 | NEW, LOW |
+
+## F-B10-01: resolved, and re-proved by the same probe that broke it
+
+The rule is now the right one. `read.ts` shares two SQL fragments between the open and the
+resolved query, so one definition decides both lists: a break is resolved only by a **later**,
+**complete** run of the same source whose window **contains the record's own date** and which no
+longer reports it. `reconciliation_items.record_at` (migration 0017) carries that date, the
+provider's created time when there is a provider record and the operation's created time
+otherwise, with pre-migration nulls falling back to `first_seen_at`. `windowCoveringOpenBreaks`
+then opens the scheduled window backwards to reach the oldest open break, so the ordinary case
+still closes on its own.
+
+I re-ran the exact probe from the first review, unchanged, on the disposable database:
+
+```
+before the fix   14 open rail breaks -> 0 open; sample listed as RESOLVED: true
+after the fix    32 open rail breaks -> 32 open; sample still open: true; RESOLVED: false
+sample key now   claims_rail|op:7181bae1-aed6-48e1-b378-4a941dae0a36
+```
+
+A run that looked at nothing now resolves nothing. The key shape in that output also confirms
+F-B10-02: the operation id comes first, the classification is gone.
+
+The 31-day cap and its honesty were checked separately against the same database:
+
+```
+oldest open break 2026-09-08T14:50:54Z
+window 7.00 days, reachesTheOldestOpenBreak true
+clock moved 90 days forward -> window 31.00 days, reachesTheOldestOpenBreak false
+```
+
+So a break beyond the cap is not resolved by silence: it stays open with its real age and the job
+answers that it could not reach it. That is the honest outcome and it is reported, not hidden.
+
+## F-B10-03: resolved, and it closes F-B4-02
+
+`lib/reconciliation/clearing-balances.ts` reads the four clearing accounts straight from
+`journal_lines` with no window at all, groups per policy and per claim, takes the sign from the
+chart of accounts rather than hard-coding it, and reports the oldest entry with its age. It
+includes `unapplied_customer_cash`, which is what F-B4-02 was waiting for. On the disposable
+database it returned 205 open balances read from the journal alone; on the trial database it
+renders the empty state, "Every clearing account is at zero", which is correct there.
+
+## F-B10-04, F-B10-05, F-B10-06: resolved
+
+Storage failures now store a failed run rather than nothing, and `runSources` catches a source
+that cannot be recorded at all and moves to the next one, returning `runId: null` with the reason.
+Three new check lines prove it. The banner is now computed per source from that source's latest
+run. The run note names the PaymentIntents that were not compared; the deployed run note reads
+"Every PaymentIntent in the window had succeeded; none was left out."
+
+## F-B10-11 (MEDIUM, new): the key change makes every pre-existing break read as open and resolved at once
+
+**Trigger.** Fixing F-B10-02 changed the shape of `break_key` from
+`source|classification|reference` to `source|reference`. `reconciliation_items` is append-only, so
+items written before the change keep their old key, and nothing may rewrite them. No later run
+ever reports the old key, so the shared rule concludes that a later covering run stopped reporting
+it, and files it under "Breaks that went away". The same money is simultaneously open under its
+new key with its age restarted at zero.
+
+**Observed on production**, both lists on the same page after my Run now:
+
+| List | Reference | First seen | Age |
+|---|---|---|---|
+| Open breaks | `pi_3UDKjJK6R3v50tIy0nLbDPOc`, $100.00 | 2026-09-08 17:58:19 | 0 minutes |
+| Breaks that went away | `pi_3UDKjJK6R3v50tIy0nLbDPOc`, $100.00 | 2026-09-08 15:38:47 | 2 hours |
+
+The stored keys confirm the cause, read from the trial database:
+
+```
+stripe|provider_only|pi_3UDKjJK6R3v50tIy0nLbDPOc   3 items, 15:38:47 to 16:37:18
+stripe|pi_3UDKjJK6R3v50tIy0nLbDPOc                 1 item,  17:58:19
+```
+
+**Consequence.** Twenty probe payments now appear in both lists, and every break that predates the
+fix reads "open for 0 minutes" when it is two hours old. `run.ts` states that the age error can
+only ever run in the direction of older, never younger. Here it runs younger, and the screen
+prints "this break went away" two lines below the same break, still open. No break is lost, which
+is why this is not the F-B10-01 violation again, but the board contradicts itself on money.
+
+**Required correction, and it must not be a data change.** Backfilling the old keys would be an
+UPDATE on a protected table, which AF-03 forbids. The fix belongs in the read: exclude from
+`resolvedBreaks` any row whose `provider_ref` or `ledger_ref` is still present in the open list.
+That is a few lines of SQL, needs no migration, and would also protect against any future key
+change. Failing that, the age reset and the duplicate rows must be disclosed in the README and in
+the demo script, because a panel reading the board will see it.
+
+## F-B10-12 (LOW, new): the migration's own header names a different migration
+
+`010a6fe` renamed the file to `0017_reconciliation_item_record_date.sql` but did not touch its
+contents. Line 1 still reads `-- 0016: a reconciliation item remembers the DATE OF THE RECORD`,
+and lines 6 to 11 explain "WHY IT IS 0016". `lib/reconciliation/read.ts` line 124 and five places
+in `docs/handoffs/b10-implementation-notes.md` also say "migration 0016". Migration 0016 exists
+and is `0016_statement_format_version.sql`, a slice-B9 migration about statement documents, so a
+reader following any of those pointers lands on the wrong file. This is an AF-06 wrinkle in the
+one kind of file a panel is most likely to open, and it is a search and replace.
+
+## Checks executed in the re-review
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` | clean, exit 0 |
+| `node --import tsx --test lib/reconciliation/*.test.ts` | 60 pass, 0 fail (55 before the fixes) |
+| `npm run check:reconciliation` | 39 of 39 PASS, exit 0, clean on the first run despite another agent using the shared database |
+| window probe, re-run unchanged from the first review | break stays open, not resolved |
+| scheduled-window probe (widening, 31-day cap, clearing balances) | as quoted above |
+| break-key read on the trial database, read only | two keys for one reference, as quoted above |
+
+Money guards were **not** rerun by me, as instructed: five agents contend on the shared disposable
+database and the TRUNCATE probes deadlock. Cited as coordinator evidence: 161 PASS, 0 FAIL at
+17:45Z on an ephemeral database after migration 0017. Guard coverage of the two reconciliation
+tables was read instead from `db/migrations/0011_reconciliation.sql` and the `PROTECTED_TABLES`
+list of `scripts/check-money-guards.ts`, and migration 0017 adds one nullable column and one index
+with `if not exists`, drops nothing and alters no constraint, so it cannot weaken them.
+
+## Deployed evidence
+
+Production reported `e7b5913`. `GET /ops/reconciliation` as `staff_ops` answered 200 and shows the
+new open-breaks wording, the clearing balances section and the reworded resolved section.
+`POST /api/jobs/reconcile` with no credential answered 401, and `GET /api/jobs/daily` with no
+credential answered 401. One Run now as `staff_ops`, the single run this re-review was authorised
+to press, redirected 303 with:
+
+```
+stripe: 23 provider records against 4 ledger records, 20 breaks
+claims_rail: 1 provider records against 2 ledger records, 0 breaks
+```
+
+Both runs are attributed to "Sam Patel, operations" in the run list. The board is longer than at
+the first review, as expected: nothing ages out any more, and more probe payments exist. I again
+did not exercise `/api/jobs/daily` on its successful path, because its settlement step posts
+journal entries to the trial ledger.
+
+## Residual limitations of this re-review
+
+- Coverage is inferred from the window bounds, not from the fetch. A Stripe listing truncated at
+  `MAX_OBJECTS_PER_LISTING` would look like a covering run that found nothing, and would resolve a
+  break it never received. Unreachable at trial volumes; worth one guard if the cap is ever hit.
+- The banner reads only the twelve most recent runs, so a source whose latest run is older than
+  twelve runs would show none. Both sources always run together today, so this cannot happen.
+- The Vercel cron registration and its firing remain unverified: no dashboard access.
+- `openBreaks` now scans every item ever stored and runs a correlated existence test per key, and
+  the scheduled job calls it once per night. Fine at trial volume, and F-B10-07 records it.
+- Yoann's understanding of any line of this slice remains unverified. Walkthrough status is still
+  **NOT REVIEWED WITH YOANN**.
