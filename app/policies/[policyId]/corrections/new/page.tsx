@@ -1,7 +1,8 @@
 import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
+import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CorrectionRefused, planEndorsementDateCorrection } from "@/lib/policy/correct-endorsement-date";
 import { FormulaLinesTable } from "../../formula-lines";
@@ -29,6 +30,11 @@ export default async function CorrectEndorsementDatePage({
     redirect("/login");
   }
   const [{ policyId }, query] = await Promise.all([params, searchParams]);
+  // A path id that is not a uuid is a malformed URL, not a policy that exists somewhere: 404
+  // before anything reaches a query that would cast it and raise (review finding F-B8-03).
+  if (!isUuid(policyId)) {
+    notFound();
+  }
   const endorsedEventId = (query.endorsedEventId ?? "").trim();
 
   let plan;

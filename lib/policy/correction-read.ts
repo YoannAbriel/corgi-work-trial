@@ -334,8 +334,19 @@ function summarise(eventType: string, payload: Record<string, unknown>): string 
       return `Endorsement in force: ${payload.description ?? "change"}, ${cents("delta_premium_cents")} of prorated premium`;
     case "cancelled":
       return `Policy cancelled, ${cents("total_refund_cents")} refunded`;
-    case "correction_reversal":
-      return `Correction: effective date ${payload.wrong_effective_at ?? "?"} put right to ${payload.corrected_effective_at ?? "?"} (${payload.reason ?? "no reason recorded"})`;
+    case "correction_reversal": {
+      // Two different corrections write this event type. A date correction (slice B8) carries the
+      // two dates; the void of a binding that rested on a payment that never happened
+      // (lib/policy/void-fabricated-binding.ts, CGP-01061) carries neither, and printing
+      // "effective date ? put right to ?" for it was simply wrong.
+      const reason = payload.reason ?? "no reason recorded";
+      const wrongDate = payload.wrong_effective_at;
+      const rightDate = payload.corrected_effective_at;
+      if (typeof wrongDate === "string" && typeof rightDate === "string") {
+        return `Correction: effective date ${wrongDate} put right to ${rightDate} (${reason})`;
+      }
+      return `Correction: the event above was reversed and nothing re-books it, so it no longer counts (${reason})`;
+    }
     case "correction_rebook":
       return `Endorsement re-booked on ${payload.corrected_effective_at ?? "?"}: ${cents("delta_premium_cents")} of prorated premium, difference ${cents("difference_total_cents")}`;
     case "correction_approved":

@@ -262,6 +262,9 @@ export async function PolicyAsOf({
 }) {
   const requested = asOf ?? "";
   const result = requested ? await policyAsItStoodOn(policyId, requested) : null;
+  // The field cannot start on a date it would refuse: on a policy whose term has not begun,
+  // today is before the minimum the input accepts, so the term start is the honest default.
+  const defaultDate = requested || (today > termStart ? today : termStart);
 
   return (
     <>
@@ -273,7 +276,7 @@ export async function PolicyAsOf({
       </p>
       <form method="get" className="card">
         <label htmlFor="asOf">As it stood on</label>
-        <input id="asOf" name="asOf" type="date" required defaultValue={requested || today} min={termStart} />
+        <input id="asOf" name="asOf" type="date" required defaultValue={defaultDate} min={termStart} />
         <button type="submit">Show the policy on that date</button>
       </form>
 

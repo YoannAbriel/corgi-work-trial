@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 import { CorrectionCheckoutRefused, startCorrectionCheckout } from "@/lib/payments/correction-collection";
 
 // POST /api/policies/{policyId}/corrections/{rebookEventId}/checkout
@@ -10,13 +11,16 @@ import { CorrectionCheckoutRefused, startCorrectionCheckout } from "@/lib/paymen
 // $500. The endorsement is already in force at the corrected date whether or not this is paid;
 // what is outstanding is the receivable, visible on the reconciliation screen.
 export async function POST(request: Request, context: { params: Promise<{ policyId: string; rebookEventId: string }> }) {
-  const user = await currentUser();
   const { policyId, rebookEventId } = await context.params;
+  // A path id that is not a uuid is a malformed request, not a missing row (review finding
+  // F-B8-03): 400 before anything reaches a query that would cast it and raise.
+  const badPathId = badPathIdResponse({ policyId, rebookEventId });
+  if (badPathId) {
+    return badPathId;
+  }
+  const user = await currentUser();
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
-  }
-  if (!UUID.test(rebookEventId)) {
-    return backToPolicy(policyId, "that is not a correction of this policy");
   }
 
   try {
@@ -33,8 +37,6 @@ export async function POST(request: Request, context: { params: Promise<{ policy
     throw error;
   }
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function backToPolicy(policyId: string, message: string): Response {
   return redirectTo(`/policies/${policyId}?error=${encodeURIComponent(message)}`);
