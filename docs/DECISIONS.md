@@ -94,3 +94,10 @@ The B2 delegate bound demo policy CGP-01061 through a locally signed webhook aga
 ## 2026-09-08T11:05:24+00:00 | Explicit user decision | Expired Checkout Sessions get a new intent
 
 A Checkout Session expires after 24 hours (review finding F-B2-03). Yoann chose to handle it: checkout.session.expired marks the operation failed (reason expired), and the next Pay click creates a new money operation with a new idempotency key (policy-checkout:<policy>:<attempt>). Keys are never reused across operations. Implemented with B5.
+
+## 2026-09-08T11:14:02+00:00 | Explicit user decision | KYB rules for Stripe Connect verification
+
+1. Settling window: a broker account is held at pending for at least 2 minutes after creation, then approved only if Stripe reported no requirement error. Reason: Stripe's business identity check lands about 45 to 50 seconds after creation with no in-progress flag (measured on 2026-09-08, not a Stripe guarantee). It can delay an approval, never grant one early.
+2. Pending state shown at the debrief: the first minute after a broker is submitted live (Stripe's published pending EIN fixture yields approved in our configuration).
+3. Terms acceptance: an explicit checkbox "By submitting, you accept the Stripe Connected Account Agreement on behalf of your business", link to the agreement, date and IP recorded with the account (required by Stripe, otherwise the account stays blocked).
+4. Endorsement schedule shows both the prorated delta and the new annual premium per endorsement, with a footnote on the difference.
