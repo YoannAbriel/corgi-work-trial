@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -30,7 +31,7 @@ export default async function ApprovalsPage({
   const [requests, query] = await Promise.all([approvalRequests(sql), searchParams]);
 
   return (
-    <main>
+    <PortalShell active="approvals" user={user}>
       <p className="note">
         <Link href="/ops/claims">All claims</Link>
       </p>
@@ -62,7 +63,8 @@ export default async function ApprovalsPage({
               <h2>
                 {formatCentsAsUsd(request.amountCents)}, {request.kind.replace("_", " ")}
               </h2>
-              <table className="amounts">
+              <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
                 <tbody>
                   <tr>
                     <th>Asked by</th>
@@ -106,6 +108,7 @@ export default async function ApprovalsPage({
                   ) : null}
                 </tbody>
               </table>
+        </div>
 
               {alreadyDecided ? (
                 <p className="note">
@@ -138,6 +141,6 @@ export default async function ApprovalsPage({
           );
         })
       )}
-    </main>
+    </PortalShell>
   );
 }

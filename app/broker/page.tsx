@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
@@ -15,7 +16,7 @@ export default async function BrokerPage() {
   if (user.role !== "broker" || !user.brokerId) {
     const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
     return (
-      <main>
+      <PortalShell active="policies" user={user}>
         <h1>Broker workspace</h1>
         <p className="error">
           This page is the broker journey. Your account has the role &quot;{user.role}&quot;.
@@ -27,70 +28,74 @@ export default async function BrokerPage() {
         ) : (
           <p className="note">The customer screens arrive in a later slice.</p>
         )}
-        <LogoutButton />
-      </main>
+      </PortalShell>
     );
   }
 
   const [policies, kyb] = await Promise.all([policiesOfBroker(user.brokerId), brokerKybState(user.brokerId)]);
 
   return (
-    <main>
+    <PortalShell active="policies" user={user}>
       <h1>Broker workspace</h1>
       <p className="lead">
         Signed in as {user.displayName} ({user.email}).
       </p>
 
-      <p className={kyb.status === "approved" ? "badge badge-ok" : "badge badge-warn"}>KYB status: {kyb.status}</p>
+      <p className={kyb.status === "approved" ? "badge badge-ok" : "badge badge-warn"}>
+        KYB status: {kyb.status}
+      </p>
       <p className="note">{kyb.explanation}</p>
       {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
-        <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
+        <p className="note">
+          {KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.
+        </p>
       )}
 
-      <p>
-        <Link href="/broker/policies/new">New policy</Link> — <Link href="/broker/kyb">Business verification</Link>
-      </p>
+      <div className="page-actions">
+        <Link className="button-link" href="/broker/policies/new">
+          New policy
+        </Link>
+        <Link className="button-link secondary" href="/broker/kyb">
+          Business verification
+        </Link>
+      </div>
 
       {policies.length === 0 ? (
-        <p className="note">No policy yet. Start with &quot;New policy&quot;.</p>
+        <section className="empty-state">
+          <img src="/illustrations/corgi-desk.webp" width="1024" height="1024" alt="" />
+          <h2>Your next policy starts here.</h2>
+          <p>No policy yet. Start with &quot;New policy&quot;.</p>
+        </section>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Policy</th>
-              <th>Customer</th>
-              <th>State</th>
-              <th>Effective</th>
-              <th>Status</th>
-              <th className="amount">Total charge</th>
-            </tr>
-          </thead>
-          <tbody>
-            {policies.map((policy) => (
-              <tr key={policy.policyId}>
-                <td>
-                  <Link href={`/policies/${policy.policyId}`}>{policy.policyNumber}</Link>
-                </td>
-                <td>{policy.customerName}</td>
-                <td>{policy.stateCode}</td>
-                <td>{policy.effectiveAt}</td>
-                <td>{policy.status}</td>
-                <td className="amount">{formatCentsAsUsd(policy.totalChargeCents)}</td>
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+          <table>
+            <thead>
+              <tr>
+                <th>Policy</th>
+                <th>Customer</th>
+                <th>State</th>
+                <th>Effective</th>
+                <th>Status</th>
+                <th className="amount">Total charge</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {policies.map((policy) => (
+                <tr key={policy.policyId}>
+                  <td>
+                    <Link href={`/policies/${policy.policyId}`}>{policy.policyNumber}</Link>
+                  </td>
+                  <td>{policy.customerName}</td>
+                  <td>{policy.stateCode}</td>
+                  <td>{policy.effectiveAt}</td>
+                  <td>{policy.status}</td>
+                  <td className="amount">{formatCentsAsUsd(policy.totalChargeCents)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-
-      <LogoutButton />
-    </main>
-  );
-}
-
-function LogoutButton() {
-  return (
-    <form method="post" action="/api/session/logout" className="inline-form">
-      <button type="submit">Sign out</button>
-    </form>
+    </PortalShell>
   );
 }

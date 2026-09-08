@@ -37,3 +37,8 @@ Integration slots: premium collection LIVE SANDBOX (B2, B5); broker KYB LIVE SAN
 ## Stretch ladder, only after B13
 
 Plaid sandbox live for bank verification (about 1.5h). Increase sandbox live for claim payout (about 2h). Everything else on the brief's stretch ladder stays cut.
+
+
+## UI-01: presentation subset of B13, requested by Yoann
+
+Adapt the existing home, login, broker and operations screens to the observed Corgi portal visual language: cream background, white sidebar, orange accents, rounded cards, original DGX Spark illustrations. Keep endpoints, authorization, queries, monetary values, form names/actions and eligibility conditions unchanged. Implement only navigation to existing pages. Preserve mode disclosures and exact approval intent. No deployment or main-branch merge in this slice. Evidence: source diff, typecheck, build, existing unit tests, local desktop/mobile/keyboard observations and independent review in docs/reviews/ui-01.md. Status: TECHNICAL PASS for the frozen UI-01 manifest, independently reviewed in docs/reviews/ui-01.md; candidate walkthrough NOT REVIEWED WITH YOANN. This does not complete B13's still-unbuilt statement/reconciliation screens or the integrated trial gate.

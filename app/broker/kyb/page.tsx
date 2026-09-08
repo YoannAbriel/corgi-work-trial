@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
@@ -33,7 +34,7 @@ export default async function BrokerKybPage({
   const verificationIsRunning = kyb.provider === "stripe_connect" && kyb.status === "pending";
 
   return (
-    <main>
+    <PortalShell active="verification" user={user}>
       <p className="note">
         <Link href="/broker">Back to the policy list</Link>
       </p>
@@ -66,7 +67,8 @@ export default async function BrokerKybPage({
       {submission ? (
         <>
           <h2>What was submitted</h2>
-          <table className="amounts">
+          <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
             <tbody>
               <tr>
                 <th>Registered name</th>
@@ -104,6 +106,7 @@ export default async function BrokerKybPage({
               </tr>
             </tbody>
           </table>
+        </div>
         </>
       ) : null}
 
@@ -208,6 +211,7 @@ export default async function BrokerKybPage({
       {history.length === 0 ? (
         <p className="note">No status recorded yet.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -236,7 +240,8 @@ export default async function BrokerKybPage({
             ))}
           </tbody>
         </table>
+        </div>
       )}
-    </main>
+    </PortalShell>
   );
 }

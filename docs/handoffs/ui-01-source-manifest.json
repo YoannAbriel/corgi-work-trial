@@ -1,0 +1,25 @@
+{
+  "base": "59f2fcdf969ad92ad43b299dbac886593cb918bc",
+  "branch": "codex/corgi-interface",
+  "sha256": {
+    "app/broker/kyb/page.tsx": "73c6df1c0105b53a6d9e7e09f52db3d145bef06a65169139aacae9146ae0f5c5",
+    "app/broker/page.tsx": "6f027294fe942d748368efadd40e98bdea66f0d5c9c05c939bc2ff6d59bca340",
+    "app/broker/policies/new/page.tsx": "6ba23fab3410d79a6b179230c02a907dd2810cec459f6d2be1815451a3256da1",
+    "app/globals.css": "071543872c8733c47210966ac5ae790285233fac6da0dd28126a7804d924c787",
+    "app/login/page.tsx": "553e6e43d17811ee9de2b61e06228f677b8f73c430f90560f08ffce6a9088a38",
+    "app/ops/approvals/page.tsx": "f0cbcbaeb217f8470729f95e90d7bdbcaf9ade53c84d05333b3d06dc92041d97",
+    "app/ops/brokers/page.tsx": "511a62b82c92aa62e1fb2b00fb33cdbc069df0803b9568f7435aad7cf9e70089",
+    "app/ops/claims/[claimId]/page.tsx": "f1183386c931d488c9d040266c41715a2cf5f9b3e3685ff11b13ad82ea90eb3f",
+    "app/ops/claims/page.tsx": "d69570f95fa332bbc6d3829331d253a3212e5453788f2b6b3d865e823f05e714",
+    "app/ops/page.tsx": "aa2f6cdeb90625fb13ab0f404a3c2c14fd7be3158bc86818fd2bb8bba358f9a5",
+    "app/page.tsx": "330975db972c6fd50777a4ca79a616b1660e2441798658bf6c1ba048658f5630",
+    "app/policies/[policyId]/cancel/page.tsx": "2a35842e458923fa25236f9efc46c90245529c41665bd98b09fc28950a7362a5",
+    "app/policies/[policyId]/page.tsx": "89c3dde660c712b84f3bf0a1efcaae82afe740ff3c919daec37978de784a29e3",
+    "components/portal-shell.tsx": "7c42a6ee48cb0b7cc358dc5a7522cfa580a9ea3288edd325cb6946a40ac1ec56",
+    "components/workspace-overview.tsx": "92a4b96447c0a7851659ea23fcee5319c8e825b9f89529bedb61a3834c13933b",
+    "package-lock.json": "ebb939d91b46becf16dd156b96a7927293aa1474f469f0eeee51be0f7b395e2d",
+    "package.json": "0b2fb3c43f04db14aa4d2313e1fa85b229946279da2aaa3f9d814dec031e0ca3",
+    "public/illustrations/corgi-desk.webp": "487ab6344237ea12ab921f6751a8a147a933d7668d7c80688ced2ee4109dc522",
+    "public/illustrations/corgi-landscape.webp": "4a85432bcdb55d566b6170df396d795473c986d363a37a371ef216325cc84a4e"
+  }
+}

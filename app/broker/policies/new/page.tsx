@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
@@ -20,7 +21,7 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
   const [states, kyb, { error }] = await Promise.all([statesWithTaxRates(), brokerKybState(user.brokerId), searchParams]);
 
   return (
-    <main>
+    <PortalShell active="policies" user={user}>
       <h1>New policy</h1>
       <p className="lead">
         Commercial general liability, annual term. The premium tax comes from the effective-dated rate on file for
@@ -72,6 +73,6 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
 
         <button type="submit">Create draft</button>
       </form>
-    </main>
+    </PortalShell>
   );
 }

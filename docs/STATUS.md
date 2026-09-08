@@ -115,3 +115,32 @@ The Linear central checklist now has a released-brief override banner. Existing 
 Yoann selected Track 1. Desired extension: one combined impact-preview and amount-explanation flow, after mandatory core correctness. Other brainstormed enhancements are optional. The next agent owns the stack discussion and attack-plan drafting with Yoann. Confirmation email is a draft for Yoann to send on the existing thread; no email was sent by the assistant. Personal explanatory HTML remains outside the repo and is not added to the decision log.
 
 Linear handoff update: project renamed to Track 1: Policy administration, overview simplified into current action/core/differentiator/checkpoints, and YOA-593 linked to HANDOFF-PROMPT.md with its ten unchecked scenarios preserved. The 16 domain tickets remain reference material; detailed execution-backlog creation is deliberately assigned to the next session after stack and attack-plan agreement.
+
+
+## 2026-09-08T14:08:52+00:00 | UI-01 startup: isolated presentation work
+
+User-authorized scope: adapt the existing application UI to the visually observed Corgi portal home, use DGX Spark for decorative image generation, and work on a dedicated branch. Branch `codex/corgi-interface`, base `59f2fcd`, worktree `.worktrees/corgi-interface`. Main and Claude worktrees remain untouched. No push or deployment planned. Approximately 39 hours remain until the recorded freeze.
+
+Actual reads across this continuing session: AGENTS.md, AUTOMATIC-FAILS.md, READABLE-CODE.md, WORKFLOW-48H.md, REVIEWER.md, README.md, docs/BRIEF-REFERENCE.md, docs/PLAN.md, docs/STATUS.md, docs/DECISIONS.md, docs/COMPLIANCE-MATRIX.md; targeted architecture, architecture re-review, FINDINGS.md and GAP-REVIEW.md (GAP-17/18). The supplied brief is available as its repository extraction, not a separate original file; separately supplied kickoff sandbox rules remain absent. No missing mandatory kit file. Local docs are the working source for this isolated UI slice; no Linear connector is available in this session.
+
+Next criterion UI-01 (B13 presentation subset): consistent responsive shell, existing home/workspace cards, readable forms/tables, preserved errors/eligibility/provider-mode disclosures and unchanged financial actions. Checks planned: source diff for unchanged server logic/form contracts, typecheck/build/unit tests, desktop/mobile and keyboard checks using local presentation fixtures, independent review. No database/provider side effects are needed. The new visuals are decorative, never integration evidence.
+
+AF startup: AF-01 NOT RUN (no new deployment); AF-02 NOT RUN (no new integration claims; preserve labels); AF-03 NOT RUN (no database changes planned); AF-04 PASS for current scoped actions (read-only reference, no personal data copied into product); AF-05 NOT RUN until staged scan; AF-06 NOT REVIEWED WITH YOANN. Existing trial gaps remain recorded above and are not resolved by this UI work.
+
+## 2026-09-08T14:29:23+00:00 | UI-01 continuation receipt and verification
+
+After context recovery, reread AGENTS.md, AUTOMATIC-FAILS.md, READABLE-CODE.md, WORKFLOW-48H.md, REVIEWER.md and current STATUS. No mandatory kit file missing. Branch remains `codex/corgi-interface`, base `59f2fcd`; approximately 39 hours remain to freeze. Next acceptance gate: freeze the presentation diff, independently re-review responsive fixes, scan staged files and commit locally. Main/B4 work remains separate.
+
+Implementation and checks: [UI-01 handoff](handoffs/ui-01.md), [source manifest](handoffs/ui-01-source-manifest.json), [Spark artwork provenance](handoffs/ui-01-artwork.json). Typecheck and production build PASS; unit suite 219 passed, one optional live Stripe test skipped, zero failures. Local visual checks cover desktop, 820 px login, 390 px warnings/table/login and 320 px overview; keyboard skip/focus/table scrolling checked. No database/provider tests rerun. No push, merge or deployment performed. Independent final review and staged secret scan pending at this entry.
+
+The Vercel web-design-guidelines skill was installed locally using the skill-installer's Git method. Existing UI-pattern and image-generation guidance was applied; the user's requested Spark served the actual generation. Local tooling and preview fixtures are not part of the application commit. Reference portal interaction remained screenshot/accessibility observation only, with no click or navigation.
+
+## 2026-09-08T14:32:15+00:00 | UI-01 final local handoff
+
+Branch `codex/corgi-interface`, reviewed against base `59f2fcd`; exact reviewed source is the 19-file manifest in `docs/handoffs/ui-01-source-manifest.json`. UI-01 is technically verified with independent PASS in `docs/reviews/ui-01.md`; all three review findings were corrected and independently rechecked. This is a presentation increment only. B13 and the integrated trial remain incomplete.
+
+Actual checks: typecheck PASS; build PASS; unit tests 219 passed / 1 skipped / 0 failed; source/form-contract review PASS; desktop and bounded responsive/keyboard checks PASS with synthetic-fixture limitations disclosed in the handoff; staged diff whitespace PASS; gitleaks staged scan PASS at 14:30UTC, independently repeated by reviewer. Final staging and pre-commit scan must include the appended review and this handoff. No lint script exists. No database/provider, deployed-journey or financial integration tests rerun.
+
+AF handoff: AF-01 NOT RUN for this revision (no deployment); AF-02 PASS for honest UI labels only, live integration not rerun; AF-03 PASS for unchanged money source scope, database enforcement not rerun; AF-04 PASS for scoped actions and synthetic artwork/preview data; AF-05 PASS for the scanned staged increment, scan repeated before commit; AF-06 NOT REVIEWED WITH YOANN. No final integrated AF PASS is claimed.
+
+Next executable step after this local commit: coordinate integration with Claude's B4 policy-screen changes, preserve the latest business content, and rerun the integrated build/review before any authorized deployment. The likely overlapping source is `app/policies/[policyId]/page.tsx` and global CSS; shared documentation must be merged additively. Preview is local and visual only (`http://localhost:4177/ops.html` while the local preview server runs). No main merge, push or Vercel deployment performed.

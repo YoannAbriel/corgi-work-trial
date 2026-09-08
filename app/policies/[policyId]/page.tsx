@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -89,7 +90,7 @@ export default async function PolicyPage({
   const openClaimReserveCents = openClaims.reduce((total, claim) => total + claim.position.reserveCents, 0);
 
   return (
-    <main>
+    <PortalShell active="policies" user={user}>
       <p className="note">
         <Link href="/broker">Back to the policy list</Link>
       </p>
@@ -131,7 +132,8 @@ export default async function PolicyPage({
       ) : null}
 
       <h2>Charge</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
         <tbody>
           <tr>
             <th>Annual premium</th>
@@ -153,9 +155,11 @@ export default async function PolicyPage({
           </tr>
         </tbody>
       </table>
+        </div>
 
       <h2>Coverage</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
         <tbody>
           <tr>
             <th>Per-occurrence limit</th>
@@ -171,6 +175,7 @@ export default async function PolicyPage({
           </tr>
         </tbody>
       </table>
+        </div>
 
       <h2>Payment</h2>
       {operation ? (
@@ -283,7 +288,8 @@ export default async function PolicyPage({
             method {cancellation.calculationMethod}. Every figure below is the one stored on the cancellation event and
             posted to the journal; none of it is recomputed for display.
           </p>
-          <table className="amounts">
+          <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
             <tbody>
               <tr>
                 <th>Written premium</th>
@@ -322,6 +328,7 @@ export default async function PolicyPage({
               </tr>
             </tbody>
           </table>
+        </div>
           {cancellation.taxRefundWasCappedAtCharged ? (
             <p className="note">
               The tax refund was capped at the premium tax actually charged on this policy: rounding it up would have
@@ -345,7 +352,8 @@ export default async function PolicyPage({
       {refunds.length > 0 ? (
         <>
           <h2>Refunds</h2>
-          <table>
+          <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table>
             <thead>
               <tr>
                 <th>State</th>
@@ -440,6 +448,7 @@ export default async function PolicyPage({
               ))}
             </tbody>
           </table>
+        </div>
         </>
       ) : null}
 
@@ -453,6 +462,7 @@ export default async function PolicyPage({
       {claims.length === 0 ? (
         <p className="note">No claim on this policy.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -486,6 +496,7 @@ export default async function PolicyPage({
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {/* A claim needs cover to have existed, so the form is offered on a bound policy and on a
@@ -522,6 +533,7 @@ export default async function PolicyPage({
           Nothing has been posted yet. The four issuance entries are written when Stripe confirms the payment.
         </p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table className="ledger">
           <thead>
             <tr>
@@ -552,7 +564,8 @@ export default async function PolicyPage({
             )}
           </tbody>
         </table>
+        </div>
       )}
-    </main>
+    </PortalShell>
   );
 }

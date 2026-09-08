@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
@@ -46,13 +47,13 @@ export default async function CancelPolicyPage({
       // A refusal is part of the preview: the broker sees why, on the page, and can change the
       // date. Nothing was written, so there is nothing to undo.
       return (
-        <main>
+        <PortalShell active="policies" user={user}>
           <p className="note">
             <Link href={`/policies/${policyId}`}>Back to the policy</Link>
           </p>
           <h1>Cancellation preview</h1>
           <p className="error">{error.message}</p>
-        </main>
+        </PortalShell>
       );
     }
     throw error;
@@ -61,7 +62,7 @@ export default async function CancelPolicyPage({
   const { breakdown, terms } = plan;
 
   return (
-    <main>
+    <PortalShell active="policies" user={user}>
       <p className="note">
         <Link href={`/policies/${policyId}`}>Back to the policy</Link>
       </p>
@@ -73,7 +74,8 @@ export default async function CancelPolicyPage({
       </p>
 
       <h2>What the customer gets back</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
         <tbody>
           <tr>
             <th>
@@ -101,6 +103,7 @@ export default async function CancelPolicyPage({
           </tr>
         </tbody>
       </table>
+        </div>
       {breakdown.taxRefundWasCappedAtCharged ? (
         <p className="note">
           The tax refund is capped at the {formatCentsAsUsd(terms.taxCents)} of premium tax actually charged on this
@@ -114,7 +117,8 @@ export default async function CancelPolicyPage({
         <>
           <h2>This policy has an open claim</h2>
           <p className="note">{plan.openClaims.explanation}</p>
-          <table className="amounts">
+          <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
             <tbody>
               <tr>
                 <th>Reserve still held on the open claim, untouched by this cancellation</th>
@@ -126,11 +130,13 @@ export default async function CancelPolicyPage({
               </tr>
             </tbody>
           </table>
+        </div>
         </>
       ) : null}
 
       <h2>What the broker gives back</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
         <tbody>
           <tr>
             <th>
@@ -140,11 +146,13 @@ export default async function CancelPolicyPage({
           </tr>
         </tbody>
       </table>
+        </div>
 
       <h2>How the money goes back</h2>
       {plan.slices.length === 0 ? (
         <p className="note">Nothing is owed back on this date, so no refund will be sent to Stripe.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -165,6 +173,7 @@ export default async function CancelPolicyPage({
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <h2>Confirm</h2>
@@ -196,6 +205,6 @@ export default async function CancelPolicyPage({
           Cancel the policy as of {plan.effectiveAt} and refund {formatCentsAsUsd(breakdown.totalRefundCents)}
         </button>
       </form>
-    </main>
+    </PortalShell>
   );
 }

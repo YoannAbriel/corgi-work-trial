@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 import { KYB_NOT_LIVE_LABEL } from "@/lib/broker/eligibility";
@@ -24,7 +25,7 @@ export default async function OpsBrokersPage({
   const [brokers, query] = await Promise.all([brokersWithKybState(), searchParams]);
 
   return (
-    <main>
+    <PortalShell active="verification" user={user}>
       <h1>Brokers and their verification</h1>
       <p className="note">
         Verification runs on Stripe Connect business verification in test mode, which is not a dedicated KYB vendor;
@@ -41,6 +42,7 @@ export default async function OpsBrokersPage({
       {brokers.length === 0 ? (
         <p className="note">No broker exists yet.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -126,6 +128,7 @@ export default async function OpsBrokersPage({
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <p className="note">
@@ -133,6 +136,6 @@ export default async function OpsBrokersPage({
         Stripe stops emitting <code>account.updated</code> once its identity check has landed, which happens inside the
         two-minute settling window, so this button is how a pending broker becomes approved.
       </p>
-    </main>
+    </PortalShell>
   );
 }

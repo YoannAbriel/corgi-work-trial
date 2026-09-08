@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
@@ -19,7 +20,7 @@ export default async function OpsClaimsPage() {
   const claims = await claimsWithPositions(sql, null);
 
   return (
-    <main>
+    <PortalShell active="claims" user={user}>
       <h1>Claims</h1>
       <p className="lead">
         Signed in as {user.displayName} ({user.role}). Incurred is what a claim has cost so far:
@@ -35,6 +36,7 @@ export default async function OpsClaimsPage() {
           that was bound.
         </p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -67,7 +69,8 @@ export default async function OpsClaimsPage() {
             ))}
           </tbody>
         </table>
+        </div>
       )}
-    </main>
+    </PortalShell>
   );
 }

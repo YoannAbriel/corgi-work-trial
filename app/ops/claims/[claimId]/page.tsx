@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -66,7 +67,7 @@ export default async function ClaimPage({
   const reserveLeftCents = claim.position.reserveCents - claim.pendingCents;
 
   return (
-    <main>
+    <PortalShell active="claims" user={user}>
       <p className="note">
         <Link href="/ops/claims">All claims</Link> | <Link href="/ops/approvals">Money-out approvals</Link> |{" "}
         <Link href={`/policies/${claim.policyId}`}>Policy {claim.policyNumber}</Link>
@@ -88,7 +89,8 @@ export default async function ClaimPage({
       {query.closed ? <p className="note">The claim is closed.</p> : null}
 
       <h2>What this claim has cost</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
         <tbody>
           <tr>
             <th>Paid (sent on the rail, minus anything returned)</th>
@@ -108,9 +110,11 @@ export default async function ClaimPage({
           </tr>
         </tbody>
       </table>
+        </div>
 
       <h2>What is left to pay before a limit stops us</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
         <tbody>
           <tr>
             <th>Reserve available (outstanding, less payments already asked for)</th>
@@ -126,6 +130,7 @@ export default async function ClaimPage({
           </tr>
         </tbody>
       </table>
+        </div>
       <p className="note">
         A payment is refused unless it clears all three, and any payment above{" "}
         {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} also needs a second person to approve it.
@@ -135,6 +140,7 @@ export default async function ClaimPage({
       {reserves.length === 0 ? (
         <p className="note">No reserve has been set yet. Nothing can be paid until one is.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -164,6 +170,7 @@ export default async function ClaimPage({
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {canAct ? (
@@ -194,7 +201,8 @@ export default async function ClaimPage({
           <p className={`badge ${bankAccount.verificationStatus === "verified" ? "badge-ok" : "badge-warn"}`}>
             {bankAccount.verificationStatus}
           </p>
-          <table className="amounts">
+          <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <table className="amounts">
             <tbody>
               <tr>
                 <th>Account holder</th>
@@ -216,6 +224,7 @@ export default async function ClaimPage({
               </tr>
             </tbody>
           </table>
+        </div>
         </>
       ) : (
         <p className="note">No bank account recorded yet. A payment cannot be requested without a verified one.</p>
@@ -238,6 +247,7 @@ export default async function ClaimPage({
       {payments.length === 0 ? (
         <p className="note">Nothing has been paid on this claim.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -307,6 +317,7 @@ export default async function ClaimPage({
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       {canAct ? (
@@ -331,6 +342,7 @@ export default async function ClaimPage({
       {entries.length === 0 ? (
         <p className="note">Nothing posted yet: the first entry appears when a reserve is set.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
         <table className="ledger">
           <thead>
             <tr>
@@ -363,8 +375,9 @@ export default async function ClaimPage({
             )}
           </tbody>
         </table>
+        </div>
       )}
-    </main>
+    </PortalShell>
   );
 }
 
