@@ -211,11 +211,24 @@ $ npm ci                                        clean install
 $ npm run migrate -- --database=test            applied 0012_broker_statements.sql (corgi_test only)
 $ npm run typecheck                             exit 0
 $ npm run build                                 exit 0, 38 routes, the four new ones listed
-$ npm test                                      290 tests, 289 pass, 1 skipped (the live Stripe test)
-$ npm run check:statements                      30 of 30 PASS
-$ npm run check:money-guards -- --database=test  <see the run recorded below>
-$ npm run check:refund-replay                   <see the run recorded below>
+$ npm test                                      291 tests, 290 pass, 1 skipped (the live Stripe test)
+$ npm run check:statements                      30 of 30 PASS, exit 0
+$ npm run check:refund-replay                   27 of 27 PASS, exit 0, unchanged by this slice
+$ npm run check:money-guards -- --database=test  146 of 147 PASS, then 143 of 147 on a rerun
 ```
+
+**The money-guards failures are lock contention, not guard failures, and they are on tables this
+slice does not touch.** `corgi_test` is shared, and three `check:money-guards` processes from other
+agents were running against it at the same time (verified with `ps`); its TRUNCATE probes take an
+ACCESS EXCLUSIVE lock, so they deadlock against each other. First run: one FAIL, `owner cannot
+TRUNCATE approval_requests (deadlock detected)`. Rerun: four, on `brokers`, `policies`, `claims`
+and `approval_requests`, all `deadlock detected`. **All 19 checks this slice adds passed in both
+runs**: the six privilege checks on `statement_runs` and `statement_lines`, the six owner
+UPDATE/DELETE/TRUNCATE checks on them, and the seven shape checks of migration 0012. The
+coordinator proves the whole set on an ephemeral database at merge time.
+
+The trial database was read once, read-only, to confirm it was untouched: its last applied
+migration is `0011_reconciliation.sql` and it holds zero `statement%` tables.
 
 `npm run check:statements`, the lines that matter:
 
@@ -240,6 +253,11 @@ PASS  the runtime role cannot rewrite a published statement
 PASS  the runtime role cannot delete the lines of a published statement
 PASS  the statement renders as a real PDF file  (4313 bytes starting with %PDF-)
 ```
+
+The check leaves its own brokers, policies and statement runs in `corgi_test` and creates fresh
+ones on every run, so it is repeatable and never collides with another slice's rows. It makes one
+read-only call to the real Stripe sandbox (the void asks whether the payment intent exists) and
+creates nothing there.
 
 ### The screens and routes over HTTP
 
