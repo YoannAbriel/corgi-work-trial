@@ -5,7 +5,12 @@ import { readSessionCookie, SESSION_COOKIE_NAME, sessionSecret } from "./session
 // Who is making the current request. Every page and every route handler starts here; none of
 // them trusts an id coming from the URL or the form body.
 
-export type UserRole = "broker" | "customer" | "staff_ops" | "staff_approver";
+// 'agent' arrives with slice B11 (migration 0018): a principal that exists only behind an MCP
+// API key. It is deliberately part of the same list, so every role check in the application
+// refuses it by simply not naming it, and the maker-checker trigger of migration 0008 refuses it
+// too because it demands exactly 'staff_approver'. An agent user cannot sign in
+// (app/api/session/login/route.ts).
+export type UserRole = "broker" | "customer" | "staff_ops" | "staff_approver" | "agent";
 
 export type SignedInUser = {
   id: string;

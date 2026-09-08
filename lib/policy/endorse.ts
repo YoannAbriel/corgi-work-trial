@@ -35,6 +35,7 @@ import {
 } from "./endorsement-requests";
 import { policyWasVoided } from "./status";
 import { policyTermsToPayload, type PolicyTerms } from "./terms";
+import type { UserRole } from "@/lib/auth/current-user";
 
 // Endorsing a policy mid-term: a new annual premium and new limits from an effective date.
 //
@@ -62,7 +63,9 @@ export class EndorsementRefused extends Error {}
 
 export type EndorsementActor = {
   userId: string;
-  role: "broker" | "customer" | "staff_ops" | "staff_approver";
+  // Every role the application knows, including 'agent' (slice B11). The checks below are
+  // allowlists, so a role added later is refused by default rather than by being absent here.
+  role: UserRole;
   brokerId: string | null; // set when the role is 'broker'
   customerId: string | null; // set when the role is 'customer'
 };

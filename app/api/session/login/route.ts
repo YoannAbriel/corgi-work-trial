@@ -19,8 +19,9 @@ export async function POST(request: Request) {
   const [user] = await sql<{ id: string; role: string }[]>`select id, role from users where email = ${email}`;
 
   // One message for a wrong email and a wrong password, so the form cannot be used to find out
-  // which accounts exist.
-  if (!user || !passwordMatches(password, demoPassword())) {
+  // which accounts exist. An 'agent' principal (slice B11) is refused with the same message: it
+  // exists to hold an MCP API key, and a browser session is not a thing it may have.
+  if (!user || user.role === "agent" || !passwordMatches(password, demoPassword())) {
     return redirectTo("/login?error=Unknown+email+or+password");
   }
 
