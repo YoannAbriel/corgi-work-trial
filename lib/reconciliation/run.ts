@@ -312,16 +312,21 @@ export type ScheduledWindow = {
 export async function windowCoveringOpenBreaks(now: Date, database: postgres.Sql = sql): Promise<ScheduledWindow> {
   const standard = defaultWindow(now);
   const oldestOpenBreakAt = await oldestOpenBreakRecordDate(database);
-  if (oldestOpenBreakAt === null || oldestOpenBreakAt >= standard.from) {
+  if (oldestOpenBreakAt === null) {
     return { window: standard, oldestOpenBreakAt, reachesTheOldestOpenBreak: true };
   }
 
+  // Reach back to the oldest open break, but never further than the maximum a single run may
+  // cover. `from` is therefore the oldest of the three, and never earlier than the cap allows.
   const earliestAllowed = new Date(standard.to.getTime() - MAX_WINDOW_DAYS * 24 * 3600 * 1000);
-  const from = oldestOpenBreakAt < earliestAllowed ? earliestAllowed : oldestOpenBreakAt;
+  const wanted = oldestOpenBreakAt < standard.from ? oldestOpenBreakAt : standard.from;
+  const from = wanted < earliestAllowed ? earliestAllowed : wanted;
   return {
     window: { from, to: standard.to },
     oldestOpenBreakAt,
-    reachesTheOldestOpenBreak: from <= oldestOpenBreakAt,
+    // Both ends are checked, not just the old one: a provider whose clock runs ahead of ours can
+    // hand us a record dated after `to`, and such a break is no more covered than an ancient one.
+    reachesTheOldestOpenBreak: from <= oldestOpenBreakAt && oldestOpenBreakAt <= standard.to,
   };
 }
 
