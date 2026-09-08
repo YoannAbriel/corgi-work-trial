@@ -7,17 +7,20 @@ import postgres from "postgres";
 // transaction, so a failing migration leaves the database as it was before it.
 // Run with: npm run migrate   (reads .env.local, uses the owner connection DATABASE_URL)
 
-if (!process.env.DATABASE_URL) {
-  try {
-    process.loadEnvFile(".env.local");
-  } catch {
-    // No .env.local: rely on the environment (CI, Vercel).
-  }
+try {
+  // Variables already present in the environment (CI, Vercel) win over the file.
+  process.loadEnvFile(".env.local");
+} catch {
+  // No .env.local: rely on the environment.
 }
 
-const ownerConnectionString = process.env.DATABASE_URL;
+// `npm run migrate` migrates the trial database (DATABASE_URL).
+// `npm run migrate -- --database=test` migrates the disposable database used by the tests that
+// have to commit rows (DATABASE_URL_TEST). Nothing else changes: same files, same order.
+const useTestDatabase = process.argv.includes("--database=test");
+const ownerConnectionString = useTestDatabase ? process.env.DATABASE_URL_TEST : process.env.DATABASE_URL;
 if (!ownerConnectionString) {
-  console.error("DATABASE_URL is not set");
+  console.error(useTestDatabase ? "DATABASE_URL_TEST is not set" : "DATABASE_URL is not set");
   process.exit(1);
 }
 

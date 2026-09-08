@@ -10,6 +10,8 @@
     "migrate": "tsx scripts/migrate.ts",
     "set-runtime-role-password": "tsx scripts/set-runtime-role-password.ts",
     "check:ledger-guards": "tsx scripts/check-ledger-guards.ts",
+    "check:money-guards": "tsx scripts/check-money-guards.ts",
+    "seed": "tsx scripts/seed.ts",
     "test": "node --import tsx --test lib/**/*.test.ts"
   },
   "dependencies": {
