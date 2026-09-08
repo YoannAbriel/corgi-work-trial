@@ -162,13 +162,15 @@ export type CheckoutOperationView = {
   bindingRefusedReason: string | null;
 };
 
-// The policy's payment operation, if the broker has started one. There is at most one
-// stripe_checkout operation per policy: its idempotency key is derived from the policy id.
+// The policy's ISSUANCE payment operation, if the broker has started one: the latest attempt to
+// pay the policy itself. An endorsement delta is also collected by a stripe_checkout operation
+// (slice B4) and is shown with its endorsement, so those are left out here.
 export async function checkoutOperationOfPolicy(policyId: string): Promise<CheckoutOperationView | null> {
   const [operation] = await sql<{ id: string; amount_cents: string }[]>`
     select id, amount_cents
-      from money_operations
+      from money_operations operation
      where policy_id = ${policyId} and kind = 'stripe_checkout'
+       and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
      order by created_at desc
      limit 1
   `;

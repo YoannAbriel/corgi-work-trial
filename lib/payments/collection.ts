@@ -57,6 +57,16 @@ export async function recordSuccessfulPayment(
   if (!operation) {
     return { kind: "refused", reason: `no stripe_checkout money operation ${payment.operationId}` };
   }
+  // An endorsement delta is collected by a stripe_checkout operation too, but it is posted by
+  // lib/payments/endorsement-collection.ts (the webhook route sends it there first). Posting
+  // the four ISSUANCE entries under it would double the written premium, so it is refused here
+  // as a second line of defence, never silently.
+  if (operation.endorsementRequestEventId) {
+    return {
+      kind: "refused",
+      reason: `operation ${payment.operationId} collects an endorsement delta and is posted by the endorsement path, not as an issuance`,
+    };
+  }
   // The provider's amount must be the amount we asked for. A different amount is not a money
   // event we know how to journal, so it stops here and stays visible for a human.
   if (operation.amountCents !== payment.amountReceivedCents) {
@@ -327,6 +337,8 @@ async function latestSuccessfulPayment(
      where operation.policy_id = ${policyId}
        and operation.kind = 'stripe_checkout'
        and event.status = 'succeeded'
+       -- the issuance payment only: an endorsement delta payment cannot bind a policy
+       and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
      order by event.sequence_number desc
      limit 1
   `;
@@ -376,6 +388,15 @@ export async function recordExpiredCheckoutSession(
   const operation = await loadCheckoutOperation(database, expiry.operationId);
   if (!operation) {
     return { kind: "refused", reason: `no stripe_checkout money operation ${expiry.operationId}` };
+  }
+  // The expiry of an endorsement's hosted page is recorded by the endorsement path (the route
+  // sends it there first); the rule below ("already bound, nothing to reopen") is about the
+  // issuance and would be wrong for an endorsement on a bound policy.
+  if (operation.endorsementRequestEventId) {
+    return {
+      kind: "refused",
+      reason: `operation ${expiry.operationId} collects an endorsement delta; its expiry belongs to the endorsement path`,
+    };
   }
   // A session can expire after the payment succeeded on another attempt; the policy is bound
   // and there is nothing to reopen.
@@ -428,6 +449,9 @@ type CheckoutOperation = {
   brokerId: string;
   commissionRateBps: number;
   amountCents: number;
+  // Set when this operation collects an endorsement delta rather than the issuance charge
+  // (an endorsement_collections row names the request it pays for, migration 0009).
+  endorsementRequestEventId: string | null;
 };
 
 async function loadCheckoutOperation(
@@ -442,6 +466,7 @@ async function loadCheckoutOperation(
       policy_number: string;
       broker_id: string;
       commission_rate_bps: number;
+      endorsement_request_event_id: string | null;
     }[]
   >`
     select operation.id,
@@ -449,10 +474,12 @@ async function loadCheckoutOperation(
            policy.id            as policy_id,
            policy.policy_number as policy_number,
            broker.id            as broker_id,
-           broker.commission_rate_bps
+           broker.commission_rate_bps,
+           link.request_event_id as endorsement_request_event_id
       from money_operations operation
       join policies policy on policy.id = operation.policy_id
       join brokers broker  on broker.id = policy.broker_id
+      left join endorsement_collections link on link.collection_operation_id = operation.id
      where operation.id = ${operationId}
        and operation.kind = 'stripe_checkout'
   `;
@@ -466,5 +493,6 @@ async function loadCheckoutOperation(
     brokerId: row.broker_id,
     commissionRateBps: row.commission_rate_bps,
     amountCents: centsFromDatabase(row.amount_cents, "amount_cents"),
+    endorsementRequestEventId: row.endorsement_request_event_id,
   };
 }
