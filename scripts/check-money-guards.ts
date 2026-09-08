@@ -1,7 +1,7 @@
 import postgres from "postgres";
 
-// Proves, on a real database, that the tables added by migrations 0002, 0004, 0005, 0006 and
-// 0008 are append-only, exactly the way scripts/check-ledger-guards.ts does it for the ledger
+// Proves, on a real database, that the tables added by migrations 0002, 0004, 0005, 0006, 0008
+// and 0011 are append-only, exactly the way scripts/check-ledger-guards.ts does it for the ledger
 // core.
 //
 //   as the owner   : UPDATE, DELETE and TRUNCATE are refused by triggers, even for the role
@@ -48,6 +48,11 @@ const PROTECTED_TABLES = [
   "approval_requests",
   "approval_decisions",
   "simulator_provider_records",
+  // Added by migration 0011 (slice B10): what each reconciliation run compared and what it found.
+  // Protected for the same reason as webhook_events: they record what we knew about a provider at
+  // a moment in time, and rewriting them would let a break disappear without anyone fixing it.
+  "reconciliation_runs",
+  "reconciliation_items",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -199,6 +204,29 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
   `;
   void claimPayout;
 
+  // Slice B10: one reconciliation run and one item of it. The amounts are the planted
+  // provider-only break of scripts/check-reconciliation.ts, so the fixture reads like the real
+  // thing.
+  const [reconciliationRun] = await tx<{ id: string }[]>`
+    insert into reconciliation_runs (
+      source, window_from, window_to, started_at, status,
+      provider_only_count, provider_record_count, ledger_record_count
+    ) values (
+      'stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'complete', 1, 1, 0
+    )
+    returning id
+  `;
+  const [reconciliationItem] = await tx<{ id: string }[]>`
+    insert into reconciliation_items (
+      run_id, classification, break_key, provider_ref, ledger_ref,
+      provider_amount_cents, ledger_amount_cents, difference_cents, first_seen_at, note
+    ) values (
+      ${reconciliationRun.id}, 'provider_only', 'stripe|provider_only|pi_guard_check', 'pi_guard_check', null,
+      4242, null, 4242, now(), 'guard check item, always rolled back'
+    )
+    returning id
+  `;
+
   return {
     brokers: broker.id,
     policies: policy.id,
@@ -215,6 +243,8 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     approval_requests: approvalRequest.id,
     approval_decisions: approvalDecision.id,
     simulator_provider_records: providerRecord.id,
+    reconciliation_runs: reconciliationRun.id,
+    reconciliation_items: reconciliationItem.id,
   };
 }
 
@@ -416,6 +446,9 @@ async function main() {
 
   // 7. Migration 0008: a claim event has to say a coherent thing about money.
   await runClaimEventShapeChecks(owner);
+
+  // 8. Migration 0011: a reconciliation run has to say a coherent thing about what it found.
+  await runReconciliationShapeChecks(owner);
 
   await owner.end();
   await runtime.end();
@@ -687,6 +720,101 @@ async function runClaimEventShapeChecks(owner: postgres.Sql): Promise<void> {
     "an approval request must carry a real sha256 of its intent",
     !!badIntentHash && /approval_requests_intent_hash_check/i.test(badIntentHash),
     badIntentHash ?? "no error raised",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// A reconciliation run cannot lie about what it found (migration 0011)
+// ---------------------------------------------------------------------------
+
+// The rule the brief states outright: an incomplete or failed fetch must never be reported as a
+// clean reconciliation. The application enforces it (lib/reconciliation/run.ts stores no items on
+// a failed run); these checks prove the DATABASE enforces it too, so no future code path, script
+// or console session can write a failed run that also claims to have compared something.
+async function runReconciliationShapeChecks(owner: postgres.Sql): Promise<void> {
+  const failedRunWithCounts = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status, fetch_error, matched_count)
+      values ('stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'failed', 'Stripe timed out', 3)
+    `;
+  });
+  report(
+    "a failed reconciliation run cannot carry counts: it compared nothing",
+    !!failedRunWithCounts && /reconciliation_runs_check/i.test(failedRunWithCounts),
+    failedRunWithCounts ?? "no error raised",
+  );
+
+  const failedRunWithoutReason = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status)
+      values ('stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'failed')
+    `;
+  });
+  report(
+    "a failed reconciliation run must say why it failed",
+    !!failedRunWithoutReason && /reconciliation_runs_check/i.test(failedRunWithoutReason),
+    failedRunWithoutReason ?? "no error raised",
+  );
+
+  const completeRunWithAnError = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status, fetch_error)
+      values ('stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'complete', 'Stripe timed out')
+    `;
+  });
+  report(
+    "a complete reconciliation run cannot carry a fetch error",
+    !!completeRunWithAnError && /reconciliation_runs_check/i.test(completeRunWithAnError),
+    completeRunWithAnError ?? "no error raised",
+  );
+
+  const emptyWindow = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status)
+      values ('stripe', '2026-09-08T00:00:00Z', '2026-09-01T00:00:00Z', now(), 'complete')
+    `;
+  });
+  report(
+    "a reconciliation run cannot cover an empty window",
+    !!emptyWindow && /reconciliation_runs_check/i.test(emptyWindow),
+    emptyWindow ?? "no error raised",
+  );
+
+  const unknownSource = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status)
+      values ('some_other_bank', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'complete')
+    `;
+  });
+  report(
+    "a reconciliation run names one of the two known sources",
+    !!unknownSource && /reconciliation_runs_source_check/i.test(unknownSource),
+    unknownSource ?? "no error raised",
+  );
+
+  // The finishing time of a run and the recording time of its items come from the database clock,
+  // so the age of a break cannot be backdated by whoever writes the run.
+  let storedTimes: { finished_at: Date; recorded_at: Date } | null = null;
+  await expectError(owner, async (tx) => {
+    const [run] = await tx<{ id: string; finished_at: Date }[]>`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status, finished_at)
+      values ('stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'complete', '2000-01-01T00:00:00Z')
+      returning id, finished_at
+    `;
+    const [item] = await tx<{ recorded_at: Date }[]>`
+      insert into reconciliation_items (run_id, classification, break_key, first_seen_at, note, recorded_at, provider_ref)
+      values (${run.id}, 'provider_only', 'stripe|provider_only|pi_clock', now(), 'guard check', '2000-01-01T00:00:00Z', 'pi_clock')
+      returning recorded_at
+    `;
+    storedTimes = { finished_at: run.finished_at, recorded_at: item.recorded_at };
+  });
+  const reconciliationClock = storedTimes as { finished_at: Date; recorded_at: Date } | null;
+  report(
+    "a reconciliation run and its items are timed by the database, not by the client",
+    reconciliationClock !== null &&
+      reconciliationClock.finished_at.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
+      reconciliationClock.recorded_at.getTime() > Date.parse("2020-01-01T00:00:00Z"),
+    reconciliationClock ? `stored ${reconciliationClock.finished_at.toISOString()} instead of 2000-01-01` : "no row read",
   );
 }
 

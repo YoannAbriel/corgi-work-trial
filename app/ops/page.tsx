@@ -37,6 +37,10 @@ export default async function OpsHomePage() {
           <Link href="/ops/approvals">Approvals</Link>: money out above $1,000 waiting for a distinct human approver.
         </li>
         <li>
+          <Link href="/ops/reconciliation">Reconciliation</Link>: what Stripe and the claim payout rail say against what
+          the ledger says, the open breaks and their age, and a &ldquo;Run now&rdquo; button.
+        </li>
+        <li>
           <Link href="/broker">Policies</Link>: the broker journey, readable by staff, with the staff actions on each
           policy page (bind after a refused binding, cancel with a preview).
         </li>
