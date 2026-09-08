@@ -1,5 +1,7 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
+import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Facts, Panel } from "@/components/detail-layout";
+import { JournalTable } from "@/components/journal-table";
 import { MoneyAmountInput } from "@/components/money-amount-input";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -23,8 +25,14 @@ import { SIMULATED_SETTLEMENT_DELAY_DAYS } from "@/lib/rails/simulator";
 //
 //     incurred = paid + reserve
 //
-// The journal table at the bottom is the same story in double entry. If the two ever disagree,
-// one of them is wrong and the page shows both rather than reconciling them for the reader.
+// The journal at the bottom is the same story in double entry. If the two ever disagree, one of
+// them is wrong and the page shows both rather than reconciling them for the reader.
+//
+// Layout (rebuilt 2026-09-08, YOA-633): identity band with the chips, then two columns. Left:
+// the position, the room left before a limit, the payments, the reserve history, the journal.
+// Right: the actions as open forms (a primary action is never hidden), the claimant's bank
+// account, and the explanations under a fold. Every form keeps its endpoint and its fields; the
+// server checks the role, the ceilings and the approval again whatever this page displayed.
 export default async function ClaimPage({
   params,
   searchParams,
@@ -73,356 +81,308 @@ export default async function ClaimPage({
     claim.perOccurrenceLimitCents - claim.position.paidCents - claim.pendingCents;
   const aggregateLeftCents = claim.aggregateLimitCents - claim.policyCommittedCents;
   const reserveLeftCents = claim.position.reserveCents - claim.pendingCents;
+  const waitingForApproval = payments.filter((payment) => payment.railStatus === "waiting for approval").length;
+  const readyToSend = payments.filter((payment) => payment.railStatus === "ready to send").length;
+
+  const notices = [
+    query.error ? <p key="error" className="error" role="alert">{query.error}</p> : null,
+    query.opened ? <p key="opened" className="note" role="status">The claim is open. Set a reserve before paying anything.</p> : null,
+    query.bank ? <p key="bank" className="note" role="status">Bank ownership check (LOCAL SIMULATOR): {query.bank}.</p> : null,
+    query.payment ? <p key="payment" className="note" role="status">Payment: {query.payment.replace(/[-_]/g, " ")}.</p> : null,
+    query.closed ? <p key="closed" className="note" role="status">The claim is closed.</p> : null,
+  ].filter(Boolean);
 
   return (
     <PortalShell active="claims" user={user} trail={[
       { label: "Claims", href: "/ops/claims" },
       { label: `Claim ${claim.claimNumber}` },
     ]}>
-      <h1>Claim {claim.claimNumber}</h1>
-      <p className="lead">
-        {claim.claimantName}. Loss on {claim.occurredAt}, reported {claim.reportedAt}, policy{" "}
-        <Link href={`/policies/${claim.policyId}`}>{claim.policyNumber}</Link>.
-      </p>
-      <p className={`badge ${claim.position.isClosed ? "badge-warn" : "badge-ok"}`}>
-        {claim.position.isClosed ? "closed" : "open"}
-      </p>
-      <SandboxReferences references={[{ label: "Claim id", value: claim.claimId }]} />
-
-      <Disclosure>
-        <p>
-          The three figures below are the ones Track 1 asks for, and they are derived from this
-          claim&apos;s events every time the page is rendered, never stored:{" "}
-          <strong>incurred = paid + reserve</strong>. The journal at the bottom is the same story in
-          double entry; if the two ever disagree, the page shows both rather than reconciling them
-          for the reader.
-        </p>
-        <p>
-          A payment is refused unless it clears the reserve available, the per-occurrence limit and
-          the aggregate limit, and any payment above{" "}
-          {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} also needs a second person to
-          approve it in the <Link href="/ops/approvals">money-out approvals</Link> queue.
-        </p>
-      </Disclosure>
-
-      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
-      {query.opened ? <p className="note" role="status">The claim is open. Set a reserve before paying anything.</p> : null}
-      {query.bank ? <p className="note" role="status">Bank ownership check (LOCAL SIMULATOR): {query.bank}.</p> : null}
-      {query.payment ? <p className="note" role="status">Payment: {query.payment.replace(/[-_]/g, " ")}.</p> : null}
-      {query.closed ? <p className="note" role="status">The claim is closed.</p> : null}
-
-      <h2>What this claim has cost</h2>
-      <div className="table-scroll" role="region" aria-label="Claim position" tabIndex={0}>
-        <table className="amounts">
-        <tbody>
-          <tr>
-            <th>Paid (sent on the rail, minus anything returned)</th>
-            <td className="amount">{formatCentsAsUsd(claim.position.paidCents)}</td>
-          </tr>
-          <tr>
-            <th>Of which the rail has confirmed as settled</th>
-            <td className="amount">{formatCentsAsUsd(claim.position.settledCents)}</td>
-          </tr>
-          <tr>
-            <th>Reserve still outstanding</th>
-            <td className="amount">{formatCentsAsUsd(claim.position.reserveCents)}</td>
-          </tr>
-          <tr className="total">
-            <th>Incurred = paid + reserve</th>
-            <td className="amount">{formatCentsAsUsd(claim.position.incurredCents)}</td>
-          </tr>
-        </tbody>
-      </table>
-        </div>
-
-      <h2>What is left to pay before a limit stops us</h2>
-      <div className="table-scroll" role="region" aria-label="Remaining claim limits" tabIndex={0}>
-        <table className="amounts">
-        <tbody>
-          <tr>
-            <th>Reserve available (outstanding, less payments already asked for)</th>
-            <td className="amount">{formatCentsAsUsd(reserveLeftCents)}</td>
-          </tr>
-          <tr>
-            <th>Per-occurrence limit {formatCentsAsUsd(claim.perOccurrenceLimitCents)}, left on this claim</th>
-            <td className="amount">{formatCentsAsUsd(perOccurrenceLeftCents)}</td>
-          </tr>
-          <tr>
-            <th>Aggregate limit {formatCentsAsUsd(claim.aggregateLimitCents)}, left across the policy</th>
-            <td className="amount">{formatCentsAsUsd(aggregateLeftCents)}</td>
-          </tr>
-        </tbody>
-      </table>
-        </div>
-
-      {/* Every action this claim offers, in one place and closed by default: the page shows what
-          the claim costs first, and a form only when somebody asks for it. Each form keeps its own
-          endpoint and fields, and the server checks the role, the ceilings and the approval again
-          whatever this page displayed. */}
-      {canAct ? (
-        <>
-          <h2>Actions</h2>
-          <Disclosure title={claim.position.hasReserve ? "Adjust the reserve" : "Set the reserve"}>
-            <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-              <input type="hidden" name="action" value="set-reserve" />
-              <label htmlFor="reserveAmount">
-                {claim.position.hasReserve ? "Adjust the reserve to (US dollars)" : "Set the reserve to (US dollars)"}
-              </label>
-              <MoneyAmountInput id="reserveAmount" name="reserveAmount" placeholder="5,000.00" required />
-              <label htmlFor="reserveNote">Why (optional)</label>
-              <input id="reserveNote" name="note" placeholder="engineer's estimate revised" />
-              <button type="submit">
-                {claim.position.hasReserve ? "Adjust the reserve" : "Set the reserve"}
-              </button>
-            </form>
-          </Disclosure>
-
-          <Disclosure title="Record the claimant's bank account (LOCAL SIMULATOR)">
-            <p>
-              This is a simulated ownership check, not a live bank integration. It says verified when
-              the account holder name matches the claimant and the routing number is one this simulator
-              can reach ({SIMULATED_REACHABLE_ROUTING_NUMBERS.join(" or ")}), and failed otherwise. Only
-              the last four digits and a token are stored: the numbers typed below are compared and
-              dropped.
-            </p>
-            <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-              <input type="hidden" name="action" value="add-bank-account" />
-              <label htmlFor="accountHolderName">Account holder name</label>
-              <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
-              <label htmlFor="routingNumber">Routing number (nine digits)</label>
-              <input id="routingNumber" name="routingNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="110000000" required />
-              <label htmlFor="accountNumber">Account number</label>
-              <input id="accountNumber" name="accountNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="000123456789" required />
-              <button type="submit">Check ownership and record the account</button>
-            </form>
-          </Disclosure>
-
-          <Disclosure title="Request a payment to the claimant">
-            <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-              <input type="hidden" name="action" value="request-payment" />
-              <label htmlFor="paymentAmount">Pay the claimant (US dollars)</label>
-              <MoneyAmountInput id="paymentAmount" name="paymentAmount" placeholder="1,200.00" required />
-              <button type="submit">Request this payment</button>
-            </form>
-          </Disclosure>
-
-          {claim.position.reserveCents === 0 && claim.pendingCents === 0 ? (
-            <Disclosure title="Close this claim">
-              <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-                <input type="hidden" name="action" value="close" />
-                <label htmlFor="closeNote">Closing note (optional)</label>
-                <input id="closeNote" name="note" placeholder="settled in full" />
-                <button type="submit">Close this claim</button>
-              </form>
-            </Disclosure>
-          ) : null}
-        </>
-      ) : null}
-
-      <h2>Reserve history</h2>
-      {reserves.length === 0 ? (
-        <p className="note">No reserve has been set yet. Nothing can be paid until one is.</p>
-      ) : (
-        <div className="table-scroll" role="region" aria-label="Reserve history" tabIndex={0}>
-        <table>
-          <thead>
-            <tr>
-              <th>Decision</th>
-              <th className="amount">From</th>
-              <th className="amount">To</th>
-              <th className="amount">Booked</th>
-              <th>Recorded (UTC)</th>
-              <th>By</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reserves.map((reserve) => (
-              <tr key={reserve.claimEventId}>
-                <td>{reserve.eventType.replace("_", " ")}</td>
-                <td className="amount">{formatCentsAsUsd(reserve.previousReserveCents)}</td>
-                <td className="amount">{formatCentsAsUsd(reserve.newReserveCents)}</td>
-                <td className="amount">
-                  {reserve.deltaCents === 0 ? "no entry" : formatCentsAsUsd(reserve.deltaCents)}
-                </td>
-                <td>{reserve.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
-                <td>
-                  {reserve.recordedByName ?? "unknown"}
-                  {reserve.note ? <span className="note"> ({reserve.note})</span> : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      )}
-
-      <h2>Claimant bank account (LOCAL SIMULATOR)</h2>
-      <p className="note">
-        A simulated ownership check, not a live bank integration: it says verified when the account
-        holder name matches the claimant and the routing number is one this simulator can reach
-        ({SIMULATED_REACHABLE_ROUTING_NUMBERS.join(" or ")}), and failed otherwise. Only the last
-        four digits and a token are stored.
-      </p>
-      {bankAccount ? (
-        <>
-          <p className={`badge ${bankAccount.verificationStatus === "verified" ? "badge-ok" : "badge-warn"}`}>
-            {bankAccount.verificationStatus}
-          </p>
-          <div className="table-scroll" role="region" aria-label="Claimant bank account" tabIndex={0}>
-        <table className="amounts">
-            <tbody>
-              <tr>
-                <th>Account holder</th>
-                <td>{bankAccount.accountHolderName}</td>
-              </tr>
-              <tr>
-                <th>Routing / account</th>
-                <td>
-                  ...{bankAccount.routingNumberLast4} / ...{bankAccount.accountNumberLast4}
-                </td>
-              </tr>
-              <tr>
-                <th>Result</th>
-                <td>
-                  {bankAccount.reason}
-                  <SandboxReferences
-                    references={[
-                      { label: "Simulated account token (payment destination)", value: bankAccount.accountToken },
-                    ]}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        </>
-      ) : (
-        <p className="note">No bank account recorded yet. A payment cannot be requested without a verified one.</p>
-      )}
-
-      <h2>Payments</h2>
-      {payments.length === 0 ? (
-        <p className="note">Nothing has been paid on this claim.</p>
-      ) : (
-        <div className="table-scroll" role="region" aria-label="Claim payments" tabIndex={0}>
-        <table>
-          <thead>
-            <tr>
-              <th className="amount">Amount</th>
-              <th>Rail status</th>
-              <th>Approval</th>
-              <th>Transfer</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.map((payment, index) => {
-              const approval = approvals[index];
-              return (
-                <tr key={payment.operationId}>
-                  <td className="amount">{formatCentsAsUsd(payment.amountCents)}</td>
-                  <td>
-                    {payment.railStatus}
-                    {payment.settlementDate ? (
-                      <>
-                        <br />
-                        <span className="note">
-                          {payment.railStatus === "sent" ? "settles on " : "on "}
-                          {payment.settlementDate}
-                        </span>
-                      </>
-                    ) : null}
-                  </td>
-                  <td>
-                    {approval === null || approval === undefined ? (
-                      <span className="note">
-                        below {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}: no approver needed
-                      </span>
-                    ) : (
-                      <>
-                        {approval.decision ?? "waiting"}
-                        <br />
-                        <span className="note">
-                          asked by {approval.requestedByName}
-                          {approval.decidedByName ? `, ${approval.decision} by ${approval.decidedByName}` : ""}
-                        </span>
-                      </>
-                    )}
-                  </td>
-                  <td>
-                    {payment.transferRef ? "on the rail" : <span className="note">not sent yet</span>}
-                    {payment.requestedByName ? (
-                      <>
-                        <br />
-                        <span className="note">requested by {payment.requestedByName}</span>
-                      </>
-                    ) : null}
-                    <SandboxReferences
-                      references={[
-                        { label: "Money operation id", value: payment.operationId },
-                        { label: "Simulated transfer reference", value: payment.transferRef },
-                        { label: "Approval request id", value: payment.approvalRequestId },
-                      ]}
-                    />
-                  </td>
-                  <td>
-                    {user.role === "staff_ops" ? (
-                      <PaymentActions
-                        claimId={claim.claimId}
-                        operationId={payment.operationId}
-                        railStatus={payment.railStatus}
-                      />
-                    ) : (
-                      <span className="note">read-only for an approver</span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        </div>
-      )}
-
-      <h2>Journal entries of this claim</h2>
-      {entries.length === 0 ? (
-        <p className="note">Nothing posted yet: the first entry appears when a reserve is set.</p>
-      ) : (
-        <div className="table-scroll" role="region" aria-label="Claim journal" tabIndex={0}>
-        <table className="ledger">
-          <thead>
-            <tr>
-              <th>Entry</th>
-              <th>Effective</th>
-              <th>Recorded (UTC)</th>
-              <th>Account</th>
-              <th className="amount">Debit</th>
-              <th className="amount">Credit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map((entry) =>
-              entry.lines.map((line, lineIndex) => (
-                <tr key={`${entry.entryId}-${line.accountId}-${lineIndex}`}>
-                  {lineIndex === 0 ? (
-                    <>
-                      <td rowSpan={entry.lines.length}>{entry.entryType}</td>
-                      <td rowSpan={entry.lines.length}>{entry.effectiveAt}</td>
-                      <td rowSpan={entry.lines.length}>
-                        {entry.recordedAt.toISOString().replace("T", " ").slice(0, 19)}
-                      </td>
-                    </>
-                  ) : null}
-                  <td>{line.accountName}</td>
-                  <td className="amount">{line.debitCents > 0 ? formatCentsAsUsd(line.debitCents) : ""}</td>
-                  <td className="amount">{line.creditCents > 0 ? formatCentsAsUsd(line.creditCents) : ""}</td>
-                </tr>
-              )),
+      <DetailHeading
+        title={`Claim ${claim.claimNumber}`}
+        lead={
+          <>
+            {claim.claimantName} · loss on {claim.occurredAt} · reported {claim.reportedAt} · policy{" "}
+            <Link href={`/policies/${claim.policyId}`}>{claim.policyNumber}</Link>
+          </>
+        }
+        chips={
+          <>
+            <Chip tone={claim.position.isClosed ? "neutral" : "ok"}>{claim.position.isClosed ? "closed" : "open"}</Chip>
+            {claim.position.hasReserve ? null : <Chip tone="warn">no reserve yet</Chip>}
+            {bankAccount ? (
+              <Chip tone={bankAccount.verificationStatus === "verified" ? "ok" : "warn"}>bank account {bankAccount.verificationStatus}</Chip>
+            ) : (
+              <Chip tone="warn">no bank account</Chip>
             )}
-          </tbody>
-        </table>
-        </div>
-      )}
+            {waitingForApproval > 0 ? <Chip tone="warn">{waitingForApproval} waiting for approval</Chip> : null}
+            {readyToSend > 0 ? <Chip tone="warn">{readyToSend} ready to send</Chip> : null}
+          </>
+        }
+      />
+
+      {notices.length > 0 ? <div className="notices">{notices}</div> : null}
+
+      <DetailGrid
+        main={
+          <>
+            <Panel title="What this claim has cost">
+              <Facts
+                items={[
+                  { label: "Paid, sent on the rail minus anything returned", value: formatCentsAsUsd(claim.position.paidCents) },
+                  { label: "Of which settled by the rail", value: formatCentsAsUsd(claim.position.settledCents) },
+                  { label: "Reserve still outstanding", value: formatCentsAsUsd(claim.position.reserveCents) },
+                  { label: "Incurred = paid + reserve", value: formatCentsAsUsd(claim.position.incurredCents), emphasis: true },
+                ]}
+              />
+            </Panel>
+
+            <Panel title="Room left before a limit stops us">
+              <Facts
+                compact
+                items={[
+                  { label: "Reserve available, less payments already asked for", value: formatCentsAsUsd(reserveLeftCents) },
+                  { label: `Per-occurrence limit ${formatCentsAsUsd(claim.perOccurrenceLimitCents)}, left on this claim`, value: formatCentsAsUsd(perOccurrenceLeftCents) },
+                  { label: `Aggregate limit ${formatCentsAsUsd(claim.aggregateLimitCents)}, left across the policy`, value: formatCentsAsUsd(aggregateLeftCents) },
+                ]}
+              />
+            </Panel>
+
+            <Panel title="Payments">
+              {payments.length === 0 ? (
+                <Empty>Nothing has been paid on this claim.</Empty>
+              ) : (
+                <div className="table-scroll" role="region" aria-label="Claim payments" tabIndex={0}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th className="amount">Amount</th>
+                        <th>Rail status</th>
+                        <th>Approval</th>
+                        <th>Requested by</th>
+                        <th>Transfer</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map((payment, index) => {
+                        const approval = approvals[index];
+                        return (
+                          <tr key={payment.operationId}>
+                            <td className="amount">{formatCentsAsUsd(payment.amountCents)}</td>
+                            <td>
+                              <Chip tone={payment.railStatus === "settled" ? "ok" : payment.railStatus === "returned" || payment.railStatus === "refused" ? "warn" : "neutral"}>
+                                {payment.railStatus}
+                              </Chip>
+                              {payment.settlementDate ? (
+                                <>
+                                  <br />
+                                  <span className="note">
+                                    {payment.railStatus === "sent" ? "settles on " : "on "}
+                                    {payment.settlementDate}
+                                  </span>
+                                </>
+                              ) : null}
+                            </td>
+                            <td>
+                              {approval === null || approval === undefined ? (
+                                <span className="note">below {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}: no approver needed</span>
+                              ) : (
+                                <>
+                                  {approval.decision ?? "waiting"}
+                                  <br />
+                                  <span className="note">
+                                    asked by {approval.requestedByName}
+                                    {approval.decidedByName ? `, ${approval.decision} by ${approval.decidedByName}` : ""}
+                                  </span>
+                                </>
+                              )}
+                            </td>
+                            <td>
+                              {payment.requestedByName ?? "unknown"}
+                              {/* A request raised through the MCP endpoint says so here too, not only
+                                  on the approvals queue: below the threshold nobody else would be
+                                  told a machine asked (review finding F-B11-01). */}
+                              {payment.requestedThrough ? (
+                                <>
+                                  <br />
+                                  <Chip tone="warn">
+                                    raised by {payment.requestedThrough.principalKind === "agent" ? "an AGENT" : "a person over MCP"}, key{" "}
+                                    {payment.requestedThrough.keyPrefix}
+                                  </Chip>
+                                </>
+                              ) : null}
+                            </td>
+                            <td>
+                              {payment.transferRef ? "on the rail" : <span className="note">not sent yet</span>}
+                              <SandboxReferences
+                                references={[
+                                  { label: "Money operation id", value: payment.operationId },
+                                  { label: "Simulated transfer reference", value: payment.transferRef },
+                                  { label: "Approval request id", value: payment.approvalRequestId },
+                                ]}
+                              />
+                            </td>
+                            <td>
+                              {user.role === "staff_ops" ? (
+                                <PaymentActions claimId={claim.claimId} operationId={payment.operationId} railStatus={payment.railStatus} />
+                              ) : (
+                                <span className="note">read-only for an approver</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+
+            <Panel title="Reserve history">
+              {reserves.length === 0 ? (
+                <Empty>No reserve has been set yet. Nothing can be paid until one is.</Empty>
+              ) : (
+                <div className="table-scroll" role="region" aria-label="Reserve history" tabIndex={0}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Decision</th>
+                        <th className="amount">From</th>
+                        <th className="amount">To</th>
+                        <th className="amount">Booked</th>
+                        <th>Recorded (UTC)</th>
+                        <th>By</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reserves.map((reserve) => (
+                        <tr key={reserve.claimEventId}>
+                          <td>{reserve.eventType.replace("_", " ")}</td>
+                          <td className="amount">{formatCentsAsUsd(reserve.previousReserveCents)}</td>
+                          <td className="amount">{formatCentsAsUsd(reserve.newReserveCents)}</td>
+                          <td className="amount">{reserve.deltaCents === 0 ? "no entry" : formatCentsAsUsd(reserve.deltaCents)}</td>
+                          <td>{reserve.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
+                          <td>
+                            {reserve.recordedByName ?? "unknown"}
+                            {reserve.note ? <span className="note"> ({reserve.note})</span> : null}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Panel>
+
+            <Panel title="Journal entries of this claim">
+              {entries.length === 0 ? (
+                <Empty>Nothing posted yet: the first entry appears when a reserve is set.</Empty>
+              ) : (
+                <JournalTable entries={entries} ariaLabel="Claim journal" />
+              )}
+            </Panel>
+          </>
+        }
+        aside={
+          <>
+            {canAct ? (
+              <Panel title="Actions">
+                <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+                  <input type="hidden" name="action" value="set-reserve" />
+                  <label htmlFor="reserveAmount">
+                    {claim.position.hasReserve ? "Adjust the reserve to (US dollars)" : "Set the reserve to (US dollars)"}
+                  </label>
+                  <MoneyAmountInput id="reserveAmount" name="reserveAmount" placeholder="5,000.00" required />
+                  <label htmlFor="reserveNote">Why (optional)</label>
+                  <input id="reserveNote" name="note" placeholder="engineer's estimate revised" />
+                  <button type="submit" className="secondary">{claim.position.hasReserve ? "Adjust the reserve" : "Set the reserve"}</button>
+                </form>
+
+                <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+                  <input type="hidden" name="action" value="add-bank-account" />
+                  <label htmlFor="accountHolderName">Claimant&apos;s account holder name (LOCAL SIMULATOR)</label>
+                  <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
+                  <label htmlFor="routingNumber">Routing number (nine digits)</label>
+                  <input id="routingNumber" name="routingNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="110000000" required />
+                  <label htmlFor="accountNumber">Account number</label>
+                  <input id="accountNumber" name="accountNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="000123456789" required />
+                  <button type="submit" className="secondary">Check ownership and record the account</button>
+                </form>
+
+                <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+                  <input type="hidden" name="action" value="request-payment" />
+                  <label htmlFor="paymentAmount">Pay the claimant (US dollars)</label>
+                  <MoneyAmountInput id="paymentAmount" name="paymentAmount" placeholder="1,200.00" required />
+                  <button type="submit" className="orange">Request this payment</button>
+                </form>
+
+                {claim.position.reserveCents === 0 && claim.pendingCents === 0 ? (
+                  <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+                    <input type="hidden" name="action" value="close" />
+                    <label htmlFor="closeNote">Closing note (optional)</label>
+                    <input id="closeNote" name="note" placeholder="settled in full" />
+                    <button type="submit" className="danger">Close this claim</button>
+                  </form>
+                ) : null}
+              </Panel>
+            ) : null}
+
+            <Panel title="Claimant bank account">
+              {bankAccount ? (
+                <AsideList
+                  items={[
+                    { label: "Check", value: <Chip tone={bankAccount.verificationStatus === "verified" ? "ok" : "warn"}>{bankAccount.verificationStatus}</Chip> },
+                    { label: "Account holder", value: bankAccount.accountHolderName },
+                    { label: "Routing / account", value: `...${bankAccount.routingNumberLast4} / ...${bankAccount.accountNumberLast4}` },
+                    {
+                      label: "Result",
+                      value: (
+                        <>
+                          {bankAccount.reason}
+                          <SandboxReferences references={[{ label: "Simulated account token (payment destination)", value: bankAccount.accountToken }]} />
+                        </>
+                      ),
+                    },
+                  ]}
+                />
+              ) : (
+                <Empty>No bank account recorded yet. A payment cannot be requested without a verified one.</Empty>
+              )}
+              <p className="note">
+                LOCAL SIMULATOR: a simulated ownership check, not a live bank integration. It says verified when the
+                account holder name matches the claimant and the routing number is one this simulator can reach
+                ({SIMULATED_REACHABLE_ROUTING_NUMBERS.join(" or ")}), and failed otherwise. Only the last four digits
+                and a token are stored.
+              </p>
+            </Panel>
+
+            <Panel title="How to read this page">
+              <Disclosure title="Incurred = paid + reserve">
+                <p>
+                  The figures are derived from this claim&apos;s events every time the page is rendered, never stored.
+                  The journal is the same story in double entry; if the two ever disagree, the page shows both rather
+                  than reconciling them for the reader.
+                </p>
+              </Disclosure>
+              <Disclosure title="Limits and approval">
+                <p>
+                  A payment is refused unless it clears the reserve available, the per-occurrence limit and the
+                  aggregate limit, and any payment above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)},
+                  counting what was already paid or asked for on this claim, needs a second person in the{" "}
+                  <Link href="/ops/approvals">money-out approvals</Link> queue.
+                </p>
+              </Disclosure>
+              <Disclosure title="The simulated rail">
+                <p>
+                  Paid counts a payment from the moment it is sent on the rail; the simulator settles it after{" "}
+                  {SIMULATED_SETTLEMENT_DELAY_DAYS} days or when a person presses settle, and a return puts the money
+                  back. A real rail would send those events itself.
+                </p>
+              </Disclosure>
+            </Panel>
+          </>
+        }
+      />
     </PortalShell>
   );
 }
@@ -443,12 +403,10 @@ function PaymentActions({
 
   if (railStatus === "ready to send") {
     return (
-      <RowActions label="Send">
-        <form method="post" action={action} className="inline-form">
-          <input type="hidden" name="action" value="send" />
-          <button type="submit">Send on the rail</button>
-        </form>
-      </RowActions>
+      <form method="post" action={action} className="inline-form">
+        <input type="hidden" name="action" value="send" />
+        <button type="submit" className="small">Send on the rail</button>
+      </form>
     );
   }
   if (railStatus === "waiting for approval") {
@@ -459,8 +417,8 @@ function PaymentActions({
       <RowActions label="LOCAL SIMULATOR">
         <form method="post" action={action} className="inline-form">
           <input type="hidden" name="action" value="settle" />
-          <button type="submit">
-            LOCAL SIMULATOR: settle now (it would settle on its own after {SIMULATED_SETTLEMENT_DELAY_DAYS} days)
+          <button type="submit" className="secondary small">
+            Settle now (it would settle on its own after {SIMULATED_SETTLEMENT_DELAY_DAYS} days)
           </button>
         </form>
       </RowActions>
@@ -471,9 +429,9 @@ function PaymentActions({
       <RowActions label="LOCAL SIMULATOR">
         <form method="post" action={action} className="card">
           <input type="hidden" name="action" value="return" />
-          <label htmlFor={`returnReason-${operationId}`}>LOCAL SIMULATOR: the bank returns the money</label>
+          <label htmlFor={`returnReason-${operationId}`}>The bank returns the money</label>
           <input id={`returnReason-${operationId}`} name="returnReason" defaultValue="account_closed" />
-          <button type="submit">Return this payment</button>
+          <button type="submit" className="secondary small">Return this payment</button>
         </form>
       </RowActions>
     );

@@ -1,5 +1,6 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
+import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -37,52 +38,56 @@ export default async function ApprovalsPage({
   const waiting = requests.filter((request) => request.decision === null);
   const decided = requests.filter((request) => request.decision !== null);
 
+  const waitingCents = waiting.reduce((total, request) => total + request.amountCents, 0);
+  const notices = [
+    query.error ? <p key="error" className="error" role="alert">{query.error}</p> : null,
+    query.decided ? <p key="decided" className="note" role="status">Recorded: the request was {query.decided}.</p> : null,
+  ].filter(Boolean);
+
   return (
     <PortalShell active="approvals" user={user}>
-      <h1>Money-out approvals</h1>
-      <p className="lead">
-        Anything above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} leaving this system,
-        a claim payment or a cancellation refund, waits here until a staff approver who is not the
-        person who asked says yes. Signed in as {user.displayName} ({user.role}).
-      </p>
+      <DetailHeading
+        title="Money-out approvals"
+        lead={`Anything above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} leaving this system, a claim payment or a cancellation refund, waits here until a staff approver who is not the person who asked says yes.`}
+        chips={
+          <>
+            <Chip tone={waiting.length > 0 ? "warn" : "ok"}>
+              {waiting.length === 0 ? "nothing waiting" : `${waiting.length} waiting, ${formatCentsAsUsd(waitingCents)}`}
+            </Chip>
+            <Chip tone="neutral">{user.role === "staff_approver" ? "you can decide" : "you cannot decide: not an approver"}</Chip>
+          </>
+        }
+      />
 
-      <Disclosure>
-        <p>
-          The threshold is an assumption of this build, decided on 2026-09-08 and recorded in the
-          decision log. It is not a regulatory figure. A money-out below it never appears here.
-        </p>
-        <p>
-          Open a row to decide it. What you approve is the exact text shown there, and its sha256
-          is stored with the request: at execution time the intent is rebuilt from the state of the
-          world at that moment and the payment is refused if it differs by one character, so an
-          approval can never authorise a different amount, claim or destination account.
-        </p>
-        <p>
-          Three reasons stop a decision, and the database enforces all three, not the screen: you
-          are not a staff approver, you asked for this money-out yourself, or somebody has already
-          decided it.
-        </p>
-        <p>
-          <Link href="/ops/claims">All claims</Link>
-        </p>
-      </Disclosure>
+      {notices.length > 0 ? <div className="notices">{notices}</div> : null}
 
-      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
-      {query.decided ? <p className="note" role="status">Recorded: the request was {query.decided}.</p> : null}
+      <Panel title="Waiting for a decision" className="list-panel">
+        {waiting.length === 0 ? (
+          <Empty>Nothing is waiting. A money-out below the threshold never appears here.</Empty>
+        ) : (
+          <RequestTable requests={waiting} user={user} />
+        )}
+      </Panel>
 
-      <h2>Waiting for a decision</h2>
-      {waiting.length === 0 ? (
-        <p className="note" role="status">Nothing is waiting. A money-out below the threshold never appears here.</p>
-      ) : (
-        <RequestTable requests={waiting} user={user} />
-      )}
-
-      <h2>Already decided</h2>
-      {decided.length === 0 ? (
-        <p className="note">No request has been decided yet.</p>
-      ) : (
-        <RequestTable requests={decided} user={user} />
-      )}
+      <Panel title="Already decided" className="list-panel">
+        {decided.length === 0 ? <Empty>No request has been decided yet.</Empty> : <RequestTable requests={decided} user={user} />}
+        <Disclosure>
+          <p>
+            The threshold is an assumption of this build, decided on 2026-09-08 and recorded in the decision log. It is
+            not a regulatory figure. A money-out below it never appears here.
+          </p>
+          <p>
+            Open a row to decide it. What you approve is the exact text shown there, and its sha256 is stored with the
+            request: at execution time the intent is rebuilt from the state of the world at that moment and the payment
+            is refused if it differs by one character, so an approval can never authorise a different amount, claim or
+            destination account.
+          </p>
+          <p>
+            Three reasons stop a decision, and the database enforces all three, not the screen: you are not a staff
+            approver, you asked for this money-out yourself, or somebody has already decided it.
+          </p>
+        </Disclosure>
+      </Panel>
     </PortalShell>
   );
 }
@@ -133,9 +138,7 @@ function RequestTable({
                     {/* Slice B11: the request came through the MCP endpoint. An approver has to see
                         that a machine asked before deciding, so this is never folded away behind a
                         disclosure; the agent itself can never decide, here or in the database. */}
-                    {request.raisedByAgent ? (
-                      <span className="badge badge-warn">raised by an AGENT</span>
-                    ) : null}
+                    {request.raisedByAgent ? <Chip tone="warn">raised by an AGENT</Chip> : null}
                     <span className="note">
                       {request.raisedThrough}. The person named above holds that key; an agent
                       principal can never approve a money-out.
@@ -153,11 +156,9 @@ function RequestTable({
               </td>
               <td>
                 {request.decision === null ? (
-                  <span className="badge badge-warn">waiting</span>
+                  <Chip tone="warn">waiting</Chip>
                 ) : (
-                  <span className={`badge ${request.decision === "approved" ? "badge-ok" : "badge-warn"}`}>
-                    {request.decision}
-                  </span>
+                  <Chip tone={request.decision === "approved" ? "ok" : "neutral"}>{request.decision}</Chip>
                 )}
               </td>
               <td>
@@ -219,10 +220,10 @@ function Decision({ request, user }: { request: ApprovalRequestView; user: Signe
       <form method="post" action={`/api/approvals/${request.requestId}`} className="card">
         <label htmlFor={`reason-${request.requestId}`}>Reason (optional, kept with the decision)</label>
         <input id={`reason-${request.requestId}`} name="reason" placeholder="checked against the file" />
-        <button type="submit" name="decision" value="approved">
+        <button type="submit" name="decision" value="approved" className="orange">
           Approve {formatCentsAsUsd(request.amountCents)}
         </button>
-        <button type="submit" name="decision" value="rejected" className="secondary destructive">
+        <button type="submit" name="decision" value="rejected" className="danger">
           Reject
         </button>
       </form>

@@ -1,5 +1,6 @@
 import { PortalShell } from "@/components/portal-shell";
-import { SandboxReferences } from "@/components/disclosures";
+import { Disclosure, SandboxReferences } from "@/components/disclosures";
+import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Facts, Panel } from "@/components/detail-layout";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -84,247 +85,208 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
   const formatChanged =
     run.previousCanonicalVersion !== null && run.previousCanonicalVersion !== run.canonicalVersion;
 
+  const listHref = isStaff ? "/ops/statements" : "/broker/statements";
   return (
-    <PortalShell user={user} active="statements" trail={[{ label: "Statements", href: user.role === "broker" ? "/broker/statements" : "/ops/statements" }, { label: "Statement detail" }]}>
-      <p className="note">
-        <Link href={isStaff ? "/ops/statements" : "/broker/statements"}>All statements</Link>
-      </p>
+    <PortalShell user={user} active="statements" trail={[{ label: "Statements", href: listHref }, { label: `${run.brokerName}, ${run.statementMonth}` }]}>
+      <DetailHeading
+        title={`${run.brokerName}, ${run.statementMonth}`}
+        lead={`Revision ${run.revision}${run.supersedesRunId ? ", superseding the previous revision of this month" : ", the first run of this month"}. Knowledge cutoff ${utc(run.knowledgeCutoff)} UTC.`}
+        chips={
+          <>
+            <Chip tone={tiesToTheLedger ? "ok" : "warn"}>{tiesToTheLedger ? "ties to the ledger" : "does NOT tie to the ledger"}</Chip>
+            {run.monthWasStillRunning ? <Chip tone="warn">provisional, month in progress</Chip> : <Chip tone="neutral">month closed</Chip>}
+            {run.identicalToPrevious ? <Chip tone="ok">identical to revision {run.revision - 1}</Chip> : null}
+            {formatChanged ? <Chip tone="neutral">format changed since revision {run.revision - 1}</Chip> : null}
+            {collected.formatNote ? <Chip tone="warn">{collected.formatNote}</Chip> : null}
+          </>
+        }
+        actions={
+          <>
+            <Link href={`/api/statements/${run.runId}/pdf`} className="button-link">
+              Download the PDF
+            </Link>
+            {isStaff ? (
+              <form method="post" action="/api/statements/run" className="inline-form">
+                <input type="hidden" name="brokerId" value={run.brokerId} />
+                <input type="hidden" name="month" value={run.statementMonth} />
+                <input type="hidden" name="knowledgeCutoff" value={run.knowledgeCutoff.toISOString()} />
+                <button type="submit" className="secondary">Re-run with this knowledge cutoff</button>
+              </form>
+            ) : null}
+          </>
+        }
+      />
 
-      <h1>
-        {run.brokerName}, {run.statementMonth}
-      </h1>
-      <p className="lead">
-        Revision {run.revision}
-        {run.supersedesRunId ? ", superseding the previous revision of this month" : ", the first run of this month"}.
-        All times are UTC.
-      </p>
+      {tiesToTheLedger ? null : (
+        <div className="notices">
+          <p className="error" role="alert">
+            The statement says {formatCentsAsUsd(run.netDueCents)} and the journal says{" "}
+            {formatCentsAsUsd(ledgerMovementCents)} for the same broker, month and cutoff. The ledger is the truth:
+            this run must not be paid until the difference is explained.
+          </p>
+        </div>
+      )}
 
-      {collected.formatNote ? <p className="badge badge-warn">{collected.formatNote}</p> : null}
-
-      {formatChanged ? (
-        <p className="note">
-          The statement format changed between revision {run.revision - 1} (v{run.previousCanonicalVersion}) and
-          this one (v{run.canonicalVersion}): the two documents hash different texts, so they cannot be compared
-          by hash. The journal entries below still can be, and they are.
-        </p>
-      ) : null}
-
-      {run.monthWasStillRunning ? (
-        <p className="badge badge-warn">
-          Month in progress, provisional: this run was produced before {run.statementMonth} was over, so more money
-          could still be booked into it. It stays exactly as it is; the run made after the month ends is the next
-          revision and the definitive one.
-        </p>
-      ) : null}
-
-      {run.identicalToPrevious ? (
-        <p className="badge badge-ok">
-          Identical to revision {run.revision - 1}: the same journal entries, the same content hash. Re-running a
-          closed month with its own cutoff reproduces it exactly.
-        </p>
-      ) : null}
-
-      <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
-<table className="amounts">
-        <tbody>
-          <tr>
-            <th>Statement month</th>
-            <td>{run.statementMonth}, by the business (effective) date of each journal entry</td>
-          </tr>
-          <tr>
-            <th>Knowledge cutoff</th>
-            <td>
-              {utc(run.knowledgeCutoff)}: only entries recorded at or before this instant are on the statement
-            </td>
-          </tr>
-          <tr>
-            <th>Content hash (sha256)</th>
-            <td>
-              {/* The hash is what proves a re-run reproduced this revision. It is evidence, so it
-                  sits behind the affordance with the run id rather than across the row. */}
-              re-running this month with the same knowledge cutoff reproduces it
-              <SandboxReferences
-                references={[
-                  { label: "Content hash (sha256)", value: run.contentHash },
-                  { label: "Statement run id", value: run.runId },
+      <DetailGrid
+        main={
+          <>
+            <Panel title="Totals">
+              <Facts
+                items={[
+                  { label: "Cash collected from customers (premium, tax and fee)", value: formatCentsAsUsd(collected.cashCollectedCents) },
+                  {
+                    label: "Premium collected, the commission base",
+                    value: collected.premiumCollectedCents === null ? "not stored on this revision" : formatCentsAsUsd(collected.premiumCollectedCents),
+                  },
+                  { label: `Commission earned${collected.premiumCollectedCents === null ? "" : " on that premium"}`, value: formatCentsAsUsd(run.commissionEarnedCents) },
+                  { label: "Commission clawed back on refunded premium", value: formatCentsAsUsd(-run.clawbackCents) },
+                  ...(run.adjustmentCents === 0 ? [] : [{ label: "Other adjustments to the commission owed", value: formatCentsAsUsd(run.adjustmentCents) }]),
+                  { label: "Net due to the broker", value: formatCentsAsUsd(run.netDueCents), emphasis: true },
                 ]}
               />
-            </td>
-          </tr>
-          <tr>
-            <th>Produced</th>
-            <td>
-              {utc(run.createdAt)}
-              {run.runByName ? ` by ${run.runByName}` : ""}
-            </td>
-          </tr>
-          {run.supersedesRunId ? (
-            <tr>
-              <th>Supersedes</th>
-              <td>
-                <Link href={`/statements/${run.supersedesRunId}`}>revision {run.revision - 1} of this month</Link>
-              </td>
-            </tr>
-          ) : null}
-          <tr>
-            <th>Document</th>
-            <td>
-              <Link href={`/api/statements/${run.runId}/pdf`}>Download the PDF</Link>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-</div>
+              <p className="note">
+                {tiesToTheLedger
+                  ? `Net due ${formatCentsAsUsd(run.netDueCents)} equals the movement of this broker's commission payable account in the journal for ${run.statementMonth}, recomputed now with the same knowledge cutoff.`
+                  : "See the alert above: the statement and the journal disagree."}
+              </p>
+            </Panel>
 
-      <h2>Reproducing this statement</h2>
-      <p className="note">
-        Running {run.statementMonth} again for {run.brokerName} with the knowledge cutoff above reads the same
-        journal entries and produces the same content hash, because a journal row can never change and its
-        recording time is stamped by the database. One case does not reproduce, and it is the reason a
-        provisional run says so: an entry whose database transaction started before that cutoff and committed
-        after this run had read the ledger is absent here and present in a later run with the same cutoff. Once
-        the month is closed and quiet, which is what a monthly statement is for, it cannot happen.
-      </p>
+            <Panel title="Movements">
+              {lines.length === 0 ? (
+                <Empty>
+                  No premium was collected and no commission moved for this broker in {run.statementMonth}. An empty
+                  statement is a real statement: it says the month was quiet, not that nothing was looked at.
+                </Empty>
+              ) : (
+                <div className="table-scroll" role="region" aria-label="Statement movements" tabIndex={0}>
+                  <table className="ledger">
+                    <thead>
+                      <tr>
+                        <th>Effective</th>
+                        <th>Recorded (UTC)</th>
+                        <th>Line</th>
+                        <th>Policy</th>
+                        <th>Journal entry</th>
+                        <th className="amount">Amount</th>
+                        <th className="amount">Premium in it</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lines.map((line) => (
+                        <tr key={line.journalEntryId}>
+                          <td>{calendarDate(line.effectiveAt)}</td>
+                          <td>{utc(line.entryRecordedAt)}</td>
+                          <td>
+                            {KIND_LABEL[line.kind]}
+                            <br />
+                            <span className="note">{line.description}</span>
+                          </td>
+                          <td>
+                            {line.policyId && line.policyNumber ? (
+                              <Link href={`/policies/${line.policyId}`}>{line.policyNumber}</Link>
+                            ) : (
+                              <span className="note">no policy</span>
+                            )}
+                          </td>
+                          <td>
+                            <code>{line.journalEntryId.slice(0, 8)}</code>
+                          </td>
+                          <td className="amount">{formatCentsAsUsd(line.amountCents)}</td>
+                          <td className="amount">
+                            {line.commissionBaseCents === null ? <span className="note">not a cash line</span> : formatCentsAsUsd(line.commissionBaseCents)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <Disclosure title="The two collected figures">
+                <p>
+                  The two collected figures are the same money read twice: the cash line is what the customers paid,
+                  premium plus state premium tax plus policy fee, and the premium line is the part of it commission is
+                  earned on. Both come from the journal: the cash from the collection entries, the premium from the
+                  entries that wrote it under the same payment. Commission is the premium times the broker&apos;s rate,
+                  rounded down, and never touches tax or fee. Refunds are not netted into these two figures; they are
+                  on their own lines, next to the clawback each one produced.
+                </p>
+              </Disclosure>
+            </Panel>
 
-      <h2>Ties to the ledger</h2>
-      {tiesToTheLedger ? (
-        <p className="badge badge-ok">
-          Net due {formatCentsAsUsd(run.netDueCents)} equals the movement of this broker&apos;s commission payable
-          account in the journal for {run.statementMonth}, recomputed now with the same knowledge cutoff.
-        </p>
-      ) : (
-        <p className="error" role="alert">
-          The statement says {formatCentsAsUsd(run.netDueCents)} and the journal says{" "}
-          {formatCentsAsUsd(ledgerMovementCents)} for the same broker, month and cutoff. The ledger is the truth:
-          this run must not be paid until the difference is explained.
-        </p>
-      )}
-
-      <h2>Movements</h2>
-      {lines.length === 0 ? (
-        <p className="note">
-          No premium was collected and no commission moved for this broker in {run.statementMonth}. An empty
-          statement is a real statement: it says the month was quiet, not that nothing was looked at.
-        </p>
-      ) : (
-        <div className="table-scroll" role="region" aria-label="Statements table 2" tabIndex={0}>
-<table className="ledger">
-          <thead>
-            <tr>
-              <th>Effective</th>
-              <th>Recorded (UTC)</th>
-              <th>Line</th>
-              <th>Policy</th>
-              <th>Journal entry</th>
-              <th className="amount">Amount</th>
-              <th className="amount">Premium in it</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((line) => (
-              <tr key={line.journalEntryId}>
-                <td>{calendarDate(line.effectiveAt)}</td>
-                <td>{utc(line.entryRecordedAt)}</td>
-                <td>
-                  {KIND_LABEL[line.kind]}
-                  <br />
-                  <span className="note">{line.description}</span>
-                </td>
-                <td>
-                  {line.policyId && line.policyNumber ? (
-                    <Link href={`/policies/${line.policyId}`}>{line.policyNumber}</Link>
-                  ) : (
-                    <span className="note">no policy</span>
-                  )}
-                </td>
-                <td>
-                  <code>{line.journalEntryId.slice(0, 8)}</code>
-                </td>
-                <td className="amount">{formatCentsAsUsd(line.amountCents)}</td>
-                <td className="amount">
-                  {line.commissionBaseCents === null ? (
-                    <span className="note">not a cash line</span>
-                  ) : (
-                    formatCentsAsUsd(line.commissionBaseCents)
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-</div>
-      )}
-
-      <h2>Totals</h2>
-      <div className="table-scroll" role="region" aria-label="Statements table 3" tabIndex={0}>
-<table className="amounts">
-        <tbody>
-          <tr>
-            <th>Cash collected from customers (premium, tax and fee)</th>
-            <td className="amount">{formatCentsAsUsd(collected.cashCollectedCents)}</td>
-          </tr>
-          {collected.premiumCollectedCents === null ? (
-            <tr>
-              <th>Premium collected, which is the commission base</th>
-              <td className="amount">
-                <span className="note">not stored on this revision</span>
-              </td>
-            </tr>
-          ) : (
-            <tr>
-              <th>Premium collected, which is the commission base</th>
-              <td className="amount">{formatCentsAsUsd(collected.premiumCollectedCents)}</td>
-            </tr>
-          )}
-          <tr>
-            <th>Commission earned{collected.premiumCollectedCents === null ? "" : " on that premium"}</th>
-            <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
-          </tr>
-          <tr>
-            <th>Commission clawed back on refunded premium</th>
-            <td className="amount">{formatCentsAsUsd(-run.clawbackCents)}</td>
-          </tr>
-          {run.adjustmentCents === 0 ? null : (
-            <tr>
-              <th>Other adjustments to the commission owed</th>
-              <td className="amount">{formatCentsAsUsd(run.adjustmentCents)}</td>
-            </tr>
-          )}
-          <tr className="total">
-            <th>Net due to the broker</th>
-            <td className="amount">{formatCentsAsUsd(run.netDueCents)}</td>
-          </tr>
-        </tbody>
-      </table>
-</div>
-      <p className="note">
-        The two collected figures are the same money read twice: the cash line is what the customers paid,
-        premium plus state premium tax plus policy fee, and the premium line is the part of it commission is
-        earned on. Both come from the journal: the cash from the collection entries, the premium from the
-        entries that wrote it under the same payment. Commission is the premium times the broker&apos;s rate,
-        rounded down, and never touches tax or fee. Refunds are not netted into these two figures; they are on
-        their own lines above, next to the clawback each one produced.
-      </p>
-
-      {changes ? <Changes changes={changes} previousRevision={run.revision - 1} /> : null}
-
-      {isStaff ? (
-        <section className="card-block">
-          <h2>Run this month again</h2>
-          <p className="note">
-            With the cutoff of this revision, the run reads exactly the same journal entries and produces the
-            same content hash; it is stored as the next revision and flagged as identical. Leave the cutoff
-            empty on the statements screen to read everything known now, which is how a correction recorded
-            after this cutoff becomes a new revision.
-          </p>
-          <form method="post" action="/api/statements/run" className="card">
-            <input type="hidden" name="brokerId" value={run.brokerId} />
-            <input type="hidden" name="month" value={run.statementMonth} />
-            <input type="hidden" name="knowledgeCutoff" value={run.knowledgeCutoff.toISOString()} />
-            <button type="submit">Re-run with this knowledge cutoff</button>
-          </form>
-        </section>
-      ) : null}
+            {changes ? <Changes changes={changes} previousRevision={run.revision - 1} /> : null}
+          </>
+        }
+        aside={
+          <>
+            <Panel title="This revision">
+              <AsideList
+                items={[
+                  { label: "Statement month", value: `${run.statementMonth}, by effective date` },
+                  { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
+                  { label: "Produced", value: `${utc(run.createdAt)}${run.runByName ? ` by ${run.runByName}` : ""}` },
+                  ...(run.supersedesRunId
+                    ? [{ label: "Supersedes", value: <Link href={`/statements/${run.supersedesRunId}`}>revision {run.revision - 1}</Link> }]
+                    : []),
+                  {
+                    label: "Content hash",
+                    value: (
+                      <>
+                        reproducible
+                        <SandboxReferences
+                          references={[
+                            { label: "Content hash (sha256)", value: run.contentHash },
+                            { label: "Statement run id", value: run.runId },
+                            { label: "Canonical format version", value: String(run.canonicalVersion) },
+                          ]}
+                        />
+                      </>
+                    ),
+                  },
+                ]}
+              />
+            </Panel>
+            <Panel title="How to read this page">
+              <Disclosure title="Reproducing this statement">
+                <p>
+                  Running {run.statementMonth} again for {run.brokerName} with the knowledge cutoff above reads the
+                  same journal entries and produces the same content hash, because a journal row can never change and
+                  its recording time is stamped by the database. One case does not reproduce, and it is the reason a
+                  provisional run says so: an entry whose database transaction started before that cutoff and
+                  committed after this run had read the ledger is absent here and present in a later run with the same
+                  cutoff. Once the month is closed and quiet, which is what a monthly statement is for, it cannot
+                  happen.
+                </p>
+              </Disclosure>
+              {run.monthWasStillRunning ? (
+                <Disclosure title="Provisional">
+                  <p>
+                    This run was produced before {run.statementMonth} was over, so more money could still be booked
+                    into it. It stays exactly as it is; the run made after the month ends is the next revision and the
+                    definitive one.
+                  </p>
+                </Disclosure>
+              ) : null}
+              {formatChanged ? (
+                <Disclosure title="Format changed">
+                  <p>
+                    The statement format changed between revision {run.revision - 1} (v{run.previousCanonicalVersion})
+                    and this one (v{run.canonicalVersion}): the two documents hash different texts, so they cannot be
+                    compared by hash. The journal entries still can be, and they are.
+                  </p>
+                </Disclosure>
+              ) : null}
+              <Disclosure title="Ties to the ledger">
+                <p>
+                  The net due printed on the statement is compared, live, with the movement of this broker&apos;s
+                  commission payable account in the journal, read again with the same month and the same knowledge
+                  cutoff by a second, much smaller query. Two independent reads of the same ledger have to agree to
+                  the cent, and the page says so either way rather than assuming it.
+                </p>
+              </Disclosure>
+            </Panel>
+          </>
+        }
+      />
     </PortalShell>
   );
 }
@@ -332,12 +294,9 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
 function Changes({ changes, previousRevision }: { changes: { appeared: RevisionChange[]; disappeared: RevisionChange[] }; previousRevision: number }) {
   const nothingChanged = changes.appeared.length === 0 && changes.disappeared.length === 0;
   return (
-    <>
-      <h2>What changed against revision {previousRevision}</h2>
+    <Panel title={`What changed against revision ${previousRevision}`}>
       {nothingChanged ? (
-        <p className="note">
-          The same journal entries, one for one. Nothing was added and nothing was taken away.
-        </p>
+        <Empty>The same journal entries, one for one. Nothing was added and nothing was taken away.</Empty>
       ) : (
         <div className="table-scroll" role="region" aria-label="Statements table 4" tabIndex={0}>
 <table className="ledger">
@@ -366,7 +325,7 @@ function Changes({ changes, previousRevision }: { changes: { appeared: RevisionC
         </table>
 </div>
       )}
-    </>
+    </Panel>
   );
 }
 

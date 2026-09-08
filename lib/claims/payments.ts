@@ -721,6 +721,10 @@ export type ClaimPaymentView = {
   amountCents: number;
   requestedAt: Date;
   requestedByName: string | null;
+  // How the request reached us: null for a person on the claim screen, set when the MCP endpoint
+  // raised it. Shown on the payments table so that a staff operator who clicks Send below the
+  // approval threshold knows a machine asked (review finding F-B11-01).
+  requestedThrough: RequestChannel | null;
   approvalRequestId: string | null;
   transferRef: string | null;
   railStatus: "waiting for approval" | "ready to send" | "sent" | "settled" | "returned" | "refused";
@@ -739,6 +743,7 @@ export async function claimPayments(
       approval_request_id: string | null;
       requested_by_name: string | null;
       decision: string | null;
+      requested_through: RequestChannel | null;
     }[]
   >`
     select operation.id,
@@ -746,7 +751,12 @@ export async function claimPayments(
            operation.created_at,
            operation.approval_request_id,
            requester.display_name as requested_by_name,
-           decision.decision
+           decision.decision,
+           (select requested.payload -> 'requested_through'
+              from claim_events requested
+             where requested.money_operation_id = operation.id and requested.event_type = 'payment_requested'
+             order by requested.recorded_at
+             limit 1) as requested_through
       from money_operations operation
       left join users requester on requester.id::text = operation.created_by
       left join approval_decisions decision on decision.request_id = operation.approval_request_id
@@ -763,6 +773,7 @@ export async function claimPayments(
       amountCents: centsFromDatabase(row.amount_cents, "amount_cents"),
       requestedAt: row.created_at,
       requestedByName: row.requested_by_name,
+      requestedThrough: row.requested_through && typeof row.requested_through === "object" ? row.requested_through : null,
       approvalRequestId: row.approval_request_id,
       transferRef: operation?.transferRef ?? null,
       railStatus: railStatusOf(operation, row.approval_request_id !== null, row.decision),

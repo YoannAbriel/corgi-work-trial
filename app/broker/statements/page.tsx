@@ -1,4 +1,6 @@
 import { PortalShell } from "@/components/portal-shell";
+import { Disclosure } from "@/components/disclosures";
+import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -40,23 +42,15 @@ export default async function BrokerStatementsPage() {
 
   return (
     <PortalShell user={user} active="statements">
+      <DetailHeading
+        title="Your statements"
+        lead="One statement per month, produced by Corgi operations and frozen when it is produced. All times are UTC."
+        chips={<Chip tone="neutral">{runs.length} {runs.length === 1 ? "statement" : "statements"}</Chip>}
+      />
 
-      <h1>Your statements</h1>
-      <p className="lead">
-        One statement per month, produced by Corgi operations and frozen when it is produced. Signed in as{" "}
-        {user.displayName}. All times are UTC.
-      </p>
-      <p className="note">
-        Commission is earned on the premium collected on your policies and clawed back on premium refunded to
-        a customer. The collected column shows the premium the commission is computed on and, under it, the
-        cash the customers actually paid, which also carries the state premium tax and the policy fee. A
-        statement marked provisional was produced before its month was over. When a correction lands after a
-        month was closed, the closed statement is not rewritten: a new revision is produced, dated, and it
-        names the revision it replaces. Both stay readable here.
-      </p>
-
+      <Panel title="Statements" className="list-panel">
       {runs.length === 0 ? (
-        <p className="note">No statement has been produced for you yet.</p>
+        <Empty>No statement has been produced for you yet.</Empty>
       ) : (
         <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
 <table>
@@ -80,7 +74,7 @@ export default async function BrokerStatementsPage() {
                   {run.monthWasStillRunning ? (
                     <>
                       <br />
-                      <span className="badge badge-warn">provisional</span>
+                      <Chip tone="warn">provisional</Chip>
                     </>
                   ) : null}
                 </td>
@@ -89,7 +83,7 @@ export default async function BrokerStatementsPage() {
                   {run.identicalToPrevious ? (
                     <>
                       <br />
-                      <span className="badge badge-ok">identical to revision {run.revision - 1}</span>
+                      <Chip tone="ok">identical to revision {run.revision - 1}</Chip>
                     </>
                   ) : null}
                 </td>
@@ -101,7 +95,8 @@ export default async function BrokerStatementsPage() {
                 <td className="amount">{formatCentsAsUsd(-run.clawbackCents)}</td>
                 <td className="amount">{formatCentsAsUsd(run.netDueCents)}</td>
                 <td>
-                  <Link href={`/api/statements/${run.runId}/pdf`}>PDF</Link>
+                  <Link href={`/statements/${run.runId}`} className="button-link secondary small">Open</Link>{" "}
+                  <Link href={`/api/statements/${run.runId}/pdf`} className="button-link secondary small">PDF</Link>
                 </td>
               </tr>
             ))}
@@ -109,6 +104,17 @@ export default async function BrokerStatementsPage() {
         </table>
 </div>
       )}
+      <Disclosure>
+        <p>
+          Commission is earned on the premium collected on your policies and clawed back on premium refunded to a
+          customer. The collected column shows the premium the commission is computed on and, under it, the cash the
+          customers actually paid, which also carries the state premium tax and the policy fee. A statement marked
+          provisional was produced before its month was over. When a correction lands after a month was closed, the
+          closed statement is not rewritten: a new revision is produced, dated, and it names the revision it replaces.
+          Both stay readable here.
+        </p>
+      </Disclosure>
+      </Panel>
     </PortalShell>
   );
 }
