@@ -16,7 +16,7 @@ merged and deployed (B4, `dfdca38`).
 
 Walkthrough status: **NOT REVIEWED WITH YOANN.**
 
-**Read section 9 before acting on this record.** The decision 19 follow-ups landed on `main` while this review was being written. Section 9 is the independent re-check at `afeba97`: it resolves F-B9-01 and raises a new HIGH, F-B9-09. The verdict at `afeba97` is also FAIL, for a different reason.
+**Read section 9 before acting on this record.** The decision 19 follow-ups landed on `main` while this review was being written. Section 9 is the independent re-check at `afeba97`: it resolves F-B9-01 and raises a new HIGH, F-B9-09. The verdict at `afeba97` is also FAIL, for a different reason. **Section 10 is the scoped re-review at `8b5b490`, and its verdict is PASS**: F-B9-09 is resolved and verified on production, along with F-B9-02, F-B9-03, F-B9-04, F-B9-07 and F-B9-10. Read sections 2 to 9 as the history of how the slice got there, not as its current state.
 
 ## 1. Startup receipt
 
@@ -668,3 +668,128 @@ The fix is append-only and small.
 
 Must be fixed before submission: F-B9-09 (blocking), then F-B9-02 and F-B9-03. The seven LOW
 findings are cheap. Walkthrough remains **NOT REVIEWED WITH YOANN**.
+
+---
+
+## 10. Scoped re-review at `8b5b490`, 2026-09-08T17:32:00+00:00
+
+Requested scope: the fix for F-B9-09 and the other findings closed since `afeba97`. Commits in
+scope: `b4187cf` (every statement run says which format its columns are in), `8e6d468` (F-B9-04),
+`8b5b490` (the handoff note, F-B9-03), `d2a34ca` (docs). Working tree clean at `d2a34ca` apart from
+this file.
+
+Deployed revision: `/api/health` reported **`8e6d468`**, not `8b5b490`. `git diff 8e6d468..8b5b490`
+over `lib`, `app`, `db` and `scripts` is empty (that commit touches only
+`docs/handoffs/b9-implementation-notes.md`), so production carries all the code of `8b5b490` and
+every check below is on the reviewed code.
+
+**Verdict for this scope: PASS.** F-B9-09 is resolved and verified on production. Four other
+findings are closed, one is half closed, three LOW remain.
+
+### 10.1 F-B9-09: RESOLVED, verified on production
+
+`db/migrations/0016_statement_format_version.sql` adds `canonical_version integer not null default 1
+check (canonical_version between 1 and 2)`. The default is not a guess: it records what those rows
+are. `collectedFigures` (`lib/statements/compute.ts:154`) is the single place that knows what an old
+column meant, and it returns `premiumCollectedCents: null` for a v1 row rather than a figure nobody
+computed. `runStatement` refuses to claim `identical_to_previous` across formats
+(`lib/statements/run.ts:127-130`), which is right: the two hashes cover different texts.
+
+Verified on the deployed application as `staff_ops`, on the three v1 rows I created and the two v2
+revisions the coordinator ran:
+
+```
+v1 run (2026-09 revision 1), page and PDF:
+  "Statement format v1: the premium column holds the cash collected ... and the commission
+   base was not stored. A newer revision of this month, run today, records both figures."
+  Cash collected from customers (premium, tax and fee)   $5,948.17
+  Premium collected, which is the commission base        not stored on this revision
+  Net due to the broker                                  $389.35
+
+v2 run (2026-09 revision 3), page and PDF:
+  "The statement format changed between revision 2 [and 3]"
+  Cash collected from customers (premium, tax and fee)   $5,948.17
+  Premium collected, which is the commission base        $5,762.75
+  Net due to the broker                                  $389.35
+```
+
+No false zero anywhere, and the v1 rows still hash `ff30202e...` and `4a0eba7a...`: untouched.
+
+**The new revision ties to the ledger, on my own independent read.** I recomputed both figures from
+the journal without touching any statement code: for every cash entry of Redwood in September 2026,
+the `unearned_premium` movement of the same money operation.
+
+| figure | my read of the ledger | revision 3 stores |
+|---|---|---|
+| cash collected | 594817 | 594817 |
+| premium collected (commission base) | 576275 | 576275 |
+| net due (commission_payable movement) | 38935 | 38935 |
+
+The five cash lines of that revision carry a commission base and the five earlier v1 lines do not,
+which is exactly the shape the migration describes.
+
+The migration also carries the read-only detection query and the rule "prefer a nullable column to
+`NOT NULL DEFAULT <value>` on a protected table". Both are the right lessons, and writing the
+incident into the file rather than into a separate note is the correct place for it.
+
+### 10.2 The judgement asked for: `entryRecordedAt` inside the hashed text
+
+**The delegate's argument holds. Keep it.** `entryRecordedAt` is `journal_entries.recorded_at` read
+back through the driver and truncated to the millisecond. The row is immutable and the driver is
+deterministic, so the same row always renders the same string and the same set of entries always
+hashes to the same text. I proved that live twice at two revisions: the same cutoff reproduced hash
+`ff30202e...` on the trial database, and the recited-example check reproduces at every revision.
+
+Two things are worth naming rather than assumed. First, the truncation loses microseconds, so two
+entries recorded within the same millisecond render identically in the hashed text; that costs
+nothing, because the journal entry id is on the same line and is unique, so no two lines can
+collide. Second, including the recording time is what makes the hash cover the knowledge state and
+not just the amounts, which is the whole point of a cutoff: two runs with the same hash saw the
+same entries known at the same instants. Removing it would make the hash weaker, not safer.
+
+### 10.3 Status of every finding at `8b5b490`
+
+| ID | Status |
+|---|---|
+| F-B9-01 | RESOLVED at `afeba97`, re-verified here: probe reports cash 169904, premium 163561, commission 24534, adjustment 0, ties |
+| F-B9-02 | **RESOLVED.** The page and the PDF now name the exact case: "an entry whose database transaction started before that cutoff and committed after this run had read the ledger is absent here and present in a later run with the same cutoff. It cannot happen once the month is closed and quiet." Accurate, and it is the reason the provisional label exists |
+| F-B9-03 | **RESOLVED.** `docs/handoffs/b9-implementation-notes.md` now says the applying entry is dated the day the money arrived, names `postCollectionAndBind` and `payment.paidOn`, and recites the probe |
+| F-B9-04 | **RESOLVED**, verified on production: `brokerId=not-a-uuid` now answers 303 with "that broker identifier is not a valid identifier; pick a broker from the list" |
+| F-B9-05 | OPEN, LOW, not claimed. The page still answers 200 with "This statement belongs to another broker" while the PDF answers 404 |
+| F-B9-06 | **HALF RESOLVED.** The page now runs `isUuid` only. The PDF route still runs `badPathIdResponse` at line 26 and then `UUID.test` at line 31, with the now redundant `UUID` const at line 18 |
+| F-B9-07 | **RESOLVED**: "only staff can run a broker statement: operations or an approver" |
+| F-B9-08 | OPEN, LOW, cosmetic, with the assigned PDF pass |
+| F-B9-09 | **RESOLVED**, section 10.1 |
+| F-B9-10 | **RESOLVED**: the header now reads `-- 0015:` |
+| F-B9-11 | OPEN, LOW. The endorsement case is proven by a unit test and by my probe; `scripts/check-statements.ts` still has no end-to-end endorsement proof, and my probe is not in the repository |
+
+### 10.4 Checks executed
+
+| Check | Result |
+|---|---|
+| `npm test` | 341 tests, 340 pass, 1 skipped |
+| `npm run check:statements` (`corgi_test`) | **38 of 38 PASS**, exit 0, including four new format-version checks |
+| Reviewer endorsement probe, re-run unchanged | correct at `d2a34ca` |
+| Independent ledger read of Redwood 2026-09 (read-only, runtime role) | cash 594817, premium 576275, payable movement 38935, all three matching revision 3 |
+| Deployed: v1 and v2 pages and PDFs as `staff_ops` | render per format, evidence in 10.1 |
+| Deployed: F-B9-04 | refused cleanly |
+| Append-only guards on the two statement tables at HEAD | `permission denied for table statement_runs` and `... statement_lines` for the runtime role, inside the 38 |
+
+Not executed: the full `check:money-guards` set since migration 0016. The coordinator is proving it
+on an ephemeral database migrated 0001 to 0016; 0016 adds one column and removes no trigger or
+grant, and the two guard checks above cover the tables directly at HEAD, so this is outstanding
+evidence rather than an open risk. `typecheck` and `build` were not re-run.
+
+Nothing was written to the trial database in this re-review; every write went to `corgi_test`.
+
+### 10.5 Re-review verdict
+
+**PASS** for the B9 scope at `8b5b490`. Every HIGH and MEDIUM finding is closed and each fix was
+verified against a real database, and the two live ones against the deployed application rather
+than against the delegate's account of them. Three LOW findings remain (F-B9-05, F-B9-08, F-B9-11)
+plus the half of F-B9-06 on the PDF route; none blocks the slice, and all four are cheap.
+
+Residual limitations, unchanged: no month of a few hundred entries has been timed, and the guard
+set has not yet been re-run since 0016. Walkthrough remains **NOT REVIEWED WITH YOANN**; the format
+incident of F-B9-09 is now the clearest story in the slice and is worth rehearsing, because it shows
+the append-only model working rather than failing.
