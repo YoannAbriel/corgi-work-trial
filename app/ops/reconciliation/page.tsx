@@ -199,9 +199,9 @@ function RunRow({ run }: { run: ReconciliationRunRow }) {
           <span className="note">FAILED, no comparison was made: {run.fetchError}</span>
         ) : (
           <>
-            {breaks === 0 ? "no break" : `${breaks} breaks`} ({run.counts.matched} matched, {run.counts.local_only} local
-            only, {run.counts.provider_only} provider only, {run.counts.amount_mismatch} amount mismatch,{" "}
-            {run.counts.stale} stale)
+            {breaks === 0 ? "no break" : breaks === 1 ? "1 break" : `${breaks} breaks`} ({run.counts.matched} matched,{" "}
+            {run.counts.local_only} local only, {run.counts.provider_only} provider only, {run.counts.amount_mismatch}{" "}
+            amount mismatch, {run.counts.stale} stale)
             {run.note ? (
               <>
                 <br />
