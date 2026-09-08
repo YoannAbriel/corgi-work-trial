@@ -86,3 +86,11 @@ Clawback = commission rate x refunded premium, rounded down (87124 x 15% = 13068
 ## 2026-09-08T10:02:00+00:00 | Explicit user decision | Closed-month statements: knowledge cutoff and revisions
 
 Each statement run stores the effective month and a knowledge cutoff (the recorded_at upper bound it read). Rerunning a closed month with its cutoff reproduces revision 1 forever. A correction recorded after the cutoff produces revision 2, dated, showing the corrected figure and referencing revision 1 as superseded. Nothing is rewritten. Closes review finding F-07; implemented in B9.
+
+## 2026-09-08T11:05:24+00:00 | Explicit user decision | CGP-01061 (bound on a locally fabricated payment) is corrected by reversal
+
+The B2 delegate bound demo policy CGP-01061 through a locally signed webhook against the shared database; Stripe never collected that money (review finding F-B2-01, HIGH). Yoann chose reversal entries plus a dated correction event carrying the reason, over labeling and disclosure. Original rows stay; the ledger's cash returns to what Stripe holds. Done as the first part of B8, before the T+24h email. Rule from now on: fabricated provider events only ever hit the disposable test database.
+
+## 2026-09-08T11:05:24+00:00 | Explicit user decision | Expired Checkout Sessions get a new intent
+
+A Checkout Session expires after 24 hours (review finding F-B2-03). Yoann chose to handle it: checkout.session.expired marks the operation failed (reason expired), and the next Pay click creates a new money operation with a new idempotency key (policy-checkout:<policy>:<attempt>). Keys are never reused across operations. Implemented with B5.

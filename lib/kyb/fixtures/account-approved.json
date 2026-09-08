@@ -1,0 +1,141 @@
+{
+  "id": "acct_1UDMRhK6R3QDW861",
+  "object": "v2.core.account",
+  "applied_configurations": [
+    "recipient"
+  ],
+  "closed": false,
+  "configuration": {
+    "customer": null,
+    "merchant": null,
+    "recipient": {
+      "applied": true,
+      "capabilities": {
+        "stripe_balance": {
+          "payouts": {
+            "status": "restricted",
+            "status_details": [
+              {
+                "code": "requirements_past_due",
+                "resolution": "provide_info"
+              }
+            ]
+          },
+          "stripe_transfers": {
+            "status": "active",
+            "status_details": []
+          }
+        }
+      }
+    }
+  },
+  "contact_email": "broker-alpha@example.com",
+  "contact_phone": null,
+  "created": "2026-09-08T10:40:11.000Z",
+  "dashboard": "none",
+  "identity": {
+    "attestations": {
+      "directorship_declaration": null,
+      "ownership_declaration": null,
+      "persons_provided": {
+        "directors": false,
+        "executives": false,
+        "owners": false,
+        "ownership_exemption_reason": null
+      },
+      "representative_declaration": null,
+      "terms_of_service": {
+        "account": {
+          "date": "2026-09-08T10:40:08.826Z",
+          "ip": "203.0.113.10",
+          "user_agent": null
+        }
+      }
+    },
+    "business_details": {
+      "additional_addresses": [],
+      "address": {
+        "city": "San Francisco",
+        "country": "US",
+        "line1": "address_full_match",
+        "line2": null,
+        "postal_code": "94105",
+        "state": "CA",
+        "town": null
+      },
+      "annual_revenue": null,
+      "documents": {
+        "bank_account_ownership_verification": null,
+        "company_license": null,
+        "company_memorandum_of_association": null,
+        "company_ministerial_decree": null,
+        "company_registration_verification": null,
+        "company_tax_id_verification": null,
+        "primary_verification": null,
+        "proof_of_address": null,
+        "proof_of_registration": null,
+        "proof_of_ultimate_beneficial_ownership": null
+      },
+      "estimated_worker_count": null,
+      "id_numbers": [
+        {
+          "registrar": null,
+          "type": "us_ein"
+        }
+      ],
+      "monthly_estimated_revenue": null,
+      "phone": null,
+      "registered_name": "Test Brokerage Alpha LLC",
+      "registration_date": null,
+      "script_addresses": null,
+      "script_names": null,
+      "structure": null
+    },
+    "country": "US",
+    "entity_type": "company",
+    "individual": null
+  },
+  "defaults": null,
+  "display_name": "Test Brokerage Alpha LLC",
+  "future_requirements": null,
+  "metadata": {
+    "corgi_probe": "kyb-adapter-test",
+    "broker_id": "probe-alpha"
+  },
+  "requirements": {
+    "entries": [
+      {
+        "awaiting_action_from": "user",
+        "description": "external_account",
+        "errors": [],
+        "impact": {
+          "restricts_capabilities": [
+            {
+              "capability": "stripe_balance.payouts",
+              "configuration": "recipient",
+              "deadline": {
+                "status": "past_due"
+              }
+            }
+          ]
+        },
+        "minimum_deadline": {
+          "status": "past_due"
+        },
+        "reference": null,
+        "requested_reasons": [
+          {
+            "code": "routine_onboarding"
+          }
+        ]
+      }
+    ],
+    "summary": {
+      "minimum_deadline": {
+        "status": "past_due",
+        "time": null
+      }
+    }
+  },
+  "livemode": false
+}
