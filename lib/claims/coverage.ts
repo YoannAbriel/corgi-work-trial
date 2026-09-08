@@ -34,6 +34,9 @@ export function coveredPeriod(input: PolicyCoverageInput): CoveredPeriod {
 export function claimCoverageRefusal(input: {
   occurredAt: string;
   reportedAt: string;
+  // The day the claim is being opened, in UTC. Passed in rather than read from the clock so this
+  // function stays pure: the route passes todayUtc(), the checks pass the day of their scenario.
+  today: string;
   period: CoveredPeriod;
 }): string | null {
   if (!isCalendarDate(input.occurredAt)) {
@@ -44,6 +47,12 @@ export function claimCoverageRefusal(input: {
   }
   if (input.reportedAt < input.occurredAt) {
     return "a loss cannot be reported before the day it happened";
+  }
+  // A loss that has not happened yet cannot be claimed (review finding F-B7-06). Checked before
+  // the covered period, because "this has not happened" is the truer answer to give an operator
+  // than "this is outside the cover" for a date in the future.
+  if (input.occurredAt > input.today) {
+    return `the loss is dated ${input.occurredAt}, which has not happened yet: today is ${input.today}`;
   }
   if (input.occurredAt < input.period.from) {
     return `the loss happened on ${input.occurredAt}, before the policy started on ${input.period.from}`;

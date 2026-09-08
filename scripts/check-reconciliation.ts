@@ -312,6 +312,7 @@ async function main() {
       policyId: p2.policyId,
       occurredAt: "2028-05-01",
       reportedAt: "2028-05-02",
+      openedOn: "2028-05-02", // the claim is opened on the day the loss is reported
       description: "water damage in the workshop",
       claimantName: CLAIMANT_NAME,
       actor: maker,

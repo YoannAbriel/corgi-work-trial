@@ -93,6 +93,7 @@ export type OpenClaimRequest = {
   policyId: string;
   occurredAt: string; // the day the loss happened
   reportedAt: string; // the day it reached us
+  openedOn: string; // "YYYY-MM-DD" UTC, the day this claim is being opened: the route passes todayUtc()
   description: string;
   claimantName: string;
   actor: ClaimActor;
@@ -121,6 +122,7 @@ export async function openClaim(
   const refusal = claimCoverageRefusal({
     occurredAt: request.occurredAt,
     reportedAt: request.reportedAt,
+    today: request.openedOn,
     period: coverage.period,
   });
   if (refusal) {

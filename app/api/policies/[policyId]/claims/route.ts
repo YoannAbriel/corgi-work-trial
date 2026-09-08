@@ -1,5 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
-import { openClaim, ClaimRefused } from "@/lib/claims/claims";
+import { openClaim, todayUtc, ClaimRefused } from "@/lib/claims/claims";
 
 // POST /api/policies/{policyId}/claims: staff operations open a claim on a policy.
 //
@@ -19,6 +19,9 @@ export async function POST(request: Request, context: { params: Promise<{ policy
       policyId,
       occurredAt: String(form.get("occurredAt") ?? "").trim(),
       reportedAt: String(form.get("reportedAt") ?? "").trim(),
+      // The day the claim is opened comes from the server clock, never from the form: it is what
+      // makes "a loss cannot be dated in the future" true (review finding F-B7-06).
+      openedOn: todayUtc(),
       description: String(form.get("description") ?? ""),
       claimantName: String(form.get("claimantName") ?? ""),
       actor: { userId: user.id, role: user.role },

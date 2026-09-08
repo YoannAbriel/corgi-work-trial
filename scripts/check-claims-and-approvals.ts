@@ -70,7 +70,7 @@ async function main() {
   // connection pool and read the Stripe key as soon as they are loaded, which needs
   // .env.local read first.
   const { recordSuccessfulPayment } = await import("@/lib/payments/collection");
-  const { openClaim, setClaimReserve, closeClaim, ClaimRefused } = await import("@/lib/claims/claims");
+  const { openClaim, setClaimReserve, closeClaim, todayUtc, ClaimRefused } = await import("@/lib/claims/claims");
   const {
     addClaimantBankAccount,
     assertPaymentBelongsToClaim,
@@ -112,6 +112,7 @@ async function main() {
       policyId: policy.policyId,
       occurredAt: "2028-05-01",
       reportedAt: "2028-05-02",
+      openedOn: "2028-05-02", // the claim is opened on the day the loss is reported
       description: "water damage in the workshop",
       claimantName: CLAIMANT_NAME,
       actor: maker,
@@ -232,6 +233,7 @@ async function main() {
       policyId: policy.policyId,
       occurredAt: "2028-05-03",
       reportedAt: "2028-05-04",
+      openedOn: "2028-05-04", // the claim is opened on the day the loss is reported
       description: "a second loss on the same policy",
       claimantName: CLAIMANT_NAME,
       actor: maker,
@@ -616,6 +618,7 @@ async function main() {
       policyId: cancelledPolicy.policyId,
       occurredAt: "2028-03-01",
       reportedAt: "2028-06-01",
+      openedOn: "2028-06-01", // the claim is opened on the day the loss is reported
       description: "loss on the first day, reported after the cancellation",
       claimantName: CLAIMANT_NAME,
       actor: maker,
@@ -633,6 +636,7 @@ async function main() {
         policyId: cancelledPolicy.policyId,
         occurredAt: "2028-04-01",
         reportedAt: "2028-06-01",
+        openedOn: "2028-06-01", // the claim is opened on the day the loss is reported
         description: "loss after cover stopped",
         claimantName: CLAIMANT_NAME,
         actor: maker,
@@ -652,6 +656,7 @@ async function main() {
         policyId: cancelledPolicy.policyId,
         occurredAt: "2028-03-01",
         reportedAt: "2028-06-01",
+        openedOn: "2028-06-01", // the claim is opened on the day the loss is reported
         description: "opened by the wrong role",
         claimantName: CLAIMANT_NAME,
         actor: { userId: people.brokerUserId, role: "broker" },
@@ -761,6 +766,7 @@ async function main() {
       policyId: splitPolicy.policyId,
       occurredAt: "2028-05-03",
       reportedAt: "2028-05-04",
+      openedOn: "2028-05-04", // the claim is opened on the day the loss is reported
       description: "roof leak, paid in instalments",
       claimantName: CLAIMANT_NAME,
       actor: maker,
@@ -895,6 +901,29 @@ async function main() {
     "the approver cannot settle a payment: settleClaimPayment checks the actor itself",
     /only staff operations/.test(approverSettling),
     approverSettling,
+  );
+
+  // F-B7-06: a loss that has not happened yet cannot be claimed. Every policy in this check
+  // covers 2028, so opening a claim with the REAL day of the run is exactly the case the review
+  // found: a loss inside the cover, and still in the future.
+  const futureLoss = await refusal(() =>
+    openClaim(
+      {
+        policyId: policy.policyId,
+        occurredAt: "2028-05-01",
+        reportedAt: "2028-05-02",
+        openedOn: todayUtc(),
+        description: "a loss that has not happened yet",
+        claimantName: CLAIMANT_NAME,
+        actor: maker,
+      },
+      runtime,
+    ),
+  );
+  report(
+    "a claim for a loss dated in the future is refused, whatever the policy covers",
+    /has not happened yet/.test(futureLoss),
+    futureLoss,
   );
 
   // ---------------------------------------------------------------------------
