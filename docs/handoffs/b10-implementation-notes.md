@@ -246,10 +246,12 @@ All on this branch, in this worktree.
 |---|---|
 | `npm run typecheck` | clean |
 | `npm run build` | compiled, including `/ops/reconciliation`, `/api/jobs/reconcile`, `/api/jobs/daily` |
-| `npm test` | 333 tests, 332 pass, 1 skipped (the pre-existing live Stripe test, gated on `RUN_LIVE_STRIPE_TESTS`) |
+| `npm test` | 344 pass, 1 skipped (the pre-existing live Stripe test, gated on `RUN_LIVE_STRIPE_TESTS`) |
 | `npm run check:reconciliation` | 39 of 39 PASS after the review corrections, 29 of 29 before them |
-| `npm run check:money-guards -- --database=test` | 128 of 128 PASS (110 before this slice, plus the two new tables and their constraints) |
-| `npm run check:claims-and-approvals` | 55 of 55 PASS, unchanged by this slice |
+| `npm run check:money-guards -- --database=test` (after the corrections) | 155 of 155 PASS, exit 0, the same figure the reviewer measured on a solo run |
+| `npm run check:claims-and-approvals` (after the corrections) | 63 of 63 PASS, exit 0 |
+| `npm run check:money-guards -- --database=test` (at the first delivery) | 128 of 128 PASS (110 before this slice, plus the two new tables and their constraints) |
+| `npm run check:claims-and-approvals` (at the first delivery) | 55 of 55 PASS, unchanged by this slice |
 
 The screen was rendered for real, not only built: a dev server on port 3400 pointed at the
 disposable database (a git-ignored `.local/` aid, because the trial database has no 0011 tables
