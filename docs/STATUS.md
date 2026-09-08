@@ -68,7 +68,15 @@ Merged from the documents/KYB delegate: lib/documents (pure fold of policy event
 
 Walkthrough status: B1 QUESTIONS OPEN, B2 QUESTIONS OPEN (Yoann asked for shorter explanations; the Code page was rewritten with a flow diagram).
 
-Next: merge B5, then B8a (reversal of CGP-01061), then B3 wiring, then the T+24h email. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
+## 2026-09-08T11:33:27+00:00 | B5 merged and live-proven (e120f69), CGP-01061 corrected by reversal (B8a)
+
+B5 (delegate, 9 commits, notes in docs/handoffs/b5-implementation-notes.md) merged: `npm test` 130 (129 pass, 1 skipped), guards 10/10 and 51/51, payment replay 22/22, refund replay 27/27, seal 4/4. Live: CGP-01062 cancelled effective 2026-10-31 through the deployed app; real Stripe refund re_3UDM4KK6R3v50tIy0scSGaps of 324156 cents succeeded on pi_3UDM4KK6R3v50tIy0F5xaBbu; refund.updated received by the deployed app posted refund_completed (324156) and commission_clawback (47506); refund_payable back to 0; ledger balanced. The refund.* events delivered before the deployment are stored as ignored (disclosed); a new refund.updated was made to fire by updating the refund's metadata. Disclosed: this refund crossed the $1,000 money-out threshold with no approver because B7 does not exist yet.
+
+Yoann paid a fresh policy CGP-01274 ($2,312 premium, tax 5433, fee 2500, charge 239133) from a Checkout Session created by the deployed app (closes F-B2-04). The customer email he typed was his real address; replaced by a synthetic example.com address on the nonfinancial customers table (AF-04).
+
+B8a: CGP-01061 (bound on a locally fabricated webhook) corrected by `npm run void:fabricated-binding`: the guard asked Stripe and confirmed the payment intent does not exist, then one transaction wrote a correction_reversal policy event superseding the issuance and four reversal entries mirroring the originals (lib/ledger/reverse.ts, lib/policy/void-fabricated-binding.ts). Originals untouched; the fold skips superseded events; ledger cash_stripe now equals what Stripe holds (270661 cents); the same run on corgi_test showed net zero per account and a refused second attempt. B2 re-review requested. B3 wiring is being built by a delegate; B5 independent review in progress.
+
+Next: B3 merge and live KYB proof, then the T+24h email (draft in docs/checkpoints), then B4, B7, B8 (correction UI), B9. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
 

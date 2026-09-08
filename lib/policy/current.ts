@@ -20,10 +20,15 @@ export type PolicyFold = {
 // Reads every event of the policy in recording order and applies them:
 //   - an event carrying terms (quoted today; endorsed and corrections in later slices)
 //     replaces the terms;
-//   - 'issued' records when the policy became bound.
+//   - 'issued' records when the policy became bound;
+//   - an event named by a later correction's supersedes_event_id is skipped: the correction
+//     row stays, the superseded row stays, but the fold no longer applies it. This is how a
+//     reversal un-binds a policy without deleting anything (slice B8).
 export async function foldPolicyEvents(database: Queryable, policyId: string): Promise<PolicyFold> {
-  const events = await database<{ event_type: string; payload: unknown; recorded_at: Date }[]>`
-    select event_type, payload, recorded_at
+  const events = await database<
+    { id: string; event_type: string; payload: unknown; recorded_at: Date; supersedes_event_id: string | null }[]
+  >`
+    select id, event_type, payload, recorded_at, supersedes_event_id
       from policy_events
      where policy_id = ${policyId}
      order by sequence_number
@@ -32,10 +37,17 @@ export async function foldPolicyEvents(database: Queryable, policyId: string): P
     throw new Error(`policy ${policyId} has no events, so there is nothing to fold`);
   }
 
+  const supersededEventIds = new Set(
+    events.filter((event) => event.supersedes_event_id !== null).map((event) => event.supersedes_event_id as string),
+  );
+
   const eventTypes: string[] = [];
   let terms: PolicyTerms | null = null;
   let boundAt: Date | null = null;
   for (const event of events) {
+    if (supersededEventIds.has(event.id)) {
+      continue; // reversed by a correction: kept in the table, no longer applied
+    }
     eventTypes.push(event.event_type);
     if (carriesTerms(event.payload)) {
       terms = policyTermsFromPayload(event.payload);

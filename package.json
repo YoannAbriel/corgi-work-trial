@@ -16,7 +16,8 @@
     "check:refund-replay": "tsx scripts/check-refund-replay.ts",
     "seed": "tsx scripts/seed.ts",
     "rebuild:policy-current": "tsx scripts/rebuild-policy-current.ts",
-    "test": "node --import tsx --test lib/**/*.test.ts"
+    "test": "node --import tsx --test lib/**/*.test.ts",
+    "void:fabricated-binding": "tsx scripts/void-fabricated-binding.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "4.9.0",
