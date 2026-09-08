@@ -5,6 +5,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
 import { claimsWithPositions } from "@/lib/claims/read";
+import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import {
   cancellationOfPolicy,
@@ -38,6 +39,7 @@ export default async function PolicyPage({
   }
 
   const { policyId } = await params;
+  if (!isUuid(policyId)) notFound(); // a malformed id is an unknown policy, not a 500 (F-B7-07)
   const policy = await policyDetail(policyId);
   if (!policy) {
     notFound();

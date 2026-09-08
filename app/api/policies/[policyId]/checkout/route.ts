@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 import { CheckoutRefused, startCheckout } from "@/lib/payments/checkout";
 
 // POST /api/policies/{policyId}/checkout, called by the "Pay with Stripe" button.
@@ -10,6 +11,10 @@ export async function POST(request: Request, context: { params: Promise<{ policy
     return redirectTo("/login?error=Please+sign+in+again");
   }
   const { policyId } = await context.params;
+  const malformedId = badPathIdResponse({ policy: policyId });
+  if (malformedId) {
+    return malformedId;
+  }
 
   if (user.role !== "broker" || !user.brokerId) {
     return redirectTo(`/policies/${policyId}?error=${encodeURIComponent("Only the owning broker can pay a policy")}`);

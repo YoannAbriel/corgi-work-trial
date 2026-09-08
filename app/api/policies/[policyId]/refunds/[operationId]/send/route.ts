@@ -1,5 +1,6 @@
 import { ApprovalRefused } from "@/lib/approvals/approvals";
 import { currentUser } from "@/lib/auth/current-user";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 import { sendRequestedRefund, RefundSendRefused } from "@/lib/payments/refunds";
 
 // POST /api/policies/{policyId}/refunds/{operationId}/send
@@ -21,6 +22,10 @@ export async function POST(
   const { policyId, operationId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ policy: policyId, refund: operationId });
+  if (malformedId) {
+    return malformedId;
   }
   if (user.role !== "staff_ops") {
     return backToPolicy(policyId, "only staff operations can send a refund to Stripe");

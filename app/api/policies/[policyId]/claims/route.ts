@@ -1,5 +1,6 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { openClaim, todayUtc, ClaimRefused } from "@/lib/claims/claims";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 
 // POST /api/policies/{policyId}/claims: staff operations open a claim on a policy.
 //
@@ -11,6 +12,10 @@ export async function POST(request: Request, context: { params: Promise<{ policy
   const { policyId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ policy: policyId });
+  if (malformedId) {
+    return malformedId;
   }
 
   const form = await request.formData();

@@ -7,6 +7,7 @@ import {
   settleClaimPayment,
 } from "@/lib/claims/payments";
 import { ApprovalRefused } from "@/lib/approvals/approvals";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 
 // POST /api/claims/{claimId}/payments/{operationId}: the three stages of one claim payment.
 //
@@ -26,6 +27,10 @@ export async function POST(
   const { claimId, operationId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ claim: claimId, payment: operationId });
+  if (malformedId) {
+    return malformedId;
   }
 
   const form = await request.formData();
