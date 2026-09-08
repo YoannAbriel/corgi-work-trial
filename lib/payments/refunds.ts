@@ -128,6 +128,18 @@ export async function reissueRefund(
   input: { policyId: string; failedOperationId: string; actorUserId: string },
   database: postgres.Sql = sql,
 ): Promise<{ operationId: string; outcome: RefundIssueOutcome }> {
+  const operationId = await createReissuedRefundOperation(input, database);
+  const [outcome] = await issueRefundsAtStripe([operationId], database);
+  return { operationId, outcome };
+}
+
+// The database half of a re-issue, on its own so that scripts/check-refund-replay.ts can prove
+// the important property (a re-issue creates a new operation and posts NO journal entry)
+// without calling Stripe.
+export async function createReissuedRefundOperation(
+  input: { policyId: string; failedOperationId: string; actorUserId: string },
+  database: postgres.Sql = sql,
+): Promise<string> {
   const failed = await loadRefundOperation(database, input.failedOperationId);
   // The operation id comes from a URL, so it is checked against the policy in that same URL
   // rather than trusted: no refund of another policy can be re-issued from this page.
@@ -169,8 +181,7 @@ export async function reissueRefund(
     newOperationId = operation.id;
   });
 
-  const [outcome] = await issueRefundsAtStripe([newOperationId], database);
-  return { operationId: newOperationId, outcome };
+  return newOperationId;
 }
 
 // ---------------------------------------------------------------------------
