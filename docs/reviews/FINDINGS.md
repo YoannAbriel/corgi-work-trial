@@ -20,8 +20,8 @@ One line per finding from the independent reviews (design and implementation). F
 | F-17 | MED | Commission clawback rounding undecided | Floor | DECIDED: rounded down (DECISIONS.md) |
 | R-01 | MED | Design said a failed Stripe refund reverses the refund liability (would restore unearned premium while the customer is still owed) | No entry on refund.failed; liability stays open in the clearing list; staff re-issue | FIXED in design (this commit); B5 review confirms |
 | R-02..R-06 | LOW | KYB paragraph read as conditional; lease expiry undocumented; claims_paid row; recorded_at wording; negative-delta tax, allocation and cap | Design text aligned | FIXED in design (this commit) |
-| R-07 | LOW | Stale comment in premium.test.ts about clawback rounding; .env.example still lists Sumsub and Middesk placeholders | Update with the next code commit | OPEN (cheap) |
-| R-08 | LOW | Operation id must reach the PaymentIntent (payment_intent_data.metadata) so payment_intent.succeeded resolves its operation | In the B2 delegate's instructions | OPEN until B2 review |
+| R-07 | LOW | Stale comment in premium.test.ts about clawback rounding; .env.example still lists Sumsub and Middesk placeholders | Comment and placeholders updated | FIXED 0115796 |
+| R-08 | LOW | Operation id must reach the PaymentIntent (payment_intent_data.metadata) so payment_intent.succeeded resolves its operation | payment_intent_data.metadata.operation_id set at session creation | FIXED 0115796 (B2 review to confirm) |
 | F-B1-01 | HIGH | app_runtime could append balanced lines to a committed entry (history changed without UPDATE) | Trigger: lines only in the transaction that created the header; test on corgi_test | FIXED 0003 (a94f091), re-review PASS 8f253a7 |
 | F-B1-02 | MED | db/client.ts fell back to the owner connection when DATABASE_URL_APP was unset | Fail closed: DATABASE_URL_APP required | FIXED a94f091 |
 | F-B1-03 | MED | Owner could TRUNCATE protected tables | BEFORE TRUNCATE triggers | FIXED 0003 (a94f091), re-review PASS 8f253a7 |
