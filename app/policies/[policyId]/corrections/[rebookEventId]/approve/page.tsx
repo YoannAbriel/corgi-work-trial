@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
+import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
 import { correctionsOfPolicy } from "@/lib/policy/correction-read";
 import { FormulaLinesTable } from "../../../formula-lines";
 
@@ -24,6 +24,11 @@ export default async function ApproveCorrectionPage({
     redirect("/login");
   }
   const { policyId, rebookEventId } = await params;
+  // Both come from the URL: a value that is not a uuid is a malformed link, answered 404 before
+  // it can reach a query that would cast it and raise (review finding F-B8-03).
+  if (!isUuid(policyId) || !isUuid(rebookEventId)) {
+    notFound();
+  }
 
   const [policy] = await sql<{ policy_number: string; customer_id: string }[]>`
     select policy_number, customer_id from policies where id = ${policyId}
@@ -86,7 +91,7 @@ export default async function ApproveCorrectionPage({
       <FormulaLinesTable lines={correction.lines} />
 
       <p className="note">
-        Your approval is needed because the difference is above {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}.
+        Why your approval is needed: {correction.approvalSentences.customer ?? "the difference is above the approval threshold"}.
         Approving records your acceptance; your broker then opens the Stripe payment page. Nothing is charged by this
         button.
       </p>

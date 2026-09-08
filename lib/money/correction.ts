@@ -1,4 +1,9 @@
-import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS, moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import {
+  customerApprovalNeeded,
+  MONEY_OUT_APPROVAL_THRESHOLD_CENTS,
+  refundNeedsApproval,
+} from "@/lib/approvals/threshold";
+import { formatCentsAsUsd } from "./cents";
 import type { CalendarDate } from "./dates";
 import {
   computeEndorsement,
@@ -36,6 +41,22 @@ import { commissionCents } from "./premium";
 
 export type CorrectionSettlement = "collect" | "refund" | "none";
 
+// What the two approval thresholds are read AGAINST. Neither is a question about this correction
+// alone (review findings F-B8-02, and F-B4-04 and F-B4-09 before it, which decided the rule for
+// endorsements): three differences of $600 given back on one policy are $1,800 out of the door,
+// and two raises of $400 collect $800 from a customer who was never asked. The caller reads these
+// totals from the policy at the moment the gate is applied (lib/policy/correct-endorsement-date.ts)
+// and passes them in, so this file stays pure and the rule stays in one place.
+export type CorrectionThresholdTotals = {
+  // Refunds this policy has already sent, and refunds on their way (lib/payments/refunds.ts,
+  // policyRefundTotals). A refund that FAILED gave the money back to us and counts for nothing.
+  policyRefundedCents: number;
+  policyPendingRefundCents: number;
+  // Money on this policy that is still waiting for this customer to say yes, this correction
+  // excluded: endorsement quotes they have not approved, and other correction differences.
+  customerUnapprovedRequestedCents: number;
+};
+
 export type EndorsementDateCorrection = {
   wrongEffectiveAt: CalendarDate;
   correctedEffectiveAt: CalendarDate;
@@ -52,17 +73,22 @@ export type EndorsementDateCorrection = {
   // the insurer absorbs the fraction (DECISIONS.md, clawback rounded down).
   differenceCommissionCents: number;
   settlement: CorrectionSettlement;
-  // The customer has to approve paying a difference above $500, exactly as for an endorsement
-  // that collects more than $500 (lib/money/endorsement.ts).
+  // The customer has to approve paying a difference above $500, counting anything else on this
+  // policy still waiting for them, exactly as for an endorsement (lib/money/endorsement.ts).
   customerApprovalRequired: boolean;
-  // A difference given back above $1,000 waits for a distinct human approver, exactly as every
-  // other money-out (lib/approvals/threshold.ts).
+  // A difference given back waits for a distinct human approver when it takes what this policy
+  // has given back past $1,000, exactly as every other money-out (lib/approvals/threshold.ts).
   refundNeedsApproval: boolean;
+  // The totals the two verdicts above were read against. They are kept on the result, written on
+  // the correction event and printed on the screens: a verdict is never shown without the figure
+  // behind it.
+  totals: CorrectionThresholdTotals;
 };
 
 export function correctEndorsementDateMoney(
   before: EndorsementFigures,
   correctedEffectiveAt: CalendarDate,
+  totals: CorrectionThresholdTotals,
 ): EndorsementDateCorrection {
   const after = computeEndorsement({
     policyId: before.policyId,
@@ -99,9 +125,58 @@ export function correctEndorsementDateMoney(
     differenceTotalCents,
     differenceCommissionCents,
     settlement,
-    customerApprovalRequired: differenceTotalCents > CUSTOMER_APPROVAL_THRESHOLD_CENTS,
-    refundNeedsApproval: settlement === "refund" && moneyOutNeedsApproval(-differenceTotalCents),
+    customerApprovalRequired:
+      settlement === "collect" &&
+      customerApprovalNeeded({
+        amountCents: differenceTotalCents,
+        unapprovedRequestedCents: totals.customerUnapprovedRequestedCents,
+        thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
+      }),
+    refundNeedsApproval:
+      settlement === "refund" &&
+      refundNeedsApproval({
+        amountCents: -differenceTotalCents,
+        policyRefundedCents: totals.policyRefundedCents,
+        policyPendingRefundCents: totals.policyPendingRefundCents,
+      }),
+    totals,
   };
+}
+
+// The sentence a screen prints beside each verdict. THE RULE: never state a verdict without the
+// total it was read against, so an operator, a broker and a customer can all check the arithmetic
+// instead of trusting a yes or a no.
+export type CorrectionApprovalSentences = {
+  customer: string | null; // null when no money is being collected
+  refund: string | null; // null when no money is being given back
+};
+
+export function correctionApprovalSentences(correction: EndorsementDateCorrection): CorrectionApprovalSentences {
+  const { totals } = correction;
+  if (correction.settlement === "collect") {
+    const amount = formatCentsAsUsd(correction.differenceTotalCents);
+    const waiting = formatCentsAsUsd(totals.customerUnapprovedRequestedCents);
+    const threshold = formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS);
+    return {
+      customer: correction.customerApprovalRequired
+        ? `${amount} to collect, counting the ${waiting} still waiting for this customer on this policy, is above ${threshold}, so the customer has to approve it`
+        : `${amount} to collect, counting the ${waiting} already waiting for this customer, is at or below ${threshold}, so no customer approval is needed`,
+      refund: null,
+    };
+  }
+  if (correction.settlement === "refund") {
+    const amount = formatCentsAsUsd(-correction.differenceTotalCents);
+    const refunded = formatCentsAsUsd(totals.policyRefundedCents);
+    const pending = formatCentsAsUsd(totals.policyPendingRefundCents);
+    const threshold = formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS);
+    return {
+      customer: null,
+      refund: correction.refundNeedsApproval
+        ? `this ${amount} takes what this policy has given back past ${threshold} (${refunded} already refunded, ${pending} still on its way), so a second person, never you, has to approve it`
+        : `this ${amount} is at or below ${threshold} counting the ${refunded} this policy has already refunded and the ${pending} still on its way, so no second approver is needed`,
+    };
+  }
+  return { customer: null, refund: null };
 }
 
 // The lines the screens print: what was booked, what it should have been, and what moves because
@@ -165,7 +240,3 @@ export function correctionFormulaLines(correction: EndorsementDateCorrection): F
     },
   ];
 }
-
-// The two thresholds this file compares against, re-exported so a screen can name the figure it
-// is applying without importing two modules.
-export { CUSTOMER_APPROVAL_THRESHOLD_CENTS, MONEY_OUT_APPROVAL_THRESHOLD_CENTS };

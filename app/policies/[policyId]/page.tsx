@@ -909,6 +909,10 @@ function correctionNotice(outcome: string): string {
       return "The effective date is corrected and the difference was sent back to Stripe as a refund. It counts as completed only when Stripe's webhook confirms the money left; refresh in a moment.";
     case "refund-held":
       return "The effective date is corrected. The difference owed back is above $1,000, so it waits in the approval queue: a second person has to approve it before anything is sent to Stripe (/ops/approvals).";
+    case "refund-refused":
+      return "The effective date is corrected and the difference is owed back, but the maker-checker gate refused to send it: another refund on this policy crossed the $1,000 line in the meantime. The refund is listed below with that reason and a button to raise a new approval request; nothing was sent.";
+    case "refund-failed":
+      return "The effective date is corrected and the difference is owed back, but Stripe refused the refund. The reason is on the refund below, the customer is still owed the money, and nothing was reversed in the ledger.";
     case "done":
       return "The effective date is corrected. The corrected date prices the same amount, so no money moves.";
     case "returned":

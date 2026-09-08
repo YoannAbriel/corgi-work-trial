@@ -1,3 +1,4 @@
+import type { EndorsementEntryType } from "./endorsement-entries";
 import type { JournalEntryDraft } from "./post";
 
 // The journal entries of a backdated correction: an endorsement that was applied with the wrong
@@ -58,6 +59,17 @@ import type { JournalEntryDraft } from "./post";
 // date. The settlement entries have no equivalent in the endorsement flow, so they get their own
 // names: correction_refund_requested, correction_premium_collected, correction_commission_earned.
 
+// The entry types this module can post that are its OWN. The re-booked premium and tax carry the
+// endorsement's names on purpose (same accounting fact, corrected date), so they are typed
+// `satisfies EndorsementEntryType` and belong to that module's list.
+export const CORRECTION_ENTRY_TYPES = [
+  "correction_refund_requested",
+  "correction_premium_collected",
+  "correction_commission_earned",
+] as const;
+
+export type CorrectionEntryType = (typeof CORRECTION_ENTRY_TYPES)[number];
+
 // ---------------------------------------------------------------------------
 // The re-booked endorsement, at the corrected effective date
 // ---------------------------------------------------------------------------
@@ -94,7 +106,7 @@ export function correctionRebookEntries(input: CorrectionRebookInput): JournalEn
     entries.push({
       header: {
         ...commonHeader,
-        entryType: "endorsement_premium_written",
+        entryType: "endorsement_premium_written" satisfies EndorsementEntryType,
         effectiveAt: input.correctedEffectiveAt,
         description: `Policy ${input.policyNumber} additional premium re-booked at the corrected effective date ${input.correctedEffectiveAt}`,
       },
@@ -108,7 +120,7 @@ export function correctionRebookEntries(input: CorrectionRebookInput): JournalEn
     entries.push({
       header: {
         ...commonHeader,
-        entryType: "endorsement_tax_billed",
+        entryType: "endorsement_tax_billed" satisfies EndorsementEntryType,
         effectiveAt: input.correctedEffectiveAt,
         description: `Policy ${input.policyNumber} state premium tax re-booked at the corrected effective date ${input.correctedEffectiveAt}`,
       },
@@ -145,7 +157,7 @@ export function correctionRefundRequestedEntry(input: CorrectionRefundRequestedI
   }
   return {
     header: {
-      entryType: "correction_refund_requested",
+      entryType: "correction_refund_requested" satisfies CorrectionEntryType,
       effectiveAt: input.correctedEffectiveAt,
       policyId: input.policyId,
       brokerId: input.brokerId,
@@ -191,7 +203,7 @@ export function correctionCollectionEntries(input: CorrectionCollectionInput): J
     {
       header: {
         ...commonHeader,
-        entryType: "correction_premium_collected",
+        entryType: "correction_premium_collected" satisfies CorrectionEntryType,
         // Cash entries carry the day the cash moved, as premium_collected does at issuance.
         effectiveAt: input.paymentDate,
         description: `Policy ${input.policyNumber}: the difference created by the corrected endorsement date, collected at Stripe`,
@@ -209,7 +221,7 @@ export function correctionCollectionEntries(input: CorrectionCollectionInput): J
     entries.push({
       header: {
         ...commonHeader,
-        entryType: "correction_commission_earned",
+        entryType: "correction_commission_earned" satisfies CorrectionEntryType,
         effectiveAt: input.paymentDate,
         description: `Broker commission on the extra premium collected after the correction on policy ${input.policyNumber}`,
       },

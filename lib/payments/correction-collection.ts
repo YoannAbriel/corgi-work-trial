@@ -4,7 +4,9 @@ import { correctionCollectionEntries } from "@/lib/ledger/correction-entries";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { commissionCents } from "@/lib/money/premium";
+import { customerApprovalNeeded } from "@/lib/approvals/threshold";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
+import { moneyStillWaitingForTheCustomer } from "@/lib/policy/correct-endorsement-date";
 import { correctionCheckoutIdempotencyKey } from "@/lib/money/idempotency";
 import { foldPolicyEvents } from "@/lib/policy/current";
 import { policyWasVoided } from "@/lib/policy/status";
@@ -156,8 +158,10 @@ export async function approveCorrectionCollection(
   if (!outstanding) {
     throw new CorrectionCheckoutRefused("this correction has no difference waiting to be collected");
   }
-  if (outstanding.amountCents <= CUSTOMER_APPROVAL_THRESHOLD_CENTS) {
-    throw new CorrectionCheckoutRefused("this difference is at or below the $500 threshold and needs no approval");
+  if (!(await differenceNeedsTheCustomer(database, input.policyId, input.rebookEventId, outstanding.amountCents))) {
+    throw new CorrectionCheckoutRefused(
+      "this difference is at or below the $500 threshold, counting anything else waiting for you on this policy, so it needs no approval",
+    );
   }
 
   const existing = await correctionApprovalEventId(database, input.rebookEventId);
@@ -178,6 +182,26 @@ export async function approveCorrectionCollection(
     returning id
   `;
   return { approvedEventId: approval.id, alreadyApproved: false };
+}
+
+// Does this difference need the customer's yes, asked at the GATE, right now?
+//
+// It is the cumulative rule (review findings F-B4-09 and F-B8-02): the amount of this difference
+// plus anything else on the policy still waiting for this customer, against the $500 line. The
+// correction wrote its own verdict down when it happened, and the screens read that; this asks
+// the question again at the moment money would actually be collected, because more may have
+// piled up since. It can only ever ask for MORE approval, never less.
+async function differenceNeedsTheCustomer(
+  database: postgres.Sql,
+  policyId: string,
+  rebookEventId: string,
+  amountCents: number,
+): Promise<boolean> {
+  return customerApprovalNeeded({
+    amountCents,
+    unapprovedRequestedCents: await moneyStillWaitingForTheCustomer(database, policyId, rebookEventId),
+    thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
+  });
 }
 
 export async function correctionApprovalEventId(
@@ -255,9 +279,12 @@ export async function startCorrectionCheckout(
     throw new CorrectionCheckoutRefused("this policy is cancelled or voided: the difference has to be settled by operations");
   }
 
-  if (link.amountCents > CUSTOMER_APPROVAL_THRESHOLD_CENTS && !(await correctionApprovalEventId(database, link.rebookEventId))) {
+  if (
+    (await differenceNeedsTheCustomer(database, link.policyId, link.rebookEventId, link.amountCents)) &&
+    !(await correctionApprovalEventId(database, link.rebookEventId))
+  ) {
     throw new CorrectionCheckoutRefused(
-      "the customer has to approve this difference before it can be collected (above $500)",
+      "the customer has to approve this difference before it can be collected: it is above $500 counting anything else still waiting for them on this policy",
     );
   }
 

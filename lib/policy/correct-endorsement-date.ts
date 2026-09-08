@@ -5,7 +5,15 @@ import { correctionRebookEntries, correctionRefundRequestedEntry } from "@/lib/l
 import { postJournalEntry } from "@/lib/ledger/post";
 import { reverseJournalEntry } from "@/lib/ledger/reverse";
 import { centsFromDatabase } from "@/lib/money/cents";
-import { correctEndorsementDateMoney, correctionFormulaLines, type EndorsementDateCorrection } from "@/lib/money/correction";
+import {
+  correctEndorsementDateMoney,
+  correctionApprovalSentences,
+  correctionFormulaLines,
+  type CorrectionApprovalSentences,
+  type CorrectionThresholdTotals,
+  type EndorsementDateCorrection,
+} from "@/lib/money/correction";
+import { isUuid } from "@/lib/http/path-ids";
 import { isCalendarDate } from "@/lib/money/dates";
 import {
   endorsementFormulaLines,
@@ -15,7 +23,7 @@ import {
 } from "@/lib/money/endorsement";
 import { correctionCheckoutIdempotencyKey, refundIdempotencyKey } from "@/lib/money/idempotency";
 import { allocateRefundNewestCollectionFirst, RefundCannotBeAllocated, type RefundSlice } from "@/lib/money/refund-allocation";
-import { issueRefundsAtStripe, refundIntent } from "@/lib/payments/refunds";
+import { issueRefundsAtStripe, policyRefundTotals, refundIntent, type RefundIssueOutcome } from "@/lib/payments/refunds";
 import { collectionsStillRefundable, countRefundOperations } from "./cancel";
 import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 import { expireOpenEndorsementCheckouts } from "./endorse";
@@ -101,6 +109,10 @@ export type CorrectionPlan = {
   collectionOperationId: string | null;
   money: EndorsementDateCorrection;
   lines: FormulaLine[]; // the difference, line by line
+  // The verdict on each threshold WITH the total it was read against, in one sentence each. The
+  // preview, the explanation and the customer's screen all print these: a screen never states a
+  // verdict without the figure behind it (review finding F-B8-02).
+  approvalSentences: CorrectionApprovalSentences;
   correctedEndorsementLines: FormulaLine[]; // the endorsement as it should have read
   entriesToReverse: EntryToReverse[];
   description: string;
@@ -121,8 +133,6 @@ type Queryable = postgres.Sql | postgres.TransactionSql;
 // The only two entry types a correction reverses: what the customer was billed. Everything else
 // the endorsement posted (the cash, the commission) stays untouched.
 const BILLED_ENTRY_TYPES = ["endorsement_premium_written", "endorsement_tax_billed"];
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ---------------------------------------------------------------------------
 // Preview: read everything, compute everything, write nothing
@@ -145,7 +155,7 @@ export async function planEndorsementDateCorrection(
   }
   // The event id arrives from a URL or a form. Anything that is not one of our uuids is refused
   // here, so a malformed id becomes a sentence on the page instead of a Postgres cast error.
-  if (!UUID.test(input.correctedEventId)) {
+  if (!isUuid(input.correctedEventId)) {
     throw new CorrectionRefused("this policy has no endorsement in force with that id");
   }
 
@@ -198,9 +208,20 @@ export async function planEndorsementDateCorrection(
     );
   }
 
+  // THE TWO THRESHOLDS ARE READ AGAINST THE POLICY, NOT AGAINST THIS CORRECTION (review finding
+  // F-B8-02, the rule endorsements and cancellations already follow). This is the GATE, so the
+  // totals are read here, now, and passed to the pure function; the screens read them back from
+  // the correction event afterwards rather than asking the question a second time.
+  const refundsSoFar = await policyRefundTotals(database, input.policyId);
+  const totals: CorrectionThresholdTotals = {
+    policyRefundedCents: refundsSoFar.refundedCents,
+    policyPendingRefundCents: refundsSoFar.pendingCents,
+    customerUnapprovedRequestedCents: await moneyStillWaitingForTheCustomer(database, input.policyId, null),
+  };
+
   let money: EndorsementDateCorrection;
   try {
-    money = correctEndorsementDateMoney(wrongEvent.figures, input.correctedEffectiveAt);
+    money = correctEndorsementDateMoney(wrongEvent.figures, input.correctedEffectiveAt, totals);
   } catch (error) {
     if (error instanceof EndorsementNotComputable) {
       // The date is outside the term: before the policy started (which would mean correcting the
@@ -240,6 +261,7 @@ export async function planEndorsementDateCorrection(
     collectionOperationId: wrongEvent.collectionOperationId,
     money,
     lines: correctionFormulaLines(money),
+    approvalSentences: correctionApprovalSentences(money),
     correctedEndorsementLines: endorsementFormulaLines(money.after),
     entriesToReverse,
     description: wrongEvent.description,
@@ -267,6 +289,11 @@ export type CorrectionResult = {
   refundOperationIds: string[];
   refundOperationIdsAwaitingApproval: string[];
   approvalRequestIds: string[];
+  // What Stripe, or the maker-checker gate in front of it, answered for each refund that was sent
+  // straight away. Empty when nothing was sent. It is NEVER discarded (review finding F-B8-02):
+  // an operator told "requested" about a refund the gate refused would be watching an operation
+  // that can never move.
+  sendOutcomes: RefundIssueOutcome[];
 };
 
 // The whole correction: write it, then ask Stripe for the refund it may owe.
@@ -282,12 +309,29 @@ export async function correctEndorsementDate(
   const sendNow = written.refundOperationIds.filter(
     (operationId) => !written.refundOperationIdsAwaitingApproval.includes(operationId),
   );
-  if (sendNow.length > 0) {
-    // Outbox: the intent is committed, so the provider call can be retried or resumed with the
-    // same key. A provider failure is recorded on the operation and does not undo the correction.
-    await issueRefundsAtStripe(sendNow, database);
+  if (sendNow.length === 0) {
+    return written;
   }
-  return written;
+  // Outbox: the intent is committed, so the provider call can be retried or resumed with the
+  // same key. A provider failure is recorded on the operation and does not undo the correction.
+  const sendOutcomes = await issueRefundsAtStripe(sendNow, database);
+
+  // A refusal here means the gate said no after the plan said the refund could go: another refund
+  // on this policy crossed the threshold between the two. Nothing was sent, and the operation
+  // would otherwise sit in 'requested' with no approval request and no way for a screen to move
+  // it. So the refusal is recorded on the operation at the approval stage, which is the shape
+  // lib/payments/refunds.ts already knows how to release: the policy page then offers "raise a
+  // new approval request for this refund", and reissueRefund opens a fresh operation WITH one.
+  for (const outcome of sendOutcomes) {
+    if (outcome.status === "refused") {
+      await database`
+        insert into money_operation_events (operation_id, status, payload)
+        values (${outcome.operationId}, 'failed',
+                ${database.json({ stage: "approval", reason: outcome.detail.slice(0, 500) })})
+      `;
+    }
+  }
+  return { ...written, sendOutcomes };
 }
 
 // Everything that touches our own database, in one transaction and without any provider call.
@@ -390,6 +434,9 @@ export async function recordEndorsementDateCorrection(
       rebookEventId: rebookEvent.id,
       reversalEntryIds,
       ...settlement,
+      // Nothing has been asked of Stripe inside the transaction; correctEndorsementDate fills
+      // this in afterwards, with the answer for every refund it sent.
+      sendOutcomes: [],
     };
   });
 }
@@ -428,6 +475,14 @@ function rebookPayload(
     difference_total_cents: plan.money.differenceTotalCents,
     difference_commission_cents: plan.money.differenceCommissionCents,
     settlement: plan.money.settlement,
+    // The two approval verdicts AND the totals they were read against, decided once here and read
+    // back by every screen (review finding F-B8-02). Writing them down is what stops a screen
+    // recomputing a threshold with today's totals and contradicting the approval event beside it.
+    difference_customer_approval_required: plan.money.customerApprovalRequired,
+    difference_refund_needs_approval: plan.money.refundNeedsApproval,
+    customer_unapproved_requested_cents: plan.money.totals.customerUnapprovedRequestedCents,
+    policy_refunded_cents: plan.money.totals.policyRefundedCents,
+    policy_pending_refund_cents: plan.money.totals.policyPendingRefundCents,
   };
 }
 
@@ -733,6 +788,48 @@ async function anyEntryAlreadyReversed(database: Queryable, entryIds: string[]):
     select count(*)::text as count from journal_entries where reverses_entry_id in ${database(entryIds)}
   `;
   return Number(row.count) > 0;
+}
+
+// Money on this policy that is still waiting for this customer to say yes, this correction
+// excluded. It is the base of the customer-approval threshold, which is read against the POLICY
+// and not against one change at a time (review findings F-B4-09 and F-B8-02): two raises of $400
+// collect $800 from a customer nobody ever asked.
+//
+// Two kinds of thing can be waiting, and both are read from the events rather than from a flag:
+//   an endorsement quote  requested, above the threshold, and neither approved nor applied;
+//   a correction difference  a re-book whose difference is still unpaid and unapproved.
+export async function moneyStillWaitingForTheCustomer(
+  database: Queryable,
+  policyId: string,
+  exceptRebookEventId: string | null,
+): Promise<number> {
+  const [row] = await database<{ waiting_cents: string }[]>`
+    select coalesce(sum(waiting.amount_cents), 0)::text as waiting_cents
+      from (
+             -- endorsement quotes the customer has not answered yet
+             select (request.payload ->> 'delta_total_cents')::bigint as amount_cents
+               from policy_events request
+              where request.policy_id = ${policyId}
+                and request.event_type = 'endorsement_requested'
+                and (request.payload ->> 'delta_total_cents')::bigint > 0
+                and not exists (select 1 from policy_events answered
+                                 where answered.policy_id = request.policy_id
+                                   and answered.event_type in ('endorsement_approved', 'endorsed')
+                                   and answered.payload ->> 'request_event_id' = request.id::text)
+             union all
+             -- differences from other corrections, still unpaid and still unapproved
+             select link.amount_cents
+               from correction_collections link
+              where link.policy_id = ${policyId}
+                and (${exceptRebookEventId}::uuid is null or link.correction_rebook_event_id <> ${exceptRebookEventId}::uuid)
+                and not exists (select 1 from money_operation_events paid
+                                 where paid.operation_id = link.collection_operation_id and paid.status = 'succeeded')
+                and not exists (select 1 from policy_events approval
+                                 where approval.event_type = 'correction_approved'
+                                   and approval.payload ->> 'correction_rebook_event_id' = link.correction_rebook_event_id::text)
+           ) waiting
+  `;
+  return centsFromDatabase(row.waiting_cents, "waiting_cents");
 }
 
 // True while a refund opened by an earlier correction has not been reported as completed by

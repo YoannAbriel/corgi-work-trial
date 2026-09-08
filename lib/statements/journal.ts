@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { centsFromDatabase } from "@/lib/money/cents";
 import type { BrokerJournalEntry } from "./compute";
-import { firstDayOfMonth, lastDayOfMonth } from "./compute";
+import { firstDayOfMonth, lastDayOfMonth, STATEMENT_CASH_ENTRY_TYPES } from "./compute";
 
 // The one query a statement run makes: the journal entries of one broker, for one month, as they
 // were known at one instant. Read-only, with the runtime role (SELECT and INSERT only), plain SQL.
@@ -41,18 +41,12 @@ export type StatementJournalQuery = {
   knowledgeCutoff: Date;
 };
 
-// The cash side of a collection or a refund, and their reversals. Written out rather than matched
-// by prefix so that adding an entry type to the statement is a deliberate edit in one place.
-// An endorsement collects its delta under its own entry name (lib/ledger/endorsement-entries.ts)
-// and refunds it through the ordinary refund_completed entry.
-const CASH_ENTRY_TYPES = [
-  "premium_collected",
-  "reversal_of_premium_collected",
-  "endorsement_premium_collected",
-  "reversal_of_endorsement_premium_collected",
-  "refund_completed",
-  "reversal_of_refund_completed",
-];
+// The cash side of a collection or a refund, and their reversals. It is derived from the one
+// table that says what the statement does with each entry type (lib/statements/compute.ts), so
+// this query and the classifier can never disagree about which entries carry cash: that
+// disagreement is exactly how a collected correction difference went missing (F-B8-01) and how an
+// endorsement did before it (F-B9-01).
+const CASH_ENTRY_TYPES = STATEMENT_CASH_ENTRY_TYPES;
 
 export async function brokerJournalEntriesInMonth(
   query: StatementJournalQuery,
@@ -87,13 +81,40 @@ export async function brokerJournalEntriesInMonth(
            -- the figure a closed month already published. The MONTH is deliberately not applied:
            -- premium is written on the policy effective date, which is often an earlier month
            -- than the day the money arrived, and it is still the premium of that cash.
-           coalesce((select sum(premium_line.credit_cents - premium_line.debit_cents)
+           --
+           -- A CORRECTION IS THE ONE CASE WHERE THE SIBLING READ FINDS NOTHING, so a second sum
+           -- is added to it (review finding F-B8-01). A backdated correction does not write its
+           -- premium under the money operation that settles the difference: it writes it under
+           -- its own two policy events, the reversal of what was booked and the re-book of what
+           -- is right (lib/ledger/correction-entries.ts, source_kind 'correction'). Their net
+           -- movement of unearned_premium IS the premium the difference is made of: +4931 when
+           -- the corrected date charges more days, -4931 when it charges fewer, in the recited
+           -- example. Exactly one of the two sums below is ever non-zero for a given entry.
+           --
+           -- The correction is found from the money operation that settles it: correction_
+           -- collections names the re-book for money coming in, refund_allocations names it for
+           -- money going back out, and the re-book's payload names the reversal beside it.
+           (coalesce((select sum(premium_line.credit_cents - premium_line.debit_cents)
                        from journal_entries premium_entry
                        join journal_lines premium_line on premium_line.entry_id = premium_entry.id
                       where premium_entry.source_kind = entry.source_kind
                         and premium_entry.source_id = entry.source_id
                         and premium_entry.recorded_at <= ${query.knowledgeCutoff}
-                        and premium_line.account_id = 'unearned_premium'), 0)::text
+                        and premium_line.account_id = 'unearned_premium'), 0)
+            + coalesce((select sum(premium_line.credit_cents - premium_line.debit_cents)
+                          from policy_events rebook
+                          join journal_entries premium_entry
+                            on premium_entry.source_kind = 'correction'
+                           and premium_entry.source_id in (rebook.id::text, rebook.payload ->> 'correction_reversal_event_id')
+                          join journal_lines premium_line on premium_line.entry_id = premium_entry.id
+                         where rebook.event_type = 'correction_rebook'
+                           and rebook.id = coalesce(
+                                 (select link.correction_rebook_event_id from correction_collections link
+                                   where link.collection_operation_id::text = entry.source_id),
+                                 (select allocation.policy_event_id from refund_allocations allocation
+                                   where allocation.refund_operation_id::text = entry.source_id))
+                           and premium_entry.recorded_at <= ${query.knowledgeCutoff}
+                           and premium_line.account_id = 'unearned_premium'), 0))::text
              as unearned_premium_cents
       from journal_entries entry
       join journal_lines line on line.entry_id = entry.id

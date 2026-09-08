@@ -1,10 +1,9 @@
 import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
+import { notFound, redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
+import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
 import { CorrectionRefused, planEndorsementDateCorrection } from "@/lib/policy/correct-endorsement-date";
 import { FormulaLinesTable } from "../../formula-lines";
 
@@ -31,6 +30,11 @@ export default async function CorrectEndorsementDatePage({
     redirect("/login");
   }
   const [{ policyId }, query] = await Promise.all([params, searchParams]);
+  // A path id that is not a uuid is a malformed URL, not a policy that exists somewhere: 404
+  // before anything reaches a query that would cast it and raise (review finding F-B8-03).
+  if (!isUuid(policyId)) {
+    notFound();
+  }
   const endorsedEventId = (query.endorsedEventId ?? "").trim();
 
   let plan;
@@ -147,17 +151,16 @@ export default async function CorrectEndorsementDatePage({
         line above, the endorsement re-booked on {money.correctedEffectiveAt} with fresh premium and tax entries, and the
         difference opened as a money operation. Nothing is deleted and nothing is updated.
         {money.settlement === "collect"
-          ? ` The ${formatCentsAsUsd(money.differenceTotalCents)} difference is then collected through a hosted Stripe page.` +
-            (money.customerApprovalRequired
-              ? ` It is above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}, so the customer has to approve it first.`
-              : ` At or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} no customer approval is needed.`)
+          ? ` The ${formatCentsAsUsd(money.differenceTotalCents)} difference is then collected through a hosted Stripe page.`
           : money.settlement === "refund"
-            ? ` The ${formatCentsAsUsd(-money.differenceTotalCents)} goes back through the Stripe Refunds API on the original payment.` +
-              (money.refundNeedsApproval
-                ? ` It is above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so a second person, never you, has to approve it before anything is sent.`
-                : ` At or below ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} no second approver is needed.`)
+            ? ` The ${formatCentsAsUsd(-money.differenceTotalCents)} goes back through the Stripe Refunds API on the original payment.`
             : ""}
       </p>
+      {/* The verdict on each threshold, always with the total it was read against: both are
+          cumulative over the policy, so the amount of this correction alone does not answer
+          them (review finding F-B8-02). */}
+      {plan.approvalSentences.customer ? <p className="note">Customer approval: {plan.approvalSentences.customer}.</p> : null}
+      {plan.approvalSentences.refund ? <p className="note">Second approver: {plan.approvalSentences.refund}.</p> : null}
 
       <form method="post" action={`/api/policies/${policyId}/corrections`} className="card">
         <input type="hidden" name="endorsedEventId" value={plan.correctedEventId} />

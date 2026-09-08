@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { badPathIdResponse, isUuid } from "@/lib/http/path-ids";
 import { correctEndorsementDate, CorrectionRefused } from "@/lib/policy/correct-endorsement-date";
 
 // POST /api/policies/{policyId}/corrections, called by the Confirm button of the preview page.
@@ -9,15 +10,23 @@ import { correctEndorsementDate, CorrectionRefused } from "@/lib/policy/correct-
 // gates as the button: staff operations only, one correction per endorsement, dates inside the
 // term, and no correction on a cancelled or voided policy.
 export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
-  const user = await currentUser();
   const { policyId } = await context.params;
+  // A path id that is not a uuid is a malformed request, not a missing row: answered 400 before
+  // anything reaches a query that would cast it and raise (review finding F-B8-03).
+  const badPathId = badPathIdResponse({ policyId });
+  if (badPathId) {
+    return badPathId;
+  }
+  const user = await currentUser();
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
   }
 
   const form = await request.formData();
+  // Not a path id: it comes from the form, so it is checked with the same shape test and turned
+  // into a sentence on the policy page rather than a 400.
   const endorsedEventId = String(form.get("endorsedEventId") ?? "").trim();
-  if (!UUID.test(endorsedEventId)) {
+  if (!isUuid(endorsedEventId)) {
     return backToPolicy(policyId, "the confirmation form does not name an endorsement; open the correction preview again");
   }
   const expectedPolicyVersion = Number(String(form.get("expectedPolicyVersion") ?? ""));
@@ -36,13 +45,25 @@ export async function POST(request: Request, context: { params: Promise<{ policy
       expectedPolicyVersion,
       actor: { userId: user.id, role: user.role },
     });
+    // What Stripe, or the gate in front of it, actually answered. It is never dropped: telling an
+    // operator "requested" about a refund the gate refused would leave them watching an operation
+    // that cannot move (review finding F-B8-02).
+    const refused = result.sendOutcomes.some((sendOutcome) => sendOutcome.status === "refused");
+    const queued =
+      result.refundOperationIdsAwaitingApproval.length > 0 ||
+      result.sendOutcomes.some((sendOutcome) => sendOutcome.status === "queued_for_approval");
+    const failed = result.sendOutcomes.some((sendOutcome) => sendOutcome.status === "failed");
     const outcome = result.plan.money.settlement === "collect"
       ? "collect"
-      : result.refundOperationIdsAwaitingApproval.length > 0
-        ? "refund-held"
-        : result.refundOperationIds.length > 0
-          ? "refund-requested"
-          : "done";
+      : refused
+        ? "refund-refused"
+        : queued
+          ? "refund-held"
+          : failed
+            ? "refund-failed"
+            : result.refundOperationIds.length > 0
+              ? "refund-requested"
+              : "done";
     return redirectTo(`/policies/${policyId}?correction=${outcome}`);
   } catch (error) {
     if (error instanceof CorrectionRefused) {
@@ -53,8 +74,6 @@ export async function POST(request: Request, context: { params: Promise<{ policy
     throw error;
   }
 }
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function backToPolicy(policyId: string, message: string): Response {
   return redirectTo(`/policies/${policyId}?error=${encodeURIComponent(message)}`);
