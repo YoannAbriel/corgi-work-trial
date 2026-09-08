@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { createApprovalRequest } from "@/lib/approvals/approvals";
-import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { refundNeedsApproval } from "@/lib/approvals/threshold";
 import { openClaimsOfPolicy } from "@/lib/claims/read";
 import { premiumEarnedToDateEntry, refundRequestedEntry } from "@/lib/ledger/cancellation-entries";
 import { postJournalEntry } from "@/lib/ledger/post";
@@ -15,7 +15,7 @@ import {
   type CollectionToRefund,
   type RefundSlice,
 } from "@/lib/money/refund-allocation";
-import { issueRefundsAtStripe, refundIntent } from "@/lib/payments/refunds";
+import { issueRefundsAtStripe, policyRefundTotals, refundIntent } from "@/lib/payments/refunds";
 import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 import type { PolicyTerms } from "./terms";
 
@@ -238,6 +238,7 @@ export async function planCancellation(
     );
   }
 
+  const refundsSoFar = await policyRefundTotals(database, request.policyId);
   const collections = await collectionsStillRefundable(database, request.policyId);
   let slices: RefundSlice[];
   try {
@@ -269,9 +270,15 @@ export async function planCancellation(
     slices,
     policyVersion: await policyVersion(database, request.policyId),
     // The threshold is read against the WHOLE refund, not against each Stripe payment it is
-    // split over: splitting a refund across two collections must not let it slip under $1,000.
+    // split over, and against everything this policy has already given back: a cancellation that
+    // follows an endorsement refund counts that refund too (review finding F-B4-04).
     refundNeedsApproval:
-      breakdown.totalRefundCents > 0 && moneyOutNeedsApproval(breakdown.totalRefundCents),
+      breakdown.totalRefundCents > 0 &&
+      refundNeedsApproval({
+        amountCents: breakdown.totalRefundCents,
+        policyRefundedCents: refundsSoFar.refundedCents,
+        policyPendingRefundCents: refundsSoFar.pendingCents,
+      }),
     openClaims,
   };
 }

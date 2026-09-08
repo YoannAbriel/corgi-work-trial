@@ -3,7 +3,7 @@ import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { ApprovalRefused, assertIntentIsApproved, createApprovalRequest } from "@/lib/approvals/approvals";
 import { stripePaymentDestination, type MoneyOutIntent } from "@/lib/approvals/intent";
-import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { refundNeedsApproval } from "@/lib/approvals/threshold";
 import { refundCompletedEntries } from "@/lib/ledger/cancellation-entries";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
@@ -155,6 +155,50 @@ export function refundIntent(policyId: string, amountCents: number, paymentInten
 
 export class RefundSendRefused extends Error {}
 
+// What this policy has already given back, and what is on its way, so that the approval rule can
+// be read against the POLICY and not against one refund at a time (review finding F-B4-04).
+//
+// The states come from refundStateFromEvents, the one definition of where a refund stands:
+//   completed / accepted   the money is gone or Stripe has taken the instruction;
+//   requested              nothing has been sent yet, and it still might be;
+//   failed                 the money came back to us, so it counts for nothing.
+//
+// `exceptOperationId` leaves out the refund being decided, which would otherwise count itself.
+export type PolicyRefundTotals = { refundedCents: number; pendingCents: number };
+
+export async function policyRefundTotals(
+  database: postgres.Sql | postgres.TransactionSql,
+  policyId: string,
+  exceptOperationId: string | null = null,
+): Promise<PolicyRefundTotals> {
+  const rows = await database<{ id: string; amount_cents: string; statuses: string[] }[]>`
+    select operation.id,
+           operation.amount_cents,
+           coalesce((select array_agg(event.status order by event.sequence_number)
+                       from money_operation_events event
+                      where event.operation_id = operation.id), '{}') as statuses
+      from money_operations operation
+     where operation.policy_id = ${policyId}
+       and operation.kind = 'stripe_refund'
+  `;
+
+  let refundedCents = 0;
+  let pendingCents = 0;
+  for (const row of rows) {
+    if (exceptOperationId !== null && row.id === exceptOperationId) {
+      continue;
+    }
+    const amountCents = centsFromDatabase(row.amount_cents, "amount_cents");
+    const state = refundStateFromEvents(row.statuses);
+    if (state === "completed" || state === "accepted") {
+      refundedCents += amountCents;
+    } else if (state === "requested") {
+      pendingCents += amountCents;
+    }
+  }
+  return { refundedCents, pendingCents };
+}
+
 // Whether this refund is allowed to leave for Stripe right now. Exported on its own so the
 // screens can say why a button is not there, and so the check script can prove the refusal
 // without calling Stripe.
@@ -182,9 +226,21 @@ export async function assertRefundMaySend(
     );
     return;
   }
-  if (moneyOutNeedsApproval(operation.amountCents)) {
+  // No approval request on the operation. It may still need one: the rule is read against the
+  // whole policy, so a refund that was under the threshold when it was written can be over it by
+  // the time it is sent, because another reduction went out in between (F-B4-04). This refund is
+  // left out of the pending total, since it is the one being decided.
+  const totals = await policyRefundTotals(database, operation.policyId, operation.operationId);
+  if (
+    refundNeedsApproval({
+      amountCents: operation.amountCents,
+      policyRefundedCents: totals.refundedCents,
+      policyPendingRefundCents: totals.pendingCents,
+    })
+  ) {
     throw new RefundSendRefused(
-      "this refund is above the approval threshold but carries no approval request; it cannot be sent",
+      "this refund takes what this policy has given back above the approval threshold and carries no approval request; " +
+        "it cannot be sent, and a new approval has to be asked for",
     );
   }
 }
@@ -338,7 +394,12 @@ export async function createReissuedRefundOperation(
     // Maker-checker for the new attempt, written before the operation it gates, exactly as the
     // cancellation does (lib/policy/cancel.ts). The previous approval, if any, was for the
     // previous operation; money that goes out again is approved again.
-    const approvalRequestId = moneyOutNeedsApproval(failed.amountCents)
+    const totalsBeforeReissue = await policyRefundTotals(transaction, failed.policyId, input.failedOperationId);
+    const approvalRequestId = refundNeedsApproval({
+      amountCents: failed.amountCents,
+      policyRefundedCents: totalsBeforeReissue.refundedCents,
+      policyPendingRefundCents: totalsBeforeReissue.pendingCents,
+    })
       ? await createApprovalRequest(transaction, {
           intent: refundIntent(failed.policyId, failed.amountCents, failed.paymentIntentId),
           destinationDescription: `Stripe payment ${failed.paymentIntentId} (card refund to the customer), re-issued`,
