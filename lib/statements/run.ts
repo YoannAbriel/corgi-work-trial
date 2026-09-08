@@ -123,14 +123,14 @@ export async function runStatement(
       const [run] = await transaction<{ id: string; created_at: Date }[]>`
         insert into statement_runs (
           broker_id, statement_month, revision, knowledge_cutoff, supersedes_run_id, content_hash,
-          identical_to_previous, premium_collected_cents, commission_earned_cents, clawback_cents,
-          adjustment_cents, net_due_cents, run_by
+          identical_to_previous, cash_collected_cents, premium_collected_cents,
+          commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents, run_by
         ) values (
           ${request.brokerId}, ${firstDayOfMonth(request.statementMonth)}, ${revision},
           ${knowledgeCutoff}, ${previous?.id ?? null}, ${statement.contentHash}, ${identicalToPrevious},
-          ${statement.totals.premiumCollectedCents}, ${statement.totals.commissionEarnedCents},
-          ${statement.totals.clawbackCents}, ${statement.totals.adjustmentCents},
-          ${statement.totals.netDueCents}, ${request.actorUserId}
+          ${statement.totals.cashCollectedCents}, ${statement.totals.premiumCollectedCents},
+          ${statement.totals.commissionEarnedCents}, ${statement.totals.clawbackCents},
+          ${statement.totals.adjustmentCents}, ${statement.totals.netDueCents}, ${request.actorUserId}
         )
         returning id, created_at
       `;
@@ -148,6 +148,7 @@ export async function runStatement(
           effective_at: line.effectiveAt,
           entry_recorded_at: line.entryRecordedAt,
           amount_cents: line.amountCents,
+          commission_base_cents: line.commissionBaseCents,
           description: line.description,
         }));
         await transaction`
@@ -162,6 +163,7 @@ export async function runStatement(
             "effective_at",
             "entry_recorded_at",
             "amount_cents",
+            "commission_base_cents",
             "description",
           )}
         `;

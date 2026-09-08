@@ -5,6 +5,7 @@ import {
   firstDayOfMonth,
   lastDayOfMonth,
   monthOfFirstDay,
+  monthWasStillRunningAt,
   type BrokerJournalEntry,
 } from "./compute";
 
@@ -24,6 +25,7 @@ function entry(fields: Partial<BrokerJournalEntry> & { entryId: string; entryTyp
     description: fields.entryType,
     cashCents: 0,
     commissionPayableCents: 0,
+    unearnedPremiumCents: 0,
     ...fields,
   };
 }
@@ -33,6 +35,7 @@ const marchCollection = entry({
   entryType: "premium_collected",
   effectiveAt: "2028-03-01",
   cashCents: 125320,
+  unearnedPremiumCents: 120000, // the premium_written entry of the same money operation
   description: "Policy CGP-01001 premium, tax and fee collected at Stripe",
 });
 const marchCommission = entry({
@@ -43,7 +46,7 @@ const marchCommission = entry({
   description: "Broker commission on the collected premium of policy CGP-01001",
 });
 
-test("the March statement of the recited example: cash collected, commission earned, nothing else", () => {
+test("the March statement of the recited example: the cash, the premium inside it, and the commission", () => {
   const statement = computeStatement({
     brokerId: BROKER_ID,
     statementMonth: "2028-03",
@@ -58,9 +61,16 @@ test("the March statement of the recited example: cash collected, commission ear
       ["commission_earned", 18000],
     ],
   );
-  assert.equal(statement.totals.premiumCollectedCents, 125320);
+  // Both figures, so that 120000 x 15% = 18000 reads on the statement (decision 19).
+  assert.equal(statement.totals.cashCollectedCents, 125320);
+  assert.equal(statement.totals.premiumCollectedCents, 120000);
+  assert.equal(statement.lines[0].commissionBaseCents, 120000);
   assert.equal(statement.totals.commissionEarnedCents, 18000);
+  assert.equal(Math.floor((statement.totals.premiumCollectedCents * 1500) / 10000), statement.totals.commissionEarnedCents);
   assert.equal(statement.totals.clawbackCents, 0);
+  // The commission line is the commission; asking what premium it rests on would be the same
+  // question twice.
+  assert.equal(statement.lines[1].commissionBaseCents, null);
   // What the broker is owed for March: the whole commission, because nothing was given back yet.
   assert.equal(statement.totals.netDueCents, 18000);
 });
@@ -72,9 +82,9 @@ test("commission is earned on the premium, so it is not 15% of the cash collecte
     entries: [marchCollection, marchCommission],
   });
   // 15% of the 120000 premium, not of the 125320 the customer paid (which includes the 2820 of
-  // state premium tax and the 2500 policy fee). The screens say this in words next to the figures.
+  // state premium tax and the 2500 policy fee). Both figures are on the statement.
   assert.equal(statement.totals.commissionEarnedCents, 18000);
-  assert.notEqual(statement.totals.commissionEarnedCents, Math.floor((125320 * 1500) / 10000));
+  assert.notEqual(statement.totals.commissionEarnedCents, Math.floor((statement.totals.cashCollectedCents * 1500) / 10000));
 });
 
 const juneRefund = entry({
@@ -82,6 +92,7 @@ const juneRefund = entry({
   entryType: "refund_completed",
   effectiveAt: "2028-06-09",
   cashCents: -89172,
+  unearnedPremiumCents: -87124, // the refund_requested entry of the same money operation
   description: "Policy CGP-01001 refund paid back to the customer at Stripe",
 });
 const juneClawback = entry({
@@ -110,7 +121,10 @@ test("the June statement of the recited example: the clawback, and the refund it
   assert.equal(statement.totals.clawbackCents, 13068);
   assert.equal(statement.totals.commissionEarnedCents, 0);
   // The refund is the customer's money, not the broker's: it is on the statement as the reason
-  // for the clawback and it changes no total.
+  // for the clawback, with the premium it gave back on the line, and it changes no collected total.
+  assert.equal(statement.lines[0].commissionBaseCents, -87124);
+  assert.equal(Math.floor((87124 * 1500) / 10000), statement.totals.clawbackCents);
+  assert.equal(statement.totals.cashCollectedCents, 0);
   assert.equal(statement.totals.premiumCollectedCents, 0);
   assert.equal(statement.totals.netDueCents, -13068);
 });
@@ -129,6 +143,7 @@ test("a voided binding nets to zero: the reversal carries the mirrored movement"
     entryType: "reversal_of_premium_collected",
     effectiveAt: "2028-03-01",
     cashCents: -125320,
+    unearnedPremiumCents: -120000, // the mirrored premium_written entry of the same correction
     description: "bound on a payment Stripe never made",
   });
   const reversedCommission = entry({
@@ -148,6 +163,7 @@ test("a voided binding nets to zero: the reversal carries the mirrored movement"
   // The four entries are all listed: nothing is hidden, the statement shows the money and the
   // correction that took it back.
   assert.equal(statement.lines.length, 4);
+  assert.equal(statement.totals.cashCollectedCents, 0);
   assert.equal(statement.totals.premiumCollectedCents, 0);
   assert.equal(statement.totals.commissionEarnedCents, 0);
   assert.equal(statement.totals.netDueCents, 0);
@@ -200,8 +216,8 @@ test("the hash does not depend on the order the database returned the rows in", 
 test("the hash is a sha256 of a text a human can read", () => {
   const statement = computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-03", entries: [marchCollection, marchCommission] });
   assert.match(statement.contentHash, /^[0-9a-f]{64}$/);
-  assert.match(statement.canonicalText, /^corgi\.broker-statement\.v1\n/);
-  assert.match(statement.canonicalText, /\ntotals\|125320\|18000\|0\|0\|18000\n$/);
+  assert.match(statement.canonicalText, /^corgi\.broker-statement\.v2\n/);
+  assert.match(statement.canonicalText, /\ntotals\|125320\|120000\|18000\|0\|0\|18000\n$/);
 });
 
 test("a payment parked in the suspense account and applied later is still premium collected", () => {
@@ -213,10 +229,12 @@ test("a payment parked in the suspense account and applied later is still premiu
     entryType: "premium_collected",
     effectiveAt: "2028-03-04",
     cashCents: 125320,
+    unearnedPremiumCents: 120000,
     description: "Policy CGP-01001 premium, tax and fee applied from the customer's unapplied cash",
   });
   const statement = computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-03", entries: [applied] });
-  assert.equal(statement.totals.premiumCollectedCents, 125320);
+  assert.equal(statement.totals.cashCollectedCents, 125320);
+  assert.equal(statement.totals.premiumCollectedCents, 120000);
 });
 
 test("an entry that moves the payable and nothing else recognises is an adjustment, and net due still ties", () => {
@@ -261,6 +279,53 @@ test("the statement month is written YYYY-MM and refuses anything else", () => {
   assert.throws(() => computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-3", entries: [] }), /statement month/);
   assert.throws(() => computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-13", entries: [] }), /statement month/);
   assert.throws(() => computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-03-01", entries: [] }), /statement month/);
+});
+
+test("an endorsement reads as a collection and a commission, not as an adjustment", () => {
+  // Slice B4 books the same four movements under its own entry names
+  // (lib/ledger/endorsement-entries.ts). Its worked example: $600 more annual premium effective
+  // 2028-06-09, 43561 cents of premium written for the segment, 1023 of tax, 44584 collected,
+  // commission floor(43561 x 15%) = 6534.
+  const endorsementCash = entry({
+    entryId: "77777771-0000-4000-8000-000000000001",
+    entryType: "endorsement_premium_collected",
+    effectiveAt: "2028-06-09",
+    cashCents: 44584,
+    unearnedPremiumCents: 43561,
+    description: "Policy CGP-01001 endorsement premium and tax collected at Stripe",
+  });
+  const endorsementCommission = entry({
+    entryId: "77777771-0000-4000-8000-000000000002",
+    entryType: "endorsement_commission_earned",
+    effectiveAt: "2028-06-09",
+    commissionPayableCents: 6534,
+    description: "Broker commission on the collected endorsement premium of policy CGP-01001",
+  });
+
+  const statement = computeStatement({
+    brokerId: BROKER_ID,
+    statementMonth: "2028-06",
+    entries: [endorsementCash, endorsementCommission],
+  });
+  assert.deepEqual(statement.lines.map((line) => line.kind), ["premium_collected", "commission_earned"]);
+  assert.equal(statement.totals.cashCollectedCents, 44584);
+  assert.equal(statement.totals.premiumCollectedCents, 43561);
+  assert.equal(statement.totals.commissionEarnedCents, 6534);
+  assert.equal(Math.floor((43561 * 1500) / 10000), 6534);
+  assert.equal(statement.totals.netDueCents, 6534);
+});
+
+test("a run made before the month is over is provisional, and stays provisional forever", () => {
+  // The question is asked against the run's own cutoff, never against the reader's clock.
+  assert.equal(monthWasStillRunningAt("2028-03", new Date("2028-03-12T09:00:00Z")), true);
+  assert.equal(monthWasStillRunningAt("2028-03", new Date("2028-03-31T23:59:59Z")), true);
+  // Midnight UTC on April 1 is the first instant the month is over.
+  assert.equal(monthWasStillRunningAt("2028-03", new Date("2028-04-01T00:00:00Z")), false);
+  assert.equal(monthWasStillRunningAt("2028-03", new Date("2029-01-01T00:00:00Z")), false);
+  // February of a leap year ends on the 29th, and nothing in the code says so.
+  assert.equal(monthWasStillRunningAt("2028-02", new Date("2028-02-29T12:00:00Z")), true);
+  assert.equal(monthWasStillRunningAt("2028-02", new Date("2028-03-01T00:00:00Z")), false);
+  assert.equal(monthWasStillRunningAt("2028-12", new Date("2029-01-01T00:00:00Z")), false);
 });
 
 test("the first and last day of a month are counted, not assumed", () => {
