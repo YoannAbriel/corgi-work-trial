@@ -97,8 +97,16 @@ export type EndorsementScheduleRow = {
   lines: FormulaLine[];
   collectionOperationId: string | null;
   stripeReferences: string[]; // payment intent or refund ids, for the explanation block
+  // Set when this row is a 'correction_rebook' (slice B8): the endorsement was entered with the
+  // wrong effective date and re-booked on the right one. The date it used to carry, and why.
+  correctedFromEffectiveAt: string | null;
+  correctionReason: string | null;
 };
 
+// Every endorsement in force, oldest effective date first. A 'correction_rebook' that re-books an
+// endorsement is one of them: it carries the same payload keys as the 'endorsed' event it
+// replaced, at the corrected date, so it reads through the same code (slice B8). The superseded
+// rows stay in the table and are skipped here; the timeline screen is where they are shown.
 export async function endorsementScheduleOfPolicy(policyId: string, database: postgres.Sql = sql): Promise<EndorsementScheduleRow[]> {
   const rows = await database<
     { id: string; effective_at: string; recorded_at: Date; payload: Record<string, unknown>; superseded: boolean }[]
@@ -109,7 +117,9 @@ export async function endorsementScheduleOfPolicy(policyId: string, database: po
            event.payload,
            exists (select 1 from policy_events correction where correction.supersedes_event_id = event.id) as superseded
       from policy_events event
-     where event.policy_id = ${policyId} and event.event_type = 'endorsed'
+     where event.policy_id = ${policyId}
+       and (event.event_type = 'endorsed'
+            or (event.event_type = 'correction_rebook' and event.payload ->> 'rebooked_event_type' = 'endorsed'))
      order by event.effective_at, event.sequence_number
   `;
   const schedule: EndorsementScheduleRow[] = [];
@@ -130,6 +140,8 @@ export async function endorsementScheduleOfPolicy(policyId: string, database: po
       lines: endorsementFormulaLines(figures),
       collectionOperationId,
       stripeReferences: await stripeReferencesOfEndorsement(database, row.id, collectionOperationId),
+      correctedFromEffectiveAt: typeof row.payload.wrong_effective_at === "string" ? row.payload.wrong_effective_at : null,
+      correctionReason: typeof row.payload.correction_reason === "string" ? row.payload.correction_reason : null,
     });
   }
   return schedule;

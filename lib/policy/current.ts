@@ -62,7 +62,11 @@ export async function foldPolicyEvents(database: Queryable, policyId: string): P
 //     reversal un-binds a policy without deleting anything (slice B8);
 //   - 'endorsement_requested' and 'endorsement_approved' carry no terms (their payload has no
 //     annual_premium_cents key on purpose), so they count as applied events, which moves the
-//     policy version, without changing what the policy covers.
+//     policy version, without changing what the policy covers;
+//   - a 'correction_rebook' that re-books an endorsement (slice B8) applies exactly like the
+//     'endorsed' event it replaces, at the CORRECTED effective date: the same terms, and its own
+//     written premium segment starting on that date, so a later cancellation gives back the
+//     corrected figure segment by segment (decision 18).
 export function applyPolicyEvents(events: PolicyEventRow[]): PolicyFold {
   const supersededEventIds = new Set(
     events.filter((event) => event.supersedes_event_id !== null).map((event) => event.supersedes_event_id as string),
@@ -84,7 +88,7 @@ export function applyPolicyEvents(events: PolicyEventRow[]): PolicyFold {
     if (event.event_type === "issued") {
       boundAt = event.recorded_at;
     }
-    if (event.event_type === "endorsed") {
+    if (event.event_type === "endorsed" || appliesAsEndorsement(event)) {
       latestEndorsementEffectiveAt = event.effective_at;
       // The money the endorsement actually moved, signed: what the customer paid for the extra
       // cover, or gave back. It earns from the endorsement's own effective date, so a policy
@@ -173,10 +177,10 @@ export async function refreshPolicyCurrent(
 }
 
 // The last thing the payment provider told us about this policy's ISSUANCE checkout operation.
-// Null when the broker has not started a payment yet. An endorsement delta is also collected
-// by a stripe_checkout operation (slice B4), but that payment has its own life on the
-// endorsement and must not make a bound policy read as awaiting payment, so operations that
-// have an endorsement_collections row are left out.
+// Null when the broker has not started a payment yet. An endorsement delta (slice B4) and the
+// difference of a correction (slice B8) are also collected by stripe_checkout operations, but
+// each has its own life and must not make a bound policy read as awaiting payment, so the
+// operations named by endorsement_collections or correction_collections are left out.
 export async function latestCheckoutStatus(
   database: Queryable,
   policyId: string,
@@ -188,6 +192,7 @@ export async function latestCheckoutStatus(
      where operation.policy_id = ${policyId}
        and operation.kind = 'stripe_checkout'
        and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
+       and not exists (select 1 from correction_collections fix where fix.collection_operation_id = operation.id)
      order by event.sequence_number desc
      limit 1
   `;
@@ -196,4 +201,17 @@ export async function latestCheckoutStatus(
 
 function carriesTerms(payload: unknown): boolean {
   return typeof payload === "object" && payload !== null && "annual_premium_cents" in payload;
+}
+
+// A 'correction_rebook' is the corrected replay of an earlier event, so it applies as that kind
+// of event (slice B8). The one kind this build re-books is an endorsement: the payload says so,
+// and it carries exactly the keys an 'endorsed' event carries, which is why the fold, the
+// endorsement schedule and the PDFs read it with no special case beyond this line.
+function appliesAsEndorsement(event: PolicyEventRow): boolean {
+  return (
+    event.event_type === "correction_rebook" &&
+    typeof event.payload === "object" &&
+    event.payload !== null &&
+    (event.payload as { rebooked_event_type?: unknown }).rebooked_event_type === "endorsed"
+  );
 }

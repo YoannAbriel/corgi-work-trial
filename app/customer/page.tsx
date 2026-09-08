@@ -3,13 +3,18 @@ import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import { correctionsOfPolicy } from "@/lib/policy/correction-read";
 import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
 import { centsFromDatabase } from "@/lib/money/cents";
 
 // The customer's own policies: what is in force, the documents, and any endorsement waiting for
 // their approval. A customer only ever sees the policies of the customer their user account is
 // attached to: the list is queried by customer_id from the session, never by an id in the URL.
-export default async function CustomerPage({ searchParams }: { searchParams: Promise<{ error?: string; approved?: string }> }) {
+export default async function CustomerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; approved?: string; correctionApproved?: string }>;
+}) {
   const user = await currentUser();
   if (!user) {
     redirect("/login");
@@ -37,7 +42,16 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
   const rows = [];
   for (const policy of policies) {
     const live = await liveEndorsementRequest(sql, policy.policy_id);
-    rows.push({ ...policy, live });
+    // Slice B8: a correction that moved an endorsement to an earlier date charges more days of
+    // cover. Above $500 the customer decides, exactly as for an endorsement above $500.
+    const correctionsToApprove = (await correctionsOfPolicy(policy.policy_id)).filter(
+      (correction) =>
+        correction.collection !== null &&
+        correction.collection.customerApprovalRequired &&
+        correction.collection.customerApprovedAt === null &&
+        correction.collection.paidOn === null,
+    );
+    rows.push({ ...policy, live, correctionsToApprove });
   }
 
   return (
@@ -49,6 +63,12 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
       {query.error ? <p className="error">{query.error}</p> : null}
       {query.approved === "1" ? <p className="note">Thank you, the endorsement is approved. Your broker collects the delta.</p> : null}
       {query.approved === "already" ? <p className="note">This endorsement was already approved.</p> : null}
+      {query.correctionApproved === "1" ? (
+        <p className="note">Thank you, the correction is approved. Your broker collects the difference.</p>
+      ) : null}
+      {query.correctionApproved === "already" ? (
+        <p className="note">This correction was already approved.</p>
+      ) : null}
 
       {rows.length === 0 ? (
         <p className="note">No policy is attached to your account yet.</p>
@@ -62,6 +82,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
               <th>Status</th>
               <th className="amount">Annual premium in force</th>
               <th>Endorsement</th>
+              <th>Correction</th>
               <th>Documents</th>
             </tr>
           </thead>
@@ -84,6 +105,20 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
                     <span className="note">{policy.live.request.description} (approved, awaiting payment by the broker)</span>
                   ) : (
                     <span className="note">none pending</span>
+                  )}
+                </td>
+                <td>
+                  {policy.correctionsToApprove.length === 0 ? (
+                    <span className="note">none pending</span>
+                  ) : (
+                    policy.correctionsToApprove.map((correction) => (
+                      <Link
+                        key={correction.rebookEventId}
+                        href={`/policies/${policy.policy_id}/corrections/${correction.rebookEventId}/approve`}
+                      >
+                        Approval needed: {formatCentsAsUsd(correction.collection!.amountCents)}
+                      </Link>
+                    ))
                   )}
                 </td>
                 <td>
