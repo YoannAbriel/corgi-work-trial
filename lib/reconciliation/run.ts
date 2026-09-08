@@ -145,8 +145,14 @@ export async function runReconciliation(
   });
 }
 
-// The earliest instant each of these break keys was ever reported at. Read inside the storing
-// transaction so two runs finishing at the same moment cannot each decide they are the first.
+// The earliest instant each of these break keys was ever reported at, which is what makes the
+// age of a break the time since it first appeared rather than since the latest run.
+//
+// Read inside the storing transaction, so the lookup and the insert see one state. It is NOT a
+// lock: two runs of the same source committing at the same instant could each believe it is the
+// first to see a key, and the age would then be off by the distance between those two runs. That
+// is seconds, the daily job runs one source at a time, and the alternative would be locking a
+// table the rest of the application never touches.
 async function firstSeenByBreakKey(
   transaction: postgres.TransactionSql,
   keys: string[],
