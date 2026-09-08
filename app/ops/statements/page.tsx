@@ -49,10 +49,12 @@ export default async function OpsStatementsPage({
         frozen. Signed in as {user.displayName} ({user.role}). All times are UTC.
       </p>
       <p className="note">
-        Every figure below is a movement of a ledger account: premium collected is the cash customers paid,
-        commission earned and clawbacks are the movements of the broker&apos;s commission payable account, and
-        the net due is the sum of those movements for the month. Nothing is ever edited: running a month again
-        stores a new revision that names the one it replaces.
+        Every figure below is a movement of a ledger account. Two collected figures are shown, because they
+        answer two questions: the CASH is what the customers paid (premium, tax and fee) and the PREMIUM is the
+        part of it commission is earned on. Commission earned and clawbacks are the movements of the
+        broker&apos;s commission payable account, and the net due is the sum of those movements for the month.
+        A run made before the month is over is marked provisional and stays exactly as it is; running the month
+        again stores a new revision that names the one it replaces.
       </p>
 
       {query.error ? <p className="error">{query.error}</p> : null}
@@ -104,7 +106,7 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
           <th>Broker</th>
           <th>Revision</th>
           <th>Knowledge cutoff (UTC)</th>
-          <th className="amount">Premium collected</th>
+          <th className="amount">Collected</th>
           <th className="amount">Commission</th>
           <th className="amount">Clawback</th>
           <th className="amount">Net due</th>
@@ -117,6 +119,12 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
           <tr key={run.runId}>
             <td>
               <Link href={`/statements/${run.runId}`}>{run.statementMonth}</Link>
+              {run.monthWasStillRunning ? (
+                <>
+                  <br />
+                  <span className="badge badge-warn">provisional</span>
+                </>
+              ) : null}
             </td>
             <td>{run.brokerName}</td>
             <td>
@@ -137,7 +145,11 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
               ) : null}
             </td>
             <td>{utc(run.knowledgeCutoff)}</td>
-            <td className="amount">{formatCentsAsUsd(run.premiumCollectedCents)}</td>
+            <td className="amount">
+              {formatCentsAsUsd(run.premiumCollectedCents)} premium
+              <br />
+              <span className="note">{formatCentsAsUsd(run.cashCollectedCents)} cash</span>
+            </td>
             <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
             <td className="amount">{formatCentsAsUsd(-run.clawbackCents)}</td>
             <td className="amount">{formatCentsAsUsd(run.netDueCents)}</td>

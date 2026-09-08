@@ -1,6 +1,6 @@
 import type postgres from "postgres";
 import { centsFromDatabase } from "@/lib/money/cents";
-import { monthOfFirstDay, type StatementLineKind } from "./compute";
+import { monthOfFirstDay, monthWasStillRunningAt, type StatementLineKind } from "./compute";
 
 // What the statement screens read. Four questions, four queries, nothing written.
 //
@@ -25,7 +25,11 @@ export type StatementRunRow = {
   supersedesRunId: string | null;
   contentHash: string;
   identicalToPrevious: boolean;
-  premiumCollectedCents: number;
+  // True when the month was still running at this run's own cutoff: the statement is provisional
+  // (decision 19). Derived from the two stored dates, never stored, so it can never drift.
+  monthWasStillRunning: boolean;
+  cashCollectedCents: number; // what the customers paid: premium, tax and fee
+  premiumCollectedCents: number; // the premium alone, which is the commission base
   commissionEarnedCents: number;
   clawbackCents: number;
   adjustmentCents: number;
@@ -44,7 +48,8 @@ export async function listStatementRuns(
   const rows = await database<RunRowShape[]>`
     select run.id, run.broker_id, broker.name as broker_name, run.statement_month, run.revision,
            run.knowledge_cutoff, run.supersedes_run_id, run.content_hash, run.identical_to_previous,
-           run.premium_collected_cents::text, run.commission_earned_cents::text,
+           run.cash_collected_cents::text, run.premium_collected_cents::text,
+           run.commission_earned_cents::text,
            run.clawback_cents::text, run.adjustment_cents::text, run.net_due_cents::text,
            operator.display_name as run_by_name, run.created_at
       from statement_runs run
@@ -68,6 +73,9 @@ export type StatementLineRow = {
   effectiveAt: Date;
   entryRecordedAt: Date;
   amountCents: number;
+  // On a cash line, the premium part of that cash: what commission is earned on. Null on a
+  // commission, clawback or adjustment line, and on the lines of a run made before migration 0013.
+  commissionBaseCents: number | null;
   description: string;
 };
 
@@ -82,7 +90,8 @@ export async function statementRun(database: postgres.Sql, runId: string): Promi
   const [row] = await database<RunRowShape[]>`
     select run.id, run.broker_id, broker.name as broker_name, run.statement_month, run.revision,
            run.knowledge_cutoff, run.supersedes_run_id, run.content_hash, run.identical_to_previous,
-           run.premium_collected_cents::text, run.commission_earned_cents::text,
+           run.cash_collected_cents::text, run.premium_collected_cents::text,
+           run.commission_earned_cents::text,
            run.clawback_cents::text, run.adjustment_cents::text, run.net_due_cents::text,
            operator.display_name as run_by_name, run.created_at
       from statement_runs run
@@ -95,7 +104,7 @@ export async function statementRun(database: postgres.Sql, runId: string): Promi
   }
   const lines = await database<LineRowShape[]>`
     select line_order, kind, policy_id, policy_number, journal_entry_id, effective_at,
-           entry_recorded_at, amount_cents::text, description
+           entry_recorded_at, amount_cents::text, commission_base_cents::text, description
       from statement_lines
      where run_id = ${runId}
      order by line_order
@@ -111,6 +120,8 @@ export async function statementRun(database: postgres.Sql, runId: string): Promi
       effectiveAt: line.effective_at,
       entryRecordedAt: line.entry_recorded_at,
       amountCents: centsFromDatabase(line.amount_cents, "amount_cents"),
+      commissionBaseCents:
+        line.commission_base_cents === null ? null : centsFromDatabase(line.commission_base_cents, "commission_base_cents"),
       description: line.description,
     })),
   };
@@ -196,6 +207,7 @@ type RunRowShape = {
   supersedes_run_id: string | null;
   content_hash: string;
   identical_to_previous: boolean;
+  cash_collected_cents: string;
   premium_collected_cents: string;
   commission_earned_cents: string;
   clawback_cents: string;
@@ -214,6 +226,7 @@ type LineRowShape = {
   effective_at: Date;
   entry_recorded_at: Date;
   amount_cents: string;
+  commission_base_cents: string | null;
   description: string;
 };
 
@@ -239,6 +252,8 @@ function toRunRow(row: RunRowShape): StatementRunRow {
     supersedesRunId: row.supersedes_run_id,
     contentHash: row.content_hash,
     identicalToPrevious: row.identical_to_previous,
+    monthWasStillRunning: monthWasStillRunningAt(monthOfFirstDay(row.statement_month.toISOString().slice(0, 10)), row.knowledge_cutoff),
+    cashCollectedCents: centsFromDatabase(row.cash_collected_cents, "cash_collected_cents"),
     premiumCollectedCents: centsFromDatabase(row.premium_collected_cents, "premium_collected_cents"),
     commissionEarnedCents: centsFromDatabase(row.commission_earned_cents, "commission_earned_cents"),
     clawbackCents: centsFromDatabase(row.clawback_cents, "clawback_cents"),

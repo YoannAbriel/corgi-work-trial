@@ -49,8 +49,11 @@ export default async function BrokerStatementsPage() {
       </p>
       <p className="note">
         Commission is earned on the premium collected on your policies and clawed back on premium refunded to
-        a customer. When a correction lands after a month was closed, the closed statement is not rewritten: a
-        new revision is produced, dated, and it names the revision it replaces. Both stay readable here.
+        a customer. The collected column shows the premium the commission is computed on and, under it, the
+        cash the customers actually paid, which also carries the state premium tax and the policy fee. A
+        statement marked provisional was produced before its month was over. When a correction lands after a
+        month was closed, the closed statement is not rewritten: a new revision is produced, dated, and it
+        names the revision it replaces. Both stay readable here.
       </p>
 
       {runs.length === 0 ? (
@@ -62,7 +65,7 @@ export default async function BrokerStatementsPage() {
               <th>Month</th>
               <th>Revision</th>
               <th>Knowledge cutoff (UTC)</th>
-              <th className="amount">Premium collected</th>
+              <th className="amount">Collected</th>
               <th className="amount">Commission</th>
               <th className="amount">Clawback</th>
               <th className="amount">Net due</th>
@@ -74,6 +77,12 @@ export default async function BrokerStatementsPage() {
               <tr key={run.runId}>
                 <td>
                   <Link href={`/statements/${run.runId}`}>{run.statementMonth}</Link>
+                  {run.monthWasStillRunning ? (
+                    <>
+                      <br />
+                      <span className="badge badge-warn">provisional</span>
+                    </>
+                  ) : null}
                 </td>
                 <td>
                   {run.revision}
@@ -85,7 +94,11 @@ export default async function BrokerStatementsPage() {
                   ) : null}
                 </td>
                 <td>{run.knowledgeCutoff.toISOString().replace("T", " ").slice(0, 19)}</td>
-                <td className="amount">{formatCentsAsUsd(run.premiumCollectedCents)}</td>
+                <td className="amount">
+                  {formatCentsAsUsd(run.premiumCollectedCents)} premium
+                  <br />
+                  <span className="note">{formatCentsAsUsd(run.cashCollectedCents)} cash</span>
+                </td>
                 <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
                 <td className="amount">{formatCentsAsUsd(-run.clawbackCents)}</td>
                 <td className="amount">{formatCentsAsUsd(run.netDueCents)}</td>

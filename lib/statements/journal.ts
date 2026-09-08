@@ -20,7 +20,7 @@ import { firstDayOfMonth, lastDayOfMonth } from "./compute";
 //                                     journal row can never be changed, so re-reading with the
 //                                     same cutoff returns the same rows forever.
 //
-// Each entry is reduced to two signed movements, because those are the only two things a broker
+// Each entry is reduced to three signed movements, because those are the only things a broker
 // statement is about:
 //
 //   cash_cents               debits minus credits on cash_stripe and unapplied_customer_cash:
@@ -29,6 +29,8 @@ import { firstDayOfMonth, lastDayOfMonth } from "./compute";
 //                            unapplied_customer_cash instead of cash_stripe.
 //   commission_payable_cents credits minus debits on commission_payable: what the broker is owed.
 //                            Its sum over the month IS the net due of the statement.
+//   unearned_premium_cents   the PREMIUM part of that cash, which is what commission is earned on
+//                            (decision 19). See the subquery's own comment below.
 //
 // The HAVING clause is the selection rule of lib/statements/compute.ts, expressed in SQL: every
 // entry that moved the broker's payable, plus the collections and refunds that explain them.
@@ -41,9 +43,13 @@ export type StatementJournalQuery = {
 
 // The cash side of a collection or a refund, and their reversals. Written out rather than matched
 // by prefix so that adding an entry type to the statement is a deliberate edit in one place.
+// An endorsement collects its delta under its own entry name (lib/ledger/endorsement-entries.ts)
+// and refunds it through the ordinary refund_completed entry.
 const CASH_ENTRY_TYPES = [
   "premium_collected",
   "reversal_of_premium_collected",
+  "endorsement_premium_collected",
+  "reversal_of_endorsement_premium_collected",
   "refund_completed",
   "reversal_of_refund_completed",
 ];
@@ -65,7 +71,30 @@ export async function brokerJournalEntriesInMonth(
              as cash_cents,
            coalesce(sum(line.credit_cents - line.debit_cents)
                       filter (where line.account_id = 'commission_payable'), 0)::text
-             as commission_payable_cents
+             as commission_payable_cents,
+           -- The premium part of this entry's cash, which is what commission is earned on.
+           --
+           -- It is not on this entry: a collection entry moves cash against the receivable. It is
+           -- on the SIBLING entry filed under the same money operation, which is the one that
+           -- wrote the premium: premium_written at issuance, endorsement_premium_written on an
+           -- endorsement, refund_requested on a refund. Each of them moves unearned_premium, and
+           -- each moves it the same way round as the cash (credited when premium is written and
+           -- money comes in, debited when premium is given back and money goes out), so one sum
+           -- over the operation's entries answers the question for every case, reversals
+           -- included: a reversal group holds the mirrored premium entry too.
+           --
+           -- The cutoff is applied here as well, so a sibling entry recorded later cannot change
+           -- the figure a closed month already published. The MONTH is deliberately not applied:
+           -- premium is written on the policy effective date, which is often an earlier month
+           -- than the day the money arrived, and it is still the premium of that cash.
+           coalesce((select sum(premium_line.credit_cents - premium_line.debit_cents)
+                       from journal_entries premium_entry
+                       join journal_lines premium_line on premium_line.entry_id = premium_entry.id
+                      where premium_entry.source_kind = entry.source_kind
+                        and premium_entry.source_id = entry.source_id
+                        and premium_entry.recorded_at <= ${query.knowledgeCutoff}
+                        and premium_line.account_id = 'unearned_premium'), 0)::text
+             as unearned_premium_cents
       from journal_entries entry
       join journal_lines line on line.entry_id = entry.id
       left join policies policy on policy.id = entry.policy_id
@@ -95,6 +124,7 @@ export async function brokerJournalEntriesInMonth(
     description: row.description,
     cashCents: centsFromDatabase(row.cash_cents, "cash_cents"),
     commissionPayableCents: centsFromDatabase(row.commission_payable_cents, "commission_payable_cents"),
+    unearnedPremiumCents: centsFromDatabase(row.unearned_premium_cents, "unearned_premium_cents"),
   }));
 }
 
@@ -108,6 +138,7 @@ type JournalRow = {
   description: string;
   cash_cents: string;
   commission_payable_cents: string;
+  unearned_premium_cents: string;
 };
 
 // The same month's commission_payable movement, asked of the journal on its own.

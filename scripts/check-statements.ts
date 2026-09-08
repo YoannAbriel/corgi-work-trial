@@ -126,13 +126,22 @@ async function main() {
     runtime,
   );
   report(
-    "the March statement is the recited example: 125320 collected, 18000 earned, nothing clawed back",
+    "the March statement is the recited example: 125320 cash, 120000 premium, 18000 earned",
     marchRevisionOne.revision === 1 &&
-      marchRevisionOne.totals.premiumCollectedCents === TOTAL_CHARGE_CENTS &&
+      marchRevisionOne.totals.cashCollectedCents === TOTAL_CHARGE_CENTS &&
+      marchRevisionOne.totals.premiumCollectedCents === PREMIUM_CENTS &&
       marchRevisionOne.totals.commissionEarnedCents === COMMISSION_CENTS &&
       marchRevisionOne.totals.clawbackCents === 0 &&
       marchRevisionOne.totals.netDueCents === COMMISSION_CENTS,
-    `revision ${marchRevisionOne.revision}, collected ${marchRevisionOne.totals.premiumCollectedCents}, earned ${marchRevisionOne.totals.commissionEarnedCents}, net due ${marchRevisionOne.totals.netDueCents}`,
+    `revision ${marchRevisionOne.revision}, cash ${marchRevisionOne.totals.cashCollectedCents}, premium ${marchRevisionOne.totals.premiumCollectedCents}, earned ${marchRevisionOne.totals.commissionEarnedCents}, net due ${marchRevisionOne.totals.netDueCents}`,
+  );
+  // Decision 19, point 2: the multiplication has to read on the statement itself.
+  report(
+    "THE COMMISSION READS ON THE LINE: 15% of the premium collected is the commission earned",
+    Math.floor((marchRevisionOne.totals.premiumCollectedCents * COMMISSION_RATE_BPS) / 10000) ===
+      marchRevisionOne.totals.commissionEarnedCents &&
+      marchRevisionOne.totals.premiumCollectedCents !== marchRevisionOne.totals.cashCollectedCents,
+    `${marchRevisionOne.totals.premiumCollectedCents} x 15% = ${marchRevisionOne.totals.commissionEarnedCents}, against ${marchRevisionOne.totals.cashCollectedCents} of cash`,
   );
 
   const marchOne = await statementRun(runtime, marchRevisionOne.runId);
@@ -144,6 +153,30 @@ async function main() {
       marchOne.lines[1].kind === "commission_earned" &&
       marchOne.lines[1].amountCents === COMMISSION_CENTS,
     (marchOne?.lines ?? []).map((line) => `${line.kind} ${line.amountCents}`).join(", "),
+  );
+  report(
+    "the collection line carries the premium inside the cash, and the commission line carries none",
+    marchOne?.lines[0].commissionBaseCents === PREMIUM_CENTS && marchOne.lines[1].commissionBaseCents === null,
+    `cash ${marchOne?.lines[0].amountCents} of which premium ${marchOne?.lines[0].commissionBaseCents}`,
+  );
+  // Decision 19, point 3. The demo policies are dated in 2028 while the clock says 2026, so March
+  // 2028 has not happened yet and its statement is correctly marked provisional: more money can
+  // still be booked into that month. A month that really is over is the other half of the proof,
+  // just below.
+  report(
+    "a run made before its month is over is marked provisional",
+    marchOne?.run.monthWasStillRunning === true,
+    `cutoff ${marchRevisionOne.knowledgeCutoff.toISOString()} falls before March 2028 ends`,
+  );
+  const finishedMonth = await runStatement(
+    { brokerId: brokerA, statementMonth: monthBeforeThisOne(), actorUserId: staffUserId },
+    runtime,
+  );
+  const finished = await statementRun(runtime, finishedMonth.runId);
+  report(
+    "a run of a month that is over is definitive, not provisional",
+    finished?.run.monthWasStillRunning === false && finishedMonth.lineCount === 0,
+    `${monthBeforeThisOne()} is closed, ${finishedMonth.lineCount} lines`,
   );
   report(
     "every line names the journal entry it came from, and that entry really exists",
@@ -290,11 +323,18 @@ async function main() {
   );
 
   const juneThree = await statementRun(runtime, juneRevisionThree.runId);
+  const juneRefundLine = (juneThree?.lines ?? []).find((line) => line.kind === "refund");
   report(
     "the corrected revision lists the refund the customer received and the clawback it caused",
-    (juneThree?.lines ?? []).some((line) => line.kind === "refund" && line.amountCents === -REFUND_CENTS) &&
+    juneRefundLine?.amountCents === -REFUND_CENTS &&
       (juneThree?.lines ?? []).some((line) => line.kind === "clawback" && line.amountCents === -CLAWBACK_CENTS),
     (juneThree?.lines ?? []).map((line) => `${line.kind} ${line.amountCents}`).join(", "),
+  );
+  report(
+    "the clawback reads on the line too: 15% of the premium given back is the commission taken back",
+    juneRefundLine?.commissionBaseCents === -(REFUND_CENTS - 2048) &&
+      Math.floor((REFUND_CENTS - 2048) * COMMISSION_RATE_BPS / 10000) === juneRevisionThree.totals.clawbackCents,
+    `refund cash ${juneRefundLine?.amountCents} of which premium ${juneRefundLine?.commissionBaseCents}, clawback ${juneRevisionThree.totals.clawbackCents}`,
   );
 
   const juneChanges = await changesAgainstPrevious(runtime, juneRevisionThree.runId);
@@ -450,7 +490,7 @@ async function main() {
   report(
     "a broker's own list holds only that broker's statements, and the staff list holds more",
     runsOfBrokerA.every((run) => run.brokerId === brokerA) &&
-      runsOfBrokerA.length === 5 &&
+      runsOfBrokerA.length === 6 &&
       runsOfEveryBroker.length > runsOfBrokerA.length,
     `${runsOfBrokerA.length} runs for broker A, ${runsOfEveryBroker.length} in the staff list`,
   );
@@ -464,6 +504,14 @@ async function main() {
 // ---------------------------------------------------------------------------
 // The fixture world
 // ---------------------------------------------------------------------------
+
+// The calendar month before the current one, which is over whatever the day: the honest way to
+// exercise a definitive statement while the demo policies are dated in 2028.
+function monthBeforeThisOne(): string {
+  const now = new Date();
+  const firstOfLastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  return firstOfLastMonth.toISOString().slice(0, 7);
+}
 
 // A broker at the demo commission rate, with the KYB status binding needs. Provider 'seed' on
 // purpose: the two-minute settling window applies to Stripe Connect statuses only, so a row

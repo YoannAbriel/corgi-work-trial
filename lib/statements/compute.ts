@@ -13,24 +13,29 @@ import { createHash } from "node:crypto";
 // 2028-06-09 with the refund completing the same day.
 //
 //   March 2028 statement
-//     premium_collected  policy CGP-01234   +125320   (1200.00 premium + 28.20 tax + 25.00 fee)
-//     commission_earned  policy CGP-01234    +18000   (15% of the 120000 premium)
-//     premium collected 125320, commission earned 18000, clawback 0, NET DUE 18000
+//     premium_collected  CGP-01234   cash +125320   of which premium +120000
+//     commission_earned  CGP-01234        +18000    15% of the 120000
+//     cash collected 125320, premium collected 120000, commission earned 18000, NET DUE 18000
 //
 //   June 2028 statement
-//     refund             policy CGP-01234    -89172   (87124 unearned premium + 2048 tax)
-//     clawback           policy CGP-01234    -13068   (15% of the 87124 refunded, rounded down)
-//     premium collected 0, commission earned 0, clawback 13068, NET DUE -13068
+//     refund             CGP-01234   cash -89172    of which premium -87124
+//     clawback           CGP-01234        -13068    15% of the 87124, rounded down
+//     cash collected 0, premium collected 0, clawback 13068, NET DUE -13068
+//
+// The two collected totals count COLLECTIONS only. A refund is money going the other way, so it
+// stays a line, next to the clawback it produced, rather than being netted into a total called
+// "collected".
 //
 // The broker keeps 18000 - 13068 = 4932 cents, the commission on the premium the customer really
 // used. Nothing in either month is recomputed from a rate table: every figure is the movement of
 // a ledger account that was posted when the money moved.
 //
-// WHY "PREMIUM COLLECTED" IS NOT COMMISSION DIVIDED BY THE RATE. The premium_collected line is
-// the CASH side of the ledger's premium_collected entry, so it holds the premium, the state
-// premium tax and the policy fee together: that is the money the customer actually paid.
-// Commission is earned on the premium alone (Yoann's rule, DECISIONS.md), so 18000 is 15% of
-// 120000 and not 15% of 125320. The screens and the PDF say this in words next to the figures.
+// TWO MONEY FIGURES, AND WHY BOTH (decision 19, DECISIONS.md 16:53Z). The cash side of a
+// collection entry is what the customer paid: premium, state premium tax and policy fee together.
+// Commission is earned on the premium alone (Yoann's rule), so 18000 is 15% of 120000 and not 15%
+// of 125320. The statement therefore prints both, and the multiplication reads on the line. The
+// premium part is not recomputed either: it is the movement of unearned_premium posted by the same
+// money operation as the cash entry, read by lib/statements/journal.ts.
 //
 // WHICH ENTRIES ARE ON THE STATEMENT. Two rules, and the second one is what makes net due true:
 //   1. every entry that moves this broker's commission_payable is on the statement, whatever its
@@ -69,6 +74,11 @@ export type BrokerJournalEntry = {
   // Signed movement of commission_payable, credits minus debits: positive when the broker is owed
   // more, negative when commission is taken back.
   commissionPayableCents: number;
+  // Signed movement of unearned_premium posted by the same money operation as this entry, credits
+  // minus debits: the PREMIUM part of the cash, which is what commission is earned on. Positive on
+  // a collection (+120000 in the recited example), negative on a refund (-87124), and zero on an
+  // entry whose operation wrote no premium.
+  unearnedPremiumCents: number;
 };
 
 export type StatementLine = {
@@ -80,11 +90,15 @@ export type StatementLine = {
   effectiveAt: string;
   entryRecordedAt: string;
   amountCents: number;
+  // On a cash line, the premium part of that cash: what commission is earned on. Null on a
+  // commission, clawback or adjustment line, where the question does not arise.
+  commissionBaseCents: number | null;
   description: string;
 };
 
 export type StatementTotals = {
-  premiumCollectedCents: number;
+  cashCollectedCents: number; // what the customers paid: premium, tax and fee
+  premiumCollectedCents: number; // the premium alone, which is the commission base
   commissionEarnedCents: number;
   clawbackCents: number; // positive: how much was clawed back
   adjustmentCents: number;
@@ -159,25 +173,36 @@ function statementLineFor(entry: BrokerJournalEntry): StatementLine | null {
     effectiveAt: entry.effectiveAt,
     entryRecordedAt: entry.recordedAt,
     amountCents: kindAndAmount.amountCents,
+    // Only a cash line has a premium part. A commission line IS the commission, so asking what
+    // premium it was computed on would be asking the question twice.
+    commissionBaseCents: isCashLine(kindAndAmount.kind) ? entry.unearnedPremiumCents : null,
     description: entry.description,
   };
 }
 
+function isCashLine(kind: StatementLineKind): boolean {
+  return kind === "premium_collected" || kind === "refund";
+}
+
+// An endorsement books the same four movements as an issuance under its own entry names
+// (lib/ledger/endorsement-entries.ts), so both names map to the same statement line. Its refund
+// completes through the ordinary refund_completed and commission_clawback entries, which are
+// already covered.
 function classify(
   baseType: string,
   entry: BrokerJournalEntry,
 ): { kind: StatementLineKind; amountCents: number } | null {
-  // The cash the commission was earned on. Both accounts count: a payment that was parked in the
-  // suspense account and applied later (rule 14, DECISIONS.md) debits unapplied_customer_cash
+  // The cash the commission was earned on. Both cash accounts count: a payment that was parked in
+  // the suspense account and applied later (rule 14, DECISIONS.md) debits unapplied_customer_cash
   // instead of cash_stripe, and it is the same customer money either way.
-  if (baseType === "premium_collected") {
+  if (baseType === "premium_collected" || baseType === "endorsement_premium_collected") {
     return { kind: "premium_collected", amountCents: entry.cashCents };
   }
   // The cash the clawback was computed on.
   if (baseType === "refund_completed") {
     return { kind: "refund", amountCents: entry.cashCents };
   }
-  if (baseType === "commission_earned") {
+  if (baseType === "commission_earned" || baseType === "endorsement_commission_earned") {
     return { kind: "commission_earned", amountCents: entry.commissionPayableCents };
   }
   if (baseType === "commission_clawback") {
@@ -191,6 +216,7 @@ function classify(
 }
 
 function totalsOf(lines: StatementLine[]): StatementTotals {
+  let cashCollectedCents = 0;
   let premiumCollectedCents = 0;
   let commissionEarnedCents = 0;
   let clawbackCents = 0;
@@ -198,7 +224,8 @@ function totalsOf(lines: StatementLine[]): StatementTotals {
 
   for (const line of lines) {
     if (line.kind === "premium_collected") {
-      premiumCollectedCents += line.amountCents;
+      cashCollectedCents += line.amountCents;
+      premiumCollectedCents += line.commissionBaseCents ?? 0;
     } else if (line.kind === "commission_earned") {
       commissionEarnedCents += line.amountCents;
     } else if (line.kind === "clawback") {
@@ -209,10 +236,12 @@ function totalsOf(lines: StatementLine[]): StatementTotals {
       adjustmentCents += line.amountCents;
     }
     // 'refund' lines are context: they are the cash the clawback was computed on, and the broker
-    // does not pay the refund, so they change nothing in the totals.
+    // does not pay the refund, so they change nothing in the totals. The cash and the premium they
+    // gave back are on the lines themselves, next to the clawback they produced.
   }
 
   return {
+    cashCollectedCents,
     premiumCollectedCents,
     commissionEarnedCents,
     clawbackCents,
@@ -252,9 +281,14 @@ function sortedForReading(lines: StatementLine[]): StatementLine[] {
 // with the journal entry it came from, and the totals. What it does NOT cover is the revision
 // number, the knowledge cutoff and the moment the run happened: two runs that listed the same
 // money have the same hash, which is exactly the question "did anything change?".
+// The version marker on the first line is part of what is hashed, on purpose. When the document
+// gains a figure, as it did when the premium base was added beside the cash (migration 0013), it
+// is a NEW document: runs made under the old version keep their lines, their totals and their
+// hash forever, and a re-run today is a new revision that is honestly not flagged identical to
+// them. No v1 run had been published when v2 arrived.
 function canonicalTextOf(input: StatementInput, lines: StatementLine[], totals: StatementTotals): string {
   const rows = [
-    "corgi.broker-statement.v1",
+    "corgi.broker-statement.v2",
     `broker|${input.brokerId}`,
     `month|${input.statementMonth}`,
   ];
@@ -269,12 +303,14 @@ function canonicalTextOf(input: StatementInput, lines: StatementLine[], totals: 
         line.effectiveAt,
         line.entryRecordedAt,
         line.amountCents,
+        line.commissionBaseCents ?? "",
       ].join("|"),
     );
   }
   rows.push(
     [
       "totals",
+      totals.cashCollectedCents,
       totals.premiumCollectedCents,
       totals.commissionEarnedCents,
       totals.clawbackCents,
@@ -327,4 +363,23 @@ export function lastDayOfMonth(month: string): string {
 // "2028-03-01" (as the database returns it) -> "2028-03".
 export function monthOfFirstDay(firstDay: string): string {
   return firstDay.slice(0, 7);
+}
+
+// Was the month still running when this statement was produced? (decision 19, point 3.)
+//
+// The question is asked against the run's own KNOWLEDGE CUTOFF, never against the clock of
+// whoever is reading. A run is immutable, so its label has to be immutable too: a statement
+// produced on March 12 is provisional and stays provisional forever, and the run made once April
+// has started is the definitive one. Comparing with "now" instead would silently turn yesterday's
+// provisional document into a definitive one overnight, which is exactly the kind of quiet
+// rewriting this slice exists to avoid.
+//
+// The month is over at the cutoff when the cutoff is at or after midnight UTC on the first day of
+// the next month.
+export function monthWasStillRunningAt(statementMonth: string, knowledgeCutoff: Date): boolean {
+  assertStatementMonth(statementMonth);
+  const year = Number(statementMonth.slice(0, 4));
+  const monthNumber = Number(statementMonth.slice(5, 7)); // 1-based, and 0-based in Date.UTC
+  const firstInstantOfNextMonth = Date.UTC(year, monthNumber, 1);
+  return knowledgeCutoff.getTime() < firstInstantOfNextMonth;
 }
