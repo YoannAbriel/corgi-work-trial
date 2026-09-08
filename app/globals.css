@@ -17,3 +17,75 @@ body {
 }
 main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
 h1, h2 { line-height: 1.15; }
+
+/* --- Slice B2: forms, tables and status badges. Plain CSS, no framework. --- */
+a { color: var(--accent); }
+h2 { margin-top: 32px; }
+p.lead { color: var(--ink-2); }
+p.note { color: var(--ink-2); font-size: 14px; }
+p.error {
+  background: #fdecea;
+  border: 1px solid #e0b4ae;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 14px;
+  margin: 4px 8px 4px 0;
+}
+.badge-ok { background: #e4f3e8; border: 1px solid #a9cfb4; }
+.badge-warn { background: #fdf3e0; border: 1px solid #e0c79a; }
+
+form.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 460px;
+  display: grid;
+  gap: 6px;
+}
+form.card label { font-size: 14px; color: var(--ink-2); margin-top: 8px; }
+form.card input, form.card select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+}
+button {
+  font: inherit;
+  margin-top: 16px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+form.inline-form { display: inline-block; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+th, td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  vertical-align: top;
+}
+thead th { background: #eceff2; }
+td.amount, th.amount { text-align: right; font-variant-numeric: tabular-nums; }
+table.amounts { max-width: 520px; }
+table.amounts th { font-weight: 400; color: var(--ink-2); }
+table.amounts tr.total th, table.amounts tr.total td { font-weight: 600; color: var(--ink); }
+table.ledger td:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }

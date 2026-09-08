@@ -15,6 +15,30 @@ if (secretKey && !secretKey.startsWith("sk_test_")) {
 
 export const stripe = new Stripe(secretKey ?? "sk_test_build_phase_placeholder");
 
+// AF-04, outbound side. The key prefix above is our own reading of the key; this is Stripe's
+// own statement about the mode it answers in. It runs once per process, before the first
+// request that could move money, and it fails closed: if the call itself fails, the money
+// operation is not sent and the failure is recorded.
+let sandboxCheck: Promise<void> | null = null;
+
+export async function assertStripeSandbox(): Promise<void> {
+  if (!sandboxCheck) {
+    sandboxCheck = stripe.balance.retrieve().then((balance) => {
+      if (balance.livemode) {
+        throw new Error("Stripe answered in live mode: this trial only sends test-mode requests");
+      }
+    });
+  }
+  try {
+    await sandboxCheck;
+  } catch (error) {
+    // Do not keep a failed check cached: a network error must not disable the guard for the
+    // life of the process, and a live-mode answer will simply fail again on the next attempt.
+    sandboxCheck = null;
+    throw error;
+  }
+}
+
 // Signing secret of the webhook endpoint for the current environment
 // (production: the endpoint registered on the deployed URL; local: the `stripe listen` secret).
 export function stripeWebhookSigningSecret(): string {

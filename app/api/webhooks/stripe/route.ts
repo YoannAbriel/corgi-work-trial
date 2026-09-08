@@ -1,5 +1,10 @@
 import type Stripe from "stripe";
 import { sql } from "@/db/client";
+import {
+  recordCheckoutSessionCompleted,
+  recordFailedPayment,
+  recordSuccessfulPayment,
+} from "@/lib/payments/collection";
 import { stripe, stripeWebhookSigningSecret } from "@/lib/stripe";
 
 // POST /api/webhooks/stripe
@@ -10,8 +15,8 @@ import { stripe, stripeWebhookSigningSecret } from "@/lib/stripe";
 //    same event finds the row already there and continues to step 4 instead of being lost.
 // 4. Take a processing lease: only one delivery at a time can move the event from pending or
 //    failed to processing. Concurrent duplicates get no lease and are answered 200.
-// 5. Process. Until slice B2 adds business handlers, every event type is recorded as ignored,
-//    with the reason, so nothing is silently dropped.
+// 5. Process: post the money for the event types we handle, record the others as ignored with
+//    the reason, so nothing is silently dropped.
 // 6. Answer 200 when done or ignored, 500 when processing failed so Stripe retries later.
 
 export async function POST(request: Request) {
@@ -33,7 +38,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "live-mode events are refused in this trial" }, { status: 400 });
   }
 
-  const webhookEventId = await storeEventOnce(event);
+  const webhookEventId = await storeEventOnce(event, rawBody);
   const lease = await takeProcessingLease(webhookEventId);
   if (!lease) {
     // Already done, already ignored, or another delivery is processing it right now.
@@ -61,7 +66,10 @@ export async function POST(request: Request) {
 
 // Inserts the immutable event and its pending processing row. If the event already exists,
 // returns the existing row id (the unique constraint is the deduplication).
-async function storeEventOnce(event: Stripe.Event): Promise<string> {
+// The payload stored is the body whose signature was verified, so what we keep is exactly what
+// Stripe sent. It goes through transaction.json(): passing a JSON string instead would store a
+// jsonb string rather than a jsonb object, and payload -> 'data' would then find nothing.
+async function storeEventOnce(event: Stripe.Event, rawBody: string): Promise<string> {
   const [existing] = await sql<{ id: string }[]>`
     select id from webhook_events where provider = 'stripe' and provider_event_id = ${event.id}
   `;
@@ -71,7 +79,8 @@ async function storeEventOnce(event: Stripe.Event): Promise<string> {
   return sql.begin(async (transaction) => {
     const [inserted] = await transaction<{ id: string }[]>`
       insert into webhook_events (provider, provider_event_id, event_type, livemode, payload, signature_verified)
-      values ('stripe', ${event.id}, ${event.type}, ${event.livemode}, ${JSON.stringify(event)}::jsonb, true)
+      values ('stripe', ${event.id}, ${event.type}, ${event.livemode},
+              ${transaction.json(JSON.parse(rawBody))}, true)
       on conflict (provider, provider_event_id) do nothing
       returning id
     `;
@@ -106,8 +115,83 @@ async function takeProcessingLease(webhookEventId: string): Promise<boolean> {
 
 type ProcessingOutcome = { status: "done" | "ignored"; reason?: string };
 
-// Business handlers arrive with slice B2 (payments) and B3 (KYB). Until then every event is
-// kept and marked ignored with the reason, which the failed-events view will show.
+// Three event types are handled; every other type is stored and ignored with its reason, so
+// nothing is silently dropped and the failed-events view can show what arrived.
 async function processStripeEvent(event: Stripe.Event): Promise<ProcessingOutcome> {
-  return { status: "ignored", reason: `no handler yet for ${event.type}` };
+  switch (event.type) {
+    case "payment_intent.succeeded":
+      return handlePaymentSucceeded(event.data.object);
+    case "payment_intent.payment_failed":
+      return handlePaymentFailed(event.data.object);
+    case "checkout.session.completed":
+      return handleCheckoutSessionCompleted(event.data.object);
+    default:
+      return { status: "ignored", reason: `no handler for ${event.type}` };
+  }
+}
+
+// The money event: this is the one that posts journal entries and binds the policy.
+async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<ProcessingOutcome> {
+  const operationId = readOperationId(paymentIntent.metadata);
+  if (!operationId) {
+    return { status: "ignored", reason: "payment_intent carries no usable metadata.operation_id" };
+  }
+  const outcome = await recordSuccessfulPayment({
+    operationId,
+    paymentIntentId: paymentIntent.id,
+    amountReceivedCents: paymentIntent.amount_received,
+    paidOn: utcCalendarDate(paymentIntent.created),
+  });
+  if (outcome.kind === "refused") {
+    return { status: "ignored", reason: outcome.reason };
+  }
+  return {
+    status: "done",
+    reason: outcome.kind === "already_posted" ? "already posted by an earlier delivery of this payment" : undefined,
+  };
+}
+
+// A declined card. No money moved, so nothing is journaled and the policy stays unbound.
+async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent): Promise<ProcessingOutcome> {
+  const operationId = readOperationId(paymentIntent.metadata);
+  if (!operationId) {
+    return { status: "ignored", reason: "payment_intent carries no usable metadata.operation_id" };
+  }
+  const outcome = await recordFailedPayment({
+    operationId,
+    paymentIntentId: paymentIntent.id,
+    reason: paymentIntent.last_payment_error?.message ?? "Stripe reported payment_intent.payment_failed",
+  });
+  return outcome.kind === "refused" ? { status: "ignored", reason: outcome.reason } : { status: "done" };
+}
+
+// The hosted page was completed. Recorded as a step of the operation, never as money:
+// checkout.session.completed and payment_intent.succeeded describe the same collection, and
+// posting on both would double the cash and the commission.
+async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<ProcessingOutcome> {
+  const operationId = readOperationId(session.metadata) ?? readOperationId({ operation_id: session.client_reference_id });
+  if (!operationId) {
+    return { status: "ignored", reason: "checkout session carries no usable operation id" };
+  }
+  const outcome = await recordCheckoutSessionCompleted({
+    operationId,
+    sessionId: session.id,
+    paymentStatus: session.payment_status ?? null,
+  });
+  return outcome.kind === "refused" ? { status: "ignored", reason: outcome.reason } : { status: "done" };
+}
+
+// Provider payloads are untrusted input. An operation id we did not write cannot be a uuid we
+// generated, and passing anything else to Postgres would raise instead of being ignored.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function readOperationId(metadata: Stripe.Metadata | Record<string, string | null> | null): string | null {
+  const candidate = metadata?.operation_id;
+  return typeof candidate === "string" && UUID.test(candidate) ? candidate : null;
+}
+
+// Stripe timestamps are seconds since 1970 in UTC; the ledger dates money on the UTC day it
+// moved, which is what a US insurer's books and Stripe's own reports agree on.
+function utcCalendarDate(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
 }

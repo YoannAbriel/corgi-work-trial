@@ -10,8 +10,12 @@
     "migrate": "tsx scripts/migrate.ts",
     "set-runtime-role-password": "tsx scripts/set-runtime-role-password.ts",
     "check:ledger-guards": "tsx scripts/check-ledger-guards.ts",
-    "test": "node --import tsx --test lib/**/*.test.ts",
-    "check:ledger-seal": "tsx scripts/check-ledger-seal.ts"
+    "check:ledger-seal": "tsx scripts/check-ledger-seal.ts",
+    "check:money-guards": "tsx scripts/check-money-guards.ts",
+    "check:payment-replay": "tsx scripts/check-payment-replay.ts",
+    "seed": "tsx scripts/seed.ts",
+    "rebuild:policy-current": "tsx scripts/rebuild-policy-current.ts",
+    "test": "node --import tsx --test lib/**/*.test.ts"
   },
   "dependencies": {
     "next": "16.3.4",

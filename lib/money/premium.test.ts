@@ -98,7 +98,7 @@ test("the recited example: March 1, 2028 policy, 365 days, cancelled on day 100 
   assert.equal(endorsementDeltaCents(120000, 180000, "2028-03-01", "2029-03-01", "2028-05-10"), 48493);
   // Lowering by $600 on day 100 credits the customer 43562 (rounded up).
   assert.equal(endorsementDeltaCents(180000, 120000, "2028-03-01", "2029-03-01", "2028-06-09"), -43562);
-  // Commission on the $1,200 collected: 18000. On the refunded 87124, the base is 13068.6 (rounding open).
+  // Commission on the $1,200 collected: 18000. On the refunded 87124, the base is 13068.6, rounded down to 13068 (decided).
   assert.equal(commissionCents(120000, 1500), 18000);
 });
 
