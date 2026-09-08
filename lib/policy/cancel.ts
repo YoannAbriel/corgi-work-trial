@@ -15,6 +15,7 @@ import {
   type CollectionToRefund,
   type RefundSlice,
 } from "@/lib/money/refund-allocation";
+import { expireOpenCheckoutSessionsOfPolicy } from "@/lib/payments/checkout";
 import { issueRefundsAtStripe, policyRefundTotals, refundIntent } from "@/lib/payments/refunds";
 import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 import type { PolicyTerms } from "./terms";
@@ -295,6 +296,11 @@ export type CancellationResult = {
   // requests that are waiting for that person. Empty below the threshold.
   refundOperationIdsAwaitingApproval: string[];
   approvalRequestIds: string[];
+  // How many hosted payment pages of this policy were closed at Stripe after the cancellation,
+  // and the ones that could not be closed. Both are zero and empty on recordCancellation, which
+  // never calls a provider (review finding F-B4-05).
+  expiredCheckoutSessions: number;
+  checkoutSessionsLeftOpen: string[];
 };
 
 // The whole cancellation: recompute, write, then ask Stripe for the money.
@@ -319,7 +325,14 @@ export async function cancelPolicy(
   // Outbox: the intent is committed, so the provider call can be retried or resumed with the
   // same key. A provider failure is recorded on the operation and does not undo the cancellation.
   await issueRefundsAtStripe(sendNow);
-  return written;
+
+  // A cancelled policy must not keep a payment page open at Stripe (review finding F-B4-05).
+  // A hosted page lives 24 hours, so without this the customer could pay a premium for cover
+  // that has stopped, or a delta for a change that can no longer be applied. Both kinds of page
+  // are closed here, and a failure is reported rather than thrown: the cancellation is committed
+  // and the refund is on its way, and neither may be undone by a Stripe outage.
+  const sessions = await expireOpenCheckoutSessionsOfPolicy(request.policyId);
+  return { ...written, expiredCheckoutSessions: sessions.expired, checkoutSessionsLeftOpen: sessions.failures };
 }
 
 // Everything that touches our own database, in one transaction and without any provider call.
@@ -449,6 +462,8 @@ export async function recordCancellation(
     refundOperationIds,
     refundOperationIdsAwaitingApproval,
     approvalRequestIds,
+    expiredCheckoutSessions: 0,
+    checkoutSessionsLeftOpen: [],
   };
 }
 

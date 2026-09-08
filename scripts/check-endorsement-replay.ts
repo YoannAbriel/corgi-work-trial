@@ -17,6 +17,8 @@ import postgres from "postgres";
 //      delivered twice posts once; a failed refund posts nothing; a refund above $1,000 waits in
 //      the maker-checker queue, the initiator cannot approve it and a distinct approver can; the
 //      threshold is read against the POLICY, so repeated reductions cannot slip under it;
+//   6b. a delta paid after the policy is cancelled is PARKED in the suspense account, never
+//      recorded as arrived with nothing journaled, and delivering it twice parks it once;
 //   7. a cancelled, voided or unbound policy cannot be endorsed; the effective date must be in
 //      the term and not before the previous endorsement; an endorsed policy IS cancellable, and
 //      its refund is the sum of the written segments, each earning from its own date;
@@ -454,6 +456,32 @@ async function main() {
   await recordEndorsementRequest({ ...cutFirst, expectedQuoteHash: cutFirstPlan.figures.quoteHash }, runtime);
   const cancelAfterCut = await recordCancellation({ policyId: afterCut.policyId, effectiveAt: "2028-11-01", calculationMethod: "pro_rata", actor: { userId: afterCut.brokerUserId, role: "broker", brokerId: afterCut.brokerId } }, runtime);
   report("a cancellation after an endorsement refund counts that refund and waits for an approver", cancelAfterCut.plan.refundNeedsApproval && cancelAfterCut.approvalRequestIds.length > 0 && cancelAfterCut.plan.breakdown.totalRefundCents < 100000, `cancellation refund ${cancelAfterCut.plan.breakdown.totalRefundCents} cents alone, ${cancelAfterCut.approvalRequestIds.length} approval request(s)`);
+
+  // ---------------------------------------------------------------------------
+  // 5c. A delta that arrives after the policy is cancelled (review finding F-B4-05)
+  // ---------------------------------------------------------------------------
+
+  // The cancellation expires the policy's open hosted pages, so this is a race of seconds: the
+  // customer paid just before that call. The money is real, so it is parked like any other delta
+  // that cannot be applied, never recorded as arrived with nothing in the ledger.
+  const raced = await createPaidPolicy(recordSuccessfulPayment);
+  const racedActor: Actor = { userId: raced.brokerUserId, role: "broker", brokerId: raced.brokerId, customerId: null };
+  const racedPlan = await planEndorsement({ ...raise, policyId: raced.policyId, actor: racedActor }, runtime);
+  const racedRequest = await recordEndorsementRequest({ ...raise, policyId: raced.policyId, actor: racedActor, expectedQuoteHash: racedPlan.figures.quoteHash }, runtime);
+  const racedQuote = (await readEndorsementRequest(runtime, raced.policyId, racedRequest.requestEventId))!;
+  const racedAttempt = await createEndorsementCheckoutOperation({ quote: racedQuote, userId: raced.brokerUserId, attempt: 1 }, runtime);
+  await recordCancellation({ policyId: raced.policyId, effectiveAt: "2028-08-01", calculationMethod: "pro_rata", actor: { userId: raced.brokerUserId, role: "broker", brokerId: raced.brokerId } }, runtime);
+  const racedPayment = { operationId: racedAttempt.operationId, paymentIntentId: `pi_raced_${racedAttempt.operationId.slice(0, 8)}`, amountReceivedCents: 44584, paidOn: "2028-08-01" };
+  const racedOutcome = await recordSuccessfulEndorsementPayment(racedPayment, runtime);
+  report("a delta paid after the policy is cancelled is parked, not left out of the ledger", racedOutcome.kind === "application_refused" && (await entriesOfOperation(racedAttempt.operationId)).get("unapplied_cash_received") === 1, racedOutcome.kind === "application_refused" ? racedOutcome.reason : racedOutcome.kind);
+  report("the parked cash is at Stripe and owed to the customer, and no endorsement was applied", (await amountOnOperation(racedAttempt.operationId, "cash_stripe", "debit")) === 44584 && (await amountOnOperation(racedAttempt.operationId, "unapplied_customer_cash", "credit")) === 44584 && !(await eventTypesOfPolicy(raced.policyId)).includes("endorsed"), `cash_stripe ${await amountOnOperation(racedAttempt.operationId, "cash_stripe", "debit")}, events ${(await eventTypesOfPolicy(raced.policyId)).join(",")}`);
+  const racedTwice = await recordSuccessfulEndorsementPayment(racedPayment, runtime);
+  report("delivering that payment twice parks it once", racedTwice.kind === "application_refused" && (await entriesOfOperation(racedAttempt.operationId)).get("unapplied_cash_received") === 1 && (await countOperationEvents(racedAttempt.operationId, "succeeded")) === 1, describe(await entriesOfOperation(racedAttempt.operationId)));
+  // Staff cannot apply it either. The cancellation was recorded after the request, so the quote
+  // is superseded and the standing says so first; the cancelled-policy check behind it refuses
+  // the same thing. Either sentence is the right answer, and the money stays parked.
+  const racedRetry = await retryEndorsementApplication({ policyId: raced.policyId, requestEventId: racedRequest.requestEventId, actorUserId: raced.staffUserId }, runtime);
+  report("staff cannot apply it either, and the cash stays parked", racedRetry.kind === "refused" && /superseded|cancelled/.test(racedRetry.reason) && (await entriesOfOperation(racedAttempt.operationId)).size === 1, racedRetry.kind === "refused" ? racedRetry.reason : racedRetry.kind);
 
   // ---------------------------------------------------------------------------
   // 6. Refusals: cancelled, voided, unbound, outside the term, no change
