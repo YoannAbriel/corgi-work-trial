@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 import { cancelPolicy, CancellationRefused } from "@/lib/policy/cancel";
 
 // POST /api/policies/{policyId}/cancel, called by the Confirm button of the preview page.
@@ -11,6 +12,10 @@ export async function POST(request: Request, context: { params: Promise<{ policy
   const { policyId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ policy: policyId });
+  if (malformedId) {
+    return malformedId;
   }
 
   const form = await request.formData();

@@ -1,5 +1,6 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { EndorsementRefused, requestEndorsement } from "@/lib/policy/endorse";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 
 // POST /api/policies/{policyId}/endorsements, called by the Confirm button of the preview page.
 //
@@ -10,6 +11,10 @@ import { EndorsementRefused, requestEndorsement } from "@/lib/policy/endorse";
 export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();
   const { policyId } = await context.params;
+  const malformedId = badPathIdResponse({ policy: policyId }); // a malformed id answers 400, not 500 (F-B7-07)
+  if (malformedId) {
+    return malformedId;
+  }
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
   }

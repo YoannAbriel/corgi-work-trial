@@ -15,11 +15,16 @@ import type { VerifiableAccount } from "@/lib/kyb/eligibility";
 //      cash is parked in the suspense account (rule 14), and staff bind later, which applies
 //      the parked cash to the policy without booking it a second time.
 //
+//   5. a second submission for a broker whose first one is still at Stripe is refused, so a
+//      second click cannot create a second connected account (review finding F-B3-05).
+//
 // It runs the production functions on the payloads Stripe actually returned, captured in
-// lib/kyb/fixtures by the live test (lib/kyb/stripe-connect.live.test.ts). It never calls
+// lib/kyb/fixtures by the live test (lib/kyb/stripe-connect.live.test.ts). It never reaches
 // Stripe: what is being checked here is our own mapping, appending and eligibility, and a
-// fixture replayed offline is exactly the right instrument for that. The live proof that those
-// payloads are what Stripe sends is the live test and the run recorded in the handoff note.
+// fixture replayed offline is exactly the right instrument for that. The one call to
+// submitBrokerKyb (property 5) is refused before the network, which is the property itself.
+// The live proof that those payloads are what Stripe sends is the live test and the run
+// recorded in the handoff note.
 //
 // It commits rows, so it refuses to run anywhere but the disposable database corgi_test:
 // financial rows can never be deleted (AF-03), and the trial ledger must stay clean.
@@ -87,8 +92,11 @@ const secondsAfterCreation = (account: VerifiableAccount, seconds: number): stri
 async function main() {
   // Imported here rather than at the top of the file: these modules open the application
   // connection pool as soon as they are loaded, which needs .env.local read first.
-  const { applyKybAccountUpdate } = await import("@/lib/broker/kyb-onboarding");
-  const { brokerIdForProviderAccount, brokerKybState, appendBrokerKybEvent } = await import("@/lib/broker/kyb");
+  const { applyKybAccountUpdate, submitBrokerKyb, SUBMISSION_IN_FLIGHT_MINUTES } = await import(
+    "@/lib/broker/kyb-onboarding"
+  );
+  const { brokerIdForProviderAccount, brokerKybState, appendBrokerKybEvent, submissionAwaitingProviderAnswer } =
+    await import("@/lib/broker/kyb");
   const { recordSuccessfulPayment, retryBindingAfterEligibility } = await import("@/lib/payments/collection");
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
@@ -344,6 +352,62 @@ async function main() {
     `outcome: ${boundAgain.kind}, ${await countEntriesOfPolicy(policyId)} entries`,
   );
 
+  // ---------------------------------------------------------------------------------------
+  // A second click while the first submission is still at Stripe (review finding F-B3-05)
+  // ---------------------------------------------------------------------------------------
+
+  // The state a second click meets: a submission committed moments ago, and no status row yet,
+  // because Stripe has not answered the first call. The submission is written the way
+  // submitBrokerKyb writes it, and the broker has no status row at all, so the checks on the
+  // latest event have nothing to refuse: the in-flight submission is the only thing that can.
+  const clickingTwiceBrokerId = await createBrokerWithSubmissionInFlight("Test Brokerage Charlie LLC");
+  const inFlight = await submissionAwaitingProviderAnswer(clickingTwiceBrokerId, SUBMISSION_IN_FLIGHT_MINUTES, runtime);
+  report(
+    "a submission whose Stripe answer has not been recorded is seen as in flight",
+    inFlight !== null,
+    inFlight ? `submission ${inFlight.submissionId} recorded at ${inFlight.recordedAt.toISOString()}` : "none seen",
+  );
+
+  const secondClick = await refusal(() =>
+    submitBrokerKyb(
+      {
+        brokerId: clickingTwiceBrokerId,
+        legalName: "Test Brokerage Charlie LLC",
+        employerIdentificationNumber: "000000000",
+        address: { line1: "address_full_match", city: "San Francisco", state: "CA", postalCode: "94105" },
+        businessUrl: "https://example.invalid/kyb-check",
+        contactEmail: "kyb-check@example.invalid",
+        termsAcceptedAt: new Date(),
+        termsAcceptedFromIp: "203.0.113.10",
+        submittedByUserId: staffUserId,
+      },
+      runtime,
+    ),
+  );
+  report(
+    "the second click is refused before anything is created, so no second connected account exists",
+    /has not answered yet/.test(secondClick) && (await countKybSubmissions(clickingTwiceBrokerId)) === 1,
+    `${secondClick} (${await countKybSubmissions(clickingTwiceBrokerId)} submission on file)`,
+  );
+
+  // As soon as the answer is recorded, the broker is free to submit again after a failure.
+  await appendBrokerKybEvent(
+    {
+      brokerId: clickingTwiceBrokerId,
+      provider: "stripe_connect",
+      status: "failed",
+      providerAccountId: null,
+      payload: { submission_id: inFlight?.submissionId ?? "", source: "create_account", reason: "check fixture" },
+      createdBy: staffUserId,
+    },
+    runtime,
+  );
+  report(
+    "once Stripe's answer is on file, the submission is no longer in flight and the broker may try again",
+    (await submissionAwaitingProviderAnswer(clickingTwiceBrokerId, SUBMISSION_IN_FLIGHT_MINUTES, runtime)) === null,
+    "no submission awaiting an answer",
+  );
+
   await owner.end();
   await runtime.end();
   process.exit(failures === 0 ? 0 : 1);
@@ -352,6 +416,46 @@ async function main() {
 // ---------------------------------------------------------------------------------------
 // Fixtures: the rows the application writes, written the same way
 // ---------------------------------------------------------------------------------------
+
+// A broker whose submission is committed and whose Stripe answer has not arrived: the state
+// between step 1 and step 3 of submitBrokerKyb, which is what a second click meets.
+async function createBrokerWithSubmissionInFlight(legalName: string): Promise<string> {
+  return owner.begin(async (transaction) => {
+    const [broker] = await transaction<{ id: string }[]>`
+      insert into brokers (name, commission_rate_bps) values (${legalName}, 1500) returning id
+    `;
+    await transaction`
+      insert into broker_kyb_submissions (
+        broker_id, provider, provider_idempotency_key, legal_name, ein_last4,
+        address_line1, address_city, address_state, address_postal_code,
+        business_url, contact_email, terms_accepted_at, terms_accepted_ip
+      ) values (
+        ${broker.id}, 'stripe_connect', 'broker-kyb:' || ${broker.id}, ${legalName}, '0000',
+        'address_full_match', 'San Francisco', 'CA', '94105',
+        'https://example.invalid/kyb-check', 'kyb-check@example.invalid',
+        now(), '203.0.113.10'
+      )
+    `;
+    return broker.id;
+  });
+}
+
+async function countKybSubmissions(brokerId: string): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`
+    select count(*)::text as count from broker_kyb_submissions where broker_id = ${brokerId}
+  `;
+  return Number(row.count);
+}
+
+// The message a refused call raises, or the fact that it was not refused at all.
+async function refusal(action: () => Promise<unknown>): Promise<string> {
+  try {
+    await action();
+    return "no error raised";
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
 
 // A broker who has just submitted their company: the immutable submission, then the pending
 // status the submission appended with the connected account id on it. Exactly what

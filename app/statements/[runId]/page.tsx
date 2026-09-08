@@ -4,6 +4,7 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { commissionPayableMovementCents } from "@/lib/statements/journal";
+import { isUuid } from "@/lib/http/path-ids";
 import {
   changesAgainstPrevious,
   statementRun,
@@ -45,6 +46,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
     redirect("/login");
   }
   const { runId } = await params;
+  if (!isUuid(runId)) notFound(); // a malformed id is an unknown page, not a 500 (F-B7-07)
   // A malformed id is a wrong address, not a server error: it must not reach the uuid column.
   if (!UUID.test(runId)) {
     notFound();
@@ -91,6 +93,14 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
         {run.supersedesRunId ? ", superseding the previous revision of this month" : ", the first run of this month"}.
         All times are UTC.
       </p>
+
+      {run.monthWasStillRunning ? (
+        <p className="badge badge-warn">
+          Month in progress, provisional: this run was produced before {run.statementMonth} was over, so more money
+          could still be booked into it. It stays exactly as it is; the run made after the month ends is the next
+          revision and the definitive one.
+        </p>
+      ) : null}
 
       {run.identicalToPrevious ? (
         <p className="badge badge-ok">
@@ -171,6 +181,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
               <th>Policy</th>
               <th>Journal entry</th>
               <th className="amount">Amount</th>
+              <th className="amount">Premium in it</th>
             </tr>
           </thead>
           <tbody>
@@ -194,6 +205,13 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
                   <code>{line.journalEntryId.slice(0, 8)}</code>
                 </td>
                 <td className="amount">{formatCentsAsUsd(line.amountCents)}</td>
+                <td className="amount">
+                  {line.commissionBaseCents === null ? (
+                    <span className="note">not a cash line</span>
+                  ) : (
+                    formatCentsAsUsd(line.commissionBaseCents)
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -204,11 +222,15 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
       <table className="amounts">
         <tbody>
           <tr>
-            <th>Premium, tax and fee collected from customers</th>
+            <th>Cash collected from customers (premium, tax and fee)</th>
+            <td className="amount">{formatCentsAsUsd(run.cashCollectedCents)}</td>
+          </tr>
+          <tr>
+            <th>Premium collected, which is the commission base</th>
             <td className="amount">{formatCentsAsUsd(run.premiumCollectedCents)}</td>
           </tr>
           <tr>
-            <th>Commission earned on collected premium</th>
+            <th>Commission earned on that premium</th>
             <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
           </tr>
           <tr>
@@ -228,9 +250,12 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
         </tbody>
       </table>
       <p className="note">
-        Premium collected is the cash the customers paid: premium, state premium tax and policy fee together,
-        because that is what the ledger books when the money arrives. Commission is earned on the premium
-        alone, so it is not this figure times the commission rate.
+        The two collected figures are the same money read twice: the cash line is what the customers paid,
+        premium plus state premium tax plus policy fee, and the premium line is the part of it commission is
+        earned on. Both come from the journal: the cash from the collection entries, the premium from the
+        entries that wrote it under the same payment. Commission is the premium times the broker&apos;s rate,
+        rounded down, and never touches tax or fee. Refunds are not netted into these two figures; they are on
+        their own lines above, next to the clawback each one produced.
       </p>
 
       {changes ? <Changes changes={changes} previousRevision={run.revision - 1} /> : null}

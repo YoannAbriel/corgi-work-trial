@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
+import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CancellationRefused, planCancellation } from "@/lib/policy/cancel";
 
@@ -28,6 +29,7 @@ export default async function CancelPolicyPage({
   }
 
   const [{ policyId }, query] = await Promise.all([params, searchParams]);
+  if (!isUuid(policyId)) notFound(); // a malformed id is an unknown policy, not a 500 (F-B7-07)
   const effectiveAt = (query.effectiveAt ?? "").trim();
   if (!effectiveAt) {
     redirect(`/policies/${policyId}?error=${encodeURIComponent("pick a cancellation date first")}`);

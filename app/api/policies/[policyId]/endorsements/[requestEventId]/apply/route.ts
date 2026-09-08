@@ -1,5 +1,6 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { retryEndorsementApplication } from "@/lib/payments/endorsement-collection";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 
 // POST /api/policies/{policyId}/endorsements/{requestEventId}/apply
 //
@@ -11,6 +12,10 @@ import { retryEndorsementApplication } from "@/lib/payments/endorsement-collecti
 export async function POST(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
   const user = await currentUser();
   const { policyId, requestEventId } = await context.params;
+  const malformedId = badPathIdResponse({ policy: policyId, request: requestEventId }); // a malformed id answers 400, not 500 (F-B7-07)
+  if (malformedId) {
+    return malformedId;
+  }
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
   }

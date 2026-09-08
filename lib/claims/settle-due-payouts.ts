@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { simulatedTransfersDueForSettlement } from "@/lib/rails/simulator";
-import { todayUtc } from "./claims";
+import { SCHEDULED_JOB, todayUtc } from "./claims";
 import { settleClaimPayment } from "./payments";
 
 // LOCAL SIMULATOR. The work behind POST /api/jobs/settle-simulated-payouts, in a function of its
@@ -51,7 +51,7 @@ export async function settleDueSimulatedPayouts(database: postgres.Sql = sql): P
     }
 
     const result = await settleClaimPayment(
-      { operationId: operation.operation_id, settledOn: transfer.settlementDate, broughtForwardBy: null },
+      { operationId: operation.operation_id, settledOn: transfer.settlementDate, settledBy: SCHEDULED_JOB },
       database,
     );
     if (result.outcome === "settled") {

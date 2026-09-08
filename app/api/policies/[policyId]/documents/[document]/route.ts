@@ -4,6 +4,7 @@ import { documentEventsFromRows, type PolicyEventRowForDocuments } from "@/lib/d
 import { foldPolicyEvents } from "@/lib/documents/policy-as-of";
 import { renderDeclarationsPdf, renderEndorsementSchedulePdf } from "@/lib/documents/render";
 import { isCalendarDate } from "@/lib/money/dates";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 
 // GET /api/policies/{policyId}/documents/{declarations|endorsement-schedule}?asOf=YYYY-MM-DD
 //
@@ -18,6 +19,10 @@ export async function GET(request: Request, context: { params: Promise<{ policyI
     return Response.json({ error: "sign in first" }, { status: 401 });
   }
   const { policyId, document } = await context.params;
+  const malformedId = badPathIdResponse({ policy: policyId }); // a malformed id answers 400, not 500 (F-B7-07)
+  if (malformedId) {
+    return malformedId;
+  }
   if (document !== "declarations" && document !== "endorsement-schedule") {
     return Response.json({ error: "unknown document; use declarations or endorsement-schedule" }, { status: 404 });
   }

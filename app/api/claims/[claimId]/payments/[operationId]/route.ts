@@ -1,7 +1,13 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { ClaimRefused, todayUtc } from "@/lib/claims/claims";
-import { returnClaimPayment, sendClaimPayment, settleClaimPayment } from "@/lib/claims/payments";
+import {
+  assertPaymentBelongsToClaim,
+  returnClaimPayment,
+  sendClaimPayment,
+  settleClaimPayment,
+} from "@/lib/claims/payments";
 import { ApprovalRefused } from "@/lib/approvals/approvals";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 
 // POST /api/claims/{claimId}/payments/{operationId}: the three stages of one claim payment.
 //
@@ -22,12 +28,20 @@ export async function POST(
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
   }
+  const malformedId = badPathIdResponse({ claim: claimId, payment: operationId });
+  if (malformedId) {
+    return malformedId;
+  }
 
   const form = await request.formData();
   const action = String(form.get("action") ?? "");
   const actor = { userId: user.id, role: user.role };
 
   try {
+    // The two ids in the URL must name the same payment. Checked before anything else, so a
+    // hand-made URL cannot drive a stage of another claim's payment (review finding F-B7-08).
+    await assertPaymentBelongsToClaim(claimId, operationId);
+
     switch (action) {
       case "send": {
         const sent = await sendClaimPayment({ operationId, actor });
@@ -36,13 +50,12 @@ export async function POST(
 
       case "settle": {
         // Only staff operations drive the simulated rail, like every other money action here.
-        if (user.role !== "staff_ops") {
-          throw new ClaimRefused(`only staff operations can settle a payment; your role is "${user.role}"`);
-        }
+        // The role is checked inside settleClaimPayment, from the actor passed here, so a
+        // future caller cannot settle a payment without being checked (finding F-B7-10).
         const settled = await settleClaimPayment({
           operationId,
           settledOn: todayUtc(),
-          broughtForwardBy: user.id,
+          settledBy: actor,
         });
         return backToClaim(claimId, `payment=${settled.outcome}`);
       }

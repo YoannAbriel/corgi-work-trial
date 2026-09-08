@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -7,6 +7,7 @@ import { CUSTOMER_APPROVAL_THRESHOLD_CENTS, endorsementFormulaLines } from "@/li
 import { endorsementRequestStanding, readEndorsementRequest } from "@/lib/policy/endorsement-requests";
 import { policyDetail } from "@/lib/policy/read";
 import { FormulaLinesTable } from "../../../formula-lines";
+import { isUuid } from "@/lib/http/path-ids";
 
 // The customer's approval screen: the same formula lines the broker previewed, read back from
 // the immutable request event, and one checkbox. Only the policy's customer sees it. Approving
@@ -24,6 +25,7 @@ export default async function ApproveEndorsementPage({
     redirect("/login");
   }
   const [{ policyId, requestEventId }, query] = await Promise.all([params, searchParams]);
+  if (!isUuid(policyId) || !isUuid(requestEventId)) notFound(); // a malformed id is an unknown page, not a 500 (F-B7-07)
 
   const policy = await policyDetail(policyId);
   if (!policy) {

@@ -2,6 +2,7 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { renderStatementPdf } from "@/lib/statements/pdf";
 import { statementRun } from "@/lib/statements/read";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 
 // GET /api/statements/{runId}/pdf: the statement as a PDF file.
 //
@@ -22,6 +23,10 @@ export async function GET(request: Request, context: { params: Promise<{ runId: 
     return new Response("sign in first", { status: 401 });
   }
   const { runId } = await context.params;
+  const malformedId = badPathIdResponse({ run: runId }); // a malformed id answers 400, not 500 (F-B7-07)
+  if (malformedId) {
+    return malformedId;
+  }
   // A malformed id is a wrong address, not a server error: it must not reach the uuid column.
   if (!UUID.test(runId)) {
     return new Response("no such statement", { status: 404 });
