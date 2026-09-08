@@ -157,9 +157,136 @@ async function main() {
     wrongAmount.kind === "refused" ? wrongAmount.reason : wrongAmount.kind,
   );
 
+  await checkExpiredSessionStartsANewAttempt();
+
   await owner.end();
   await runtime.end();
   process.exit(failures === 0 ? 0 : 1);
+}
+
+// An expired hosted page cannot be paid, so the next click on Pay must open a NEW session under
+// a NEW idempotency key. Reusing the key would make Stripe hand the dead session back and the
+// broker would be stuck on a page nobody can pay (review finding F-B2-03).
+//
+// This is the one check that calls Stripe for real: it creates two test-mode Checkout Sessions.
+// No money moves, and the sandbox guard runs before each call.
+async function checkExpiredSessionStartsANewAttempt(): Promise<void> {
+  const { startCheckout } = await import("@/lib/payments/checkout");
+  const { recordExpiredCheckoutSession } = await import("@/lib/payments/collection");
+
+  const draft = await createPolicyReadyToPay();
+  const firstUrl = await startCheckout(
+    { policyId: draft.policyId, brokerId: draft.brokerId, userId: draft.userId },
+    runtime,
+  );
+  const sameUrl = await startCheckout(
+    { policyId: draft.policyId, brokerId: draft.brokerId, userId: draft.userId },
+    runtime,
+  );
+  report("clicking Pay twice reuses the same hosted page", firstUrl === sameUrl, `one session: ${firstUrl === sameUrl}`);
+
+  const attemptsBeforeExpiry = await checkoutAttempts(draft.policyId);
+  report(
+    "one payment attempt exists so far, under the first key",
+    attemptsBeforeExpiry.length === 1 && attemptsBeforeExpiry[0].idempotency_key === `policy-checkout:${draft.policyId}`,
+    attemptsBeforeExpiry.map((attempt) => attempt.idempotency_key).join(", "),
+  );
+
+  const expiry = await recordExpiredCheckoutSession(
+    { operationId: attemptsBeforeExpiry[0].id, sessionId: attemptsBeforeExpiry[0].session_id ?? "cs_unknown" },
+    runtime,
+  );
+  report("checkout.session.expired is recorded on the operation", expiry.kind === "posted", `outcome: ${expiry.kind}`);
+  report(
+    "an expired session posts no journal entry: no money moved",
+    (await countEntriesOfPolicy(draft.policyId)) === 0,
+    `${await countEntriesOfPolicy(draft.policyId)} journal entries`,
+  );
+
+  const newUrl = await startCheckout(
+    { policyId: draft.policyId, brokerId: draft.brokerId, userId: draft.userId },
+    runtime,
+  );
+  const attemptsAfterExpiry = await checkoutAttempts(draft.policyId);
+  report(
+    "after the expiry, a new Pay click opens a SECOND session",
+    newUrl !== firstUrl && attemptsAfterExpiry.length === 2,
+    `${attemptsAfterExpiry.length} attempt(s), new hosted page: ${newUrl !== firstUrl}`,
+  );
+  report(
+    "the second attempt has its own idempotency key",
+    attemptsAfterExpiry[1].idempotency_key === `policy-checkout:${draft.policyId}:2` &&
+      attemptsAfterExpiry[0].idempotency_key !== attemptsAfterExpiry[1].idempotency_key,
+    attemptsAfterExpiry.map((attempt) => attempt.idempotency_key).join(", "),
+  );
+  report(
+    "the two attempts are two different Stripe sessions",
+    !!attemptsAfterExpiry[0].session_id &&
+      !!attemptsAfterExpiry[1].session_id &&
+      attemptsAfterExpiry[0].session_id !== attemptsAfterExpiry[1].session_id,
+    `${attemptsAfterExpiry[0].session_id} then ${attemptsAfterExpiry[1].session_id}`,
+  );
+}
+
+// A quoted policy whose broker is approved, ready for a first click on Pay.
+async function createPolicyReadyToPay(): Promise<{ policyId: string; brokerId: string; userId: string }> {
+  return owner.begin(async (transaction) => {
+    const [broker] = await transaction<{ id: string }[]>`
+      insert into brokers (name, commission_rate_bps) values ('Expiry check broker', 1500) returning id
+    `;
+    await transaction`
+      insert into broker_kyb_events (broker_id, provider, status)
+      values (${broker.id}, 'seed', 'approved')
+    `;
+    const [customer] = await transaction<{ id: string }[]>`
+      insert into customers (name, email)
+      values ('Expiry check customer', 'expiry-check-' || gen_random_uuid()::text || '@example.invalid')
+      returning id
+    `;
+    const [policy] = await transaction<{ id: string }[]>`
+      insert into policies (broker_id, customer_id, state_code) values (${broker.id}, ${customer.id}, 'CA') returning id
+    `;
+    await transaction`
+      insert into policy_events (policy_id, event_type, effective_at, payload)
+      values (${policy.id}, 'quoted', ${TERM_START}, ${transaction.json({
+        state_code: "CA",
+        term_start: TERM_START,
+        term_end: "2029-03-01",
+        annual_premium_cents: ANNUAL_PREMIUM_CENTS,
+        tax_rate_bps: 235,
+        tax_cents: TAX_CENTS,
+        fee_cents: FEE_CENTS,
+        total_charge_cents: TOTAL_CHARGE_CENTS,
+        per_occurrence_limit_cents: 100000000,
+        aggregate_limit_cents: 200000000,
+      })})
+    `;
+    // created_by is a plain text column with no foreign key: a synthetic id is enough here.
+    return { policyId: policy.id, brokerId: broker.id, userId: "00000000-0000-4000-8000-0000000000fe" };
+  });
+}
+
+// The payment attempts of a policy, oldest first, with the Stripe session each one opened.
+async function checkoutAttempts(
+  policyId: string,
+): Promise<{ id: string; idempotency_key: string; session_id: string | null }[]> {
+  return owner<{ id: string; idempotency_key: string; session_id: string | null }[]>`
+    select operation.id,
+           operation.idempotency_key,
+           (select event.provider_ref from money_operation_events event
+             where event.operation_id = operation.id and event.status = 'provider_accepted'
+             order by event.sequence_number limit 1) as session_id
+      from money_operations operation
+     where operation.policy_id = ${policyId} and operation.kind = 'stripe_checkout'
+     order by operation.created_at
+  `;
+}
+
+async function countEntriesOfPolicy(policyId: string): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`
+    select count(*)::text as count from journal_entries where policy_id = ${policyId}
+  `;
+  return Number(row.count);
 }
 
 // Builds the same rows the application writes before a payment: a broker, a customer, a

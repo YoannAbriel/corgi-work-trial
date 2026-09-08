@@ -1,7 +1,9 @@
+import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState } from "@/lib/broker/kyb";
 import { checkoutIdempotencyKey } from "@/lib/money/idempotency";
+import { CHECKOUT_EXPIRED_REASON } from "./collection";
 import { foldPolicyEvents, refreshPolicyCurrent } from "@/lib/policy/current";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
 
@@ -15,7 +17,13 @@ import { assertStripeSandbox, stripe } from "@/lib/stripe";
 //
 // If the process dies between 1 and 3, the operation stays in status 'requested' and the next
 // attempt calls Stripe again with the same key: the money can never be requested twice under
-// two different keys.
+// two different keys. A hosted page that can no longer be paid (an expired session, or a
+// creation that never returned one) is the one case where the next attempt is a NEW operation
+// with a NEW key, because reusing the key would make Stripe hand the dead session back.
+//
+// The database handle is a parameter whose default is the application pool. Production always
+// uses the default; scripts/check-payment-replay.ts passes the disposable test database so the
+// checks run this exact code.
 
 export class CheckoutRefused extends Error {}
 
@@ -25,8 +33,11 @@ export type StartCheckoutRequest = {
   userId: string;
 };
 
-export async function startCheckout(request: StartCheckoutRequest): Promise<string> {
-  const policy = await loadPolicyForPayment(request.policyId);
+export async function startCheckout(
+  request: StartCheckoutRequest,
+  database: postgres.Sql = sql,
+): Promise<string> {
+  const policy = await loadPolicyForPayment(database, request.policyId);
   if (!policy) {
     throw new CheckoutRefused("this policy does not exist");
   }
@@ -34,34 +45,44 @@ export async function startCheckout(request: StartCheckoutRequest): Promise<stri
     throw new CheckoutRefused("this policy belongs to another broker");
   }
 
-  const { eventTypes, terms } = await foldPolicyEvents(sql, request.policyId);
+  const { eventTypes, terms } = await foldPolicyEvents(database, request.policyId);
   if (eventTypes.includes("issued")) {
     throw new CheckoutRefused("this policy is already bound and paid");
   }
 
   // Server-side eligibility, rechecked at execution time and not merely when the page was
   // rendered: an unapproved or unknown broker cannot bind.
-  const kyb = await brokerKybState(policy.brokerId);
+  const kyb = await brokerKybState(policy.brokerId, database);
   if (!bindingIsAllowed(kyb.status)) {
     throw new CheckoutRefused(
       `binding is refused: the broker's KYB status is "${kyb.status}" and must be "approved"`,
     );
   }
 
-  const existing = await existingCheckoutOperation(request.policyId);
-  if (existing?.checkoutUrl) {
+  // Which attempt to pay this policy we are on, and whether the last one can still be used.
+  const latest = await latestCheckoutOperation(database, request.policyId);
+  if (latest && !latest.isDead && latest.checkoutUrl) {
     // The same intent was already accepted by Stripe: send the broker back to the same hosted
     // page instead of opening a second one.
-    return existing.checkoutUrl;
+    return latest.checkoutUrl;
   }
 
-  const operationId = existing
-    ? existing.operationId
-    : await createCheckoutOperation({
-        policyId: request.policyId,
-        amountCents: terms.totalChargeCents,
-        userId: request.userId,
-      });
+  const attempt =
+    latest && !latest.isDead
+      ? // The intent is on disk but Stripe's answer never was: this is the recovery path, and
+        // it calls Stripe again with the SAME key, so no second session can be created.
+        { operationId: latest.operationId, idempotencyKey: latest.idempotencyKey }
+      : // Either nothing was ever attempted, or the last attempt is dead: an expired hosted page
+        // or a creation that never produced one. A dead attempt cannot be revived, and reusing
+        // its key would make Stripe hand the dead session back, so this is a new operation with
+        // a new key (review finding F-B2-03).
+        await createCheckoutOperation({
+          policyId: request.policyId,
+          amountCents: terms.totalChargeCents,
+          userId: request.userId,
+          attempt: (latest?.attemptsSoFar ?? 0) + 1,
+          database,
+        });
 
   await assertStripeSandbox();
 
@@ -79,23 +100,29 @@ export async function startCheckout(request: StartCheckoutRequest): Promise<stri
         ],
         // Three ways back to the operation: the reference, the session metadata and the
         // payment intent metadata. The webhook reads the payment intent one.
-        client_reference_id: operationId,
-        metadata: { operation_id: operationId, policy_id: request.policyId },
-        payment_intent_data: { metadata: { operation_id: operationId, policy_id: request.policyId } },
+        client_reference_id: attempt.operationId,
+        metadata: { operation_id: attempt.operationId, policy_id: request.policyId },
+        payment_intent_data: { metadata: { operation_id: attempt.operationId, policy_id: request.policyId } },
         success_url: `${appBaseUrl()}/policies/${request.policyId}?payment=returned`,
         cancel_url: `${appBaseUrl()}/policies/${request.policyId}?payment=cancelled`,
       },
-      { idempotencyKey: checkoutIdempotencyKey(request.policyId) },
+      // The key stored on the operation, never a freshly derived one: one operation, one key.
+      { idempotencyKey: attempt.idempotencyKey },
     );
   } catch (error) {
-    await recordProviderFailure(operationId, request.policyId, error);
+    await recordProviderFailure(database, attempt.operationId, request.policyId, error);
     throw new CheckoutRefused(
       "Stripe did not accept the payment request; the failure was recorded and the same request can be retried",
     );
   }
 
   if (!session.url) {
-    await recordProviderFailure(operationId, request.policyId, new Error("Stripe returned a session without a URL"));
+    await recordProviderFailure(
+      database,
+      attempt.operationId,
+      request.policyId,
+      new Error("Stripe returned a session without a URL"),
+    );
     throw new CheckoutRefused("Stripe returned a session without a payment page; the failure was recorded");
   }
 
@@ -103,10 +130,10 @@ export async function startCheckout(request: StartCheckoutRequest): Promise<stri
   const paymentIntentId =
     typeof session.payment_intent === "string" ? session.payment_intent : (session.payment_intent?.id ?? null);
 
-  await sql.begin(async (transaction) => {
+  await database.begin(async (transaction) => {
     await transaction`
       insert into money_operation_events (operation_id, status, provider_ref, payload)
-      values (${operationId}, 'provider_accepted', ${session.id},
+      values (${attempt.operationId}, 'provider_accepted', ${session.id},
               ${transaction.json({ checkout_url: session.url, payment_intent_id: paymentIntentId })})
     `;
     await refreshPolicyCurrent(transaction, request.policyId);
@@ -131,32 +158,57 @@ function appBaseUrl(): string {
 }
 
 async function loadPolicyForPayment(
+  database: postgres.Sql,
   policyId: string,
 ): Promise<{ policyId: string; policyNumber: string; brokerId: string } | null> {
-  const [row] = await sql<{ id: string; policy_number: string; broker_id: string }[]>`
+  const [row] = await database<{ id: string; policy_number: string; broker_id: string }[]>`
     select id, policy_number, broker_id from policies where id = ${policyId}
   `;
   return row ? { policyId: row.id, policyNumber: row.policy_number, brokerId: row.broker_id } : null;
 }
 
-async function existingCheckoutOperation(
+// The most recent attempt to pay this policy, and whether it can still be used.
+type CheckoutAttempt = {
+  operationId: string;
+  idempotencyKey: string;
+  checkoutUrl: string | null; // the hosted page, once Stripe has accepted the session
+  isDead: boolean; // true when this attempt can never be paid again
+  attemptsSoFar: number; // how many payment attempts this policy has had
+};
+
+async function latestCheckoutOperation(
+  database: postgres.Sql,
   policyId: string,
-): Promise<{ operationId: string; checkoutUrl: string | null } | null> {
-  const [operation] = await sql<{ id: string }[]>`
-    select id from money_operations
+): Promise<CheckoutAttempt | null> {
+  const operations = await database<{ id: string; idempotency_key: string }[]>`
+    select id, idempotency_key from money_operations
      where policy_id = ${policyId} and kind = 'stripe_checkout'
-     limit 1
+     order by created_at desc
   `;
-  if (!operation) {
+  if (operations.length === 0) {
     return null;
   }
-  const [accepted] = await sql<{ payload: { checkout_url?: string } }[]>`
-    select payload from money_operation_events
-     where operation_id = ${operation.id} and status = 'provider_accepted'
+  const latest = operations[0];
+
+  const events = await database<{ status: string; payload: { checkout_url?: string; reason?: string } }[]>`
+    select status, payload from money_operation_events
+     where operation_id = ${latest.id}
      order by sequence_number
-     limit 1
   `;
-  return { operationId: operation.id, checkoutUrl: accepted?.payload?.checkout_url ?? null };
+  const checkoutUrl = events.find((event) => event.payload?.checkout_url)?.payload.checkout_url ?? null;
+  const expired = events.some((event) => event.status === "failed" && event.payload?.reason === CHECKOUT_EXPIRED_REASON);
+  const failedWithoutSession = events.some((event) => event.status === "failed") && checkoutUrl === null;
+
+  return {
+    operationId: latest.id,
+    idempotencyKey: latest.idempotency_key,
+    checkoutUrl,
+    // Dead means "this hosted page can never be paid": Stripe expired it, or it never existed.
+    // A card declined inside a live session is NOT dead: that session is still open and the
+    // customer can try another card on it, so opening a second one could take two payments.
+    isDead: expired || failedWithoutSession,
+    attemptsSoFar: operations.length,
+  };
 }
 
 // The intent, committed before any provider call.
@@ -164,28 +216,37 @@ async function createCheckoutOperation(input: {
   policyId: string;
   amountCents: number;
   userId: string;
-}): Promise<string> {
-  return sql.begin(async (transaction) => {
+  attempt: number;
+  database: postgres.Sql;
+}): Promise<{ operationId: string; idempotencyKey: string }> {
+  const idempotencyKey = checkoutIdempotencyKey(input.policyId, input.attempt);
+  return input.database.begin(async (transaction) => {
     const [operation] = await transaction<{ id: string }[]>`
       insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key, created_by)
       values ('stripe_checkout', 'stripe', ${input.amountCents}, ${input.policyId},
-              ${checkoutIdempotencyKey(input.policyId)}, ${input.userId})
+              ${idempotencyKey}, ${input.userId})
       returning id
     `;
     await transaction`
       insert into money_operation_events (operation_id, status, payload)
-      values (${operation.id}, 'requested', ${transaction.json({ note: "checkout session not created yet" })})
+      values (${operation.id}, 'requested',
+              ${transaction.json({ note: "checkout session not created yet", attempt: input.attempt })})
     `;
     await refreshPolicyCurrent(transaction, input.policyId);
-    return operation.id;
+    return { operationId: operation.id, idempotencyKey };
   });
 }
 
 // A provider error is a fact about the operation, so it is appended, never swallowed.
 // Only the message is stored, never the request or the credentials.
-async function recordProviderFailure(operationId: string, policyId: string, error: unknown): Promise<void> {
+async function recordProviderFailure(
+  database: postgres.Sql,
+  operationId: string,
+  policyId: string,
+  error: unknown,
+): Promise<void> {
   const message = error instanceof Error ? error.message.slice(0, 500) : "unknown provider error";
-  await sql.begin(async (transaction) => {
+  await database.begin(async (transaction) => {
     await transaction`
       insert into money_operation_events (operation_id, status, payload)
       values (${operationId}, 'failed', ${transaction.json({ stage: "create_checkout_session", message })})

@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import { sql } from "@/db/client";
 import {
   recordCheckoutSessionCompleted,
+  recordExpiredCheckoutSession,
   recordFailedPayment,
   recordSuccessfulPayment,
 } from "@/lib/payments/collection";
@@ -145,6 +146,8 @@ async function processStripeEvent(event: Stripe.Event): Promise<ProcessingOutcom
       return handlePaymentFailed(event.data.object);
     case "checkout.session.completed":
       return handleCheckoutSessionCompleted(event.data.object);
+    case "checkout.session.expired":
+      return handleCheckoutSessionExpired(event.data.object);
     // Three events describe the life of one refund, and any of them can be the first to carry
     // the status that matters, so they all go through the same handler.
     case "refund.created":
@@ -207,6 +210,20 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session):
     paymentStatus: session.payment_status ?? null,
   });
   return outcome.kind === "refused" ? { status: "ignored", reason: outcome.reason } : { status: "done" };
+}
+
+// The hosted page expired without being paid. No money moved and nothing is journaled: the
+// expiry is recorded on the operation so the broker can start a fresh payment, which will be a
+// new operation with a new idempotency key because this session can never be paid again.
+async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session): Promise<ProcessingOutcome> {
+  const operationId = readOperationId(session.metadata) ?? readOperationId({ operation_id: session.client_reference_id });
+  if (!operationId) {
+    return { status: "ignored", reason: "checkout session carries no usable operation id" };
+  }
+  const outcome = await recordExpiredCheckoutSession({ operationId, sessionId: session.id });
+  return outcome.kind === "refused"
+    ? { status: "ignored", reason: outcome.reason }
+    : { status: "done", reason: "the payment page expired; the policy can be paid again with a new session" };
 }
 
 // The life of a refund, whichever event carries it.

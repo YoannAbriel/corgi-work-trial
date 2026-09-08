@@ -9,6 +9,10 @@
 // Usage:
 //   npx tsx scripts/post-local-webhook.ts --operation=<uuid> --amount=<cents> \
 //        [--type=payment_intent.succeeded] [--url=http://localhost:3000/api/webhooks/stripe] [--times=2]
+//
+//   A refund event needs the refund and the payment it belongs to:
+//   npx tsx scripts/post-local-webhook.ts --type=refund.updated --operation=<uuid> --amount=<cents> \
+//        --refund-id=re_local_1 --payment-intent=pi_local_1 [--status=succeeded|failed]
 
 try {
   process.loadEnvFile(".env.local");
@@ -49,18 +53,49 @@ async function main() {
   }
 
   const createdUnixSeconds = Math.floor(Date.now() / 1000);
-  const paymentIntent = {
-    id: `pi_local_${operationId.slice(0, 8)}`,
-    object: "payment_intent",
-    amount: amountCents,
-    amount_received: eventType === "payment_intent.succeeded" ? amountCents : 0,
-    currency: "usd",
-    created: createdUnixSeconds,
-    livemode: false,
-    status: eventType === "payment_intent.succeeded" ? "succeeded" : "requires_payment_method",
-    last_payment_error: eventType === "payment_intent.succeeded" ? null : { message: "Your card was declined." },
-    metadata: { operation_id: operationId },
-  };
+  // Which object the event carries. A refund event carries a Refund, a payment event carries a
+  // PaymentIntent; the handler branches on the object, so the tool has to build the right one.
+  const isRefundEvent = eventType.startsWith("refund.");
+  const isCheckoutSessionEvent = eventType.startsWith("checkout.session.");
+  const refundStatus = argument("status", eventType === "refund.failed" ? "failed" : "succeeded");
+  const eventObject = isCheckoutSessionEvent
+    ? {
+        id: argument("session-id", `cs_local_${operationId.slice(0, 8)}`),
+        object: "checkout.session",
+        amount_total: amountCents,
+        currency: "usd",
+        created: createdUnixSeconds,
+        livemode: false,
+        status: eventType === "checkout.session.expired" ? "expired" : "complete",
+        payment_status: eventType === "checkout.session.expired" ? "unpaid" : "paid",
+        client_reference_id: operationId,
+        metadata: { operation_id: operationId },
+      }
+    : isRefundEvent
+    ? {
+        id: argument("refund-id", `re_local_${operationId.slice(0, 8)}`),
+        object: "refund",
+        amount: amountCents,
+        currency: "usd",
+        created: createdUnixSeconds,
+        livemode: false,
+        status: refundStatus,
+        failure_reason: refundStatus === "failed" ? "expired_or_canceled_card" : null,
+        payment_intent: argument("payment-intent", `pi_local_${operationId.slice(0, 8)}`),
+        metadata: { operation_id: operationId },
+      }
+    : {
+        id: `pi_local_${operationId.slice(0, 8)}`,
+        object: "payment_intent",
+        amount: amountCents,
+        amount_received: eventType === "payment_intent.succeeded" ? amountCents : 0,
+        currency: "usd",
+        created: createdUnixSeconds,
+        livemode: false,
+        status: eventType === "payment_intent.succeeded" ? "succeeded" : "requires_payment_method",
+        last_payment_error: eventType === "payment_intent.succeeded" ? null : { message: "Your card was declined." },
+        metadata: { operation_id: operationId },
+      };
   // --tag changes only the event id, so the same payment can be delivered as a SECOND,
   // different Stripe event. That is the case the journal's unique index has to refuse: two
   // events, one collection, one posting.
@@ -72,7 +107,7 @@ async function main() {
     created: createdUnixSeconds,
     livemode: false,
     type: eventType,
-    data: { object: paymentIntent },
+    data: { object: eventObject },
   };
 
   const payload = JSON.stringify(event);

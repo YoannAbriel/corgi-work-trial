@@ -7,14 +7,34 @@
 // money_operations row under a unique constraint, so our own database refuses a second intent
 // for the same policy even if Stripe's key retention window has expired.
 
-// One Checkout Session per policy draft. Paying the same draft again reuses this key and the
-// existing operation; a deliberate second payment would be a different intent, and would need
-// its own key derived from that intent.
-export function checkoutIdempotencyKey(policyId: string): string {
+// THE RULE FOR BOTH KEYS BELOW: one money operation, one key, forever. Retrying an operation
+// reuses its key, which is what makes a retry safe. A new operation always gets a new key,
+// which is what makes a second attempt possible after the first one died for good. A key is
+// therefore derived from the intent AND from the attempt number, never reused across
+// operations and never generated at random.
+
+// One Checkout Session per attempt to pay a policy. Clicking Pay again while the hosted page is
+// still alive reuses attempt 1 and its session; Stripe returns the session it already created
+// instead of opening a second one.
+//
+// A later attempt exists for one reason: the previous session can no longer be paid. A Checkout
+// Session expires (Stripe sends checkout.session.expired), or the creation call failed and no
+// session was ever opened. Reusing the key then would make Stripe hand back the dead session
+// forever, so the new attempt is a new operation with its own key. The attempt number is the
+// count of operations already made for this policy, so it is derived, not random.
+export function checkoutIdempotencyKey(policyId: string, attempt = 1): string {
   if (!policyId) {
     throw new Error("policyId is required to derive a checkout idempotency key");
   }
-  return `policy-checkout:${policyId}`;
+  assertAttempt(attempt);
+  const key = `policy-checkout:${policyId}`;
+  return attempt === 1 ? key : `${key}:${attempt}`;
+}
+
+function assertAttempt(attempt: number): void {
+  if (!Number.isInteger(attempt) || attempt < 1) {
+    throw new Error(`an attempt must be a whole number starting at 1, got ${attempt}`);
+  }
 }
 
 // One Stripe refund per policy and per PaymentIntent given back. A cancellation retried after a
@@ -30,9 +50,7 @@ export function refundIdempotencyKey(policyId: string, paymentIntentId: string, 
   if (!policyId || !paymentIntentId) {
     throw new Error("policyId and paymentIntentId are required to derive a refund idempotency key");
   }
-  if (!Number.isInteger(attempt) || attempt < 1) {
-    throw new Error(`refund attempt must be a whole number starting at 1, got ${attempt}`);
-  }
+  assertAttempt(attempt);
   const key = `policy-refund:${policyId}:${paymentIntentId}`;
-  return attempt === 1 ? key : `${key}:attempt-${attempt}`;
+  return attempt === 1 ? key : `${key}:${attempt}`;
 }

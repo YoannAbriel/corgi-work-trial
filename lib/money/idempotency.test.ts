@@ -22,6 +22,17 @@ test("a missing policy id is refused rather than producing a shared key", () => 
   assert.throws(() => checkoutIdempotencyKey(""), /policyId is required/);
 });
 
+test("a second payment attempt is a new operation, so a new checkout key", () => {
+  // The first attempt keeps the historical shape, so operations already in the database stay
+  // valid. A later attempt exists only when the previous session can no longer be paid.
+  assert.equal(checkoutIdempotencyKey(POLICY, 1), `policy-checkout:${POLICY}`);
+  assert.equal(checkoutIdempotencyKey(POLICY, 2), `policy-checkout:${POLICY}:2`);
+  assert.equal(checkoutIdempotencyKey(POLICY, 3), `policy-checkout:${POLICY}:3`);
+  assert.notEqual(checkoutIdempotencyKey(POLICY, 2), checkoutIdempotencyKey(POLICY));
+  assert.ok(checkoutIdempotencyKey(POLICY, 12).length <= 255);
+  assert.throws(() => checkoutIdempotencyKey(POLICY, 0), /whole number starting at 1/);
+});
+
 test("a refund key is the policy and the payment it gives back", () => {
   assert.equal(refundIdempotencyKey(POLICY, PAYMENT_INTENT), `policy-refund:${POLICY}:${PAYMENT_INTENT}`);
   // Retrying the same cancellation reuses it: Stripe returns the refund already created.
@@ -32,10 +43,7 @@ test("a refund key is the policy and the payment it gives back", () => {
 });
 
 test("re-issuing a failed refund is a new intent, so a new key", () => {
-  assert.equal(
-    refundIdempotencyKey(POLICY, PAYMENT_INTENT, 2),
-    `policy-refund:${POLICY}:${PAYMENT_INTENT}:attempt-2`,
-  );
+  assert.equal(refundIdempotencyKey(POLICY, PAYMENT_INTENT, 2), `policy-refund:${POLICY}:${PAYMENT_INTENT}:2`);
   assert.notEqual(refundIdempotencyKey(POLICY, PAYMENT_INTENT, 2), refundIdempotencyKey(POLICY, PAYMENT_INTENT));
   assert.throws(() => refundIdempotencyKey(POLICY, PAYMENT_INTENT, 0), /whole number starting at 1/);
   assert.throws(() => refundIdempotencyKey(POLICY, ""), /required/);

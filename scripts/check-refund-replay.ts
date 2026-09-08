@@ -277,7 +277,7 @@ async function main() {
     "re-issuing creates a new operation with a new idempotency key",
     reissuedOperationId !== failingOperationId &&
       (await operationIdempotencyKey(reissuedOperationId)) ===
-        `policy-refund:${failing.policyId}:${failing.paymentIntentId}:attempt-2`,
+        `policy-refund:${failing.policyId}:${failing.paymentIntentId}:2`,
     await operationIdempotencyKey(reissuedOperationId),
   );
   report(

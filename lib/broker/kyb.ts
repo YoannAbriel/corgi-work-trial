@@ -1,3 +1,4 @@
+import type postgres from "postgres";
 import { sql } from "@/db/client";
 import type { KybStatus } from "./eligibility";
 
@@ -25,8 +26,10 @@ const NO_EVENT_YET: KybState = {
   isProviderEvidence: false,
 };
 
-export async function brokerKybState(brokerId: string): Promise<KybState> {
-  const [row] = await sql<{ status: KybStatus; provider: string; provider_ref: string | null; recorded_at: Date }[]>`
+// The database handle is a parameter whose default is the application pool, like the payment
+// functions: production always uses the default, the checks pass the disposable database.
+export async function brokerKybState(brokerId: string, database: postgres.Sql = sql): Promise<KybState> {
+  const [row] = await database<{ status: KybStatus; provider: string; provider_ref: string | null; recorded_at: Date }[]>`
     select status, provider, provider_ref, recorded_at
       from broker_kyb_events
      where broker_id = ${brokerId}
