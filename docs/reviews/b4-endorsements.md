@@ -217,3 +217,51 @@ Two things in the reviewed scope are not satisfied and are not cosmetic:
 Both are narrow fixes in code that already exists elsewhere in the repository: the cumulative shape of `claimPayoutNeedsApproval` for the first, and `parkPaymentWithoutApplying` plus the session expiry the void path already performs for the second. **F-B4-06** additionally blocks the live evidence for this slice and needs a demo user attached to a bound policy's customer before an endorsement can be run end to end on the deployed application.
 
 Residual limitations: nothing here is legal certification, no claim is made about production readiness, the money guards are clean on the coordinator's ephemeral run rather than on one of mine, and Yoann's understanding is recorded as `NOT REVIEWED WITH YOANN` and cannot be certified by a reviewer on his behalf.
+
+---
+
+## 11. Re-review at `e7b5913`, 2026-09-08T18:05:00Z
+
+Scoped to the five findings the coordinator asked about. Same reviewer, no implementation, this file is still the only one written. Revision re-reviewed: `e7b5913` (the B8 merge; the B4 fixes are `d850f68`, `4a48a26`, `503ee45`, `dcad358`, merged at `26dede3`). Production reported `8e6d468` when the request arrived, which predates the fixes, so the code and disposable-database work was done first and the HTTP work once `/api/health` reported `e7b5913`. Prior findings and the section 10 verdict are preserved above; nothing there is rewritten.
+
+### Verdict for the B4 scope after the fixes: **PASS**
+
+| ID | Sev | Status |
+|---|---|---|
+| F-B4-04 | MEDIUM | **RESOLVED** |
+| F-B4-05 | MEDIUM | **RESOLVED** |
+| F-B4-06 | MEDIUM | **RESOLVED** |
+| F-B4-08 | LOW | **RESOLVED** |
+| F-B4-09 | LOW | **RESOLVED** |
+| F-B4-07, F-B4-10, F-B4-11, F-B4-12 | LOW | Still open, outside this fix round |
+| F-B4-13 | LOW | New, and it belongs to the B8 scope: see below |
+
+**F-B4-04, resolved.** `refundNeedsApproval` in `lib/approvals/threshold.ts` now reads the threshold against the policy: refunds Stripe accepted or completed, plus refunds requested and not failed, plus this one. A failed refund counts for nothing, which is right because the money came back. It is called in three places, and the third is the one that matters: `assertRefundMaySend` recomputes the total at send time with `policyRefundTotals`, excluding the operation being decided, so a refund that was under the threshold when it was written cannot leave once another reduction has gone out in between. `createReissuedRefundOperation` uses the same rule. The comment that used to justify the omission has been replaced by one that names the finding. Proven on the disposable database: the first $800 reduction goes without an approver, the second is queued with one approval request and nothing sent to Stripe, a refund written under the threshold is refused at the gate with a sentence that says why, and a $538.41 cancellation refund that follows an endorsement refund waits for an approver although it is under $1,000 on its own. Four unit tests cover the rule itself, including the failed-refund case and the non-integer guard.
+
+**F-B4-05, resolved, and by both routes I suggested.** `expireOpenCheckoutSessionsOfPolicy` in `lib/payments/checkout.ts` is called after the cancellation commits and closes every open hosted page of the policy, the issuance one and the endorsement ones, because the query asks about the policy rather than about what the operation is for. Failures are returned in `checkoutSessionsLeftOpen` rather than thrown, which is the right call: the cancellation is committed and the customer is already owed the money, so a Stripe outage must not undo either. And the narrow race that remains is now parked: a delta paid for a cancelled, voided or unbound policy, and one whose request row cannot be read, both post the rule-14 `unapplied_cash_received` entry instead of returning `refused`. Proven: the cash is at Stripe and owed to the customer, no endorsement was applied, and a second delivery parks it once. `retryEndorsementApplication` also re-reads the fold, so staff cannot apply a delta to a policy cancelled since the money arrived.
+
+**F-B4-06, resolved.** `customer2@example.com` is attached to the customer of `CGP-01274` and is listed in the README with the reason it exists. Verified over HTTP: it signs in, `/customer` shows `Signed in as Santa CaFE` and lists `CGP-01274` as bound with its endorsement and correction columns, and the declarations PDF for that policy renders for it. I did not create an endorsement, as instructed; the live run belongs to the walkthrough session.
+
+**F-B4-08, resolved.** `EndorsementRequestStanding` now carries `approvalRequired`, recomputed by `customerApprovalIsRequired` from the events, and both `approveEndorsement` and the checkout gate read it. The payload flag is still stored and still printed, which is honest: it is what the quote said when it was written. A payload claiming that no approval was needed can no longer open the Pay button.
+
+**F-B4-09, resolved.** `customerApprovalNeeded` takes the additional premium of the other requests still waiting for this customer, so two raises of $400 cannot each escape the question. Requests the customer already approved, and those already in force, are excluded, which is the right base: money they said yes to does not make the next one need a second yes. The deployed preview now reads "Because this endorsement takes what this policy is asking the customer for above $500.00", so the screen states the cumulative rule rather than the old per-endorsement one.
+
+**F-B4-13 (LOW), and it is B8's, not B4's.** `lib/money/correction.ts` still asks both questions per operation: `moneyOutNeedsApproval(-differenceTotalCents)` and `differenceTotalCents > CUSTOMER_APPROVAL_THRESHOLD_CENTS`, and `lib/policy/correction-read.ts` repeats the second one. This is not a bypass, and I checked why: a correction settles its difference through an ordinary `stripe_refund` operation sent by `issueRefundsAtStripe`, so it passes the now-cumulative `assertRefundMaySend`, and money above the policy total cannot leave. The consequence is a misleading preview followed by a refund that cannot be sent, rather than an unapproved payment. The B8 reviewer should decide whether the correction plan adopts `refundNeedsApproval` and `customerApprovalNeeded`.
+
+**One observation, not a finding.** `customerApprovalIsRequired` counts superseded requests in the total still waiting for the customer, because it excludes only the approved and the applied ones. That errs toward asking the customer more often, which is the safe direction, at the cost of some friction after several abandoned quotes.
+
+**F-B4-11 is now the only case left where a delta payment is journaled nowhere:** an amount that does not match the operation still returns `refused` without parking. It stays LOW and open.
+
+### Checks run for this re-review
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | exit 0 |
+| `npm test` | 370 tests, 369 pass, 0 fail, 1 skipped |
+| `npm run check:endorsement-replay` | **80 PASS, 0 FAIL**, exit 0, the expected 80 lines, including the eight new ones that prove F-B4-04 and F-B4-05 |
+| Money guards | not rerun, on the coordinator's instruction. Cited: **161 PASS, 0 FAIL at 17:45Z** on an ephemeral database migrated `0001` to `0017` with the runtime role, then dropped, recorded in `docs/STATUS.md` |
+| Threshold call sites | grep over `lib`, `app` and `scripts` for all five threshold functions, to find any path still on the per-operation rule. One found, F-B4-13, and it is B8's |
+| HTTP at `e7b5913` | `customer2@example.com` signs in and sees `CGP-01274`; raise preview $677.15 and reduction preview $799.22, both recomputed independently and both correct; the cumulative wording on the approval sentence; wrong hash, customer endorsing, unknown request on the checkout route and broker approving all refused with 303 and a plain message; declarations PDF 200 for the policy's own customer |
+| Created on the trial database | nothing, again. No endorsement, no request, no money operation |
+
+Walkthrough status is unchanged: `NOT REVIEWED WITH YOANN`.
