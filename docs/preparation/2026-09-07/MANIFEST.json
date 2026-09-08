@@ -1,0 +1,50 @@
+{
+  "imported_at": "2026-09-08T06:26:07+00:00",
+  "files": [
+    {
+      "source_name": "AGENTS.md",
+      "archived_name": "AGENTS.preparation.md",
+      "sha256": "788baa83f35bfaae986fd57200c74698ff3fbcc21de94c1511d0c13089ad7c32"
+    },
+    {
+      "source_name": "CLAUDE.md",
+      "archived_name": "CLAUDE.preparation.md",
+      "sha256": "a66067034b352f0a0f68e782db3afdb8e84df85a78deecc67ef52f195a57c633"
+    },
+    {
+      "source_name": "GAP-REVIEW.md",
+      "archived_name": "GAP-REVIEW.md",
+      "sha256": "a760997b4370f3d9353ab26a99860b76c8351660b1cee1c216364ed0233a2bfa"
+    },
+    {
+      "source_name": "READINESS-BACKLOG.json",
+      "archived_name": "READINESS-BACKLOG.json",
+      "sha256": "3bd74a00350fd86cea5f2d1dca16d791f2cba76845ae0b9adac89d54f69f81f5"
+    },
+    {
+      "source_name": "READINESS-CHECKLIST.md",
+      "archived_name": "READINESS-CHECKLIST.md",
+      "sha256": "d13f4bb1d2b075fc2dd6fe2abc9f6bef793b08dc9ec2b956d9d25690fda2608a"
+    },
+    {
+      "source_name": "REVIEWER.md",
+      "archived_name": "REVIEWER.md",
+      "sha256": "627c68f655af085f524471f1b188406cbe616bd1cc649b20179909707cfd1161"
+    },
+    {
+      "source_name": "START-PROMPT.md",
+      "archived_name": "START-PROMPT.md",
+      "sha256": "b70b475bac071ec4c7f4dfd624195ded9d5814298aa34386077b0d48f08d5ba9"
+    },
+    {
+      "source_name": "STRESS-TEST-PLAN.md",
+      "archived_name": "STRESS-TEST-PLAN.md",
+      "sha256": "c263a0c7526d88dc5d0a79b922f3b8ba3dce2b4bcdb13352d8b480d7e5ea4c9e"
+    },
+    {
+      "source_name": "WORKFLOW-48H.md",
+      "archived_name": "WORKFLOW-48H.md",
+      "sha256": "1794700880804a7c91a6f071020e548f645262993861a4e3a27821e16f6a96ba"
+    }
+  ]
+}

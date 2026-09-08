@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.sqlite*
+*.db
+*.log
+.DS_Store
+__pycache__/
+node_modules/
+.next/
+coverage/
+.local/

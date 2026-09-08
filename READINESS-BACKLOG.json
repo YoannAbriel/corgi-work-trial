@@ -1,0 +1,1965 @@
+{
+  "schema_version": 1,
+  "kind": "preparation_catalog_not_live_status",
+  "created_at": "2026-09-07",
+  "project_url": "https://linear.app/yoannjobs/project/corgi-trial-readiness-resilience-and-us-compliance-0f574499f657/issues",
+  "id_policy": "IDs are immutable. Assign a new ID to a new control; do not regenerate IDs after reordering. Original conversion used CRG-{group number}-{original 1-based item index}.",
+  "groups": [
+    {
+      "id": "01",
+      "title": "Scope, applicability, and submission criteria",
+      "linear_issue_identifier": "YOA-593",
+      "sources_or_context": [
+        "Official brief pending; workflow requested by Yoann."
+      ],
+      "controls": [
+        {
+          "id": "CRG-01-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Map each official requirement to a feature, owner, evidence, and test; no brief requirement may remain without a ticket.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Inventory providers, rails, API versions, quotas, and test identities; verify access with an authorized request without exposing secrets.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Diagram data and money flows, actors, and trust boundaries; assign a purpose and owner to every external connection.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-04",
+          "classification": "C",
+          "scenario_and_expected_result": "Identify consumer/business customers, responsible entities, states served, custody of funds, and jurisdictions; justify the applicability of each legal conclusion.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Classify every control as T/C/P and assign priority before implementation; N/A needs a reason, and deferral does not mean PASS.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Check AI rules, permitted tools, code licensing, submission requirements, and the deadline; use only permitted independent review.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Complete a DESIGN review before sensitive flows; assess architecture and planned tests without claiming nonexistent code has been tested.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Set measurable latency, freshness, and recovery criteria before testing; proposed values are not Corgi requirements.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-09",
+          "classification": "T",
+          "scenario_and_expected_result": "Plan an early sandbox end-to-end flow; when blocked, record the error and continue locally without presenting a mock as a real integration.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-01-10",
+          "classification": "T",
+          "scenario_and_expected_result": "At handoff, every control has a status and each applicable requirement has evidence; distinguish complete delivery from disclosed gaps.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "02",
+      "title": "US rules, partner-bank responsibilities, and conditional compliance",
+      "linear_issue_identifier": "YOA-594",
+      "sources_or_context": [
+        "https://www.fincen.gov/resources/statutes-and-regulations/cdd-rule-faqs",
+        "https://www.consumerfinance.gov/rules-policy/regulations/1005/10/",
+        "https://www.consumerfinance.gov/rules-policy/regulations/1005/11/",
+        "https://ofac.treasury.gov/recent-actions/20190502_33",
+        "https://www.nacha.org/rules/risk-management-topics-fraud-monitoring-phase-2",
+        "https://www.ftc.gov/business-guidance/resources/ftc-safeguards-rule-what-your-business-needs-know",
+        "https://www.pcisecuritystandards.org/faqs/1533/"
+      ],
+      "controls": [
+        {
+          "id": "CRG-02-01",
+          "classification": "C",
+          "scenario_and_expected_result": "CIP/KYC: establish the governing regime and bank/application roles; translate the assigned policy into data requirements and controls without inventing thresholds.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-02",
+          "classification": "C",
+          "scenario_and_expected_result": "KYB/CDD: for legal-entity customers, verify beneficial-ownership requirements and current exceptions, including FinCEN's 2026 changes; test applicable cases.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-03",
+          "classification": "C",
+          "scenario_and_expected_result": "AML: identify who monitors and handles alerts; test authorized internal routing without automating a real regulatory filing.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-04",
+          "classification": "C",
+          "scenario_and_expected_result": "OFAC: establish screening policy and match handling; simulate unavailability and false positives without treating sanctions screening as equivalent to KYC.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-05",
+          "classification": "C",
+          "scenario_and_expected_result": "Regulation E: for covered consumer EFTs, verify authorizations, agreement copies, revocation, and stop-payment handling; test the behavior actually required.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-06",
+          "classification": "C",
+          "scenario_and_expected_result": "Errors/disputes: where applicable, map intake, timestamps, deadlines, notifications, and any provisional credit to the governing text and entity role.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-07",
+          "classification": "C",
+          "scenario_and_expected_result": "ACH/Nacha: for ACH, confirm roles, authorization, account validation, returns, and 2026 fraud controls with the provider; do not guess deadlines.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-08",
+          "classification": "C",
+          "scenario_and_expected_result": "Cards/PCI: establish scope and responsibilities with the acquirer/provider; control sensitive data and prefer hosted collection.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-09",
+          "classification": "C",
+          "scenario_and_expected_result": "GLBA/FTC or the competent regulator: determine applicable information safeguards, service-provider oversight, retention, and incident-notification requirements.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-02-10",
+          "classification": "P",
+          "scenario_and_expected_result": "For the actual product, open targeted analysis of credit/ECOA/TILA/FCRA, state licensing, insurance, remittances, or FDIC representations; claim no coverage without evidence.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "03",
+      "title": "Authentication, authorization, and isolation",
+      "linear_issue_identifier": "YOA-595",
+      "sources_or_context": [
+        "https://owasp.org/www-project-application-security-verification-standard/"
+      ],
+      "controls": [
+        {
+          "id": "CRG-03-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Call every protected endpoint without a session and with an expired token; reject without leaks or financial effects.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Replace a customer, payment, export, or document ID with another user's ID; APIs, search, and downloads must deny access.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Test standard-user, operator, and administrator roles against an action matrix; enforce permissions on the server.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Remove a role during an active session; subsequent sensitive actions must respect revocation under the documented policy.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Attempt a forbidden action directly through the API when its button is hidden; the server must enforce the same control.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Verify session cookies, expiration, and logout; no secret or sensitive token may leak through URLs, logs, or error responses.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Test CSRF protections for cookie authentication and CORS configuration; a hostile origin cannot trigger an authorized action.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Test injection attempts in filters, search, metadata, and HTML rendering; validate input and protect queries and output.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-09",
+          "classification": "T",
+          "scenario_and_expected_result": "For user-supplied URLs or uploads, test SSRF, file type/size, and file access; block unauthorized internal destinations.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-03-10",
+          "classification": "P",
+          "scenario_and_expected_result": "Assess MFA/step-up authentication, service accounts, and separation of duties for critical operations; adapt decisions and tests to the product.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "04",
+      "title": "Sensitive data, secrets, and audit trails",
+      "linear_issue_identifier": "YOA-596",
+      "sources_or_context": [
+        "https://www.ftc.gov/business-guidance/resources/ftc-safeguards-rule-what-your-business-needs-know",
+        "https://www.pcisecuritystandards.org/faqs/1533/"
+      ],
+      "controls": [
+        {
+          "id": "CRG-04-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Scan the repository, relevant history, browser bundles, and CI artifacts; expose no secrets or real personal data.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Trigger KYC/payment failures; inspect logs, traces, and reports to verify sensitive-field redaction.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Verify placeholder-only .env.example, secrets outside Git, and test/live separation; fail explicitly on invalid configuration.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Inspect exports, browser caches, analytics tools, and screenshots; avoid unnecessary sensitive-data transfers.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Verify HTTPS and certificate validation on relevant connections; never disable TLS verification to make a test pass.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-06",
+          "classification": "C",
+          "scenario_and_expected_result": "Define minimum storage, encryption, and retention by data type from applicable contracts/rules; do not invent a retention period.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Audit each replay, correction, and eligibility change with actor, time, reference, and reason; exclude secrets from audit records.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Verify ordinary APIs cannot modify financial history or audit records; corrections remain traceable.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-09",
+          "classification": "P",
+          "scenario_and_expected_result": "Simulate key rotation/revocation and recovery of authorized access; verify obsolete keys do not persist in services.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-04-10",
+          "classification": "C",
+          "scenario_and_expected_result": "For applicable deletion requests or legal holds, verify category-specific handling without deleting records that must be retained.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "05",
+      "title": "KYC, eligibility, and state transitions",
+      "linear_issue_identifier": "YOA-597",
+      "sources_or_context": [
+        "https://www.fincen.gov/resources/statutes-regulations/guidance/interagency-interpretive-guidance-customer-identification",
+        "Document the assigned provider."
+      ],
+      "controls": [
+        {
+          "id": "CRG-05-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Exercise KYC states actually available in the sandbox, including ineligible/non-final states where supported; save IDs and redacted results.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Submit incomplete or invalid forms; return understandable errors without inconsistent records or identity-data leaks.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Attempt payment before required eligibility through UI and API; initiate no financial effect.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Modify a KYC value in a browser request; the server must reject or ignore attempted self-approval.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Deliver conflicting KYC updates out of order; state must follow the documented version or authority.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Simulate KYC timeouts or unavailability; display the appropriate pending/unknown state and block dependent actions.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Repeat case creation after a lost response; recover the existing intent without inconsistent concurrent cases.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Revoke eligibility between form entry and execution; recheck at the point of effect under the applicable policy.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-09",
+          "classification": "C",
+          "scenario_and_expected_result": "For additional documents/information, test expired links, resubmission, and cross-customer access; restrict access and support recovery.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-05-10",
+          "classification": "T",
+          "scenario_and_expected_result": "Resume a case after restart; preserve state and references without using real identities to work around sandbox limitations.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "06",
+      "title": "Payments, amounts, and idempotency",
+      "linear_issue_identifier": "YOA-598",
+      "sources_or_context": [
+        "https://stripe.com/blog/idempotency",
+        "Confirm the assigned rail and provider contract."
+      ],
+      "controls": [
+        {
+          "id": "CRG-06-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Test zero, negative, excessive precision, boundary, and very large amounts; use exact USD arithmetic and prevent overflow.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Submit the same intent by double-click and concurrent requests; create one business operation and one external effect.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Reuse a key with a different amount or beneficiary; return an explicit conflict without silently reinterpreting the request.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Simulate provider acceptance followed by a lost response; preserve an unknown outcome and recover the operation before resubmission.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Kill the process after acceptance but before saving the response; restart and recover without duplicate payment.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Repeat an intent after provider key retention expires; local protection must prevent an unintended new effect.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Simulate 429/5xx responses and business rejection; use bounded retries only when safe, with no loop on definitive rejection.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Receive accepted/pending and then settled states; display them distinctly without equating HTTP 200 with final settlement.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-09",
+          "classification": "C",
+          "scenario_and_expected_result": "For cancellation, return, refund, or reversal, test permitted states/amounts, duplicate requests, and races with settlement.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-06-10",
+          "classification": "T",
+          "scenario_and_expected_result": "Verify beneficiary/account isolation, limits, and eligibility immediately before the effect; earlier UI validation is insufficient.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "07",
+      "title": "Webhooks: authenticity, durability, and replay",
+      "linear_issue_identifier": "YOA-599",
+      "sources_or_context": [
+        "https://docs.stripe.com/webhooks",
+        "Stripe is an example; adapt to the actual contract."
+      ],
+      "controls": [
+        {
+          "id": "CRG-07-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Send invalid, missing, or expired signatures where applicable; reject without applying the payload.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Verify raw-body handling and account/environment context under the provider contract; reject events from another account.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Make the database unavailable before persistence; never acknowledge success while losing an authenticated event.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Deliver the same event repeatedly and concurrently; apply its financial transition once.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Deliver distinct events describing the same business effect; prevent duplication without suppressing a legitimate transition.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Deliver events out of order; prevent stale regressions while allowing legitimate returns and reversals.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Kill a worker during processing; event state and local effects must remain atomic or recoverable.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Replay failed and then processed events; recover the former without duplicating the latter.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-09",
+          "classification": "T",
+          "scenario_and_expected_result": "Send unknown event types, malformed payloads, and a new version; handle explicitly, expose errors, and avoid a system-wide crash.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-07-10",
+          "classification": "T",
+          "scenario_and_expected_result": "Test backlog, concurrent workers, and lease expiration; no event may remain stuck indefinitely or be silently lost.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "08",
+      "title": "Ledger, concurrency, and database integrity",
+      "linear_issue_identifier": "YOA-600",
+      "sources_or_context": [
+        "Proposed engineering controls; a ledger is required only if the product manages balances."
+      ],
+      "controls": [
+        {
+          "id": "CRG-08-01",
+          "classification": "C",
+          "scenario_and_expected_result": "For local balances, keep every journal transaction balanced per currency; use SQL assertions to detect imbalance.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-02",
+          "classification": "C",
+          "scenario_and_expected_result": "Concurrent debits against limited funds must not spend the same availability twice; test locking or equivalent constraints.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-03",
+          "classification": "C",
+          "scenario_and_expected_result": "Separate available, reserved, and settled funds as required; pending funds must not become spendable incorrectly.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Force failure within a database transaction; partial writes must not violate an invariant.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Test uniqueness, foreign-key, and amount constraints under concurrent writes, not only through service-level tests.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-06",
+          "classification": "C",
+          "scenario_and_expected_result": "Correct through a compensating entry linked to the original; preserve history and prevent duplicate correction.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Test delayed reads or stale caches against writes; sensitive decisions must not rely on uncontrolled stale state.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Test migrations against existing data and interruption; recover coherently without silent data destruction.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-09",
+          "classification": "P",
+          "scenario_and_expected_result": "Restore a backup into an isolated environment; compare operations/journal and measure acceptable loss and recovery time.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-08-10",
+          "classification": "P",
+          "scenario_and_expected_result": "Document restore limits: a database rollback does not cancel external payments; reconcile before resuming operations.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "09",
+      "title": "Reconciliation and financial discrepancies",
+      "linear_issue_identifier": "YOA-601",
+      "sources_or_context": [
+        "Proposed engineering controls; confirm the assigned provider API/reporting."
+      ],
+      "controls": [
+        {
+          "id": "CRG-09-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Compare references, currency, amount, and status between local data and a defined external source; document authority and time window.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Omit a webhook from the scenario; reconciliation must detect the divergence independently of the inbox.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Inject local-only and provider-only operations; classify them separately without blindly creating a payment.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Inject amount/currency mismatches and stale statuses; show discrepancies with references and explanations.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Fetch multiple pages, then fail one page; report an incomplete run, never a clean reconciliation.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Repeat the same overlapping window twice; create no duplicate entries or corrections.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Test late events, day boundaries, and daylight-saving changes; windows/cursors must not skip relevant operations.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-08",
+          "classification": "C",
+          "scenario_and_expected_result": "If fees/net/settlement data exist, distinguish gross, fees, net, expected timing differences, and actual discrepancies.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-09",
+          "classification": "T",
+          "scenario_and_expected_result": "Interrupt and rerun the job; make recovery and run summaries traceable without silently removing discrepancies.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-09-10",
+          "classification": "T",
+          "scenario_and_expected_result": "Run reconciliation, webhooks, and operator correction concurrently; converge with a single financial effect.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "title": "Dashboard: accuracy, usability, and permissions",
+      "linear_issue_identifier": "YOA-602",
+      "sources_or_context": [
+        "https://www.w3.org/TR/WCAG22/",
+        "Proposed product controls; adapt to the views required by the brief."
+      ],
+      "controls": [
+        {
+          "id": "CRG-10-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Verify totals, filters, and pagination against a known dataset; display currency, amount, timezone, and last-update time explicitly.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Distinguish zero, empty data, loading, forbidden access, and failure; never replace a failed balance lookup with USD 0.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Find an operation by internal/provider ID; provide a coherent timeline through KYC, webhook processing, and reconciliation.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Test sorting and pagination during concurrent updates; do not silently create phantom or missing operations.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Show pending/failed/unknown states and a useful next action; never infer settled status from a browser redirect.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Test keyboard navigation, focus, labels, contrast, and error/status announcements; critical actions must work without a mouse.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Switch customers/accounts rapidly; an old screen's response must not overwrite the new context.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Test mobile layouts, zoom, and long amounts/references; keep critical actions and status information visible.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-09",
+          "classification": "T",
+          "scenario_and_expected_result": "Apply list permissions to exports and detail views; prevent leaks through CSV, URLs, or search.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-10-10",
+          "classification": "C",
+          "scenario_and_expected_result": "For bulk actions, confirm scope, handle partial success, and retry without repeating already accepted operations.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "11",
+      "title": "Dashboard failures, stale caches, and degraded operation",
+      "linear_issue_identifier": "YOA-603",
+      "sources_or_context": [
+        "https://sre.google/sre-book/monitoring-distributed-systems/",
+        "Agent-proposed scenarios for the visualization dashboard."
+      ],
+      "controls": [
+        {
+          "id": "CRG-11-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Fail one widget; other views remain usable and the affected widget shows an identifiable error.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Simulate dashboard API 500s and timeouts; show explicit errors and safe retry without endless spinners or false success.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Disconnect the network after payment submission; recover the existing intent when connectivity returns.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Close or reload the tab during an action; server-side processing continues and remains discoverable.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Expire the session during reads/actions; deny access cleanly without automatically repeating financial actions after login.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Disconnect SSE/WebSocket/polling if present; show freshness and resume updates without duplicate subscriptions.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Serve very stale cache data; label it stale and revalidate sensitive actions on the server.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Trigger a JavaScript exception or missing chunk after deployment; provide recovery without submitting the form twice.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-09",
+          "classification": "T",
+          "scenario_and_expected_result": "Make the dashboard completely unavailable; webhook ingestion, workers, and reconciliation must not depend on the browser.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-11-10",
+          "classification": "T",
+          "scenario_and_expected_result": "If the provider or monitoring dashboard fails, diagnose through authorized APIs/logs/commands and independent alerts without bypassing permissions.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "12",
+      "title": "Infrastructure and dependency resilience",
+      "linear_issue_identifier": "YOA-604",
+      "sources_or_context": [
+        "https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/"
+      ],
+      "controls": [
+        {
+          "id": "CRG-12-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Simulate provider DNS/TLS/connection failures; bound timeouts, expose state, and release resources.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Inject latency, 429, 503, and Retry-After; enforce a global retry budget to prevent amplification and synchronized storms.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Stop and restart workers and servers; recover durable work without losing acknowledged operations.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Simulate database unavailability and pool exhaustion; fail cleanly without financial calls lacking durable intent.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Simulate deadlocks/transaction conflicts; retry only safe units without repeating provider effects.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-06",
+          "classification": "T",
+          "scenario_and_expected_result": "If a cache exists, make it unavailable; preserve authorization and idempotency protections under documented fallback behavior.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Simulate a poison message; isolate it with bounded retries while other messages continue.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Stop an instance during deployment; drain work or recover leases and in-flight operations coherently.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-09",
+          "classification": "T",
+          "scenario_and_expected_result": "Shift the test clock; verify expiration, signatures, and time windows without disabling protections.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-12-10",
+          "classification": "P",
+          "scenario_and_expected_result": "Test zone/service failure and recovery for the actual architecture; measure RTO/RPO without inventing a multi-region system.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "13",
+      "title": "Stress testing, load, spikes, and endurance",
+      "linear_issue_identifier": "YOA-605",
+      "sources_or_context": [
+        "https://grafana.com/docs/k6/latest/",
+        "https://grafana.com/docs/k6/latest/using-k6/thresholds/"
+      ],
+      "controls": [
+        {
+          "id": "CRG-13-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Define an isolated environment, authorized URLs, budget, synthetic dataset, caps, and emergency stop; do not heavily load a third party without authorization.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Establish a baseline and realistic read/action/webhook mix; record hardware, version, dataset, and the actual emitted load.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Load smoke test: one user or very low throughput for one minute; validate scripts, business assertions, and cleanup before ramping up.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Nominal load: sustain target throughput L for ten minutes; measure p50/p95/p99, unexpected errors, queues, and saturation.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Progressive stress: 0.5L, L, 1.5L, and 2L for three minutes per stage; identify degradation without exceeding authorized limits.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Spike: move from 0.2L to 3L for sixty seconds, then return; verify controlled rejection, draining, and recovery to nominal behavior.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-07",
+          "classification": "P",
+          "scenario_and_expected_result": "Breakpoint: increase load to the agreed stop threshold; document capacity, bottleneck, and headroom without continuing to destruction.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Trial soak: thirty to sixty minutes at L; check memory/connection leaks and backlog growth. Plan a separate four-to-eight-hour production extension.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-09",
+          "classification": "T",
+          "scenario_and_expected_result": "Business concurrency: contend on the same keys, accounts, and events; allow no duplicate effects, unbalanced entries, or cross-customer leaks.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-10",
+          "classification": "T",
+          "scenario_and_expected_result": "Under load, slow the simulated provider and restart a worker; verify backpressure, retry amplification, and recovery.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-11",
+          "classification": "T",
+          "scenario_and_expected_result": "Measure dropped iterations, generator load, and per-endpoint errors; do not claim good performance when the generator failed to produce the load.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-13-12",
+          "classification": "T",
+          "scenario_and_expected_result": "After every run, reconcile accounts/operations and verify invariants; attach raw reports, thresholds, and results, not just an HTTP average.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "14",
+      "title": "Observability, alerts, and runbooks",
+      "linear_issue_identifier": "YOA-606",
+      "sources_or_context": [
+        "https://sre.google/sre-book/monitoring-distributed-systems/",
+        "https://csrc.nist.gov/pubs/sp/800/61/r3/final"
+      ],
+      "controls": [
+        {
+          "id": "CRG-14-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Correlate requests, operations, provider references, events, and reconciliation runs using nonsensitive IDs.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Measure latency, throughput, errors, and saturation per component/endpoint; distinguish expected business rejection from failure.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Track oldest-event age, backlog, unknown outcomes, KYC failures, and discrepancies; a live worker does not prove work is processed.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Trigger a deliberate test alert; verify delivery to an authorized destination and a linked runbook.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Disable metric collection or the monitoring dashboard; detect missing telemetry instead of showing everything as healthy.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Test logging failure or disk exhaustion without silent financial loss; distinguish critical audit records from diagnostic logs.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Write procedures for unknown payments, missing webhooks, discrepancies, and provider outages; test at least one guided recovery.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-08",
+          "classification": "T",
+          "scenario_and_expected_result": "If a pause control exists, test stopping new financial effects while preserving safe reads/reconciliation and authorized resumption.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-09",
+          "classification": "P",
+          "scenario_and_expected_result": "Define owners, incident severity, escalation, RTO/RPO, and communications; simulate an outage without sending real customer notifications.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-14-10",
+          "classification": "C",
+          "scenario_and_expected_result": "For a simulated leak, trace containment, rotation, evidence preservation, and review of applicable notifications by the designated owner.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "title": "Git, CI, migrations, and deployment",
+      "linear_issue_identifier": "YOA-607",
+      "sources_or_context": [
+        "Proposed engineering controls; confirm repository and hosting conventions."
+      ],
+      "controls": [
+        {
+          "id": "CRG-15-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Start from a clean clone with lockfiles and pinned versions; install, migrate, and run without implicit steps.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Run required lint, type checks, tests, and build; a failure must not produce a green CI result.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Check secrets and vulnerable dependencies; address applicable risks and record justified exclusions.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Keep coherent, reviewed commits; do not overwrite unrelated changes or force-push shared history.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Deploy with explicit sandbox configuration; verify the actual URL, version, and provider account.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Test migrations against representative synthetic data; verify old/new code compatibility during transition where needed.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Test a data-compatible rollback or roll-forward; never claim a code rollback cancels an external payment.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Test health/readiness and required routes externally; webhooks must reach the correct environment.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-09",
+          "classification": "T",
+          "scenario_and_expected_result": "After deployment, run positive and negative smoke tests and inspect errors; confirm the tested SHA is the submitted SHA.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-15-10",
+          "classification": "P",
+          "scenario_and_expected_result": "Assess CI permissions, branch protection, artifact provenance, and restoration; use only authorized repository mechanisms.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    },
+    {
+      "id": "16",
+      "title": "Test campaigns, evidence, and final handoff",
+      "linear_issue_identifier": "YOA-608",
+      "sources_or_context": [
+        "Validation workflow requested by Yoann; official brief pending."
+      ],
+      "controls": [
+        {
+          "id": "CRG-16-01",
+          "classification": "T",
+          "scenario_and_expected_result": "Unit suite: amounts, transitions, eligibility, and discrepancy classification; test invariants rather than implementation details alone.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-02",
+          "classification": "T",
+          "scenario_and_expected_result": "Database suite: constraints, concurrency, transactions, and restart; use the relevant engine rather than a misleading mock.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-03",
+          "classification": "T",
+          "scenario_and_expected_result": "Contract suite: documented provider payloads, errors, and versions; label synthetic fixtures and distinguish sandbox verification.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-04",
+          "classification": "T",
+          "scenario_and_expected_result": "Sandbox E2E suite: KYC → operation → webhook → dashboard → reconciliation; retain references and redacted evidence.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-05",
+          "classification": "T",
+          "scenario_and_expected_result": "Security suite: cross-customer access, direct APIs, secret leakage, and signatures; every applicable control needs a negative test.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-06",
+          "classification": "T",
+          "scenario_and_expected_result": "Resilience suite: lost response, duplicate, missing event, worker outage, and broken dashboard; verify recovery and integrity.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-07",
+          "classification": "T",
+          "scenario_and_expected_result": "Performance suite: execute selected profiles from ticket 13 against thresholds fixed beforehand; mark other profiles not run.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-08",
+          "classification": "T",
+          "scenario_and_expected_result": "Obtain independent feature and integration reviews; preserve findings, fixes, SHAs, and re-review history.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-09",
+          "classification": "T",
+          "scenario_and_expected_result": "Resolve every row to PASS, FAIL, BLOCKED, justified N/A, or DEFERRED; never present an unresolved applicable blocker as completed.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        },
+        {
+          "id": "CRG-16-10",
+          "classification": "T",
+          "scenario_and_expected_result": "Submit the README, commands, limitations, reports, and demo; verify remote/SHA/URL and actual submission confirmation with time to spare.",
+          "status": "NOT_RUN",
+          "applicability": "TO_TRIAGE",
+          "owner": null,
+          "priority": "TO_TRIAGE",
+          "evidence": null,
+          "reviewer": null
+        }
+      ]
+    }
+  ]
+}

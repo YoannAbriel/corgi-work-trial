@@ -1,0 +1,17 @@
+{
+  "recorded_at": "2026-09-08T06:35:03+00:00",
+  "note": "Coordinator snapshot after review corrections and explicitly disclosed minor wording cleanups; not a claim that every byte was reviewed by every reviewer.",
+  "sha256": {
+    "REVIEWER.md": "f1328754dd885c96d4bc9c2258964444c073ab8426595273c54c3360d34ca078",
+    "STRESS-TEST-PLAN.md": "c263a0c7526d88dc5d0a79b922f3b8ba3dce2b4bcdb13352d8b480d7e5ea4c9e",
+    "GAP-REVIEW.md": "4b7bad37498532ad45fce8a703b1bac2a55e1edd6d2eea36ba596a8fc0b2fc5e",
+    "READINESS-CHECKLIST.md": "816e88bcfec61e285cc4945d750c41acfa9f3ba5de52603c5793662ba067cc4f",
+    "README.md": "f454869bb72fe557e543bd8fdb4c83b2e14a35b1e171598b3334bb77c29a0308",
+    "READABLE-CODE.md": "39f3df7ce584ad03d312a8f968f27597a2a554f3a623fa3894f451666bb7002d",
+    "START-PROMPT.md": "1f62802fd939fa78e2c78bf20beed02ddac358c03068da0e64ba202b32c72e38",
+    "AGENTS.md": "3ba1b156b706e4f103b0b6a3ed74c58707bfceff70e96f8fc1bcee559c6a8364",
+    "AUTOMATIC-FAILS.md": "f65d4af2096762ac1cb34b35424309ab462f8d3a4a9e7a366b2295d7d142fdf0",
+    "WORKFLOW-48H.md": "e41933fb4a709b92070b57b52a439fac8ee582f0f2efbd8f309d33a565093a92",
+    "CLAUDE.md": "25ed0a7dfba532c0716e37f8c695fe833764f03eddf766c048f0cf440104f384"
+  }
+}
