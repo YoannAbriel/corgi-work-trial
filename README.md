@@ -70,6 +70,8 @@ USD integer cents everywhere. A term is one calendar year (February 29 to Februa
 
 Recited example: $1,200 written March 1, 2028 (365 days), tax $28.20, fee $25, charge $1,253.20; cancelled June 9, 2028: earned 32876 cents, unearned 87124, tax refunded 2048, fee 0, total refund $891.72, clawback 13068 cents.
 
+Rule 21 (decided 2026-09-08): a claim payment requested through the MCP endpoint by an agent principal always creates an approval request, whatever the amount; the $1,000 threshold applies to people. The claim screen and the approvals queue both say "raised by an agent" with the key prefix, and an agent-raised payment without a request never leaves (the send gate fails closed).
+
 ## Corrections and history
 
 Nothing financial is ever updated or deleted: Postgres triggers refuse UPDATE, DELETE and TRUNCATE on every money table for every role, the runtime role only has SELECT and INSERT, entries are sealed at commit, and the balance of each entry is checked by the database at commit. Corrections are reversal entries linked to the originals plus a dated policy event; the fold of policy events skips superseded events. Every entry carries an effective date (business time) and a recorded time (set by the database), so "as it stood on May 3" and "what was known on May 3" are two different queries over the same rows.

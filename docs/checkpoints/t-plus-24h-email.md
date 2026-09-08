@@ -1,8 +1,8 @@
 # T+24h checkpoint email (draft, not sent by the assistant)
 
-Status: DRAFT prepared at 2026-09-08T11:25:00+00:00, rewritten short and plain at 2026-09-08T20:22:49+00:00 at Yoann's request. Deadline: September 9, 2026, 07:50 Europe/Zurich. Yoann sends it on the existing candidate thread; the thread header is the authoritative timestamp. Paste the demo password (the value of DEMO_PASSWORD in the deployment secret store) into the email, never into this file.
+Status: SENT by Yoann on the existing candidate thread. Send time reported by Yoann: 2026-09-08 22:34 Europe/Zurich (20:34 UTC), nine hours and sixteen minutes before the T+24h deadline; recorded at 2026-09-08T20:36Z. Draft prepared at 11:25Z, rewritten short and plain at 20:22Z at Yoann's request. Deadline: September 9, 2026, 07:50 Europe/Zurich. Yoann sends it on the existing candidate thread; the thread header is the authoritative timestamp. Paste the demo password (the value of DEMO_PASSWORD in the deployment secret store) into the email, never into this file.
 
-Sent at: (to fill in)
+Sent at: 2026-09-08 22:34 Europe/Zurich (reported by Yoann)
 
 ---
 
