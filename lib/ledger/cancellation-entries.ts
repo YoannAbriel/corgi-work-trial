@@ -35,6 +35,16 @@ import type { JournalEntryDraft, JournalLineDraft } from "./post";
 // A FAILED refund posts nothing at all: the customer is still owed the money, so refund_payable
 // must stay open (design re-review finding R-01, docs/reviews/architecture.md section 10).
 
+// Every entry type this module can post; see POLICY_ENTRY_TYPES for why the list exists.
+export const CANCELLATION_ENTRY_TYPES = [
+  "premium_earned_to_date",
+  "refund_requested",
+  "refund_completed",
+  "commission_clawback",
+] as const;
+
+export type CancellationEntryType = (typeof CANCELLATION_ENTRY_TYPES)[number];
+
 // Moving premium from "not earned yet" to "earned" at a point in time. Posted at cancellation
 // so that the as-of balances and the refund tell the same story on the same day.
 export type PremiumEarnedToDateInput = {
@@ -53,7 +63,7 @@ export function premiumEarnedToDateEntry(input: PremiumEarnedToDateInput): Journ
   }
   return {
     header: {
-      entryType: "premium_earned_to_date",
+      entryType: "premium_earned_to_date" satisfies CancellationEntryType,
       effectiveAt: input.effectiveAt,
       policyId: input.policyId,
       brokerId: input.brokerId,
@@ -103,7 +113,7 @@ export function refundRequestedEntry(input: RefundRequestedInput): JournalEntryD
 
   return {
     header: {
-      entryType: "refund_requested",
+      entryType: "refund_requested" satisfies CancellationEntryType,
       effectiveAt: input.effectiveAt,
       policyId: input.policyId,
       brokerId: input.brokerId,
@@ -140,7 +150,7 @@ export function refundCompletedEntries(input: RefundCompletedInput): JournalEntr
     {
       header: {
         ...commonHeader,
-        entryType: "refund_completed",
+        entryType: "refund_completed" satisfies CancellationEntryType,
         // Cash entries carry the day the cash moved, as premium_collected does at issuance.
         effectiveAt: input.refundedOn,
         description: `Policy ${input.policyNumber} refund paid back to the customer at Stripe`,
@@ -159,7 +169,7 @@ export function refundCompletedEntries(input: RefundCompletedInput): JournalEntr
     entries.push({
       header: {
         ...commonHeader,
-        entryType: "commission_clawback",
+        entryType: "commission_clawback" satisfies CancellationEntryType,
         effectiveAt: input.refundedOn,
         description: `Broker commission clawed back on the refunded premium of policy ${input.policyNumber}`,
       },

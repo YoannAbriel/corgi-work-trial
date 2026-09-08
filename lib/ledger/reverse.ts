@@ -9,6 +9,12 @@ import type { JournalLineDraft } from "./post";
 // nets the two to zero, while any view of "what was known before the correction" still shows
 // the original. reverses_entry_id links the two and is unique: an entry can be reversed once.
 
+// The name of a reversal entry is the name of the entry it undoes, behind this prefix. The
+// broker statement strips it to land a reversal on the same line kind as the original with the
+// opposite amount (lib/statements/compute.ts), and lib/statements/entry-types.test.ts enumerates
+// every builder's types through it, so the prefix is written once and read from here.
+export const REVERSAL_ENTRY_TYPE_PREFIX = "reversal_of_";
+
 export type JournalLineRecord = { account_id: string; debit_cents: string; credit_cents: string };
 
 // Pure: the mirrored lines of an original entry. Amounts arrive as text from the driver
@@ -54,7 +60,7 @@ export async function reverseJournalEntry(
     insert into journal_entries
       (entry_type, effective_at, policy_id, broker_id, source_kind, source_id, reverses_entry_id, created_by, description)
     values
-      (${"reversal_of_" + original.entry_type}, ${effectiveAt}, ${original.policy_id}, ${original.broker_id},
+      (${REVERSAL_ENTRY_TYPE_PREFIX + original.entry_type}, ${effectiveAt}, ${original.policy_id}, ${original.broker_id},
        'correction', ${request.correctionEventId}, ${original.id}, ${request.createdBy}, ${request.description})
     returning id
   `;

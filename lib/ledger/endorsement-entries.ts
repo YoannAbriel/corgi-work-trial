@@ -49,6 +49,19 @@ import type { JournalEntryDraft, JournalLineDraft } from "./post";
 // (lib/payments/refunds.ts posts refund_completed and commission_clawback on the operation),
 // and a FAILED refund posts nothing: the customer is still owed the money.
 
+// Every entry type this module can post; see POLICY_ENTRY_TYPES for why the list exists.
+// A correction re-books the first two of them on the corrected date
+// (lib/ledger/correction-entries.ts), which is why they are exported rather than local.
+export const ENDORSEMENT_ENTRY_TYPES = [
+  "endorsement_premium_written",
+  "endorsement_tax_billed",
+  "endorsement_premium_collected",
+  "endorsement_commission_earned",
+  "endorsement_refund_requested",
+] as const;
+
+export type EndorsementEntryType = (typeof ENDORSEMENT_ENTRY_TYPES)[number];
+
 export type EndorsementCollectionInput = {
   operationId: string; // money_operations.id: the key every entry is filed under
   policyId: string;
@@ -86,7 +99,7 @@ export function endorsementCollectionEntries(input: EndorsementCollectionInput):
     {
       header: {
         ...commonHeader,
-        entryType: "endorsement_premium_written",
+        entryType: "endorsement_premium_written" satisfies EndorsementEntryType,
         effectiveAt: input.effectiveAt,
         description: `Policy ${input.policyNumber} additional premium written by the endorsement effective ${input.effectiveAt}`,
       },
@@ -101,7 +114,7 @@ export function endorsementCollectionEntries(input: EndorsementCollectionInput):
     entries.push({
       header: {
         ...commonHeader,
-        entryType: "endorsement_tax_billed",
+        entryType: "endorsement_tax_billed" satisfies EndorsementEntryType,
         effectiveAt: input.effectiveAt,
         description: `Policy ${input.policyNumber} state premium tax on the endorsement premium`,
       },
@@ -115,7 +128,7 @@ export function endorsementCollectionEntries(input: EndorsementCollectionInput):
   entries.push({
     header: {
       ...commonHeader,
-      entryType: "endorsement_premium_collected",
+      entryType: "endorsement_premium_collected" satisfies EndorsementEntryType,
       effectiveAt: input.paymentDate,
       description:
         collectedFrom === "cash_stripe"
@@ -132,7 +145,7 @@ export function endorsementCollectionEntries(input: EndorsementCollectionInput):
     entries.push({
       header: {
         ...commonHeader,
-        entryType: "endorsement_commission_earned",
+        entryType: "endorsement_commission_earned" satisfies EndorsementEntryType,
         effectiveAt: input.paymentDate,
         description: `Broker commission on the endorsement premium collected for policy ${input.policyNumber}`,
       },
@@ -179,7 +192,7 @@ export function endorsementRefundRequestedEntry(input: EndorsementRefundRequeste
 
   return {
     header: {
-      entryType: "endorsement_refund_requested",
+      entryType: "endorsement_refund_requested" satisfies EndorsementEntryType,
       effectiveAt: input.effectiveAt,
       policyId: input.policyId,
       brokerId: input.brokerId,

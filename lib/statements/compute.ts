@@ -231,31 +231,86 @@ function isCashLine(kind: StatementLineKind): boolean {
   return kind === "premium_collected" || kind === "refund";
 }
 
-// An endorsement books the same four movements as an issuance under its own entry names
-// (lib/ledger/endorsement-entries.ts), so both names map to the same statement line. Its refund
-// completes through the ordinary refund_completed and commission_clawback entries, which are
-// already covered.
+// WHAT THE STATEMENT DOES WITH EVERY ENTRY TYPE THE LEDGER CAN POST, in one table.
+//
+// It exists because the same bug happened twice: a slice added an entry type, nobody told the
+// statement about it, and the money quietly stopped being counted (review findings F-B9-01 and
+// F-B8-01). Every builder now exports the list of types it can post, and
+// lib/statements/entry-types.test.ts walks all of them through this function and fails if any
+// one comes back "unknown". A type that is deliberately absent from a broker statement is
+// written down here WITH ITS REASON rather than left out, so "we forgot" and "we decided" can
+// never look the same again.
+//
+// The runtime keeps its safety net all the same: an unknown type that moved the broker's payable
+// still becomes an 'adjustment' line (rule 1 above), because net due must equal the movement of
+// commission_payable whatever anyone forgot. The test is what stops it being needed.
+export type StatementDisposition =
+  // The entry belongs on a line. `movement` says which of the entry's two figures the amount is.
+  | { kind: "line"; lineKind: StatementLineKind; movement: "cash" | "commission" }
+  // Deliberately not a broker movement, and why.
+  | { kind: "ignored"; reason: string }
+  // Nobody has decided. Only reachable for a type no builder produces.
+  | { kind: "unknown" };
+
+const DISPOSITIONS: Record<string, StatementDisposition> = {
+  // The cash the commission was earned on. An endorsement books the same movements under its own
+  // names (lib/ledger/endorsement-entries.ts) and a corrected endorsement collects its difference
+  // under a third set (lib/ledger/correction-entries.ts); all three are the same customer money.
+  premium_collected: { kind: "line", lineKind: "premium_collected", movement: "cash" },
+  endorsement_premium_collected: { kind: "line", lineKind: "premium_collected", movement: "cash" },
+  correction_premium_collected: { kind: "line", lineKind: "premium_collected", movement: "cash" },
+  // The cash the clawback was computed on. Every refund completes through this one entry,
+  // whether it came from a cancellation, an endorsement reduction or a correction.
+  refund_completed: { kind: "line", lineKind: "refund", movement: "cash" },
+  commission_earned: { kind: "line", lineKind: "commission_earned", movement: "commission" },
+  endorsement_commission_earned: { kind: "line", lineKind: "commission_earned", movement: "commission" },
+  correction_commission_earned: { kind: "line", lineKind: "commission_earned", movement: "commission" },
+  commission_clawback: { kind: "line", lineKind: "clawback", movement: "commission" },
+
+  premium_written: { kind: "ignored", reason: "writing premium moves no cash and no commission; the collection that follows is on the statement" },
+  endorsement_premium_written: { kind: "ignored", reason: "same as premium_written, for an endorsement and for a correction re-book" },
+  tax_and_fee_billed: { kind: "ignored", reason: "state premium tax and the policy fee are billed to the customer; the broker earns nothing on them" },
+  endorsement_tax_billed: { kind: "ignored", reason: "same as tax_and_fee_billed, for an endorsement and for a correction re-book" },
+  premium_earned_to_date: { kind: "ignored", reason: "earning premium is an insurer figure; it moves neither the customer's cash nor the broker's payable" },
+  unapplied_cash_received: { kind: "ignored", reason: "it debits cash_stripe and credits unapplied_customer_cash, both counted as cash, so it nets to zero; the money reaches the statement when it is applied to the policy" },
+  refund_requested: { kind: "ignored", reason: "the liability is opened here and no money has moved; the refund is on the statement when it completes" },
+  endorsement_refund_requested: { kind: "ignored", reason: "same as refund_requested, for an endorsement reduction" },
+  correction_refund_requested: { kind: "ignored", reason: "same as refund_requested, for the difference a backdated correction gives back" },
+  claim_reserve_set: { kind: "ignored", reason: "claims money is the insurer's, not the broker's: no commission is earned or clawed back on it" },
+  claim_reserve_adjusted: { kind: "ignored", reason: "same as claim_reserve_set" },
+  claim_reserve_restored: { kind: "ignored", reason: "same as claim_reserve_set" },
+  claim_payment_sent: { kind: "ignored", reason: "same as claim_reserve_set: it moves the claim reserve and the claims payable, never the broker's payable" },
+  claim_payment_settled: { kind: "ignored", reason: "same as claim_payment_sent: it moves the claims rail, not the broker's payable" },
+  claim_payment_returned: { kind: "ignored", reason: "same as claim_payment_sent" },
+};
+
+// What the statement does with one entry type, reversals included: a reversal is named after the
+// entry it undoes, so it lands on the same line with the opposite amount.
+export function statementDisposition(entryType: string): StatementDisposition {
+  const baseType = entryType.startsWith(REVERSAL_PREFIX) ? entryType.slice(REVERSAL_PREFIX.length) : entryType;
+  return DISPOSITIONS[baseType] ?? { kind: "unknown" };
+}
+
+// The entry types whose CASH the statement lists, and their reversals. lib/statements/journal.ts
+// selects on this list, so an entry type reaches the query and the classifier from the same
+// table: there is no second list to keep in step.
+export const STATEMENT_CASH_ENTRY_TYPES: string[] = Object.entries(DISPOSITIONS)
+  .filter(([, disposition]) => disposition.kind === "line" && disposition.movement === "cash")
+  .flatMap(([entryType]) => [entryType, `${REVERSAL_PREFIX}${entryType}`]);
+
 function classify(
   baseType: string,
   entry: BrokerJournalEntry,
 ): { kind: StatementLineKind; amountCents: number } | null {
-  // The cash the commission was earned on. Both cash accounts count: a payment that was parked in
-  // the suspense account and applied later (rule 14, DECISIONS.md) debits unapplied_customer_cash
-  // instead of cash_stripe, and it is the same customer money either way.
-  if (baseType === "premium_collected" || baseType === "endorsement_premium_collected") {
-    return { kind: "premium_collected", amountCents: entry.cashCents };
+  const disposition = statementDisposition(baseType);
+  if (disposition.kind === "line") {
+    return {
+      kind: disposition.lineKind,
+      amountCents: disposition.movement === "cash" ? entry.cashCents : entry.commissionPayableCents,
+    };
   }
-  // The cash the clawback was computed on.
-  if (baseType === "refund_completed") {
-    return { kind: "refund", amountCents: entry.cashCents };
-  }
-  if (baseType === "commission_earned" || baseType === "endorsement_commission_earned") {
-    return { kind: "commission_earned", amountCents: entry.commissionPayableCents };
-  }
-  if (baseType === "commission_clawback") {
-    return { kind: "clawback", amountCents: entry.commissionPayableCents };
-  }
-  // Rule 1: anything else that moved the broker's payable still has to be on the statement.
+  // Rule 1: anything else that moved the broker's payable still has to be on the statement, even
+  // an entry type this file has never heard of, so net due stays the movement of the payable.
   if (entry.commissionPayableCents !== 0) {
     return { kind: "adjustment", amountCents: entry.commissionPayableCents };
   }

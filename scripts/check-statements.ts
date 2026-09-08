@@ -85,6 +85,13 @@ async function main() {
   const { changesAgainstPrevious, listStatementRuns, statementRun } = await import("@/lib/statements/read");
   const { collectedFigures } = await import("@/lib/statements/compute");
   const { renderStatementPdf } = await import("@/lib/statements/pdf");
+  const { planEndorsement, recordEndorsementRequest } = await import("@/lib/policy/endorse");
+  const { createEndorsementCheckoutOperation, recordSuccessfulEndorsementPayment } = await import(
+    "@/lib/payments/endorsement-collection"
+  );
+  const { readEndorsementRequest } = await import("@/lib/policy/endorsement-requests");
+  const { recordEndorsementDateCorrection } = await import("@/lib/policy/correct-endorsement-date");
+  const { recordSuccessfulCorrectionPayment } = await import("@/lib/payments/correction-collection");
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
     select current_database()
@@ -518,7 +525,179 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
-  // 7. The document
+  // 7. A month with a corrected endorsement in it (review finding F-B8-01)
+  // ---------------------------------------------------------------------------
+  //
+  // The bug this section exists to stop: a backdated correction collects the difference under its
+  // own entry names, the statement had never heard of them, and the cash silently vanished from
+  // the document a broker is paid on while the commission on it turned up as an unexplained
+  // adjustment. It is the third time a new entry type escaped the statement, so the arithmetic is
+  // written out and checked month by month.
+  //
+  // Broker D, one policy, three months:
+  //   March      the issuance: 125320 of cash, 120000 of premium, 18000 earned;
+  //   July       the endorsement as it was keyed, effective 2028-07-09 (235 days remain):
+  //              38630 + 907 = 39537 of cash, 38630 of premium, 5794 earned;
+  //   September  the difference after the date is corrected to 2028-06-09 (265 days remain):
+  //              4931 + 116 = 5047 of cash, 4931 of premium, 739 earned.
+  // The three months add up to the corrected endorsement, and July, which was published before
+  // anyone knew the date was wrong, still says exactly what it said.
+
+  const brokerD = await createBroker("Statement check broker D");
+  const policyD = await createPaidPolicy(recordSuccessfulPayment, brokerD);
+  const operatorActor = { userId: staffUserId, role: "staff_ops" as const, brokerId: null, customerId: null };
+
+  const raise = {
+    policyId: policyD.policyId,
+    effectiveAt: "2028-07-09",
+    newAnnualPremiumCents: 180000,
+    newPerOccurrenceLimitCents: PER_OCCURRENCE_LIMIT_CENTS * 2,
+    newAggregateLimitCents: AGGREGATE_LIMIT_CENTS * 2,
+    reason: "limit raised at the insured's request",
+    actor: operatorActor,
+  };
+  const quote = await planEndorsement(raise, runtime);
+  const requested = await recordEndorsementRequest({ ...raise, expectedQuoteHash: quote.figures.quoteHash }, runtime);
+  const deltaQuote = (await readEndorsementRequest(runtime, policyD.policyId, requested.requestEventId))!;
+  const deltaAttempt = await createEndorsementCheckoutOperation(
+    { quote: deltaQuote, userId: staffUserId, attempt: 1 },
+    runtime,
+  );
+  const deltaPaid = await recordSuccessfulEndorsementPayment(
+    {
+      operationId: deltaAttempt.operationId,
+      paymentIntentId: `pi_statements_delta_${deltaAttempt.operationId.slice(0, 8)}`,
+      amountReceivedCents: 39537,
+      paidOn: "2028-07-09",
+    },
+    runtime,
+  );
+  report(
+    "broker D's endorsement was keyed on the wrong date and collected 39537 in July",
+    deltaPaid.kind === "posted" && quote.figures.deltaTotalCents === 39537 && quote.figures.commissionDeltaCents === 5794,
+    `${deltaPaid.kind}, delta ${quote.figures.deltaTotalCents}, commission ${quote.figures.commissionDeltaCents}`,
+  );
+
+  const julyBeforeCorrection = await runStatement(
+    { brokerId: brokerD, statementMonth: "2028-07", actorUserId: staffUserId },
+    runtime,
+  );
+  report(
+    "July, as it was published: 39537 of cash, 38630 of premium, 5794 earned",
+    julyBeforeCorrection.totals.cashCollectedCents === 39537 &&
+      julyBeforeCorrection.totals.premiumCollectedCents === 38630 &&
+      julyBeforeCorrection.totals.commissionEarnedCents === 5794 &&
+      julyBeforeCorrection.totals.adjustmentCents === 0,
+    `cash ${julyBeforeCorrection.totals.cashCollectedCents}, premium ${julyBeforeCorrection.totals.premiumCollectedCents}, earned ${julyBeforeCorrection.totals.commissionEarnedCents}`,
+  );
+
+  const [endorsedEvent] = await owner<{ id: string }[]>`
+    select id from policy_events where policy_id = ${policyD.policyId} and event_type = 'endorsed'
+  `;
+  const correction = await recordEndorsementDateCorrection(
+    {
+      policyId: policyD.policyId,
+      correctedEventId: endorsedEvent.id,
+      correctedEffectiveAt: "2028-06-09",
+      reason: "the broker's instruction said June 9; it was keyed as July 9",
+      actor: { userId: staffUserId, role: "staff_ops" },
+    },
+    runtime,
+  );
+  const differencePaid = await recordSuccessfulCorrectionPayment(
+    {
+      operationId: correction.collectionOperationId!,
+      paymentIntentId: `pi_statements_difference_${correction.collectionOperationId!.slice(0, 8)}`,
+      amountReceivedCents: 5047,
+      paidOn: "2028-09-15",
+    },
+    runtime,
+  );
+  report(
+    "the date was corrected and the 5047 difference was collected in September",
+    differencePaid.kind === "posted" && correction.plan.money.differenceTotalCents === 5047,
+    `${differencePaid.kind}, difference ${correction.plan.money.differenceTotalCents}`,
+  );
+
+  const september = await runStatement(
+    { brokerId: brokerD, statementMonth: "2028-09", actorUserId: staffUserId },
+    runtime,
+  );
+  report(
+    "THE CORRECTION DIFFERENCE IS ON THE STATEMENT: 5047 of cash, 4931 of premium, 739 earned",
+    september.totals.cashCollectedCents === 5047 &&
+      september.totals.premiumCollectedCents === 4931 &&
+      september.totals.commissionEarnedCents === 739 &&
+      september.totals.netDueCents === 739,
+    `cash ${september.totals.cashCollectedCents}, premium ${september.totals.premiumCollectedCents}, earned ${september.totals.commissionEarnedCents}, net due ${september.totals.netDueCents}`,
+  );
+  report(
+    "AND NOT AS AN UNEXPLAINED ADJUSTMENT: the commission has its premium base and the multiplication reads on the line",
+    september.totals.adjustmentCents === 0 &&
+      Math.floor((september.totals.premiumCollectedCents * COMMISSION_RATE_BPS) / 10000) ===
+        september.totals.commissionEarnedCents,
+    `adjustment ${september.totals.adjustmentCents}, ${september.totals.premiumCollectedCents} x 15% = ${september.totals.commissionEarnedCents}`,
+  );
+  const septemberRun = await statementRun(runtime, september.runId);
+  report(
+    "September lists the collection and the commission it earned, and nothing else",
+    septemberRun?.lines.length === 2 &&
+      septemberRun.lines[0].kind === "premium_collected" &&
+      septemberRun.lines[0].commissionBaseCents === 4931 &&
+      septemberRun.lines[1].kind === "commission_earned",
+    (septemberRun?.lines ?? []).map((line) => `${line.kind} ${line.amountCents}/${line.commissionBaseCents ?? "-"}`).join(", "),
+  );
+  const septemberLedgerMovement = await commissionPayableMovementCents(
+    { brokerId: brokerD, statementMonth: "2028-09", knowledgeCutoff: september.knowledgeCutoff },
+    runtime,
+  );
+  report(
+    "September TIES TO THE LEDGER: net due is the movement of commission_payable, to the cent",
+    septemberLedgerMovement === september.totals.netDueCents,
+    `statement ${september.totals.netDueCents}, journal ${septemberLedgerMovement}`,
+  );
+
+  const julyAfterCorrection = await runStatement(
+    { brokerId: brokerD, statementMonth: "2028-07", actorUserId: staffUserId },
+    runtime,
+  );
+  report(
+    "JULY STILL RECONCILES after the correction: the money it collected is the money it collected",
+    julyAfterCorrection.totals.cashCollectedCents === julyBeforeCorrection.totals.cashCollectedCents &&
+      julyAfterCorrection.totals.premiumCollectedCents === julyBeforeCorrection.totals.premiumCollectedCents &&
+      julyAfterCorrection.totals.netDueCents === julyBeforeCorrection.totals.netDueCents &&
+      julyAfterCorrection.contentHash === julyBeforeCorrection.contentHash,
+    `revision ${julyAfterCorrection.revision}, same hash ${julyAfterCorrection.contentHash === julyBeforeCorrection.contentHash}`,
+  );
+
+  const march = await runStatement(
+    { brokerId: brokerD, statementMonth: STATEMENT_MONTH_OF_ISSUANCE, actorUserId: staffUserId },
+    runtime,
+  );
+  const cashOverThreeMonths =
+    march.totals.cashCollectedCents + julyAfterCorrection.totals.cashCollectedCents + september.totals.cashCollectedCents;
+  const premiumOverThreeMonths =
+    march.totals.premiumCollectedCents +
+    julyAfterCorrection.totals.premiumCollectedCents +
+    september.totals.premiumCollectedCents;
+  const commissionOverThreeMonths =
+    march.totals.commissionEarnedCents +
+    julyAfterCorrection.totals.commissionEarnedCents +
+    september.totals.commissionEarnedCents;
+  report(
+    "the three months add up to the CORRECTED endorsement: 169904 of cash, 163561 of premium, 24533 earned",
+    cashOverThreeMonths === 169904 && premiumOverThreeMonths === 163561 && commissionOverThreeMonths === 24533,
+    `cash ${cashOverThreeMonths}, premium ${premiumOverThreeMonths}, commission ${commissionOverThreeMonths}`,
+  );
+  const ledgerCashOfPolicyD = await policyCashAtStripe(policyD.policyId);
+  report(
+    "and the cash on the three statements is the cash the ledger holds for that policy, to the cent",
+    ledgerCashOfPolicyD === cashOverThreeMonths,
+    `ledger ${ledgerCashOfPolicyD}, statements ${cashOverThreeMonths}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 8. The document
   // ---------------------------------------------------------------------------
 
   const pdf = await renderStatementPdf(marchOne!);
@@ -668,6 +847,19 @@ async function createPaidPolicy(
     throw new Error(`the fixture policy could not be paid: ${JSON.stringify(collected)}`);
   }
   return { policyId, policyNumber, operationId, totalChargeCents: TOTAL_CHARGE_CENTS };
+}
+
+// The cash this policy's entries put at Stripe, read straight from the journal: the figure the
+// statements of every month must add up to.
+async function policyCashAtStripe(policyId: string): Promise<number> {
+  const [row] = await owner<{ amount: string }[]>`
+    select coalesce(sum(line.debit_cents) - sum(line.credit_cents), 0)::text as amount
+      from journal_lines line
+      join journal_entries entry on entry.id = line.entry_id
+     where entry.policy_id = ${policyId}
+       and line.account_id in ('cash_stripe', 'unapplied_customer_cash')
+  `;
+  return Number(row.amount);
 }
 
 // Every line of a run points at a journal entry that exists, has the same effective date and the

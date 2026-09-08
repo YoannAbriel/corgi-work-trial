@@ -43,6 +43,20 @@ import type { JournalEntryDraft } from "./post";
 // payout account, so cash_claims_rail carries a CREDIT balance equal to the cash that has left
 // through the claims rail. Read it as "paid out through the rail", not as "cash we hold".
 
+// Every entry type this module can post; see POLICY_ENTRY_TYPES in lib/ledger/policy-entries.ts
+// for why the list exists. `header` below only accepts one of these, so a new claim entry type
+// cannot be posted without being added here first.
+export const CLAIM_ENTRY_TYPES = [
+  "claim_reserve_set",
+  "claim_reserve_adjusted",
+  "claim_payment_sent",
+  "claim_payment_settled",
+  "claim_payment_returned",
+  "claim_reserve_restored",
+] as const;
+
+export type ClaimEntryType = (typeof CLAIM_ENTRY_TYPES)[number];
+
 export type ClaimEntryContext = {
   claimEventId: string; // claim_events.id, the key every claim entry is filed under
   claimId: string;
@@ -53,7 +67,7 @@ export type ClaimEntryContext = {
   createdBy: string | null; // user id when a person caused it, null for the settlement job
 };
 
-function header(context: ClaimEntryContext, entryType: string, description: string) {
+function header(context: ClaimEntryContext, entryType: ClaimEntryType, description: string) {
   return {
     entryType,
     effectiveAt: context.effectiveAt,

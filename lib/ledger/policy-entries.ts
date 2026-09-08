@@ -44,6 +44,20 @@ import type { JournalEntryDraft, JournalLineDraft } from "./post";
 // After that, unapplied_customer_cash is back to zero and cash_stripe shows the money exactly
 // once, whichever path the payment took. Ledger cash equals Stripe cash at every instant.
 
+// Every entry type this module can post. The broker statement enumerates it (and the lists of
+// the other builders) in lib/statements/entry-types.test.ts, so a new entry type cannot reach the
+// ledger without somebody deciding what a statement does with it. Each literal below is written
+// `satisfies PolicyEntryType`, so adding one without adding it here fails `npm run typecheck`.
+export const POLICY_ENTRY_TYPES = [
+  "premium_written",
+  "tax_and_fee_billed",
+  "premium_collected",
+  "commission_earned",
+  "unapplied_cash_received",
+] as const;
+
+export type PolicyEntryType = (typeof POLICY_ENTRY_TYPES)[number];
+
 // Where the collected money is taken from when the policy is bound:
 //   cash_stripe              the normal path: the payment is booked and applied in one go;
 //   unapplied_customer_cash  the parked path: the cash was booked at receipt (see
@@ -83,7 +97,7 @@ export function issuanceAndCollectionEntries(input: IssuanceCollectionInput): Jo
     {
       header: {
         ...commonHeader,
-        entryType: "premium_written",
+        entryType: "premium_written" satisfies PolicyEntryType,
         effectiveAt: input.effectiveAt,
         description: `Policy ${input.policyNumber} written premium`,
       },
@@ -107,7 +121,7 @@ export function issuanceAndCollectionEntries(input: IssuanceCollectionInput): Jo
     entries.push({
       header: {
         ...commonHeader,
-        entryType: "tax_and_fee_billed",
+        entryType: "tax_and_fee_billed" satisfies PolicyEntryType,
         effectiveAt: input.effectiveAt,
         description: `Policy ${input.policyNumber} state premium tax and policy fee`,
       },
@@ -119,7 +133,7 @@ export function issuanceAndCollectionEntries(input: IssuanceCollectionInput): Jo
   entries.push({
     header: {
       ...commonHeader,
-      entryType: "premium_collected",
+      entryType: "premium_collected" satisfies PolicyEntryType,
       effectiveAt: input.paymentDate,
       description:
         collectedFrom === "cash_stripe"
@@ -136,7 +150,7 @@ export function issuanceAndCollectionEntries(input: IssuanceCollectionInput): Jo
     entries.push({
       header: {
         ...commonHeader,
-        entryType: "commission_earned",
+        entryType: "commission_earned" satisfies PolicyEntryType,
         effectiveAt: input.paymentDate,
         description: `Broker commission on the collected premium of policy ${input.policyNumber}`,
       },
@@ -176,7 +190,7 @@ export function unappliedCashReceivedEntry(input: UnappliedCashInput): JournalEn
       sourceKind: "money_operation",
       sourceId: input.operationId,
       createdBy: null, // caused by a Stripe event, not by a person clicking
-      entryType: "unapplied_cash_received",
+      entryType: "unapplied_cash_received" satisfies PolicyEntryType,
       effectiveAt: input.paymentDate,
       description: `Policy ${input.policyNumber}: customer money received at Stripe, ${input.whatWasRefused ?? "binding"} refused (${input.reason})`,
     },
