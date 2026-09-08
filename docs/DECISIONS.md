@@ -118,3 +118,7 @@ Yoann replaced the reference with app.corgi.insure/portal/coverage and allowed n
 ## 2026-09-08T15:34:02+00:00 | User refinement and assistant font choice | Typography and button precision
 
 Yoann requested matching the actual font, white text, color details and button bottom pixels, and permitted font-identification sites through computer use. The reference DOM names F37 Bolton and Inter. A generic heading-only crop was uploaded to WhatTheFont; its first alternatives do not override the direct CSS identification. With no F37 web license confirmed, assistant selected OFL DM Sans headings and Inter body after a visual comparison. Both are bundled locally with licenses and provenance. DM Sans is an approximation; no commercial font copied. White/orange and exact hover/active shades follow the visual request, with the contrast limitations recorded in the UI-02 handoff rather than a WCAG PASS claim. No money logic, external account data or deployment configuration changes.
+
+## 2026-09-08T15:59:44+00:00 | User navigation correction | Explicit parent hierarchy
+
+Yoann reported that Policies breadcrumbs did not follow subpages and asked for back arrows/navigation fixes. Assistant choice: explicit server-rendered page trails and named parent-return links, which also work on direct entry; no browser-history guesses or new navigation state. Remove the staff link to a broker-only policy list, preserving server authorization. Local visual-preview routes use synthetic adapters and disabled actions; they do not introduce app role switching or financial endpoints.

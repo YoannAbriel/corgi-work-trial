@@ -47,7 +47,10 @@ export default async function CancelPolicyPage({
       // A refusal is part of the preview: the broker sees why, on the page, and can change the
       // date. Nothing was written, so there is nothing to undo.
       return (
-        <PortalShell active="policies" user={user}>
+        <PortalShell active="policies" user={user} trail={[
+          { label: "Policy", href: `/policies/${policyId}` },
+          { label: "Cancellation preview" },
+        ]}>
           <p className="note">
             <Link href={`/policies/${policyId}`}>Back to the policy</Link>
           </p>
@@ -62,7 +65,10 @@ export default async function CancelPolicyPage({
   const { breakdown, terms } = plan;
 
   return (
-    <PortalShell active="policies" user={user}>
+    <PortalShell active="policies" user={user} trail={[
+      { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
+      { label: "Cancellation preview" },
+    ]}>
       <p className="note">
         <Link href={`/policies/${policyId}`}>Back to the policy</Link>
       </p>

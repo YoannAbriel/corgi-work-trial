@@ -90,9 +90,11 @@ export default async function PolicyPage({
   const openClaimReserveCents = openClaims.reduce((total, claim) => total + claim.position.reserveCents, 0);
 
   return (
-    <PortalShell active="policies" user={user}>
+    <PortalShell active="policies" user={user} trail={[{ label: `Policy ${policy.policyNumber}` }]}>
       <p className="note">
-        <Link href="/broker">Back to the policy list</Link>
+        <Link href={isOwningBroker ? "/broker" : "/ops"}>
+          {isOwningBroker ? "Back to the policy list" : "Back to operations"}
+        </Link>
       </p>
 
       <h1>Policy {policy.policyNumber}</h1>

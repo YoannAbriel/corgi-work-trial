@@ -11,31 +11,28 @@ import {
 } from "lucide-react";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import { PortalFrame } from "./portal-frame";
+import type { BreadcrumbItem } from "./portal-frame";
 
 type Section =
   "home" | "policies" | "verification" | "claims" | "approvals" | "login";
 
 // Pages retain their server-side identity and ownership checks. This component
-// passes only rendered UI and the section label across the client boundary.
+// passes rendered UI and breadcrumb labels/links across the client boundary.
 export function PortalShell({
   children,
   user,
   active = "home",
+  trail,
 }: {
   children: React.ReactNode;
   user?: Pick<SignedInUser, "displayName" | "role">;
   active?: Section;
+  trail?: BreadcrumbItem[];
 }) {
   const isStaff = user?.role === "staff_ops" || user?.role === "staff_approver";
   const links = isStaff
     ? [
         { href: "/ops", label: "Overview", section: "home", icon: Home },
-        {
-          href: "/broker",
-          label: "Policies",
-          section: "policies",
-          icon: FileText,
-        },
         {
           href: "/ops/brokers",
           label: "Brokers & verification",
@@ -76,6 +73,13 @@ export function PortalShell({
         ];
   const sectionLabel =
     links.find((link) => link.section === active)?.label ?? "Policies";
+  const root = user?.role === "broker"
+    ? { label: "Policies", href: "/broker" }
+    : { label: "Overview", href: isStaff ? "/ops" : "/" };
+  const isRoot = active === "home" || (user?.role === "broker" && active === "policies");
+  const breadcrumbs = trail
+    ? [root, ...trail]
+    : isRoot ? [{ label: root.label }] : [root, { label: sectionLabel }];
   const roleLabel =
     user?.role === "staff_approver"
       ? "Staff approver"
@@ -134,7 +138,7 @@ export function PortalShell({
   );
 
   return (
-    <PortalFrame sidebar={sidebar} sectionLabel={sectionLabel}>
+    <PortalFrame sidebar={sidebar} breadcrumbs={breadcrumbs}>
       <main id="main-content" tabIndex={-1}>
         {children}
       </main>

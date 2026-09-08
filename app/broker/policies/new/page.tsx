@@ -21,7 +21,7 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
   const [states, kyb, { error }] = await Promise.all([statesWithTaxRates(), brokerKybState(user.brokerId), searchParams]);
 
   return (
-    <PortalShell active="policies" user={user}>
+    <PortalShell active="policies" user={user} trail={[{ label: "New policy" }]}>
       <h1>New policy</h1>
       <p className="lead">
         Commercial general liability, annual term. The premium tax comes from the effective-dated rate on file for

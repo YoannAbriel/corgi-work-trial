@@ -67,7 +67,10 @@ export default async function ClaimPage({
   const reserveLeftCents = claim.position.reserveCents - claim.pendingCents;
 
   return (
-    <PortalShell active="claims" user={user}>
+    <PortalShell active="claims" user={user} trail={[
+      { label: "Claims", href: "/ops/claims" },
+      { label: `Claim ${claim.claimNumber}` },
+    ]}>
       <p className="note">
         <Link href="/ops/claims">All claims</Link> | <Link href="/ops/approvals">Money-out approvals</Link> |{" "}
         <Link href={`/policies/${claim.policyId}`}>Policy {claim.policyNumber}</Link>

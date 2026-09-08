@@ -1,0 +1,13 @@
+{
+  "base": "9acbb5bd8881ccdb72b5b89df619acbbf6fb2401",
+  "branch": "codex/corgi-interface",
+  "sha256": {
+    "app/broker/policies/new/page.tsx": "23b82a2cbcf318c1c97fc8ac4ca60f3587a602415db7640f7692eff44875e794",
+    "app/globals.css": "b093333983b65c219348bef5a6fe93266e21a1a6c686ea2bbf93c5efd84d54c5",
+    "app/ops/claims/[claimId]/page.tsx": "30920fa20c7cd2cfcdc5e4d4c9565c882b2d5026af563ac392198f30c49bfb5d",
+    "app/policies/[policyId]/cancel/page.tsx": "5de3ec1560beb4ccff5205a6f41c058d677bb10ea109f81e6e17fd63b5f25d1c",
+    "app/policies/[policyId]/page.tsx": "42d7c6fd165b0bf906f61d8fbec2ad6c948fa6110b43d5bae440a8a2695a9a6f",
+    "components/portal-frame.tsx": "273299bd5c52276f692e7fd5d9910292e311ca1ae473fd7fc7ab4e1bd94ce365",
+    "components/portal-shell.tsx": "8155801e6a8fa313fcb4b5a75aace4fd5b9e36e94a2795bf3cf882638746dd8f"
+  }
+}

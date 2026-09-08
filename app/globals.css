@@ -277,20 +277,47 @@ img {
   padding: 8px 20px;
   border-bottom: 1px solid var(--line);
 }
-.breadcrumb {
+.page-navigation {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
+  min-width: 0;
+}
+.breadcrumb {
   min-width: 0;
   font-size: 14px;
 }
-.breadcrumb > span:last-child {
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.breadcrumb a {
+  color: var(--ink-2);
+  text-decoration: none;
+}
+.breadcrumb a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.breadcrumb a,
+.breadcrumb span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
   overflow-wrap: anywhere;
 }
-.breadcrumb-parent {
-  color: var(--ink-2);
-}
-.breadcrumb > svg {
+.breadcrumb svg {
   flex-shrink: 0;
 }
 .environment-badge {
@@ -301,7 +328,8 @@ img {
   font-size: 11px;
   white-space: nowrap;
 }
-button.sidebar-toggle {
+button.sidebar-toggle,
+a.back-link {
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -315,8 +343,12 @@ button.sidebar-toggle {
   border-radius: 6px;
   box-shadow: none;
 }
-button.sidebar-toggle:hover {
+button.sidebar-toggle:hover,
+a.back-link:hover {
   background: #e8e8eb;
+}
+a.back-link {
+  margin: 0 6px 0 0;
 }
 main {
   width: 100%;
@@ -890,9 +922,10 @@ code {
   .topbar {
     padding: 8px 20px;
   }
-  button.sidebar-toggle {
-    width: 40px;
-    min-height: 40px;
+  button.sidebar-toggle,
+  a.back-link {
+    width: 44px;
+    min-height: 44px;
   }
   main {
     padding: 28px 22px 32px;
@@ -908,15 +941,25 @@ code {
     grid-template-columns: 1fr;
     gap: 14px;
   }
-  .breadcrumb-parent {
-    display: none;
-  }
   .topbar {
     gap: 8px;
+    position: relative;
+  }
+  .page-navigation {
+    width: 100%;
+    flex-wrap: wrap;
   }
   .breadcrumb {
-    gap: 5px;
+    flex-basis: 100%;
     font-size: 13px;
+  }
+  .topbar .environment-badge {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+  }
+  .breadcrumb a {
+    min-height: 44px;
   }
   .page-heading {
     margin-bottom: 24px;
