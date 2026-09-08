@@ -204,9 +204,10 @@ export async function resolvedBreaks(database: postgres.Sql, limit: number): Pro
   return rows.map(toBreakRow);
 }
 
-// The oldest record date among the open breaks of one source, or null when there is none. The
-// daily job asks this so its window reaches back far enough to re-examine what is still open
-// instead of leaving it unlooked at for ever (finding F-B10-01).
+// The oldest record date among the open breaks of EVERY source, or null when nothing is open. The
+// daily job asks this so its one window reaches back far enough to re-examine what is still open
+// instead of leaving it unlooked at for ever (finding F-B10-01). One window for both sources,
+// because the job runs them on the same window and the older of the two is what decides.
 export async function oldestOpenBreakRecordDate(database: postgres.Sql): Promise<Date | null> {
   const breaks = await openBreaks(database);
   if (breaks.length === 0) {
