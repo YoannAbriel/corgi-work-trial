@@ -1,7 +1,8 @@
 # Interface polish after the 18:27Z walkthrough
 
-Branch `worktree-agent-ac8c2ce5122970811`, branched at `9809b0e`, merged with `origin/main`
-(`e7d7856`, B11 MCP surface) before this note was written. Findings addressed: F-UI-01 (screens
+Branch `worktree-agent-ac8c2ce5122970811`, branched at `9809b0e`, merged with `origin/main` twice:
+`e7d7856` (B11 MCP surface) and then `5f2c841` (the F-B2-20 payment status fix), which is where
+main stood when this note was written. Findings addressed: F-UI-01 (screens
 read as raw text, no tables and no actions behind a control), F-UI-02 (Stripe identifiers inline),
 F-UI-03 (no per-role notification, no badge on Approvals), F-UI-04 (refund banner wording), the
 reviewer item on `/login` rendering inside the workspace shell, and the coordinator's addendum on
@@ -83,7 +84,7 @@ claimed every refund "were sent to Stripe", including one sitting in the approva
 ## Forms: no change
 
 `.local/source-form-contract.sh` lists every `method=`, `action=` and `name=` declared in `app/`.
-Between `e7d7856` (the merge parent) and this branch head the two lists are 155 lines each and
+Between `origin/main` (`5f2c841`) and this branch head the two lists are 155 lines each and
 `diff` reports nothing. The rendered HTML was checked too, with `.local/form-contract.mjs`, which
 extracts each form's method, action and field names from the served document: the approvals
 decision form, the four claim forms, the endorse and cancel previews, the two document forms, the
@@ -100,7 +101,8 @@ component.
 | `npm run typecheck` | PASS |
 | `npm test` | 404 tests, 403 pass, 1 skipped (the opt-in live Stripe test), 0 failures |
 | `npm run build` | PASS, compiled successfully, every route still server-rendered on demand |
-| Source form contract, `e7d7856` against HEAD | identical, 155 lines each |
+| Source form contract, `origin/main` (`5f2c841`) against HEAD | identical, 155 lines each |
+| `git diff origin/main HEAD -- lib db scripts app/api vercel.json` | 133 added lines in the five read files, no deletion, nothing else |
 | HTTP renders, dev server on port 3900 against the disposable `corgi_test` database | 25 pages, all 200, as anonymous, ops, approver, broker and customer |
 
 The 25 renders: `/login` and `/` anonymous; `/ops`, `/ops/claims`, one claim, `/ops/approvals`,
