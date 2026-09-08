@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { isUuid } from "@/lib/http/path-ids";
 import { runStatement, StatementRunRefused } from "@/lib/statements/run";
 
 // POST /api/statements/run, called by the two forms on /ops/statements and /statements/{runId}.
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
     return redirectTo("/login?error=Please+sign+in+again");
   }
   if (user.role !== "staff_ops" && user.role !== "staff_approver") {
-    return backToList("only staff operations can run a broker statement");
+    return backToList("only staff can run a broker statement: operations or an approver");
   }
 
   const form = await request.formData();
@@ -25,6 +26,12 @@ export async function POST(request: Request) {
   const cutoffText = String(form.get("knowledgeCutoff") ?? "").trim();
   if (!brokerId || !month) {
     return backToList("pick a broker and a month first");
+  }
+  // The broker id comes from a form field, so it is text until it is checked. Without this it
+  // reached a uuid column and answered 500 instead of refusing like every other bad input
+  // (review finding F-B9-04); it is the same guard the path ids already use.
+  if (!isUuid(brokerId)) {
+    return backToList("that broker identifier is not a valid identifier; pick a broker from the list");
   }
 
   // An empty cutoff means "everything the ledger knows now", which is what a monthly close does.
