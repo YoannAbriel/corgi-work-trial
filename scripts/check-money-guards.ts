@@ -55,6 +55,9 @@ const PROTECTED_TABLES = [
   "reconciliation_items",
   // Added by migration 0009 (slice B4): which Stripe payment collects which endorsement's delta.
   "endorsement_collections",
+  // Added by migration 0014 (slice B8): which Stripe payment settles the difference a backdated
+  // correction created.
+  "correction_collections",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -249,6 +252,28 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     )
     returning id
   `;
+  // A correction of that endorsement's effective date, and the payment that settles the
+  // difference it created (migration 0014). 5047 = 4931 of premium + 116 of tax, the recited
+  // example: entered as 2028-07-09, corrected to 2028-06-09.
+  const [rebookEvent] = await tx<{ id: string }[]>`
+    insert into policy_events (policy_id, event_type, effective_at, payload)
+    values (${policy.id}, 'correction_rebook', '2028-06-09',
+            ${tx.json({ rebooked_event_type: "endorsed", corrects_event_id: requestEvent.id, delta_premium_cents: 43561 })})
+    returning id
+  `;
+  const [differenceOperation] = await tx<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+    values ('stripe_checkout', 'stripe', 5047, ${policy.id}, 'guard-check-correction:' || gen_random_uuid()::text)
+    returning id
+  `;
+  const [correctionCollection] = await tx<{ id: string }[]>`
+    insert into correction_collections (
+      collection_operation_id, policy_id, correction_rebook_event_id, amount_cents, premium_cents, tax_cents
+    ) values (
+      ${differenceOperation.id}, ${policy.id}, ${rebookEvent.id}, 5047, 4931, 116
+    )
+    returning id
+  `;
   return {
     brokers: broker.id,
     policies: policy.id,
@@ -268,6 +293,7 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     reconciliation_runs: reconciliationRun.id,
     reconciliation_items: reconciliationItem.id,
     endorsement_collections: endorsementCollection.id,
+    correction_collections: correctionCollection.id,
   };
 }
 

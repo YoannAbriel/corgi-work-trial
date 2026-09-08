@@ -85,7 +85,7 @@ export async function correctionsOfPolicy(policyId: string, database: Queryable 
       join policy_events rebook on rebook.policy_id = reversal.policy_id
                               and rebook.event_type = 'correction_rebook'
                               and rebook.payload ->> 'correction_reversal_event_id' = reversal.id::text
-      left join users operator  on operator.id = reversal.created_by
+      left join users operator  on operator.id::text = reversal.created_by
      where reversal.policy_id = ${policyId}
        and reversal.event_type = 'correction_reversal'
      order by reversal.sequence_number

@@ -177,6 +177,15 @@ export async function planEndorsementDateCorrection(
       `this policy has ${outstandingCents} cents of premium billed and not settled (an earlier correction, most likely): settle it before correcting again`,
     );
   }
+  // The other half of the same rule. A difference GIVEN BACK leaves premium_receivable at zero
+  // as soon as it is opened (the liability moves to refund_payable), so the balance above cannot
+  // see it: a second correction while that refund is in flight could charge the customer money
+  // we are simultaneously sending back.
+  if (await hasCorrectionRefundInFlight(database, input.policyId)) {
+    throw new CorrectionRefused(
+      "a refund from an earlier correction on this policy has not completed yet: wait for it, or re-issue it if it failed, before correcting again",
+    );
+  }
 
   let money: EndorsementDateCorrection;
   try {
@@ -711,6 +720,22 @@ async function anyEntryAlreadyReversed(database: Queryable, entryIds: string[]):
   }
   const [row] = await database<{ count: string }[]>`
     select count(*)::text as count from journal_entries where reverses_entry_id in ${database(entryIds)}
+  `;
+  return Number(row.count) > 0;
+}
+
+// True while a refund opened by an earlier correction has not been reported as completed by
+// Stripe. The refund entry names the money operation it belongs to, so the question is asked of
+// the ledger and the operation together rather than of a status field.
+async function hasCorrectionRefundInFlight(database: Queryable, policyId: string): Promise<boolean> {
+  const [row] = await database<{ count: string }[]>`
+    select count(*)::text as count
+      from journal_entries entry
+      join money_operations operation on operation.id::text = entry.source_id and operation.kind = 'stripe_refund'
+     where entry.policy_id = ${policyId}
+       and entry.entry_type = 'correction_refund_requested'
+       and not exists (select 1 from money_operation_events event
+                        where event.operation_id = operation.id and event.status = 'succeeded')
   `;
   return Number(row.count) > 0;
 }
