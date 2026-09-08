@@ -36,8 +36,10 @@ export class EndorsementCheckoutRefused extends Error {}
 export type EndorsementCollectionOutcome =
   | { kind: "posted" }
   | { kind: "already_posted" }
-  // The money arrived and is recorded on the operation, but the endorsement was NOT applied and
-  // nothing was journaled: the broker lost eligibility, or the quote was superseded meanwhile.
+  // The money arrived and was parked in the suspense account (rule 14), but the endorsement was
+  // NOT applied: the policy was cancelled, the broker lost eligibility, or the quote was
+  // superseded meanwhile. Ledger cash still equals Stripe cash; what is undecided is whose
+  // premium it is.
   | { kind: "application_refused"; reason: string }
   | { kind: "refused"; reason: string };
 
@@ -229,18 +231,28 @@ export async function recordSuccessfulEndorsementPayment(
     };
   }
 
-  // A cancelled or voided policy cannot take an endorsement, whatever Stripe collected: the
-  // event stays visible as ignored for a human, nothing is journaled.
+  // A cancelled or voided policy cannot take an endorsement, whatever Stripe collected. The
+  // money still arrived, so it is PARKED like any other delta we cannot apply (review finding
+  // F-B4-05): returning "refused" and journaling nothing left ledger cash below what Stripe
+  // held, which is the very hole rule 14 exists to close. The cancellation now expires the
+  // policy's open pages (lib/policy/cancel.ts), so this is the narrow race where the customer
+  // paid in the seconds before that call, not the ordinary path.
   const fold = await foldPolicyEvents(database, link.policyId);
   if (policyWasVoided(fold.eventTypes) || fold.eventTypes.includes("cancelled") || !fold.eventTypes.includes("issued")) {
-    return { kind: "refused", reason: "the policy is cancelled, voided or not bound: an endorsement delta cannot be applied to it" };
+    const reason = "the policy is cancelled, voided or not bound: an endorsement delta cannot be applied to it";
+    await parkPaymentWithoutApplying(database, link, payment, reason);
+    return { kind: "application_refused", reason };
   }
 
   // The quote must still be the live one. A payment on a superseded quote is money we did not
-  // ask for any more: recorded as arrived, nothing journaled, visible for staff.
+  // ask for any more: parked, nothing else journaled, visible for staff.
   const request = await readEndorsementRequest(database, link.policyId, link.requestEventId);
   if (!request) {
-    return { kind: "refused", reason: `endorsement request ${link.requestEventId} cannot be read` };
+    // The request row is unreadable, so there is no endorsement to speak of, but the money is
+    // real: park it and let a human decide.
+    const reason = `endorsement request ${link.requestEventId} cannot be read`;
+    await parkPaymentWithoutApplying(database, link, payment, reason);
+    return { kind: "application_refused", reason };
   }
   const standing = await endorsementRequestStanding(database, request);
   if (standing.state === "superseded") {
@@ -286,6 +298,11 @@ export async function retryEndorsementApplication(
   const standing = await endorsementRequestStanding(database, request);
   if (standing.state === "superseded" || standing.state === "awaiting_approval") {
     return { kind: "refused", reason: `the quote is ${standing.state.replace("_", " ")}: it cannot be applied` };
+  }
+  // The policy may have been cancelled or voided since the money arrived; the money stays parked.
+  const fold = await foldPolicyEvents(database, link.policyId);
+  if (policyWasVoided(fold.eventTypes) || fold.eventTypes.includes("cancelled") || !fold.eventTypes.includes("issued")) {
+    return { kind: "refused", reason: "the policy is cancelled, voided or not bound: an endorsement delta cannot be applied to it" };
   }
   const kyb = await brokerKybState(link.brokerId, database);
   if (!bindingIsAllowed(kyb.status)) {

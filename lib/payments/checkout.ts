@@ -310,3 +310,56 @@ export async function expireOpenCheckoutSessionsOfBroker(
   }
   return expired;
 }
+
+// The same thing for ONE policy, called after a cancellation commits (review finding F-B4-05).
+// A cancelled policy must not have a payment page still open at Stripe: the issuance page would
+// collect a premium for cover that has stopped, and an endorsement page would collect a delta for
+// a change that can no longer be applied. Both kinds of stripe_checkout operation are closed,
+// the issuance one and the endorsement ones, because the query asks about the policy and not
+// about what the operation is for.
+//
+// Errors are RETURNED, not thrown: the cancellation is already committed and correct, the
+// customer is already owed the money, and a Stripe outage must not undo any of that. The caller
+// reports what could not be closed instead of pretending it did. A page that stays open is not a
+// hole in the ledger either: lib/payments/collection.ts refuses to bind a cancelled policy and
+// lib/payments/endorsement-collection.ts parks a delta it cannot apply.
+export type SessionExpiryOutcome = { expired: number; failures: string[] };
+
+export async function expireOpenCheckoutSessionsOfPolicy(
+  policyId: string,
+  database: postgres.Sql = sql,
+): Promise<SessionExpiryOutcome> {
+  const openSessions = await database<{ operation_id: string; session_id: string }[]>`
+    select operation.id as operation_id, latest.provider_ref as session_id
+      from money_operations operation
+      join lateral (
+        select status, provider_ref from money_operation_events
+         where operation_id = operation.id
+         order by sequence_number desc
+         limit 1
+      ) latest on true
+     where operation.policy_id = ${policyId}
+       and operation.kind = 'stripe_checkout'
+       and latest.status = 'provider_accepted'
+       and latest.provider_ref like 'cs_%'
+  `;
+  if (openSessions.length === 0) {
+    return { expired: 0, failures: [] };
+  }
+
+  await assertStripeSandbox();
+  const failures: string[] = [];
+  let expired = 0;
+  for (const open of openSessions) {
+    try {
+      await stripe.checkout.sessions.expire(open.session_id);
+      expired += 1;
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeInvalidRequestError) {
+        continue; // not open any more: paid or already expired, nothing to close
+      }
+      failures.push(`${open.session_id}: ${error instanceof Error ? error.message.slice(0, 200) : "unknown error"}`);
+    }
+  }
+  return { expired, failures };
+}

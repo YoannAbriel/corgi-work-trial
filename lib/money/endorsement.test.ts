@@ -213,3 +213,27 @@ test("inputs must be non-negative integer cents", () => {
   assert.throws(() => computeEndorsement({ ...RECITED, newAnnualPremiumCents: 1800.5 }), /integer number of cents/);
   assert.throws(() => computeEndorsement({ ...RECITED, taxChargedSoFarCents: -1 }), /integer number of cents/);
 });
+
+test("the customer-approval threshold counts the requests already waiting for this customer (F-B4-09)", () => {
+  // Two raises of $400 in a row on the recited policy. Priced on day 100, +$400 of annual
+  // premium collects 29041 + 682 = 29723, which is under $500 on its own.
+  const first = computeEndorsement({ ...RECITED, newAnnualPremiumCents: 160000 });
+  assert.equal(first.deltaTotalCents, 29723);
+  assert.equal(first.customerApprovalRequired, false);
+
+  // The same quote computed while the first one is still unanswered: together they collect
+  // 59446, so this one has to be approved.
+  const second = computeEndorsement({
+    ...RECITED,
+    newAnnualPremiumCents: 160000,
+    otherUnapprovedRequestedCents: first.deltaTotalCents,
+  });
+  assert.equal(second.deltaTotalCents, 29723);
+  assert.equal(second.customerApprovalRequired, true);
+});
+
+test("a reduction never needs the customer's approval, whatever is waiting", () => {
+  const reduction = computeEndorsement({ ...RECITED, newAnnualPremiumCents: 60000, otherUnapprovedRequestedCents: 90000 });
+  assert.ok(reduction.deltaTotalCents < 0);
+  assert.equal(reduction.customerApprovalRequired, false);
+});

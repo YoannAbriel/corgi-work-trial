@@ -15,7 +15,10 @@ import postgres from "postgres";
 //   5. an expired hosted page starts a new attempt under a new key;
 //   6. a premium reduction is applied at once with its refund operation; the completed refund
 //      delivered twice posts once; a failed refund posts nothing; a refund above $1,000 waits in
-//      the maker-checker queue, the initiator cannot approve it and a distinct approver can;
+//      the maker-checker queue, the initiator cannot approve it and a distinct approver can; the
+//      threshold is read against the POLICY, so repeated reductions cannot slip under it;
+//   6b. a delta paid after the policy is cancelled is PARKED in the suspense account, never
+//      recorded as arrived with nothing journaled, and delivering it twice parks it once;
 //   7. a cancelled, voided or unbound policy cannot be endorsed; the effective date must be in
 //      the term and not before the previous endorsement; an endorsed policy IS cancellable, and
 //      its refund is the sum of the written segments, each earning from its own date;
@@ -413,6 +416,72 @@ async function main() {
   const approvedOperation = await loadRefundOperation(runtime, largeRefundId);
   const afterApproval = await messageOf(() => assertRefundMaySend(runtime, approvedOperation!));
   report("once a distinct staff approver has approved it, the refund may be sent", afterApproval === "no refusal", afterApproval);
+
+  // ---------------------------------------------------------------------------
+  // 5b. The threshold is per POLICY, not per refund (review finding F-B4-04)
+  // ---------------------------------------------------------------------------
+
+  // Two reductions of $800 on one policy, each giving back 59448 cents. Neither is above $1,000
+  // on its own; together they send $1,188.96 back, so the second one has to wait for an approver.
+  const twice = await createPaidPolicy(recordSuccessfulPayment, 240000);
+  const twiceActor: Actor = { userId: twice.brokerUserId, role: "broker", brokerId: twice.brokerId, customerId: null };
+  const firstCut = { policyId: twice.policyId, effectiveAt: DAY_100, newAnnualPremiumCents: 160000, newPerOccurrenceLimitCents: PER_OCCURRENCE, newAggregateLimitCents: AGGREGATE, reason: null, actor: twiceActor };
+  const firstCutPlan = await planEndorsement(firstCut, runtime);
+  report("the first reduction of $800 is under $1,000 and needs no approver", !firstCutPlan.refundNeedsApproval && -firstCutPlan.figures.deltaTotalCents === 59448, `${-firstCutPlan.figures.deltaTotalCents} cents, needs approval ${firstCutPlan.refundNeedsApproval}`);
+  const firstCutResult = await recordEndorsementRequest({ ...firstCut, expectedQuoteHash: firstCutPlan.figures.quoteHash }, runtime);
+  report("it is written with no approval request, as before", firstCutResult.approvalRequestIds.length === 0 && firstCutResult.refundOperationIds.length === 1, `${firstCutResult.approvalRequestIds.length} approval request(s)`);
+
+  const secondCut = { ...firstCut, newAnnualPremiumCents: 80000 };
+  const secondCutPlan = await planEndorsement(secondCut, runtime);
+  report("the second reduction takes the policy past $1,000, so the preview asks for an approver", secondCutPlan.refundNeedsApproval && -secondCutPlan.figures.deltaTotalCents < 100000, `${-secondCutPlan.figures.deltaTotalCents} cents alone, needs approval ${secondCutPlan.refundNeedsApproval}`);
+  const secondCutResult = await recordEndorsementRequest({ ...secondCut, expectedQuoteHash: secondCutPlan.figures.quoteHash }, runtime);
+  report("and it really is queued: one approval request, nothing sent to Stripe", secondCutResult.approvalRequestIds.length === 1 && secondCutResult.refundOperationIdsAwaitingApproval.length === 1 && (await countOperationEvents(secondCutResult.refundOperationIds[0], "provider_accepted")) === 0, `${secondCutResult.approvalRequestIds.length} approval request(s), ${await countOperationEvents(secondCutResult.refundOperationIds[0], "provider_accepted")} provider_accepted`);
+  const secondCutOperation = await loadRefundOperation(runtime, secondCutResult.refundOperationIds[0]);
+  const secondCutRefusal = await messageOf(() => assertRefundMaySend(runtime, secondCutOperation!));
+  report("the send gate refuses it until somebody approves", /waiting for a second person/.test(secondCutRefusal), secondCutRefusal);
+
+  // The same rule at SEND time on a refund written before the policy crossed the threshold: the
+  // first cut carries no approval request, and it may no longer leave on its own.
+  const firstCutOperation = await loadRefundOperation(runtime, firstCutResult.refundOperationIds[0]);
+  const firstCutRefusal = await messageOf(() => assertRefundMaySend(runtime, firstCutOperation!));
+  report("a refund written under the threshold cannot be sent once the policy is over it", /above the approval threshold/.test(firstCutRefusal), firstCutRefusal);
+
+  // A cancellation counts the endorsement refunds the policy already made. One reduction of $800
+  // (59448 back), then a cancellation on 2028-11-01 giving back 53841: neither is above $1,000
+  // on its own, and together they are 113289.
+  const afterCut = await createPaidPolicy(recordSuccessfulPayment, 240000);
+  const afterCutActor: Actor = { userId: afterCut.brokerUserId, role: "broker", brokerId: afterCut.brokerId, customerId: null };
+  const cutFirst = { policyId: afterCut.policyId, effectiveAt: DAY_100, newAnnualPremiumCents: 160000, newPerOccurrenceLimitCents: PER_OCCURRENCE, newAggregateLimitCents: AGGREGATE, reason: null, actor: afterCutActor };
+  const cutFirstPlan = await planEndorsement(cutFirst, runtime);
+  await recordEndorsementRequest({ ...cutFirst, expectedQuoteHash: cutFirstPlan.figures.quoteHash }, runtime);
+  const cancelAfterCut = await recordCancellation({ policyId: afterCut.policyId, effectiveAt: "2028-11-01", calculationMethod: "pro_rata", actor: { userId: afterCut.brokerUserId, role: "broker", brokerId: afterCut.brokerId } }, runtime);
+  report("a cancellation after an endorsement refund counts that refund and waits for an approver", cancelAfterCut.plan.refundNeedsApproval && cancelAfterCut.approvalRequestIds.length > 0 && cancelAfterCut.plan.breakdown.totalRefundCents < 100000, `cancellation refund ${cancelAfterCut.plan.breakdown.totalRefundCents} cents alone, ${cancelAfterCut.approvalRequestIds.length} approval request(s)`);
+
+  // ---------------------------------------------------------------------------
+  // 5c. A delta that arrives after the policy is cancelled (review finding F-B4-05)
+  // ---------------------------------------------------------------------------
+
+  // The cancellation expires the policy's open hosted pages, so this is a race of seconds: the
+  // customer paid just before that call. The money is real, so it is parked like any other delta
+  // that cannot be applied, never recorded as arrived with nothing in the ledger.
+  const raced = await createPaidPolicy(recordSuccessfulPayment);
+  const racedActor: Actor = { userId: raced.brokerUserId, role: "broker", brokerId: raced.brokerId, customerId: null };
+  const racedPlan = await planEndorsement({ ...raise, policyId: raced.policyId, actor: racedActor }, runtime);
+  const racedRequest = await recordEndorsementRequest({ ...raise, policyId: raced.policyId, actor: racedActor, expectedQuoteHash: racedPlan.figures.quoteHash }, runtime);
+  const racedQuote = (await readEndorsementRequest(runtime, raced.policyId, racedRequest.requestEventId))!;
+  const racedAttempt = await createEndorsementCheckoutOperation({ quote: racedQuote, userId: raced.brokerUserId, attempt: 1 }, runtime);
+  await recordCancellation({ policyId: raced.policyId, effectiveAt: "2028-08-01", calculationMethod: "pro_rata", actor: { userId: raced.brokerUserId, role: "broker", brokerId: raced.brokerId } }, runtime);
+  const racedPayment = { operationId: racedAttempt.operationId, paymentIntentId: `pi_raced_${racedAttempt.operationId.slice(0, 8)}`, amountReceivedCents: 44584, paidOn: "2028-08-01" };
+  const racedOutcome = await recordSuccessfulEndorsementPayment(racedPayment, runtime);
+  report("a delta paid after the policy is cancelled is parked, not left out of the ledger", racedOutcome.kind === "application_refused" && (await entriesOfOperation(racedAttempt.operationId)).get("unapplied_cash_received") === 1, racedOutcome.kind === "application_refused" ? racedOutcome.reason : racedOutcome.kind);
+  report("the parked cash is at Stripe and owed to the customer, and no endorsement was applied", (await amountOnOperation(racedAttempt.operationId, "cash_stripe", "debit")) === 44584 && (await amountOnOperation(racedAttempt.operationId, "unapplied_customer_cash", "credit")) === 44584 && !(await eventTypesOfPolicy(raced.policyId)).includes("endorsed"), `cash_stripe ${await amountOnOperation(racedAttempt.operationId, "cash_stripe", "debit")}, events ${(await eventTypesOfPolicy(raced.policyId)).join(",")}`);
+  const racedTwice = await recordSuccessfulEndorsementPayment(racedPayment, runtime);
+  report("delivering that payment twice parks it once", racedTwice.kind === "application_refused" && (await entriesOfOperation(racedAttempt.operationId)).get("unapplied_cash_received") === 1 && (await countOperationEvents(racedAttempt.operationId, "succeeded")) === 1, describe(await entriesOfOperation(racedAttempt.operationId)));
+  // Staff cannot apply it either. The cancellation was recorded after the request, so the quote
+  // is superseded and the standing says so first; the cancelled-policy check behind it refuses
+  // the same thing. Either sentence is the right answer, and the money stays parked.
+  const racedRetry = await retryEndorsementApplication({ policyId: raced.policyId, requestEventId: racedRequest.requestEventId, actorUserId: raced.staffUserId }, runtime);
+  report("staff cannot apply it either, and the cash stays parked", racedRetry.kind === "refused" && /superseded|cancelled/.test(racedRetry.reason) && (await entriesOfOperation(racedAttempt.operationId)).size === 1, racedRetry.kind === "refused" ? racedRetry.reason : racedRetry.kind);
 
   // ---------------------------------------------------------------------------
   // 6. Refusals: cancelled, voided, unbound, outside the term, no change

@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { createApprovalRequest } from "@/lib/approvals/approvals";
-import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { refundNeedsApproval } from "@/lib/approvals/threshold";
 import { openClaimsOfPolicy } from "@/lib/claims/read";
 import { premiumEarnedToDateEntry, refundRequestedEntry } from "@/lib/ledger/cancellation-entries";
 import { postJournalEntry } from "@/lib/ledger/post";
@@ -15,7 +15,8 @@ import {
   type CollectionToRefund,
   type RefundSlice,
 } from "@/lib/money/refund-allocation";
-import { issueRefundsAtStripe, refundIntent } from "@/lib/payments/refunds";
+import { expireOpenCheckoutSessionsOfPolicy } from "@/lib/payments/checkout";
+import { issueRefundsAtStripe, policyRefundTotals, refundIntent } from "@/lib/payments/refunds";
 import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 import type { PolicyTerms } from "./terms";
 
@@ -238,6 +239,7 @@ export async function planCancellation(
     );
   }
 
+  const refundsSoFar = await policyRefundTotals(database, request.policyId);
   const collections = await collectionsStillRefundable(database, request.policyId);
   let slices: RefundSlice[];
   try {
@@ -269,9 +271,15 @@ export async function planCancellation(
     slices,
     policyVersion: await policyVersion(database, request.policyId),
     // The threshold is read against the WHOLE refund, not against each Stripe payment it is
-    // split over: splitting a refund across two collections must not let it slip under $1,000.
+    // split over, and against everything this policy has already given back: a cancellation that
+    // follows an endorsement refund counts that refund too (review finding F-B4-04).
     refundNeedsApproval:
-      breakdown.totalRefundCents > 0 && moneyOutNeedsApproval(breakdown.totalRefundCents),
+      breakdown.totalRefundCents > 0 &&
+      refundNeedsApproval({
+        amountCents: breakdown.totalRefundCents,
+        policyRefundedCents: refundsSoFar.refundedCents,
+        policyPendingRefundCents: refundsSoFar.pendingCents,
+      }),
     openClaims,
   };
 }
@@ -288,6 +296,11 @@ export type CancellationResult = {
   // requests that are waiting for that person. Empty below the threshold.
   refundOperationIdsAwaitingApproval: string[];
   approvalRequestIds: string[];
+  // How many hosted payment pages of this policy were closed at Stripe after the cancellation,
+  // and the ones that could not be closed. Both are zero and empty on recordCancellation, which
+  // never calls a provider (review finding F-B4-05).
+  expiredCheckoutSessions: number;
+  checkoutSessionsLeftOpen: string[];
 };
 
 // The whole cancellation: recompute, write, then ask Stripe for the money.
@@ -312,7 +325,14 @@ export async function cancelPolicy(
   // Outbox: the intent is committed, so the provider call can be retried or resumed with the
   // same key. A provider failure is recorded on the operation and does not undo the cancellation.
   await issueRefundsAtStripe(sendNow);
-  return written;
+
+  // A cancelled policy must not keep a payment page open at Stripe (review finding F-B4-05).
+  // A hosted page lives 24 hours, so without this the customer could pay a premium for cover
+  // that has stopped, or a delta for a change that can no longer be applied. Both kinds of page
+  // are closed here, and a failure is reported rather than thrown: the cancellation is committed
+  // and the refund is on its way, and neither may be undone by a Stripe outage.
+  const sessions = await expireOpenCheckoutSessionsOfPolicy(request.policyId);
+  return { ...written, expiredCheckoutSessions: sessions.expired, checkoutSessionsLeftOpen: sessions.failures };
 }
 
 // Everything that touches our own database, in one transaction and without any provider call.
@@ -442,6 +462,8 @@ export async function recordCancellation(
     refundOperationIds,
     refundOperationIdsAwaitingApproval,
     approvalRequestIds,
+    expiredCheckoutSessions: 0,
+    checkoutSessionsLeftOpen: [],
   };
 }
 

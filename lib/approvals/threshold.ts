@@ -26,8 +26,10 @@ export function moneyOutNeedsApproval(amountCents: number): boolean {
 // into sub-threshold lines must not skip the approver. A claim payment therefore needs an
 // approval when the payment alone is above the threshold, OR when it would bring the claim's
 // money out (already sent and not returned, plus requested and still waiting, plus this one)
-// above the threshold. The refund path has no equivalent rule because a cancellation refunds
-// one total, computed once.
+// above the threshold. The refund path has the same rule, in refundNeedsApproval below: an
+// earlier comment here claimed it did not need one because a cancellation refunds one total
+// computed once. That was wrong, and it is review finding F-B4-04: a policy can be endorsed
+// downwards again and again, and each reduction is its own refund.
 export type ClaimPayoutApprovalInput = {
   amountCents: number; // this payment
   claimPaidCents: number; // sent and not returned, on this claim
@@ -45,4 +47,61 @@ export function claimPayoutNeedsApproval(input: ClaimPayoutApprovalInput): boole
   }
   const claimTotalAfterThisPayment = input.claimPaidCents + input.claimPendingCents + input.amountCents;
   return claimTotalAfterThisPayment > MONEY_OUT_APPROVAL_THRESHOLD_CENTS;
+}
+
+// THE THRESHOLD IS PER POLICY, NOT PER REFUND (review finding F-B4-04, the same rule Yoann
+// decided for claims). A cancellation refunds one total computed once, but an endorsement does
+// not: lowering a premium by $600 three times sends $1,800 back to the customer in three refunds
+// that are each under $1,000, and nobody would ever be asked to approve. So a refund needs an
+// approval when it alone is above the threshold, OR when it would bring the policy's refunds
+// above it.
+//
+// What counts in the total, and why:
+//   money already gone     refunds Stripe accepted or completed. A refund Stripe FAILED gave the
+//                          money back to us, so it counts for nothing.
+//   money on its way       refunds requested and not failed, this one excluded, whether they are
+//                          waiting for an approver or waiting to be sent. Counting them is what
+//                          stops two reductions asked for in the same minute from both looking
+//                          affordable.
+export type RefundApprovalInput = {
+  amountCents: number; // this refund
+  policyRefundedCents: number; // accepted or completed at Stripe on this policy
+  policyPendingRefundCents: number; // requested and not failed, this one excluded
+};
+
+export function refundNeedsApproval(input: RefundApprovalInput): boolean {
+  for (const [name, value] of Object.entries(input)) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error(`${name} must be a whole number of cents, zero or more, got ${value}`);
+    }
+  }
+  if (moneyOutNeedsApproval(input.amountCents)) {
+    return true;
+  }
+  const policyTotalAfterThisRefund = input.policyRefundedCents + input.policyPendingRefundCents + input.amountCents;
+  return policyTotalAfterThisRefund > MONEY_OUT_APPROVAL_THRESHOLD_CENTS;
+}
+
+// THE CUSTOMER-APPROVAL THRESHOLD IS PER POLICY TOO (review finding F-B4-09). An endorsement
+// adding more than $500 of premium needs the customer's explicit yes (DECISIONS.md, 08:04Z), and
+// the same splitting trick works on it: two raises of $400 collect $800 from a customer who was
+// never asked. The base is the additional premium of the requests that are still waiting for
+// this customer, plus this one; an endorsement they already approved is money they already said
+// yes to, and does not make the next one need a second yes.
+//
+// The number itself lives in lib/money/endorsement.ts, next to the function that prices an
+// endorsement, so this file takes it as an argument rather than importing it back.
+export type CustomerApprovalInput = {
+  amountCents: number; // premium plus tax to collect for this endorsement
+  unapprovedRequestedCents: number; // requested, not yet approved, not applied, this one excluded
+  thresholdCents: number;
+};
+
+export function customerApprovalNeeded(input: CustomerApprovalInput): boolean {
+  for (const [name, value] of Object.entries(input)) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error(`${name} must be a whole number of cents, zero or more, got ${value}`);
+    }
+  }
+  return input.amountCents + input.unapprovedRequestedCents > input.thresholdCents;
 }
