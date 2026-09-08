@@ -118,6 +118,8 @@ type Queryable = postgres.Sql | postgres.TransactionSql;
 // the endorsement posted (the cash, the commission) stays untouched.
 const BILLED_ENTRY_TYPES = ["endorsement_premium_written", "endorsement_tax_billed"];
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // ---------------------------------------------------------------------------
 // Preview: read everything, compute everything, write nothing
 // ---------------------------------------------------------------------------
@@ -136,6 +138,11 @@ export async function planEndorsementDateCorrection(
   }
   if (!isCalendarDate(input.correctedEffectiveAt)) {
     throw new CorrectionRefused(`"${input.correctedEffectiveAt}" is not a calendar date`);
+  }
+  // The event id arrives from a URL or a form. Anything that is not one of our uuids is refused
+  // here, so a malformed id becomes a sentence on the page instead of a Postgres cast error.
+  if (!UUID.test(input.correctedEventId)) {
+    throw new CorrectionRefused("this policy has no endorsement in force with that id");
   }
 
   const policy = await loadPolicy(database, input.policyId);
