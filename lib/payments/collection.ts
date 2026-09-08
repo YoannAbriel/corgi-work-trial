@@ -160,33 +160,97 @@ async function postCollectionAndBind(
     return { kind: "posted" };
   } catch (error) {
     if (isUniqueViolation(error)) {
-      // The entries of this operation are already in the journal. That is normally a replayed
-      // delivery and a success. It is NOT a success when those entries have since been
-      // reversed by a correction: the unique index still refuses the insert, but the ledger no
-      // longer holds the money, so answering "already posted" would accept real cash with
-      // nothing booked anywhere (review finding F-B2-13). A reversed operation is an
-      // operations case, so it is refused loudly and stays visible in the inbox.
-      if (await entriesOfOperationWereReversed(database, operation)) {
-        return {
-          kind: "refused",
-          reason: "this operation's entries were reversed by a correction; a payment on it must be handled by operations",
-        };
-      }
-      // Same money operation, second delivery: the entries are already in the journal.
-      return { kind: "already_posted" };
+      return interpretUniqueViolation(database, operation, error);
     }
     throw error;
   }
 }
 
-// Has a correction undone what this operation posted? Two shapes count, because a correction
-// writes both: a journal entry whose reverses_entry_id points at one of the entries filed
-// under this operation, and a 'correction_reversal' policy event superseding the issuance the
-// operation produced.
-async function entriesOfOperationWereReversed(
+// The journal's unique key: one entry of a given type per business operation. A violation of
+// this constraint always concerns the operation we were posting, because that is what the
+// entries are keyed on.
+const JOURNAL_ENTRY_KEY = "journal_entries_source_kind_source_id_entry_type_key";
+
+// Why the posting was refused, and whether that refusal is good news.
+//
+// A unique violation used to mean one thing, "somebody already posted this", and answering
+// already_posted told Stripe to stop retrying. Two situations break that reading, and both end
+// with real money at Stripe and nothing in the ledger (review finding F-B2-13):
+//
+//   * a correction reversed this operation's entries. The entries are still there, so the
+//     unique key still refuses, but the ledger no longer holds that money.
+//   * the violation came from ANOTHER operation. After a void, the superseded 'issued' row
+//     stays in policy_events, so a payment made on a second attempt posts four fresh entries
+//     under its own operation id and is then rolled back by
+//     policy_events_one_issuance_per_policy. Nothing of that payment was journaled.
+//
+// So the constraint that actually fired is read from the Postgres error rather than guessed,
+// and already_posted is answered only when this operation's own entries are in the journal.
+// Everything else is refused, which lands the delivery in the inbox as ignored and visible.
+async function interpretUniqueViolation(
   database: postgres.Sql,
   operation: CheckoutOperation,
-): Promise<boolean> {
+  error: unknown,
+): Promise<CollectionOutcome> {
+  const constraintName = violatedConstraintName(error);
+
+  const correction = await correctionThatReversedOperation(database, operation);
+  if (correction) {
+    return {
+      kind: "refused",
+      reason: `this policy was voided by correction event ${correction.correctionEventId} (${correction.reason}); a payment on it must be handled by operations`,
+    };
+  }
+
+  if (constraintName === JOURNAL_ENTRY_KEY) {
+    // Same money operation, second delivery: its entries are already in the journal.
+    return { kind: "already_posted" };
+  }
+
+  // Any other constraint: the entries of THIS operation decide. They are the only proof that
+  // this payment was ever booked. The operation's own 'succeeded' status is not proof, because
+  // a payment whose binding was refused carries one with nothing posted.
+  if (await operationHasJournalEntries(database, operation.operationId)) {
+    return { kind: "already_posted" };
+  }
+
+  return {
+    kind: "refused",
+    reason: `the posting was refused by ${constraintName ?? "a unique constraint"} and nothing of this payment was journaled; operations must decide what to do with this money`,
+  };
+}
+
+// The constraint Postgres named in the error. postgres.js copies the server's error fields onto
+// the error object, so this is the database's own answer rather than a guess from the message.
+function violatedConstraintName(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) return null;
+  const named = (error as { constraint_name?: unknown }).constraint_name;
+  return typeof named === "string" ? named : null;
+}
+
+// Has a correction undone what this operation posted? Two shapes count, because a void writes
+// both: reversal entries pointing at the entries filed under this operation, and a
+// 'correction_reversal' policy event superseding the issuance they produced. The policy event
+// is what carries the reason, and it is also what catches a payment made on a LATER attempt,
+// whose own entries were never reversed because they were never committed.
+async function correctionThatReversedOperation(
+  database: postgres.Sql,
+  operation: CheckoutOperation,
+): Promise<{ correctionEventId: string; reason: string } | null> {
+  const [correction] = await database<{ id: string; reason: string | null }[]>`
+    select reversal.id, reversal.payload ->> 'reason' as reason
+      from policy_events reversal
+      join policy_events superseded on superseded.id = reversal.supersedes_event_id
+     where reversal.policy_id = ${operation.policyId}
+       and reversal.event_type = 'correction_reversal'
+       and superseded.event_type = 'issued'
+     order by reversal.sequence_number desc
+     limit 1
+  `;
+  if (correction) {
+    return { correctionEventId: correction.id, reason: correction.reason ?? "no reason recorded" };
+  }
+
   const [reversedEntries] = await database<{ count: string }[]>`
     select count(*)::text as count
       from journal_entries reversal
@@ -195,18 +259,17 @@ async function entriesOfOperationWereReversed(
        and original.source_id = ${operation.operationId}
   `;
   if (Number(reversedEntries.count) > 0) {
-    return true;
+    return { correctionEventId: "none", reason: "this operation's journal entries carry reversals" };
   }
+  return null;
+}
 
-  const [reversedIssuance] = await database<{ count: string }[]>`
-    select count(*)::text as count
-      from policy_events reversal
-      join policy_events superseded on superseded.id = reversal.supersedes_event_id
-     where reversal.policy_id = ${operation.policyId}
-       and reversal.event_type = 'correction_reversal'
-       and superseded.event_type = 'issued'
+async function operationHasJournalEntries(database: postgres.Sql, operationId: string): Promise<boolean> {
+  const [row] = await database<{ count: string }[]>`
+    select count(*)::text as count from journal_entries
+     where source_kind = 'money_operation' and source_id = ${operationId}
   `;
-  return Number(reversedIssuance.count) > 0;
+  return Number(row.count) > 0;
 }
 
 // The money arrived, the policy is not bound. One appended status, no journal entry at all:
