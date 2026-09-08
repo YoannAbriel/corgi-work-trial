@@ -1,0 +1,33 @@
+{
+  "001-paper-kite": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Individually inspected at full size: clear subject, coherent reference style, clean whitespace, complete silhouette, no text or visible malformed anatomy."
+  },
+  "071-corgi-archivist": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Individually inspected at full size: clear subject, coherent reference style, clean whitespace, complete silhouette, no text or visible malformed anatomy."
+  },
+  "131-meadow-path-pilot": {
+    "attempt": 1,
+    "verdict": "rejected",
+    "jobId": "f06e0e66-a9b1-4e5e-85e1-24a87c3ee90c",
+    "reason": "Landscape is strong, but the tiny corgi has a black cartoon outline inconsistent with the painted scene. Regenerate with matching brushwork."
+  },
+  "002-closed-folder": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Full-size inspection: coherent textured monochrome archive folder, ribbon and folded paper edges readable; complete silhouette. Off-white backdrop is suitable for local Spark background removal."
+  },
+  "003-open-folder": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Full-size original and transparent pilot inspected: folder and leaf are coherent, no lettering, clean complete silhouette; alpha range and background verified."
+  },
+  "004-paper-stack": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Full-size inspection: blank paper and single clip clearly legible, complete corners, subtle black ink texture, no text or accidental marks."
+  }
+}

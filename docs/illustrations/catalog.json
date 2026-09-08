@@ -1,0 +1,198 @@
+[
+  {
+    "id": "001-paper-kite",
+    "name": "Paper Kite",
+    "family": "ink",
+    "usage": "no-documents",
+    "width": 1024,
+    "height": 1024,
+    "prompt": "A single paper airplane folded from completely blank insurance paper, gently floating above a small tidy empty document tray. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects, no scenery, no frame, no letters, no text, no watermark, no logo.",
+    "seed": 927150,
+    "steps": 8,
+    "model": "krea2_turbo_fp8_scaled.safetensors",
+    "status": "accepted",
+    "review": {
+      "attempt": 1,
+      "verdict": "accepted",
+      "reason": "Individually inspected at full size: clear subject, coherent reference style, clean whitespace, complete silhouette, no text or visible malformed anatomy."
+    },
+    "file": "public/illustrations/library/001-paper-kite.webp",
+    "sha256": "47a54d2cdd7cdbce20ca0d09722721f3ba40e652eb19588144de4bc9e40226a4",
+    "bytes": 41734,
+    "generation": {
+      "attempt": 1,
+      "status": "generated",
+      "jobId": "b408c7ef-0198-414a-9c13-b9603a0ca3ea",
+      "prompt": "A single paper airplane folded from completely blank insurance paper, gently floating above a small tidy empty document tray. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects, no scenery, no frame, no letters, no text, no watermark, no logo.",
+      "seed": 927150,
+      "file": ".local/illustration-jobs/candidates/001-paper-kite-v1.png",
+      "sha256": "1a8fe32a98f811f6fbf86433f276d26339ef5a79185ff2c93f7b667cdfa62b9f"
+    },
+    "backgroundRemoval": {
+      "attempt": 1,
+      "jobId": "506ed8cd-9187-4cc3-984b-1e90c997dc5c",
+      "status": "complete",
+      "file": ".local/illustration-jobs/candidates/001-paper-kite-v1-alpha.png",
+      "output": {
+        "filename": "001-paper-kite-v1_00001_.png",
+        "subfolder": "corgi-library-alpha",
+        "type": "output"
+      }
+    }
+  },
+  {
+    "id": "002-closed-folder",
+    "name": "Closed Folder",
+    "family": "ink",
+    "usage": "no-policies",
+    "width": 1024,
+    "height": 1024,
+    "prompt": "A plain closed accordion folder tied with a narrow ribbon. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "seed": 927152,
+    "steps": 8,
+    "model": "krea2_turbo_fp8_scaled.safetensors",
+    "status": "accepted",
+    "review": {
+      "attempt": 1,
+      "verdict": "accepted",
+      "reason": "Full-size inspection: coherent textured monochrome archive folder, ribbon and folded paper edges readable; complete silhouette. Off-white backdrop is suitable for local Spark background removal."
+    },
+    "file": "public/illustrations/library/002-closed-folder.webp",
+    "sha256": "891d19617642d29598f1c31fe70f225b413bd8840a4131defa24cdcdda9560dc",
+    "bytes": 62580,
+    "generation": {
+      "attempt": 1,
+      "seed": 1027152,
+      "prompt": "A plain closed accordion folder tied with a narrow ribbon. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+      "submittedAt": "2026-09-08T20:32:17.217799+00:00",
+      "status": "generated",
+      "jobId": "e2fcf7ea-e482-4c14-a1e1-bb8358f173f3",
+      "finishedAt": "2026-09-08T20:32:47.498428+00:00",
+      "file": ".local/illustration-jobs/candidates/002-closed-folder-v1.png",
+      "sha256": "13d3bd282e696c73856a466f821e90145766cab81d56e48db74df67e34e11f98",
+      "output": {
+        "filename": "002-closed-folder-v1_00001_.png",
+        "subfolder": "corgi-library",
+        "type": "output"
+      }
+    },
+    "backgroundRemoval": {
+      "attempt": 1,
+      "jobId": "c48a3b61-b9c2-4a96-8f18-3e59ef6f8474",
+      "status": "complete",
+      "file": ".local/illustration-jobs/candidates/002-closed-folder-v1-alpha.png",
+      "output": {
+        "filename": "002-closed-folder-v1_00001_.png",
+        "subfolder": "corgi-library-alpha",
+        "type": "output"
+      }
+    }
+  },
+  {
+    "id": "003-open-folder",
+    "name": "Open Folder",
+    "family": "ink",
+    "usage": "empty-folder",
+    "width": 1024,
+    "height": 1024,
+    "prompt": "An open empty file folder with one small leaf resting inside. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "seed": 927153,
+    "steps": 8,
+    "model": "krea2_turbo_fp8_scaled.safetensors",
+    "status": "accepted",
+    "review": {
+      "attempt": 1,
+      "verdict": "accepted",
+      "reason": "Full-size original and transparent pilot inspected: folder and leaf are coherent, no lettering, clean complete silhouette; alpha range and background verified."
+    },
+    "file": "public/illustrations/library/003-open-folder.webp",
+    "sha256": "b23c68d4d4528aa5659423488408a4118b01f1ab1f5c76d44e327df369958e7f",
+    "bytes": 42102,
+    "generation": {
+      "attempt": 1,
+      "seed": 1027153,
+      "prompt": "An open empty file folder with one small leaf resting inside. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+      "submittedAt": "2026-09-08T20:32:47.500158+00:00",
+      "status": "generated",
+      "jobId": "77dd27c3-e740-45c5-b526-625a33affac4",
+      "finishedAt": "2026-09-08T20:33:08.730595+00:00",
+      "file": ".local/illustration-jobs/candidates/003-open-folder-v1.png",
+      "sha256": "93b7f8bede958aff095e19fe189d8714b84a40aaa58ced0b6f911aa73dd8e937",
+      "output": {
+        "filename": "003-open-folder-v1_00001_.png",
+        "subfolder": "corgi-library",
+        "type": "output"
+      }
+    },
+    "backgroundRemoval": null
+  },
+  {
+    "id": "004-paper-stack",
+    "name": "Paper Stack",
+    "family": "ink",
+    "usage": "documents",
+    "width": 1024,
+    "height": 1024,
+    "prompt": "A neat stack of three blank sheets held by a large paper clip. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "seed": 927154,
+    "steps": 8,
+    "model": "krea2_turbo_fp8_scaled.safetensors",
+    "status": "accepted",
+    "review": {
+      "attempt": 1,
+      "verdict": "accepted",
+      "reason": "Full-size inspection: blank paper and single clip clearly legible, complete corners, subtle black ink texture, no text or accidental marks."
+    },
+    "file": "public/illustrations/library/004-paper-stack.webp",
+    "sha256": "3337de9ebaa0c17975f9b838c5e153ee0eb8d7b1de5e8fae7507c727eaa4bd11",
+    "bytes": 38956,
+    "generation": {
+      "attempt": 1,
+      "seed": 1027154,
+      "prompt": "A neat stack of three blank sheets held by a large paper clip. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+      "submittedAt": "2026-09-08T20:33:08.734026+00:00",
+      "status": "generated",
+      "jobId": "c167cc9e-9a48-4e95-ae4b-ab35a65ff564",
+      "finishedAt": "2026-09-08T20:33:36.158451+00:00",
+      "file": ".local/illustration-jobs/candidates/004-paper-stack-v1.png",
+      "sha256": "e94b20046fff7e5a891308ce9b9f2646089669ced2a869440543f399fcac3ed9",
+      "output": {
+        "filename": "004-paper-stack-v1_00001_.png",
+        "subfolder": "corgi-library",
+        "type": "output"
+      }
+    },
+    "backgroundRemoval": null
+  },
+  {
+    "id": "071-corgi-archivist",
+    "name": "Corgi Archivist",
+    "family": "painted",
+    "usage": "documents",
+    "width": 768,
+    "height": 1024,
+    "prompt": "An expressive adult Pembroke Welsh corgi archivist, full body seen from a three-quarter side view, with short legs, long low body, large upright triangular ears, white muzzle and chest and rich ginger fur. Wearing a muted rust cardigan and small round glasses, thoughtfully resting one front paw on a closed blank archive folder beside a neat stack of two folders. Charming hand-painted gouache editorial illustration with visible dry brush fur, warm subtle shading, expressive natural dog face, sophisticated storybook painting for a premium insurance brand. Quiet confident mood. Entire corgi including all paws and ears visible, spacious pure white background, isolated character, no setting or floor line. No typography, no symbols, no lettering, no logos, no watermark. Not a 3D render, not clay, not vector clipart.",
+    "seed": 927151,
+    "steps": 8,
+    "model": "krea2_turbo_fp8_scaled.safetensors",
+    "status": "accepted",
+    "review": {
+      "attempt": 1,
+      "verdict": "accepted",
+      "reason": "Individually inspected at full size: clear subject, coherent reference style, clean whitespace, complete silhouette, no text or visible malformed anatomy."
+    },
+    "file": "public/illustrations/library/071-corgi-archivist.webp",
+    "sha256": "6671368d74b5a9f07e505204b18ec3bf12ca2609675fea94602d176f79b77c03",
+    "bytes": 63660,
+    "generation": {
+      "attempt": 1,
+      "status": "generated",
+      "jobId": "dd238661-21ea-4c36-9476-1837f7e5609b",
+      "prompt": "An expressive adult Pembroke Welsh corgi archivist, full body seen from a three-quarter side view, with short legs, long low body, large upright triangular ears, white muzzle and chest and rich ginger fur. Wearing a muted rust cardigan and small round glasses, thoughtfully resting one front paw on a closed blank archive folder beside a neat stack of two folders. Charming hand-painted gouache editorial illustration with visible dry brush fur, warm subtle shading, expressive natural dog face, sophisticated storybook painting for a premium insurance brand. Quiet confident mood. Entire corgi including all paws and ears visible, spacious pure white background, isolated character, no setting or floor line. No typography, no symbols, no lettering, no logos, no watermark. Not a 3D render, not clay, not vector clipart.",
+      "seed": 927151,
+      "file": ".local/illustration-jobs/candidates/071-corgi-archivist-v1.png",
+      "sha256": "3ee7296477344bdceb0dd84ad088114c9c3bbcad3e3f0ddbe8795cc488271ed5"
+    },
+    "backgroundRemoval": null
+  }
+]
