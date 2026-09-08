@@ -16,7 +16,9 @@ import { principalForPresentedKey, recordMcpCall, type McpPrincipal } from "@/li
 //      able to tell a revoked key from a typo, and must not learn that a prefix exists;
 //   2. parses the body as one JSON-RPC message;
 //   3. hands it to lib/mcp/jsonrpc.ts, which owns the protocol and the tools;
-//   4. writes one row in mcp_calls, whatever happened, including the 401s.
+//   4. writes one row in mcp_calls, whatever happened, including the 401s. Every POST this
+//      endpoint answers has exactly one row; the GET and DELETE below are refusals of methods
+//      this transport does not use, not calls, and are not recorded.
 //
 // Authorisation lives in the tools, not here, because every tool answers a different question
 // about a different thing (lib/mcp/scope.ts). What lives here is the identity: the key names one
@@ -27,24 +29,6 @@ import { principalForPresentedKey, recordMcpCall, type McpPrincipal } from "@/li
 
 export async function POST(request: Request): Promise<Response> {
   const startedAtMs = Date.now();
-
-  // The protocol version header, when the client sends one. The specification asks a server to
-  // refuse a version it does not know rather than guess; a client that sends none is answered
-  // anyway, which is what a curl session does.
-  const declaredVersion = request.headers.get("mcp-protocol-version");
-  if (declaredVersion && !SUPPORTED_PROTOCOL_VERSIONS.includes(declaredVersion)) {
-    return jsonResponse(
-      {
-        jsonrpc: "2.0",
-        id: null,
-        error: {
-          code: -32600,
-          message: `unsupported MCP-Protocol-Version "${declaredVersion}"; this server speaks ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}`,
-        },
-      },
-      400,
-    );
-  }
 
   const presentedKey = bearerToken(request);
   const principal = presentedKey ? await principalForPresentedKey(presentedKey) : null;
@@ -62,6 +46,23 @@ export async function POST(request: Request): Promise<Response> {
       status: 401,
       headers: { "content-type": "application/json", "www-authenticate": 'Bearer realm="corgi-mcp"' },
     });
+  }
+
+  // The protocol version header, when the client sends one. The specification asks a server to
+  // refuse a version it does not know rather than guess; a client that sends none is answered
+  // anyway, which is what a curl session does. Checked AFTER authentication so that every POST
+  // this endpoint answers has a row in mcp_calls, this one included.
+  const declaredVersion = request.headers.get("mcp-protocol-version");
+  if (declaredVersion && !SUPPORTED_PROTOCOL_VERSIONS.includes(declaredVersion)) {
+    const message = `unsupported MCP-Protocol-Version "${declaredVersion}"; this server speaks ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}`;
+    await logCall({
+      apiKeyId: principal.keyId,
+      log: { method: "unknown", tool: null, argumentsHash: null, outcome: "refused", detail: message },
+      outcome: "refused",
+      detail: message,
+      startedAtMs,
+    });
+    return jsonResponse({ jsonrpc: "2.0", id: null, error: { code: -32600, message } }, 400);
   }
 
   let body: unknown;

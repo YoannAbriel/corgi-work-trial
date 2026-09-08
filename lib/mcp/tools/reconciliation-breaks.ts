@@ -105,19 +105,26 @@ export const listReconciliationBreaks: McpTool = {
   },
 };
 
-// Debits minus credits on each clearing account, with the date of its last movement. A signed
-// balance rather than a "how much is open" figure: the sign says which way the money is owed,
-// and inventing an absolute value would hide a balance that went the wrong way.
+// The balance of each clearing account, IN ITS OWN NORMAL DIRECTION, with the date of its last
+// movement. A credit-side account (money we owe) reads positive when it holds what its name
+// says it holds, and a debit-side account (money owed to us) reads positive the same way, so a
+// reader never has to remember which way round an account is. The sign is kept rather than made
+// absolute: a clearing account that went the wrong way is a real problem and must show as one.
 async function clearingBalances(database: postgres.Sql) {
-  const rows = await database<{ account_id: string; balance_cents: string; last_moved_on: string | null }[]>`
+  const rows = await database<{ account_id: string; side: string; balance_cents: string; last_moved_on: string | null }[]>`
     select account.id as account_id,
-           coalesce(sum(line.debit_cents) - sum(line.credit_cents), 0)::text as balance_cents,
+           account.side,
+           coalesce(
+             case when account.side = 'credit'
+                  then sum(line.credit_cents) - sum(line.debit_cents)
+                  else sum(line.debit_cents) - sum(line.credit_cents)
+             end, 0)::text as balance_cents,
            to_char(max(entry.effective_at), 'YYYY-MM-DD') as last_moved_on
       from accounts account
       left join journal_lines line on line.account_id = account.id
       left join journal_entries entry on entry.id = line.entry_id
      where account.id in ${database(CLEARING_ACCOUNTS.map((account) => account.id))}
-     group by account.id
+     group by account.id, account.side
      order by account.id
   `;
   return CLEARING_ACCOUNTS.map((account) => {
@@ -126,7 +133,9 @@ async function clearingBalances(database: postgres.Sql) {
     return {
       account: account.id,
       meaning: account.meaning,
-      balance: usd(balanceCents),
+      // Positive means the account holds what its name says it holds; zero means every flow
+      // that used it has completed.
+      openBalance: usd(balanceCents),
       isZero: balanceCents === 0,
       lastMovedOn: row?.last_moved_on ?? null,
     };
