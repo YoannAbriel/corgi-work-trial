@@ -5,24 +5,33 @@ export type Classification = (typeof CLASSIFICATIONS)[number];
 
 export type ReconciliationSourceName = "stripe" | "claims_rail";
 
-// One string per break, stable from one run to the next: the source, what kind of break it is,
-// and the reference it is about. The provider reference wins when there is one, because that
-// is the identity the provider itself uses; a ledger-only break has only its operation id.
+// One string per thing compared, stable from one run to the next: the source and the reference it
+// is about. Two things are deliberately NOT in it, and both were review finding F-B10-02.
 //
-// Two runs storing an item with the same key are talking about the same break. That is what
-// lets the screen say "first seen 3 days ago" (the earliest run with this key) and "resolved"
-// (a key reported before and absent from the latest run).
+// NOT THE CLASSIFICATION. It used to be, and that gave the same money two identities: a refund the
+// ledger owed and Stripe did not list was keyed as `stale`, and the day Stripe listed it as
+// succeeded with nothing booked on our side it became `provider_only`, a brand new key. Its age
+// restarted at zero and the old key, absent from the latest run, was filed as resolved. Same
+// money, one break that had just got worse. The classification is now an attribute of the item,
+// read from the latest run that reported it; the key is the money.
+//
+// NOT THE PROVIDER REFERENCE FIRST. Our money operation id comes first when there is one, because
+// it is the identity that exists from the moment we intend to move money and never changes. A
+// provider reference appears late, when the provider accepts something, so keying on it first
+// would break the identity of exactly the case above: the same refund would be `op:...` while the
+// ledger was alone with it and `re_...` the moment Stripe listed it. The provider reference is the
+// key only for a record the ledger has never heard of, which is the one case where there is no
+// operation id to use.
 export function breakKey(
   source: ReconciliationSourceName,
-  classification: Classification,
   providerRef: string | null,
   ledgerRef: string | null,
 ): string {
-  const reference = providerRef ?? (ledgerRef ? `op:${ledgerRef}` : null);
+  const reference = ledgerRef ? `op:${ledgerRef}` : providerRef;
   if (!reference) {
-    throw new Error("a break needs a provider reference or a ledger reference to be identified");
+    throw new Error("a compared record needs a provider reference or a ledger reference to be identified");
   }
-  return `${source}|${classification}|${reference}`;
+  return `${source}|${reference}`;
 }
 
 // How long a break has been open, in the unit a person would use. Whole numbers only: an

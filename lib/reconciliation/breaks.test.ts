@@ -2,28 +2,27 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { breakKey, describeAge, hoursBetween } from "./breaks";
 
-test("a break key is the source, the classification and the provider reference", () => {
-  assert.equal(breakKey("stripe", "provider_only", "pi_planted", null), "stripe|provider_only|pi_planted");
+test("a record the ledger has never heard of is keyed on the provider reference", () => {
+  assert.equal(breakKey("stripe", "pi_planted", null), "stripe|pi_planted");
 });
 
-test("a ledger-only break is keyed on its operation id when the provider has no reference", () => {
-  assert.equal(breakKey("stripe", "local_only", null, "OP_1"), "stripe|local_only|op:OP_1");
+test("anything the ledger knows is keyed on our operation id, which never changes", () => {
+  assert.equal(breakKey("stripe", null, "OP_1"), "stripe|op:OP_1");
+  assert.equal(breakKey("stripe", "pi_1", "OP_1"), "stripe|op:OP_1");
 });
 
-test("the provider reference wins over the ledger reference, so both sides of a pair share one key", () => {
-  assert.equal(breakKey("stripe", "amount_mismatch", "pi_1", "OP_1"), "stripe|amount_mismatch|pi_1");
+test("a record with no reference at all cannot be identified", () => {
+  assert.throws(() => breakKey("stripe", null, null), /needs a provider reference or a ledger reference/);
 });
 
-test("a break with no reference at all cannot be identified", () => {
-  assert.throws(() => breakKey("stripe", "stale", null, null), /needs a provider reference or a ledger reference/);
-});
-
-test("the same break reported by two runs has the same key, a different classification a different one", () => {
-  const first = breakKey("stripe", "provider_only", "pi_1", null);
-  const second = breakKey("stripe", "provider_only", "pi_1", "OP_1");
-  assert.equal(first, second);
-  assert.notEqual(first, breakKey("stripe", "amount_mismatch", "pi_1", null));
-  assert.notEqual(first, breakKey("claims_rail", "provider_only", "pi_1", null));
+test("the same money keeps one key when a provider reference appears, and one key per source", () => {
+  // The whole point of finding F-B10-02: a refund the ledger owes and Stripe does not list yet is
+  // the SAME break as the one Stripe lists tomorrow. It must not get a fresh age and leave its
+  // former self on the resolved list.
+  const beforeStripeListsIt = breakKey("stripe", null, "OP_REFUND");
+  const afterStripeListsIt = breakKey("stripe", "re_1", "OP_REFUND");
+  assert.equal(beforeStripeListsIt, afterStripeListsIt);
+  assert.notEqual(beforeStripeListsIt, breakKey("claims_rail", null, "OP_REFUND"));
 });
 
 test("age reads in minutes under an hour, hours under two days, days after that", () => {

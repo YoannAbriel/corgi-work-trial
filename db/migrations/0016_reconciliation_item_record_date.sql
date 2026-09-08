@@ -1,0 +1,38 @@
+-- 0016: a reconciliation item remembers the DATE OF THE RECORD it is about (review F-B10-01).
+--
+-- Strictly additive: one nullable column on reconciliation_items. No row is written, no existing
+-- value changes, no constraint is dropped. Nothing from 0001 to 0015 is touched.
+--
+-- WHY IT IS 0016 AND WHY IT IS IDEMPOTENT. It was written as 0013 and applied under that name to
+-- the disposable database corgi_test before the slice-B9 follow-ups merged their own 0013 into
+-- main. Two files sharing a number is the situation review finding F-B3-09 already caught once,
+-- so this one was renumbered to the next free slot rather than left to collide. The runner applies
+-- a file once per NAME, so corgi_test would otherwise try to add the column a second time under
+-- the new name: `if not exists` makes that a no-op there and a normal creation everywhere else.
+--
+-- WHY THIS COLUMN EXISTS
+--
+-- A run only compares what falls inside its window. Without this column the screen could not tell
+-- "this break was looked at again and it is gone" from "no run has looked at this break since",
+-- so a break older than the seven-day default window left the open list on its own and was filed
+-- under "breaks that went away". Nothing had fixed it. That is exactly the mistake the brief and
+-- AGENTS.md forbid: unresolved mismatches must remain visible.
+--
+-- With the record date on the item, a break is resolved only by a LATER complete run of the same
+-- source whose window CONTAINS that date and which no longer reports it as a break
+-- (lib/reconciliation/read.ts). A break nobody re-examined stays open, with its age.
+--
+-- WHAT GOES IN IT: the instant the compared record belongs to. The provider's own created time
+-- when there is a provider record (it is the authority on when the money moved), and the money
+-- operation's created time for a break that exists only in the ledger.
+--
+-- WHY NULLABLE, AND WHAT NULL MEANS. reconciliation_items is a protected append-only record, so a
+-- migration may add a column but must never write a value into rows that already exist. Items
+-- written before this migration therefore carry NULL. The reads treat NULL as the item's own
+-- first_seen_at, which is the instant we first saw the record and is by construction inside the
+-- window of the run that reported it, so one rule covers both.
+alter table reconciliation_items add column if not exists record_at timestamptz;
+
+-- The coverage question is asked per source and per record date, so the screen reads this column
+-- next to the run's window on every open break.
+create index if not exists reconciliation_items_by_record_date on reconciliation_items (record_at);

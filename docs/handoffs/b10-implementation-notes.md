@@ -4,6 +4,62 @@ Written by the B10 delegate builder on branch `worktree-agent-a58157f24b9758bdf`
 merges, reviews, deploys and owns STATUS, DECISIONS and FINDINGS; nothing in those files was
 touched here.
 
+## Corrections after the independent review (docs/reviews/b10-reconciliation.md, FAIL)
+
+Six findings answered, in the order the reviewer numbered them. F-B10-07, F-B10-08 and F-B10-09
+are deliberately left open and are listed at the end of this section.
+
+**F-B10-01 (HIGH), a break that ages out of the window read as resolved.** A run only compares what
+falls inside its window, so a break older than the seven-day default was compared by nobody, left
+the open list on its own and was filed under "breaks that went away". The screen answered "is this
+break in the latest run" when an operator asks "is this break explained".
+
+Migration 0016 stores the DATE OF THE COMPARED RECORD on each item: the provider's created time,
+or the money operation's creation time when there is no provider record. A break is now resolved
+only by a later COMPLETE run OF THE SAME SOURCE whose window CONTAINS that date and which reports
+it as matched or not at all. A break nobody re-examined stays open with its age. The daily job
+opens its window backwards far enough to cover the oldest open break, capped at the 31-day
+maximum; beyond that cap the break is not covered, so it is not resolved either, and the job's
+answer says how far it reached (`reachesTheOldestOpenBreak`) rather than hiding the gap. Closing
+such a break needs a staff run with an explicit window on the screen.
+
+The column is nullable on purpose: `reconciliation_items` is a protected append-only table, so a
+migration may add a column but must never write a value into rows that already exist. Items
+written before 0016 use their first-seen instant instead, which is inside the window of the run
+that reported them, so one rule covers old and new items.
+
+**F-B10-02 (MEDIUM), the age reset when a break changed classification.** Two things left the key.
+The classification, now an attribute of the item read from the latest run that reported it. And
+the precedence between the two references: our money operation id comes first when there is one,
+because it exists from the moment we intend to move money and never changes, where a provider
+reference appears late. Keying on the provider reference first would have broken the identity of
+the reviewer's own example, a refund that is `stale` while the ledger is alone with it and
+`provider_only` the day Stripe lists it.
+
+**F-B10-03 (MEDIUM), the clearing balances list.** Built, in `lib/reconciliation/clearing-balances.ts`
+and on the screen: the four clearing accounts, per policy and per claim, read from the journal with
+NO window, so nothing here can be missed for being old. It is the second net under the break list
+and it says so on the page. This also closes F-B4-02 in the register, which was deferred to B13
+presuming a list that did not exist.
+
+**F-B10-04 (LOW), a failure after the fetch left no run at all.** The storing step is now inside a
+try of its own, so a failure there leaves a failed run carrying its reason. The per-source loop is
+wrapped too, so a source whose failure cannot even be recorded reports itself with no run id and
+does not stop the source after it.
+
+**F-B10-05 (LOW), the banner overstated.** Computed per source, from the latest run of each; one
+banner per source that is actually failing.
+
+**F-B10-06 (LOW), the dropped PaymentIntent statuses.** The run note now counts the PaymentIntents
+it did not compare, by status, or says outright that none was left out.
+
+**Left open, and why.** F-B10-07 (unbounded reads): `resolvedBreaks` now applies its limit in SQL,
+but `openBreaks` is deliberately still unbounded, because it is the one list whose whole purpose is
+that nothing is forgotten and a limit would silently drop rows. F-B10-08 (the deployed board is all
+sandbox probes) and F-B10-09 (two ledger records sharing one provider reference) are untouched and
+belong to the coordinator to schedule. One consequence of the F-B10-01 fix worth expecting: breaks
+that used to disappear now stay, so the deployed board will be longer than it was.
+
 ## What the slice does
 
 A job pulls a provider's own records for a time window, reads what our ledger says about the same
@@ -26,7 +82,9 @@ The screen is `/ops/reconciliation`, staff only, linked from `/ops`.
 Read in this order. Each line says what the file is for.
 
 1. `db/migrations/0011_reconciliation.sql` - the two tables, their guards, their grants, and the
-   CHECK constraints that stop a failed run from claiming it compared anything.
+   CHECK constraints that stop a failed run from claiming it compared anything;
+   `db/migrations/0016_reconciliation_item_record_date.sql` - the record date each item carries,
+   which is what lets a later run say whether it re-examined a break or never looked at it.
 2. `lib/reconciliation/window.ts` - what a time window is, how a typed date is read, why the
    default is seven days and why a maximum exists.
 3. `lib/reconciliation/breaks.ts` - the identity of a break across runs (`breakKey`) and how its
@@ -45,14 +103,16 @@ Read in this order. Each line says what the file is for.
 9. `lib/reconciliation/source.ts` - the three fields a provider has to expose. Ten lines.
 10. `lib/reconciliation/run.ts` - the job: fetch first, compare, then store the run and its items
     in one transaction. The failed-run path is the important part.
-11. `lib/reconciliation/read.ts` - what the screen reads: the runs, the open breaks, and the
-    breaks that went away.
-12. `app/api/jobs/reconcile/route.ts` - one endpoint, two callers (the cron secret and a staff
+11. `lib/reconciliation/read.ts` - what the screen reads, and where the rule that decides whether
+    a break is open or resolved lives. Read the two SQL fragments at the top before the functions.
+12. `lib/reconciliation/clearing-balances.ts` - the four accounts that must end at zero, read from
+    the journal with no window at all.
+13. `app/api/jobs/reconcile/route.ts` - one endpoint, two callers (the cron secret and a staff
     session), two answers (JSON and a redirect).
-13. `app/api/jobs/daily/route.ts` and `vercel.json` - the one scheduled job: recover, settle,
-    reconcile, in that order.
-14. `app/ops/reconciliation/page.tsx` - the screen.
-15. `scripts/check-reconciliation.ts` - the proof, end to end, on the disposable database.
+14. `app/api/jobs/daily/route.ts` and `vercel.json` - the one scheduled job: recover, settle,
+    reconcile, in that order, over a window widened to cover the oldest open break.
+15. `app/ops/reconciliation/page.tsx` - the screen.
+16. `scripts/check-reconciliation.ts` - the proof, end to end, on the disposable database.
 
 Two supporting changes outside the slice, both mechanical:
 
@@ -185,11 +245,13 @@ All on this branch, in this worktree.
 | Command | Result |
 |---|---|
 | `npm run typecheck` | clean |
-| `npm run build` | 33 routes, including `/ops/reconciliation`, `/api/jobs/reconcile`, `/api/jobs/daily` |
-| `npm test` | 275 tests, 274 pass, 1 skipped (the pre-existing live Stripe test, gated on `RUN_LIVE_STRIPE_TESTS`) |
-| `npm run check:reconciliation` | 29 of 29 PASS |
-| `npm run check:money-guards -- --database=test` | 128 of 128 PASS (110 before this slice, plus the two new tables and their constraints) |
-| `npm run check:claims-and-approvals` | 55 of 55 PASS, unchanged by this slice |
+| `npm run build` | compiled, including `/ops/reconciliation`, `/api/jobs/reconcile`, `/api/jobs/daily` |
+| `npm test` | 344 pass, 1 skipped (the pre-existing live Stripe test, gated on `RUN_LIVE_STRIPE_TESTS`) |
+| `npm run check:reconciliation` | 39 of 39 PASS after the review corrections, 29 of 29 before them |
+| `npm run check:money-guards -- --database=test` (after the corrections) | 155 of 155 PASS, exit 0, the same figure the reviewer measured on a solo run |
+| `npm run check:claims-and-approvals` (after the corrections) | 63 of 63 PASS, exit 0 |
+| `npm run check:money-guards -- --database=test` (at the first delivery) | 128 of 128 PASS (110 before this slice, plus the two new tables and their constraints) |
+| `npm run check:claims-and-approvals` (at the first delivery) | 55 of 55 PASS, unchanged by this slice |
 
 The screen was rendered for real, not only built: a dev server on port 3400 pointed at the
 disposable database (a git-ignored `.local/` aid, because the trial database has no 0011 tables
@@ -217,6 +279,13 @@ database full of synthetic operations, not a defect.
 previous builder of this slice had applied the identical file to `corgi_test` at 13:50Z, and the
 columns in the database match the file exactly (checked column by column). The trial database has
 NOT been migrated from this worktree.
+
+One thing to know about migration 0016. It was written and applied to `corgi_test` as 0013, and
+main then merged its own `0013_low_findings.sql`; two files sharing a number is what finding
+F-B3-09 caught once already, so it was renumbered to the next free slot. The runner applies a file
+once per NAME, so `corgi_test` has both names in `schema_migrations` and the column exists once;
+`add column if not exists` is what makes the second name a no-op there. On the trial database only
+0016 will ever be applied, as an ordinary creation.
 
 ## What is not verified here
 

@@ -90,7 +90,10 @@ export function stripeRecordsFromListing(listing: StripeWindowListing): { record
     label: "refund",
   }));
 
-  return { records: [...payments, ...refunds], note: balanceTransactionNote(listing.balanceTransactions) };
+  return {
+    records: [...payments, ...refunds],
+    note: `${droppedPaymentIntentNote(listing.paymentIntents)} ${balanceTransactionNote(listing.balanceTransactions)}`,
+  };
 }
 
 // A live-mode object can only come from a live key, which lib/stripe.ts already refuses, and
@@ -144,6 +147,29 @@ function balanceTransactionNote(balanceTransactions: StripeBalanceTransactionFac
     `balance transactions in the window: ${summary || "none"}; fees kept by Stripe ${feesCents} cents. ` +
     "Fees and payouts are not journaled in this build (cash_stripe is gross of fees; a payout moves money from the Stripe balance to the bank account, outside the ledger), disclosed in README."
   );
+}
+
+// What the PaymentIntent filter threw away, named on the run (review finding F-B10-06). Only
+// `succeeded` PaymentIntents are records, because only they moved money; a PaymentIntent sitting
+// in `processing` or `requires_capture` is money in flight that neither side reports, and this
+// build collects by card, where that state does not last. The disclosure has to be symmetric with
+// the balance-transaction one below: a reader must not take the absence of those objects from the
+// items for their absence at Stripe.
+function droppedPaymentIntentNote(paymentIntents: StripePaymentIntentFacts[]): string {
+  const countByStatus = new Map<string, number>();
+  for (const paymentIntent of paymentIntents) {
+    if (paymentIntent.status !== "succeeded") {
+      countByStatus.set(paymentIntent.status, (countByStatus.get(paymentIntent.status) ?? 0) + 1);
+    }
+  }
+  if (countByStatus.size === 0) {
+    return "Every PaymentIntent in the window had succeeded; none was left out.";
+  }
+  const summary = [...countByStatus.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([status, count]) => `${status} ${count}`)
+    .join(", ");
+  return `PaymentIntents in the window that had not succeeded and were therefore NOT compared: ${summary}. They moved no money at Stripe, so the ledger is not expected to show anything for them; money left in flight would show up here.`;
 }
 
 function idOf(reference: string | { id: string } | null): string | null {
