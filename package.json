@@ -13,6 +13,7 @@
     "check:ledger-seal": "tsx scripts/check-ledger-seal.ts",
     "check:money-guards": "tsx scripts/check-money-guards.ts",
     "check:payment-replay": "tsx scripts/check-payment-replay.ts",
+    "check:refund-replay": "tsx scripts/check-refund-replay.ts",
     "seed": "tsx scripts/seed.ts",
     "rebuild:policy-current": "tsx scripts/rebuild-policy-current.ts",
     "test": "node --import tsx --test lib/**/*.test.ts"

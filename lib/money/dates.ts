@@ -31,6 +31,19 @@ function fromUtcMillis(millis: number): CalendarDate {
 
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// True when the text is a calendar date that really exists: the right shape, a month between
+// 1 and 12, and a day the month actually has. Used to reject a date typed into a form before it
+// is compared with anything: "2026-02-30" is not a date, and comparing it as text with the
+// policy term would answer a question nobody asked.
+export function isCalendarDate(text: string): boolean {
+  try {
+    toUtcMillis(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Whole days from `from` to `to`; negative when `to` is earlier.
 export function daysBetween(from: CalendarDate, to: CalendarDate): number {
   return Math.round((toUtcMillis(to) - toUtcMillis(from)) / MILLIS_PER_DAY);

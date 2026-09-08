@@ -118,6 +118,43 @@ export async function recordFailedPayment(
   return { kind: "posted" };
 }
 
+// The hosted payment page expired without being paid (Stripe keeps a Checkout Session alive for
+// 24 hours). No money moved, so nothing is journaled: the expiry is appended to the operation's
+// history and the policy stays unbound and payable again. The next click on Pay cannot reuse
+// this session, which can no longer be paid, so lib/payments/checkout.ts starts a NEW operation
+// with a new idempotency key (review finding F-B2-03).
+export const CHECKOUT_EXPIRED_REASON = "expired";
+
+export async function recordExpiredCheckoutSession(
+  expiry: { operationId: string; sessionId: string },
+  database: postgres.Sql = sql,
+): Promise<CollectionOutcome> {
+  const operation = await loadCheckoutOperation(database, expiry.operationId);
+  if (!operation) {
+    return { kind: "refused", reason: `no stripe_checkout money operation ${expiry.operationId}` };
+  }
+  // A session can expire after the payment succeeded on another attempt; the policy is bound
+  // and there is nothing to reopen.
+  const { eventTypes } = await foldPolicyEvents(database, operation.policyId);
+  if (eventTypes.includes("issued")) {
+    return { kind: "refused", reason: "the policy is already bound: an expired session changes nothing" };
+  }
+
+  await database.begin(async (transaction) => {
+    await transaction`
+      insert into money_operation_events (operation_id, status, provider_ref, payload)
+      values (${expiry.operationId}, 'failed', ${expiry.sessionId},
+              ${transaction.json({
+                stage: "checkout_session",
+                reason: CHECKOUT_EXPIRED_REASON,
+                session_id: expiry.sessionId,
+              })})
+    `;
+    await refreshPolicyCurrent(transaction, operation.policyId);
+  });
+  return { kind: "posted" };
+}
+
 // checkout.session.completed says the hosted page was completed. It is recorded because it is
 // a real step of the operation's life, but it posts NO money: two Stripe events describe one
 // collection, and only payment_intent.succeeded posts it (ARCHITECTURE.md section 3).

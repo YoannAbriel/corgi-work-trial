@@ -97,6 +97,24 @@ export function refundedTaxCents(refundedPremiumCents: number, taxRateBps: numbe
   return Number(ceilDiv(BigInt(refundedPremiumCents) * BigInt(taxRateBps), 10000n));
 }
 
+// The same tax refund, never larger than the tax the customer actually paid.
+//
+// Why the cap exists (review finding F-B1-07, docs/reviews/b1-ledger-core.md): the tax charged
+// is rounded DOWN and the tax refunded is rounded UP, so a cancellation on the very first day
+// of the term can give back one cent more than was ever collected. Written premium 100001 at
+// 3%: charged floor(100001 x 3%) = 3000, refunded on day 0 ceil(100001 x 3%) = 3001. That one
+// cent would leave premium_tax_payable negative for the policy, which would mean the state owes
+// us tax we never collected. The cap is the honest rule: the customer gets back at most what
+// was charged, and the ceiling still applies everywhere below that.
+export function refundedTaxCentsCappedAtCharged(
+  refundedPremiumCents: number,
+  taxRateBps: number,
+  taxChargedCents: number,
+): number {
+  assertCents("taxChargedCents", taxChargedCents);
+  return Math.min(refundedTaxCents(refundedPremiumCents, taxRateBps), taxChargedCents);
+}
+
 // Broker commission on collected premium (tax and fee excluded), rate in basis points,
 // rounded down. Example: 15% of 120000 = 18000 cents.
 export function commissionCents(collectedPremiumCents: number, commissionRateBps: number): number {
@@ -105,23 +123,69 @@ export function commissionCents(collectedPremiumCents: number, commissionRateBps
   return Number(floorDiv(BigInt(collectedPremiumCents) * BigInt(commissionRateBps), 10000n));
 }
 
-export type CancellationRefund = {
-  unearnedPremiumCents: number;
-  refundedTaxCents: number;
-  refundedFeeCents: number; // always 0: the flat policy fee is fully earned at issuance
-  totalRefundCents: number;
+// Everything a mid-term cancellation owes, in one place. The cancellation preview shown to the
+// broker BEFORE confirming and the amounts actually posted to the ledger both come from this
+// function and from nowhere else, so the screen cannot promise a figure the ledger will not book.
+export type CancellationBreakdownInput = {
+  writtenPremiumCents: number; // annual premium written on the policy
+  taxChargedCents: number; // state premium tax actually charged with it
+  taxRateBps: number;
+  commissionRateBps: number; // broker commission rate, for the clawback
+  termStart: CalendarDate;
+  termEnd: CalendarDate;
+  cancellationEffectiveAt: CalendarDate; // the day coverage stops, not the day the form was filled
 };
 
-// Pro-rata cancellation refund: unearned premium, the tax on it, never the fee.
-// Example (366-day term, 3% tax, cancelled on day 100): 87214 + 2617 + 0 = 89831 cents.
-export function proRataCancellationRefund(
-  writtenPremiumCents: number,
-  taxRateBps: number,
-  termStart: CalendarDate,
-  termEndDate: CalendarDate,
-  cancelAt: CalendarDate,
-): CancellationRefund {
-  const unearned = unearnedPremiumCents(writtenPremiumCents, termStart, termEndDate, cancelAt);
-  const tax = refundedTaxCents(unearned, taxRateBps);
-  return { unearnedPremiumCents: unearned, refundedTaxCents: tax, refundedFeeCents: 0, totalRefundCents: unearned + tax };
+export type CancellationBreakdown = {
+  termDays: number; // actual days of the term, 365 or 366
+  earnedDays: number; // days of cover the customer keeps
+  earnedPremiumCents: number; // premium earned up to the cancellation date, rounded down
+  unearnedPremiumCents: number; // written minus earned: exactly what is refunded
+  refundedTaxCents: number; // tax on the unearned premium, rounded up, capped at the tax charged
+  taxRefundWasCappedAtCharged: boolean; // true when the ceiling was cut by the cap (F-B1-07)
+  refundedFeeCents: number; // always 0: the flat policy fee is fully earned at issuance
+  totalRefundCents: number; // what Stripe is asked to send back
+  commissionClawbackCents: number; // commission taken back from the broker, rounded down
+};
+
+// Pro-rata cancellation: the customer keeps the days of cover already used and gets the rest
+// back, with the state premium tax that rode on it, and never the policy fee. The broker gives
+// back commission on the refunded premium.
+//
+// Worked example, the recited one (DECISIONS.md, 2026-09-08): $1,200 written on 2028-03-01,
+// California 2.35% (2820 cents charged), $25 fee, 15% commission, cancelled on 2028-06-09,
+// which is day 100 of a 365-day term.
+//   earned    = floor(120000 x 100 / 365) = 32876 cents (the insurer eats the fraction)
+//   unearned  = 120000 - 32876            = 87124 cents
+//   tax back  = ceil(87124 x 235 / 10000) = 2048 cents, and 2048 < 2820 so the cap does nothing
+//   fee back  =                              0 cents
+//   refund    = 87124 + 2048              = 89172 cents ($891.72)
+//   clawback  = floor(87124 x 1500/10000) = 13068 cents (13068.6, rounded down)
+export function cancellationBreakdown(input: CancellationBreakdownInput): CancellationBreakdown {
+  const totalTermDays = termDays(input.termStart, input.termEnd);
+  const earnedDays = elapsedTermDays(input.termStart, input.termEnd, input.cancellationEffectiveAt);
+  const earned = earnedPremiumCents(
+    input.writtenPremiumCents,
+    input.termStart,
+    input.termEnd,
+    input.cancellationEffectiveAt,
+  );
+  const unearned = input.writtenPremiumCents - earned;
+
+  // Two calls on purpose: the capped function is the single implementation of the rule, and the
+  // uncapped one is only used to say whether the cap changed anything (shown in the preview).
+  const uncappedTax = refundedTaxCents(unearned, input.taxRateBps);
+  const tax = refundedTaxCentsCappedAtCharged(unearned, input.taxRateBps, input.taxChargedCents);
+
+  return {
+    termDays: totalTermDays,
+    earnedDays,
+    earnedPremiumCents: earned,
+    unearnedPremiumCents: unearned,
+    refundedTaxCents: tax,
+    taxRefundWasCappedAtCharged: tax < uncappedTax,
+    refundedFeeCents: 0,
+    totalRefundCents: unearned + tax,
+    commissionClawbackCents: commissionCents(unearned, input.commissionRateBps),
+  };
 }

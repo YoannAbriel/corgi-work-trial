@@ -1,17 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  cancellationBreakdown,
   commissionCents,
   earnedPremiumCents,
   endorsementDeltaCents,
-  proRataCancellationRefund,
   refundedTaxCents,
+  refundedTaxCentsCappedAtCharged,
   stateTaxCents,
   unearnedPremiumCents,
 } from "./premium";
 
 // The shared worked example: $1,200 written premium, cancelled on day 100.
 const WRITTEN = 120000;
+const COMMISSION_RATE_BPS = 1500; // 15%, the seeded broker's rate
 
 test("earned and unearned premium on a 366-day term, day 100 (January 1 policy)", () => {
   // 2028-01-01 to 2029-01-01 contains February 29, 2028: 366 days. Day 100 is 2028-04-10.
@@ -68,13 +70,80 @@ test("commission on collected premium is rounded down", () => {
 });
 
 test("pro-rata cancellation refund: unearned premium, its tax, never the fee", () => {
-  const refund = proRataCancellationRefund(WRITTEN, 300, "2028-01-01", "2029-01-01", "2028-04-10");
-  assert.deepEqual(refund, {
-    unearnedPremiumCents: 87214,
-    refundedTaxCents: 2617,
-    refundedFeeCents: 0,
-    totalRefundCents: 89831, // $898.31
+  // 366-day term, 3% tax charged on the whole premium (3600), cancelled on day 100.
+  assert.deepEqual(
+    cancellationBreakdown({
+      writtenPremiumCents: WRITTEN,
+      taxChargedCents: 3600,
+      taxRateBps: 300,
+      commissionRateBps: COMMISSION_RATE_BPS,
+      termStart: "2028-01-01",
+      termEnd: "2029-01-01",
+      cancellationEffectiveAt: "2028-04-10",
+    }),
+    {
+      termDays: 366,
+      earnedDays: 100,
+      earnedPremiumCents: 32786,
+      unearnedPremiumCents: 87214,
+      refundedTaxCents: 2617,
+      taxRefundWasCappedAtCharged: false,
+      refundedFeeCents: 0,
+      totalRefundCents: 89831, // $898.31
+      commissionClawbackCents: 13082, // 87214 x 15% = 13082.1, rounded down
+    },
+  );
+});
+
+test("the refunded tax is capped at the tax actually charged (review finding F-B1-07)", () => {
+  // Written 100001 cents at 3%: the customer paid floor(100001 x 3%) = 3000, but a cancellation
+  // on the very first day would give back ceil(100001 x 3%) = 3001 without the cap, leaving
+  // premium_tax_payable one cent negative for this policy.
+  assert.equal(stateTaxCents(100001, 300), 3000);
+  assert.equal(refundedTaxCents(100001, 300), 3001);
+  assert.equal(refundedTaxCentsCappedAtCharged(100001, 300, 3000), 3000);
+  // California's 2.35% has the same edge: charged 2350, uncapped refund 2351.
+  assert.equal(stateTaxCents(100001, 235), 2350);
+  assert.equal(refundedTaxCents(100001, 235), 2351);
+  assert.equal(refundedTaxCentsCappedAtCharged(100001, 235, 2350), 2350);
+
+  // The whole breakdown of that early cancellation: nothing earned, everything back, tax capped.
+  const cancelledOnTheFirstDay = cancellationBreakdown({
+    writtenPremiumCents: 100001,
+    taxChargedCents: 3000,
+    taxRateBps: 300,
+    commissionRateBps: COMMISSION_RATE_BPS,
+    termStart: "2028-03-01",
+    termEnd: "2029-03-01",
+    cancellationEffectiveAt: "2028-03-01",
   });
+  assert.deepEqual(cancelledOnTheFirstDay, {
+    termDays: 365,
+    earnedDays: 0,
+    earnedPremiumCents: 0,
+    unearnedPremiumCents: 100001,
+    refundedTaxCents: 3000, // capped: 3001 would exceed what was collected
+    taxRefundWasCappedAtCharged: true,
+    refundedFeeCents: 0,
+    totalRefundCents: 103001,
+    commissionClawbackCents: 15000, // 100001 x 15% = 15000.15, rounded down
+  });
+});
+
+test("a cancellation on the last day of the term refunds nothing", () => {
+  const atTermEnd = cancellationBreakdown({
+    writtenPremiumCents: WRITTEN,
+    taxChargedCents: 2820,
+    taxRateBps: 235,
+    commissionRateBps: COMMISSION_RATE_BPS,
+    termStart: "2028-03-01",
+    termEnd: "2029-03-01",
+    cancellationEffectiveAt: "2029-03-01",
+  });
+  assert.equal(atTermEnd.earnedPremiumCents, WRITTEN);
+  assert.equal(atTermEnd.unearnedPremiumCents, 0);
+  assert.equal(atTermEnd.totalRefundCents, 0);
+  assert.equal(atTermEnd.commissionClawbackCents, 0);
 });
 
 test("inputs must be non-negative integer cents", () => {
@@ -86,12 +155,20 @@ test("the recited example: March 1, 2028 policy, 365 days, cancelled on day 100 
   // Decided by Yoann on 2026-09-08 (DECISIONS.md): this is the example told at the debrief.
   // Written $1,200, 3% tax, cancelled on day 100 of 365. Earned 32876, unearned 87124,
   // tax refunded ceil(87124 x 3%) = 2614, fee never refunded: total $897.38.
-  assert.deepEqual(proRataCancellationRefund(WRITTEN, 300, "2028-03-01", "2029-03-01", "2028-06-09"), {
-    unearnedPremiumCents: 87124,
-    refundedTaxCents: 2614,
-    refundedFeeCents: 0,
-    totalRefundCents: 89738,
+  const atThreePercent = cancellationBreakdown({
+    writtenPremiumCents: WRITTEN,
+    taxChargedCents: 3600,
+    taxRateBps: 300,
+    commissionRateBps: COMMISSION_RATE_BPS,
+    termStart: "2028-03-01",
+    termEnd: "2029-03-01",
+    cancellationEffectiveAt: "2028-06-09",
   });
+  assert.equal(atThreePercent.earnedPremiumCents, 32876);
+  assert.equal(atThreePercent.unearnedPremiumCents, 87124);
+  assert.equal(atThreePercent.refundedTaxCents, 2614);
+  assert.equal(atThreePercent.refundedFeeCents, 0);
+  assert.equal(atThreePercent.totalRefundCents, 89738);
   // Endorsement +$600 annual on day 100: 265 days remain, 60000 x 265 / 365 = 43561.64 -> 43561.
   assert.equal(endorsementDeltaCents(120000, 180000, "2028-03-01", "2029-03-01", "2028-06-09"), 43561);
   // The same change backdated 30 days (295 days remain): 48493.15 -> 48493.
@@ -106,10 +183,29 @@ test("California premium tax at 2.35% on the recited example", () => {
   // Decided by Yoann on 2026-09-08: California, 235 basis points (Cal. Const. art. XIII s. 28(d)).
   assert.equal(stateTaxCents(120000, 235), 2820); // $28.20 charged with the $1,200 premium
   assert.equal(refundedTaxCents(87124, 235), 2048); // 2047.41 -> 2048 refunded on cancellation
-  assert.deepEqual(proRataCancellationRefund(WRITTEN, 235, "2028-03-01", "2029-03-01", "2028-06-09"), {
-    unearnedPremiumCents: 87124,
-    refundedTaxCents: 2048,
-    refundedFeeCents: 0,
-    totalRefundCents: 89172, // $891.72
-  });
+
+  // The full figures recited at the debrief, in one object: this is the cancellation of the
+  // $1,200 California policy written on 2028-03-01 and cancelled on 2028-06-09 (day 100).
+  assert.deepEqual(
+    cancellationBreakdown({
+      writtenPremiumCents: WRITTEN,
+      taxChargedCents: 2820,
+      taxRateBps: 235,
+      commissionRateBps: COMMISSION_RATE_BPS,
+      termStart: "2028-03-01",
+      termEnd: "2029-03-01",
+      cancellationEffectiveAt: "2028-06-09",
+    }),
+    {
+      termDays: 365,
+      earnedDays: 100,
+      earnedPremiumCents: 32876,
+      unearnedPremiumCents: 87124,
+      refundedTaxCents: 2048,
+      taxRefundWasCappedAtCharged: false,
+      refundedFeeCents: 0,
+      totalRefundCents: 89172, // $891.72
+      commissionClawbackCents: 13068, // 87124 x 15% = 13068.6, rounded down (DECISIONS.md)
+    },
+  );
 });

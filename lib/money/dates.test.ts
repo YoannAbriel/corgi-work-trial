@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { addDays, daysBetween, termDays, termEnd } from "./dates";
+import { addDays, daysBetween, isCalendarDate, termDays, termEnd } from "./dates";
+
+test("a date that does not exist is not a calendar date", () => {
+  assert.equal(isCalendarDate("2026-10-31"), true);
+  assert.equal(isCalendarDate("2028-02-29"), true); // 2028 is a leap year
+  assert.equal(isCalendarDate("2026-02-29"), false); // 2026 is not
+  assert.equal(isCalendarDate("2026-02-30"), false);
+  assert.equal(isCalendarDate("2026-13-01"), false);
+  assert.equal(isCalendarDate("31/10/2026"), false);
+  assert.equal(isCalendarDate(""), false);
+});
 
 test("a term ends on the same calendar date next year", () => {
   assert.equal(termEnd("2028-03-01"), "2029-03-01");
