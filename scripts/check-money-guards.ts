@@ -39,6 +39,8 @@ const PROTECTED_TABLES = [
   // Added by migration 0006 (slice B3): what a broker declared for business verification,
   // and the Stripe Connected Account Agreement acceptance sent with it.
   "broker_kyb_submissions",
+  // Added by migration 0009 (slice B4): which Stripe payment collects which endorsement's delta.
+  "endorsement_collections",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -136,6 +138,26 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     )
     returning id
   `;
+  // An endorsement request and the payment that collects its delta (migration 0009).
+  // 44584 = 43561 of premium + 1023 of tax, the recited example (+$600 on day 100).
+  const [requestEvent] = await tx<{ id: string }[]>`
+    insert into policy_events (policy_id, event_type, effective_at, payload)
+    values (${policy.id}, 'endorsement_requested', '2028-06-09', '{"delta_premium_cents": 43561}'::jsonb)
+    returning id
+  `;
+  const [deltaOperation] = await tx<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+    values ('stripe_checkout', 'stripe', 44584, ${policy.id}, 'guard-check-endorsement:' || gen_random_uuid()::text)
+    returning id
+  `;
+  const [endorsementCollection] = await tx<{ id: string }[]>`
+    insert into endorsement_collections (
+      collection_operation_id, policy_id, request_event_id, quote_hash, amount_cents, delta_premium_cents, delta_tax_cents
+    ) values (
+      ${deltaOperation.id}, ${policy.id}, ${requestEvent.id}, 'guard-check-hash', 44584, 43561, 1023
+    )
+    returning id
+  `;
   return {
     brokers: broker.id,
     policies: policy.id,
@@ -146,6 +168,7 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     broker_kyb_events: kybEvent.id,
     refund_allocations: allocation.id,
     broker_kyb_submissions: kybSubmission.id,
+    endorsement_collections: endorsementCollection.id,
   };
 }
 
@@ -337,6 +360,54 @@ async function main() {
     "a policy cannot be cancelled twice",
     !!secondCancellation && /policy_events_one_cancellation_per_policy/i.test(secondCancellation),
     secondCancellation ?? "no error raised",
+  );
+
+  // 7. Migration 0009: a delta collection whose premium and tax do not add up is refused, and
+  //    one endorsement request can be applied ('endorsed') at most once, whatever the number of
+  //    payment deliveries that try.
+  const brokenDeltaSplit = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [requestEvent] = await tx<{ id: string }[]>`
+      insert into policy_events (policy_id, event_type, effective_at, payload)
+      values (${fixture.policies}, 'endorsement_requested', '2028-06-09', '{}'::jsonb)
+      returning id
+    `;
+    const [deltaOperation] = await tx<{ id: string }[]>`
+      insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+      values ('stripe_checkout', 'stripe', 100, ${fixture.policies}, 'guard-check-delta-split:' || gen_random_uuid()::text)
+      returning id
+    `;
+    await tx`
+      insert into endorsement_collections (
+        collection_operation_id, policy_id, request_event_id, quote_hash, amount_cents, delta_premium_cents, delta_tax_cents
+      ) values (${deltaOperation.id}, ${fixture.policies}, ${requestEvent.id}, 'guard-check-hash', 100, 90, 5)
+    `;
+  });
+  report(
+    "a delta collection whose premium and tax do not add up to its amount is refused",
+    !!brokenDeltaSplit && /endorsement_collections_check/i.test(brokenDeltaSplit),
+    brokenDeltaSplit ?? "no error raised",
+  );
+
+  const secondApplication = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [requestEvent] = await tx<{ id: string }[]>`
+      insert into policy_events (policy_id, event_type, effective_at, payload)
+      values (${fixture.policies}, 'endorsement_requested', '2028-06-09', '{}'::jsonb)
+      returning id
+    `;
+    for (const attempt of [1, 2]) {
+      await tx`
+        insert into policy_events (policy_id, event_type, effective_at, payload)
+        values (${fixture.policies}, 'endorsed', '2028-06-09',
+                ${tx.json({ attempt, request_event_id: requestEvent.id, annual_premium_cents: 180000 })})
+      `;
+    }
+  });
+  report(
+    "an endorsement request cannot be applied twice",
+    !!secondApplication && /policy_events_one_endorsement_per_request/i.test(secondApplication),
+    secondApplication ?? "no error raised",
   );
 
   await owner.end();

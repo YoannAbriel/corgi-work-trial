@@ -25,7 +25,9 @@ export default async function BrokerPage() {
             <Link href="/ops/brokers">Brokers and their verification</Link>
           </p>
         ) : (
-          <p className="note">The customer screens arrive in a later slice.</p>
+          <p>
+            <Link href="/customer">Your policies, documents and endorsement approvals</Link>
+          </p>
         )}
         <LogoutButton />
       </main>

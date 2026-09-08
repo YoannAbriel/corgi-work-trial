@@ -58,6 +58,7 @@ export type PolicyDetail = {
   brokerId: string;
   brokerName: string;
   commissionRateBps: number;
+  customerId: string;
   customerName: string;
   customerEmail: string;
   stateCode: string;
@@ -82,6 +83,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
       broker_id: string;
       broker_name: string;
       commission_rate_bps: number;
+      customer_id: string;
       customer_name: string;
       customer_email: string;
       state_code: string;
@@ -103,6 +105,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
            broker.id            as broker_id,
            broker.name          as broker_name,
            broker.commission_rate_bps,
+           customer.id          as customer_id,
            customer.name        as customer_name,
            customer.email       as customer_email,
            policy.state_code,
@@ -132,6 +135,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
     brokerId: row.broker_id,
     brokerName: row.broker_name,
     commissionRateBps: row.commission_rate_bps,
+    customerId: row.customer_id,
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     stateCode: row.state_code,
