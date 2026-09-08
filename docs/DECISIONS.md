@@ -74,3 +74,11 @@ Proposed by the B2 delegate's research (all sources accessed 2026-09-08) and dec
 Interpretation recorded, not a legal claim: the tax is legally owed by the insurer on its premiums; the brief asks that the customer's charge include state premium tax and flat fees as separate pieces that never pollute earned premium, so the application shows a "state premium tax" line at 2.35 percent on the premium, owed to the state, and refunds it pro-rata with the premium. The flat policy fee ($25) remains an assumption of this build, fully earned at issuance.
 
 Recited example updated accordingly: premium $1,200 written March 1, 2028 (365 days), California tax 2.35% = $28.20, fee $25, charge $1,253.20; cancelled on day 100: unearned 87124 cents, tax refunded ceil(87124 x 2.35%) = 2048 cents, fee 0, total refund 89172 cents ($891.72). Commission 15% on the $1,200 collected: $180.
+
+## 2026-09-08T09:57:02+00:00 | Explicit user decision | Negative endorsement delta is refunded immediately through Stripe
+
+A premium decrease mid-term (for example $1,800 to $1,200 on day 100: 43562 cents owed to the customer, rounded up) is refunded at once through the Stripe Refunds API on the original payment, like a partial cancellation, with commission clawed back on the refunded premium. Rejected: a customer credit account carried to the next charge. Closes review finding F-05.
+
+## 2026-09-08T09:57:02+00:00 | Explicit user decision | Commission clawback rounded down
+
+Clawback = commission rate x refunded premium, rounded down (87124 x 15% = 13068.6 -> 13068 cents). One rounding rule for the whole system: the insurer absorbs every fraction; neither customer nor broker loses a cent. Closes review finding F-17.
