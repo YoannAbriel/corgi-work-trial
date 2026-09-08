@@ -121,7 +121,7 @@ export type ReconciliationBreakRow = {
 // the oldest open break, so the ordinary case resolves itself (lib/reconciliation/run.ts,
 // windowCoveringOpenBreaks).
 //
-// record_at is null on items written before migration 0013. Their first-seen instant stands in
+// record_at is null on items written before migration 0016. Their first-seen instant stands in
 // for it: that is when we first saw the record, and it is by construction inside the window of
 // the run that reported it, so one rule covers old and new items alike.
 //
