@@ -83,7 +83,7 @@ Read in this order. Each line says what the file is for.
 
 1. `db/migrations/0011_reconciliation.sql` - the two tables, their guards, their grants, and the
    CHECK constraints that stop a failed run from claiming it compared anything;
-   `db/migrations/0016_reconciliation_item_record_date.sql` - the record date each item carries,
+   `db/migrations/0017_reconciliation_item_record_date.sql` - the record date each item carries,
    which is what lets a later run say whether it re-examined a break or never looked at it.
 2. `lib/reconciliation/window.ts` - what a time window is, how a typed date is read, why the
    default is seven days and why a maximum exists.
