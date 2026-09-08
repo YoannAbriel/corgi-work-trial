@@ -1,11 +1,39 @@
 # Corgi decorative illustration library
 
-Work in progress: target 150 distinct original illustrations, generated on the user-owned DGX Spark with the installed Krea2 Turbo model. Cutout variants use the installed BiRefNet model on the same machine. WebP exports live in `public/illustrations/library`; a format variant never counts as a second illustration.
+This directory documents 150 named, original illustrations generated on Yoann's DGX Spark for Corgi-style interface decoration and empty states. The collection is complete and its application is intentionally left to the interface owner.
 
-`collection-plan.json` contains all named subjects, families, intended uses, dimensions and prompts. `reviews.json` records actual visual acceptances and rejections. `catalog.json` contains only accepted available exports with generation provenance and file hashes. `PROGRESS.md` records the current production state. A generated candidate is not automatically accepted.
+## Library structure
 
-Visual direction is based on the user-provided public Corgi assets: [coverage collage](https://app.corgi.insure/images/coverages/epl.png), [leadership](https://app.corgi.insure/images/coverages/do.png), [general liability](https://app.corgi.insure/images/coverages/cgl.png), [cyber](https://app.corgi.insure/images/coverages/cyber.png), [technology](https://app.corgi.insure/images/coverages/tech-eo.png), and the painted corgi characters and pastoral footer at [Corgi](https://www.corgi.insure/). References guide style; the outputs are new compositions, not republished source assets.
+- `collection-plan.json`: the 150 subjects, names, families, UI uses, dimensions, prompts, seeds and model settings.
+- `reviews.json`: the accepted or rejected decision for every generated attempt retained in the production record.
+- `catalog.json`: the delivery index for the 150 accepted WebP files, including provenance, dimensions, byte count and SHA-256 hash.
+- `PROGRESS.md`: generation, retry and QA evidence.
+- `public/illustrations/library/<id>.webp`: the final assets.
 
-Use cutouts with `object-fit: contain` and retain enough space for ears, paws and object edges. Use panoramas in wide decorative areas, preserving their quiet sky and horizon. These are decoration, not financial status evidence; meaningful empty-state messages and actions remain normal HTML. Use empty alternative text when the adjacent UI already supplies meaning.
+The catalog is the source to use when selecting an image. A filename and a resized variant never count as another illustration.
 
-No application code, business behavior, live provider integration or deployment is changed by this asset branch. Final collection count, individual quality review and export verification remain pending.
+## Visual families
+
+| Family | Count | Typical use | Treatment |
+|---|---:|---|---|
+| `ink` | 70 | Empty tables, unavailable records, verification, documents and operational states | Black editorial stipple and engraving on white or transparent ground |
+| `painted` | 60 | Welcomes, role cues, contextual help and warmer empty states | Expressive ginger corgi characters with restrained blue, green, ochre and rust accents |
+| `panorama` | 20 | Wide decorative bands, quiet page endings and large empty areas | Soft pastoral landscapes with a small corgi motif and generous visual calm |
+
+The size mix is 60 square `1024 x 1024`, 40 landscape `1152 x 768`, 40 portrait `768 x 1024` and 10 wide `1344 x 576` images.
+
+## Using the assets
+
+Use `object-fit: contain` for cutouts so ears, paws and object edges stay visible. The 97 transparent cutouts can sit on the application's pale surfaces. The 33 opaque cutout fallbacks should be placed on white or warm off-white surfaces; they deliberately preserve pale companion objects that an automatic mask removed. The 20 panoramas are opaque and suit wide crops where their quiet sky and horizon remain visible.
+
+Illustrations are decorative support. Keep empty-state titles, explanations and actions as real HTML. Use an empty alternative text when nearby copy already communicates the state; use concise descriptive alternative text only when the image adds information needed to understand the page.
+
+Example selection code can read `catalog.json` by `usage`, `family`, dimensions or ID. Do not infer financial status from an illustration.
+
+## Generation and provenance
+
+The images were generated with `krea2_turbo_fp8_scaled.safetensors` through ComfyUI on the user-owned DGX Spark. Transparent candidates were processed with the installed BiRefNet model on the same machine. Ten unsatisfactory planned generations were retriggered and only their corrected attempts were exported. Prompts, seeds, job IDs, accepted attempts and source hashes remain attached to each catalog entry.
+
+The direction comes from the public Corgi coverage collages, painted character assets and pastoral footer supplied by Yoann. Those references guided tone, palette and composition. The delivery contains new compositions, no copied Corgi wordmark, no personal account data and no republished reference file.
+
+No application code, business behavior, live integration or deployment is changed by this asset branch.

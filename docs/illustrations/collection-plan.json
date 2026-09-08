@@ -10,8 +10,8 @@
     "seed": 927150,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "002-closed-folder",
@@ -24,8 +24,8 @@
     "seed": 927152,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "003-open-folder",
@@ -38,8 +38,8 @@
     "seed": 927153,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "004-paper-stack",
@@ -52,8 +52,8 @@
     "seed": 927154,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "005-sealed-envelope",
@@ -62,12 +62,12 @@
     "usage": "no-messages",
     "width": 1024,
     "height": 1024,
-    "prompt": "A sealed blank envelope with a small sprig of olive leaves. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "prompt": "A clearly recognizable closed rectangular envelope made from blank white paper, flap visibly sealed, with one small olive sprig tucked under a round unmarked wax seal. The envelope is the dominant subject. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central fifty percent of the canvas. Crisp complete silhouette. No scenery, no border, no letters, no text, no watermark, no logo.",
     "seed": 927155,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "006-open-mailbox",
@@ -80,8 +80,8 @@
     "seed": 927156,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "007-magnifying-glass",
@@ -90,12 +90,12 @@
     "usage": "search",
     "width": 1024,
     "height": 1024,
-    "prompt": "A magnifying glass examining one single blank page. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "prompt": "A complete vintage handheld magnifying glass lying diagonally beside one single blank page. The entire circular lens and the entire handle including its end are fully visible with wide white space on every side; nothing touches or leaves the canvas. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Only black ink and white, no color. Pure white background. No scenery, no border, no letters, no text, no watermark, no logo.",
     "seed": 927157,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "008-binoculars",
@@ -108,8 +108,8 @@
     "seed": 927158,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "009-telescope",
@@ -122,8 +122,8 @@
     "seed": 927159,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "010-compass",
@@ -132,12 +132,12 @@
     "usage": "navigation",
     "width": 1024,
     "height": 1024,
-    "prompt": "An antique pocket compass with an abstract needle and no markings. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "prompt": "An antique pocket compass with a completely plain unmarked circular face, a single abstract arrow-shaped needle, and no divisions, numbers, letters, cardinal marks, symbols or typography anywhere. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central fifty percent. No scenery, no border, no text, no watermark, no logo.",
     "seed": 927160,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "011-hourglass",
@@ -150,8 +150,8 @@
     "seed": 927161,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "012-pocket-watch",
@@ -164,8 +164,8 @@
     "seed": 927162,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "013-calendar-leaf",
@@ -178,8 +178,8 @@
     "seed": 927163,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "014-empty-basket",
@@ -192,8 +192,8 @@
     "seed": 927164,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "015-in-tray",
@@ -206,8 +206,8 @@
     "seed": 927165,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "016-archive-box",
@@ -220,8 +220,8 @@
     "seed": 927166,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "017-bookshelf",
@@ -234,8 +234,8 @@
     "seed": 927167,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "018-book-and-key",
@@ -248,8 +248,8 @@
     "seed": 927168,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "019-open-ledger",
@@ -258,12 +258,12 @@
     "usage": "ledger",
     "width": 1024,
     "height": 1024,
-    "prompt": "An open ledger showing blank ruled lines without letters or numbers. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "prompt": "A clearly recognizable physical open hardbound accounting ledger resting on a tableless white background, with thick front and back covers, a visible central book spine, curved page edges, and blank ruled lines across both open pages. The bound book structure is the dominant subject, never a floating grid or loose chart. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central fifty percent of the canvas. No scenery, no border, no letters, no numbers, no text, no watermark, no logo.",
     "seed": 927169,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "020-balance-scales",
@@ -276,8 +276,8 @@
     "seed": 927170,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "021-paired-coins",
@@ -290,8 +290,8 @@
     "seed": 927171,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "022-coin-return",
@@ -300,12 +300,12 @@
     "usage": "refund",
     "width": 1024,
     "height": 1024,
-    "prompt": "A single blank coin beside an open small drawstring purse. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "prompt": "A single completely featureless smooth round metal token beside an open small drawstring purse. The token has a blank flat face: no portrait, currency symbol, emblem, number, letters, milled inscription or decorative border. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central fifty percent of the canvas. No scenery, no border, no text, no watermark, no logo.",
     "seed": 927172,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "023-empty-vault",
@@ -318,8 +318,8 @@
     "seed": 927173,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "024-receipt-roll",
@@ -328,12 +328,12 @@
     "usage": "statements",
     "width": 1024,
     "height": 1024,
-    "prompt": "A gently curling roll of completely blank receipt paper. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "prompt": "A compact vintage mechanical adding machine with a very narrow two-inch accounting paper tape mounted on a tiny exposed spindle at the back. The long blank paper tape passes through the machine and exits from the top in one gentle curl. Show the solid metal machine body and a small grid of completely blank keys so the subject is unmistakably office accounting equipment. The tape is much narrower than any household tissue roll; no bathroom form, no soft tissue texture, no large hollow cylinder. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central fifty percent of the canvas. No scenery, no letters, no numbers, no text, no watermark, no logo.",
     "seed": 927174,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "025-wax-seal",
@@ -346,8 +346,8 @@
     "seed": 927175,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "026-shield-leaf",
@@ -360,8 +360,8 @@
     "seed": 927176,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "027-umbrella",
@@ -374,8 +374,8 @@
     "seed": 927177,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "028-rain-boots",
@@ -388,8 +388,8 @@
     "seed": 927178,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "029-lighthouse",
@@ -402,8 +402,8 @@
     "seed": 927179,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "030-life-ring",
@@ -416,8 +416,8 @@
     "seed": 927180,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "031-safety-net",
@@ -430,8 +430,8 @@
     "seed": 927181,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "032-helmet",
@@ -444,8 +444,8 @@
     "seed": 927182,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "033-toolbox",
@@ -458,8 +458,8 @@
     "seed": 927183,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "034-wrench-gears",
@@ -472,8 +472,8 @@
     "seed": 927184,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "035-broken-link",
@@ -482,12 +482,12 @@
     "usage": "disconnected",
     "width": 1024,
     "height": 1024,
-    "prompt": "Two separated chain links with a small clean gap between them. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Clearly recognizable objects, realistic proportions, deliberately sparse composition. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central sixty percent of the canvas. Fine irregular dot shading, crisp silhouette, subtle texture within the objects. No scenery, no border, no letters, no text, no watermark, no logo.",
+    "prompt": "Exactly two separate oval metal chain links, one on the left and one on the right, lying horizontally and not touching. A clearly visible empty white gap at least half a link wide separates them. No third link, no connector and no overlap: the broken connection must be obvious at a glance. Refined black ink photogravure and stochastic stipple halftone illustration, vintage newspaper engraved collage like high-end editorial insurance illustrations. Only black ink and white, no color. Pure white background and generous empty margins, entire subject contained inside the central fifty percent of the canvas. No scenery, no border, no letters, no text, no watermark, no logo.",
     "seed": 927185,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "036-connected-link",
@@ -500,8 +500,8 @@
     "seed": 927186,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "037-padlock",
@@ -514,8 +514,8 @@
     "seed": 927187,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "038-open-padlock",
@@ -528,8 +528,8 @@
     "seed": 927188,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "039-key-ring",
@@ -542,8 +542,8 @@
     "seed": 927189,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "040-server-box",
@@ -556,8 +556,8 @@
     "seed": 927190,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "041-laptop-closed",
@@ -570,8 +570,8 @@
     "seed": 927191,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "042-cable-plug",
@@ -584,8 +584,8 @@
     "seed": 927192,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "043-cloud-ladder",
@@ -598,8 +598,8 @@
     "seed": 927193,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "044-paper-cloud",
@@ -612,8 +612,8 @@
     "seed": 927194,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "045-bird-branch",
@@ -626,8 +626,8 @@
     "seed": 927195,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "046-dove-envelope",
@@ -640,8 +640,8 @@
     "seed": 927196,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "047-nest",
@@ -654,8 +654,8 @@
     "seed": 927197,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "048-seedling",
@@ -668,8 +668,8 @@
     "seed": 927198,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "049-watering-can",
@@ -682,8 +682,8 @@
     "seed": 927199,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "050-acorn-oak",
@@ -696,8 +696,8 @@
     "seed": 927200,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "051-bonsai",
@@ -710,8 +710,8 @@
     "seed": 927201,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "052-olive-branch",
@@ -724,8 +724,8 @@
     "seed": 927202,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "053-wildflower",
@@ -738,8 +738,8 @@
     "seed": 927203,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "054-stepping-stones",
@@ -752,8 +752,8 @@
     "seed": 927204,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "055-bridge",
@@ -766,8 +766,8 @@
     "seed": 927205,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "056-sailboat",
@@ -780,8 +780,8 @@
     "seed": 927206,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "057-anchor",
@@ -794,8 +794,8 @@
     "seed": 927207,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "058-mountain-flag",
@@ -808,8 +808,8 @@
     "seed": 927208,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "059-kite-string",
@@ -822,8 +822,8 @@
     "seed": 927209,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "060-hot-air-balloon",
@@ -836,8 +836,8 @@
     "seed": 927210,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "061-parcel",
@@ -850,8 +850,8 @@
     "seed": 927211,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "062-handshake-gloves",
@@ -864,8 +864,8 @@
     "seed": 927212,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "063-chess-knight",
@@ -878,8 +878,8 @@
     "seed": 927213,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "064-chess-king",
@@ -892,8 +892,8 @@
     "seed": 927214,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "065-puzzle-piece",
@@ -906,8 +906,8 @@
     "seed": 927215,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "066-stacking-stones",
@@ -920,8 +920,8 @@
     "seed": 927216,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "067-corgi-search",
@@ -934,8 +934,8 @@
     "seed": 927217,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "068-corgi-sleeping",
@@ -948,8 +948,8 @@
     "seed": 927218,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "069-corgi-guard",
@@ -962,8 +962,8 @@
     "seed": 927219,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "070-corgi-letter",
@@ -976,8 +976,8 @@
     "seed": 927220,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "071-corgi-archivist",
@@ -990,8 +990,8 @@
     "seed": 927151,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "072-corgi-founder-notebook",
@@ -1004,8 +1004,8 @@
     "seed": 927222,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "073-corgi-broker-satchel",
@@ -1018,8 +1018,8 @@
     "seed": 927223,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "074-corgi-accountant",
@@ -1032,8 +1032,8 @@
     "seed": 927224,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "075-corgi-checker",
@@ -1046,8 +1046,8 @@
     "seed": 927225,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "076-corgi-researcher",
@@ -1060,8 +1060,8 @@
     "seed": 927226,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "077-corgi-gardener",
@@ -1074,8 +1074,8 @@
     "seed": 927227,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "078-corgi-chef",
@@ -1088,8 +1088,8 @@
     "seed": 927228,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "079-corgi-doctor",
@@ -1102,8 +1102,8 @@
     "seed": 927229,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "080-corgi-architect",
@@ -1116,8 +1116,8 @@
     "seed": 927230,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "081-corgi-engineer",
@@ -1130,8 +1130,8 @@
     "seed": 927231,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "082-corgi-designer",
@@ -1144,8 +1144,8 @@
     "seed": 927232,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "083-corgi-teacher",
@@ -1158,8 +1158,8 @@
     "seed": 927233,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "084-corgi-scientist",
@@ -1172,8 +1172,8 @@
     "seed": 927234,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "085-corgi-florist",
@@ -1186,8 +1186,8 @@
     "seed": 927235,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "086-corgi-barista",
@@ -1200,8 +1200,8 @@
     "seed": 927236,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "087-corgi-baker",
@@ -1214,8 +1214,8 @@
     "seed": 927237,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "088-corgi-carpenter",
@@ -1228,8 +1228,8 @@
     "seed": 927238,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "089-corgi-photographer",
@@ -1242,8 +1242,8 @@
     "seed": 927239,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "090-corgi-musician",
@@ -1256,8 +1256,8 @@
     "seed": 927240,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "091-corgi-artist",
@@ -1270,8 +1270,8 @@
     "seed": 927241,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "092-corgi-librarian",
@@ -1284,8 +1284,8 @@
     "seed": 927242,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "093-corgi-courier",
@@ -1298,8 +1298,8 @@
     "seed": 927243,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "094-corgi-sailor",
@@ -1312,8 +1312,8 @@
     "seed": 927244,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "095-corgi-hiker",
@@ -1326,8 +1326,8 @@
     "seed": 927245,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "096-corgi-ranger",
@@ -1340,8 +1340,8 @@
     "seed": 927246,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "097-corgi-lifeguard",
@@ -1354,8 +1354,8 @@
     "seed": 927247,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "098-corgi-mechanic",
@@ -1368,8 +1368,8 @@
     "seed": 927248,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "099-corgi-electrician",
@@ -1382,8 +1382,8 @@
     "seed": 927249,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "100-corgi-pilot",
@@ -1396,8 +1396,8 @@
     "seed": 927250,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "101-corgi-astronomer",
@@ -1410,8 +1410,8 @@
     "seed": 927251,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "102-corgi-geologist",
@@ -1424,8 +1424,8 @@
     "seed": 927252,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "103-corgi-tailor",
@@ -1438,8 +1438,8 @@
     "seed": 927253,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "104-corgi-beekeeper",
@@ -1452,8 +1452,8 @@
     "seed": 927254,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "105-corgi-shopkeeper",
@@ -1466,8 +1466,8 @@
     "seed": 927255,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "106-corgi-welcoming",
@@ -1480,8 +1480,8 @@
     "seed": 927256,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "107-corgi-resting",
@@ -1494,8 +1494,8 @@
     "seed": 927257,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "108-corgi-waiting",
@@ -1508,8 +1508,8 @@
     "seed": 927258,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "109-corgi-curious",
@@ -1518,12 +1518,12 @@
     "usage": "nothing-found",
     "width": 768,
     "height": 1024,
-    "prompt": "A corgi tilting the head inquisitively beside a completely empty folder. Charming hand-painted gouache editorial illustration with visible dry brush fur, warm subtle shading, expressive natural dog face, sophisticated storybook painting for a premium insurance brand. An adult Pembroke Welsh corgi with short legs, a long low body, large upright triangular ears, white muzzle and chest, ginger and cream fur. Full body three-quarter view; correct natural canine anatomy. The whole character including paws and ears is inside the central seventy percent, spacious pure white background, no scenery or floor line. No typography, lettering, logos or watermark. Not a 3D render, not clay, not vector clipart.",
+    "prompt": "A curious corgi tilting its head inquisitively beside exactly one empty manila file folder lying open and completely flat on the ground like a blank book. The folder has only two simple plain tan covers spread wide, with a broad visibly empty interior. No papers, no inserts, no tabs, no stacked folders, no documents, no contents of any kind. Charming hand-painted gouache editorial illustration with visible dry brush fur, warm subtle shading, expressive natural dog face, sophisticated storybook painting for a premium insurance brand. An adult Pembroke Welsh corgi with short legs, a long low body, large upright triangular ears, white muzzle and chest, ginger and cream fur. Full body three-quarter view; correct natural canine anatomy. Keep both dog and entire flat empty folder inside the central seventy percent, spacious pure white background, no scenery or floor line. No typography, lettering, logos or watermark. Not a 3D render, not clay, not vector clipart.",
     "seed": 927259,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "110-corgi-celebrating",
@@ -1536,8 +1536,8 @@
     "seed": 927260,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "111-corgi-careful-step",
@@ -1550,8 +1550,8 @@
     "seed": 927261,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "112-corgi-umbrella",
@@ -1564,8 +1564,8 @@
     "seed": 927262,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "113-corgi-raincoat",
@@ -1578,8 +1578,8 @@
     "seed": 927263,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "114-corgi-winter-scarf",
@@ -1592,8 +1592,8 @@
     "seed": 927264,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "115-corgi-spring-daisy",
@@ -1606,8 +1606,8 @@
     "seed": 927265,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "116-corgi-summer-hat",
@@ -1620,8 +1620,8 @@
     "seed": 927266,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "117-corgi-autumn-leaf",
@@ -1634,8 +1634,8 @@
     "seed": 927267,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "118-corgi-reading",
@@ -1648,8 +1648,8 @@
     "seed": 927268,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "119-corgi-laptop-work",
@@ -1662,8 +1662,8 @@
     "seed": 927269,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "120-corgi-phone-message",
@@ -1676,8 +1676,8 @@
     "seed": 927270,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "121-corgi-folder-delivery",
@@ -1690,8 +1690,8 @@
     "seed": 927271,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "122-corgi-blanket-fort",
@@ -1704,8 +1704,8 @@
     "seed": 927272,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "123-corgi-window-watch",
@@ -1718,8 +1718,8 @@
     "seed": 927273,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "124-corgi-plant-care",
@@ -1732,8 +1732,8 @@
     "seed": 927274,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "125-corgi-star-gazing",
@@ -1746,8 +1746,8 @@
     "seed": 927275,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "126-corgi-map-explorer",
@@ -1760,8 +1760,8 @@
     "seed": 927276,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "127-corgi-tea-break",
@@ -1774,8 +1774,8 @@
     "seed": 927277,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "128-corgi-stretching",
@@ -1784,12 +1784,12 @@
     "usage": "ready",
     "width": 1024,
     "height": 1024,
-    "prompt": "A corgi performing a natural front-leg stretch with hindquarters raised, wearing a plain muted orange collar. Charming hand-painted gouache editorial illustration with visible dry brush fur, warm subtle shading, expressive natural dog face, sophisticated storybook painting for a premium insurance brand. An adult Pembroke Welsh corgi with short legs, a long low body, large upright triangular ears, white muzzle and chest, ginger and cream fur. Full body three-quarter view; correct natural canine anatomy. The whole character including paws and ears is inside the central seventy percent, spacious pure white background, no scenery or floor line. No typography, lettering, logos or watermark. Not a 3D render, not clay, not vector clipart.",
+    "prompt": "A corgi performing an unmistakable natural waking stretch: both front legs extended far forward on the ground, chest lowered almost to the paws, elbows straight, back sloping sharply upward, and hindquarters raised high in the air. This must read as a canine stretch, not standing or walking. The corgi wears one plain muted orange collar. Charming hand-painted gouache editorial illustration with visible dry brush fur, warm subtle shading, expressive natural dog face, sophisticated storybook painting for a premium insurance brand. An adult Pembroke Welsh corgi with short legs, a long low body, large upright triangular ears, white muzzle and chest, ginger and cream fur. Full body three-quarter side view; correct natural canine anatomy. The whole character including paws and ears is inside the central seventy percent, spacious pure white background, no scenery or floor line. No typography, lettering, logos or watermark. Not a 3D render, not clay, not vector clipart.",
     "seed": 927278,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "129-corgi-partner-pair",
@@ -1798,12 +1798,12 @@
     "usage": "team",
     "width": 1024,
     "height": 1024,
-    "prompt": "A corgi two corgis, one ginger and one sable, sitting calmly side by side with matching muted blue neckerchiefs. Charming hand-painted gouache editorial illustration with visible dry brush fur, warm subtle shading, expressive natural dog face, sophisticated storybook painting for a premium insurance brand. An adult Pembroke Welsh corgi with short legs, a long low body, large upright triangular ears, white muzzle and chest, ginger and cream fur. Full body three-quarter view; correct natural canine anatomy. The whole character including paws and ears is inside the central seventy percent, spacious pure white background, no scenery or floor line. No typography, lettering, logos or watermark. Not a 3D render, not clay, not vector clipart.",
+    "prompt": "Exactly two adult Pembroke Welsh corgis sitting calmly side by side as partners. The left dog is a classic bright ginger-and-white corgi. The right dog is visibly different: a dark sable tricolor corgi with a broad charcoal-black saddle across the back, deep brown sides, tan face markings and a white chest. Both wear matching muted blue neckerchiefs. Preserve the strong color contrast between the two coats; do not render two ginger dogs. Charming hand-painted gouache editorial illustration with visible dry brush fur, warm subtle shading, expressive natural dog faces, sophisticated storybook painting for a premium insurance brand. Short legs, long low bodies and large upright triangular ears; full bodies in three-quarter view with correct natural canine anatomy. Keep both entire dogs inside the central seventy percent, spacious pure white background, no scenery or floor line. No typography, lettering, logos or watermark. Not a 3D render, not clay, not vector clipart.",
     "seed": 927279,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "130-corgi-proud-finish",
@@ -1816,8 +1816,8 @@
     "seed": 927280,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "131-meadow-path",
@@ -1830,8 +1830,8 @@
     "seed": 927281,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "132-orchard-morning",
@@ -1844,8 +1844,8 @@
     "seed": 927282,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "133-coastal-lighthouse",
@@ -1858,8 +1858,8 @@
     "seed": 927283,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "134-village-square",
@@ -1872,8 +1872,8 @@
     "seed": 927284,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "135-river-bridge",
@@ -1886,8 +1886,8 @@
     "seed": 927285,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "136-rolling-wheat",
@@ -1900,8 +1900,8 @@
     "seed": 927286,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "137-forest-clearing",
@@ -1914,8 +1914,8 @@
     "seed": 927287,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "138-hilltop-cottage",
@@ -1928,8 +1928,8 @@
     "seed": 927288,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "139-harbor-dawn",
@@ -1942,8 +1942,8 @@
     "seed": 927289,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "140-lavender-garden",
@@ -1956,8 +1956,8 @@
     "seed": 927290,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "141-autumn-valley",
@@ -1970,8 +1970,8 @@
     "seed": 927291,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "142-winter-cabin",
@@ -1984,8 +1984,8 @@
     "seed": 927292,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "143-spring-terrace",
@@ -1998,8 +1998,8 @@
     "seed": 927293,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "144-summer-picnic",
@@ -2012,8 +2012,8 @@
     "seed": 927294,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "145-mountain-lake",
@@ -2026,8 +2026,8 @@
     "seed": 927295,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "146-garden-gate",
@@ -2040,8 +2040,8 @@
     "seed": 927296,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "147-countryside-train",
@@ -2054,8 +2054,8 @@
     "seed": 927297,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "148-island-retreat",
@@ -2068,8 +2068,8 @@
     "seed": 927298,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "149-moonlit-hills",
@@ -2082,8 +2082,8 @@
     "seed": 927299,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   },
   {
     "id": "150-sunset-road",
@@ -2096,7 +2096,7 @@
     "seed": 927300,
     "steps": 8,
     "model": "krea2_turbo_fp8_scaled.safetensors",
-    "status": "planned",
-    "review": "pending"
+    "status": "accepted",
+    "review": "accepted"
   }
 ]
