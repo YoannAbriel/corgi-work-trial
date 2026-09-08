@@ -24,3 +24,6 @@ next-env.d.ts
 skills-lock.json
 .env.vercel.local
 .claude/worktrees/
+
+# Worktrees created by other tools (Codex) at the repository root
+.worktrees/
