@@ -332,6 +332,27 @@ async function checkAPaymentOnAVoidedPolicyIsRefused(): Promise<void> {
     checkoutRefusal = error instanceof CheckoutRefused ? error.message : `unexpected error: ${String(error)}`;
   }
   report("a voided policy cannot start a new payment", checkoutRefusal.includes("voided by a correction"), checkoutRefusal);
+
+  // 4. And after the policy is RE-BOOKED, the same redelivery reads as an ordinary replay again
+  // (review finding F-B2-18). Slice B8 will write that 'correction_rebook' event as part of a
+  // correction; here it is fabricated on the disposable database, because the point being proven
+  // is how the payment guard reads the policy's events, not how B8 writes them.
+  await owner`
+    insert into policy_events (policy_id, event_type, effective_at, payload)
+    values (${policyId}, 'correction_rebook', ${TERM_START},
+            ${owner.json({ note: "replay check fixture: stands in for the B8 re-book of a voided policy" })})
+  `;
+  const afterRebook = await recordSuccessfulPayment(payment, runtime);
+  report(
+    "once the policy is re-booked, a redelivery of the original payment is already posted, not refused",
+    afterRebook.kind === "already_posted",
+    afterRebook.kind === "refused" ? afterRebook.reason : `outcome: ${afterRebook.kind}`,
+  );
+  report(
+    "and that redelivery journaled nothing new: the four entries and their reversals are unchanged",
+    (await countEntriesOfOperation(operationId)) === 4 && (await countEntriesOfPolicy(policyId)) === 8,
+    `${await countEntriesOfOperation(operationId)} entries under the operation, ${await countEntriesOfPolicy(policyId)} on the policy`,
+  );
 }
 
 // The second money operation a broker would get by clicking Pay again: same policy, new id,
