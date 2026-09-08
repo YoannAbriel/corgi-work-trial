@@ -34,6 +34,8 @@ const PROTECTED_TABLES = [
   "money_operation_events",
   "state_tax_rates",
   "broker_kyb_events",
+  // Added by migration 0005 (slice B5): what each Stripe refund gives back and why.
+  "refund_allocations",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -99,6 +101,23 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
   const [kybEvent] = await tx<{ id: string }[]>`
     insert into broker_kyb_events (broker_id, provider, status) values (${broker.id}, 'seed', 'approved') returning id
   `;
+  // A refund of that collection, with the allocation row that says what it gives back
+  // (migration 0005). 89172 = 87124 of premium + 2048 of tax, the recited example.
+  const [refundOperation] = await tx<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+    values ('stripe_refund', 'stripe', 89172, ${policy.id}, 'guard-check-refund:' || gen_random_uuid()::text)
+    returning id
+  `;
+  const [allocation] = await tx<{ id: string }[]>`
+    insert into refund_allocations (
+      refund_operation_id, policy_id, policy_event_id, collection_operation_id, payment_intent_id,
+      amount_cents, refunded_premium_cents, refunded_tax_cents, commission_clawback_cents
+    ) values (
+      ${refundOperation.id}, ${policy.id}, ${policyEvent.id}, ${operation.id}, 'pi_guard_check',
+      89172, 87124, 2048, 13068
+    )
+    returning id
+  `;
   return {
     brokers: broker.id,
     policies: policy.id,
@@ -107,6 +126,7 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     money_operation_events: operationEvent.id,
     state_tax_rates: taxRate.id,
     broker_kyb_events: kybEvent.id,
+    refund_allocations: allocation.id,
   };
 }
 
@@ -173,7 +193,7 @@ async function main() {
   }
 
   // 4. recorded_at and created_at come from the database clock, not from the client.
-  let storedTimes: { policy_event: Date; operation: Date } | null = null;
+  let storedTimes: { policy_event: Date; operation: Date; refund_allocation: Date } | null = null;
   await expectError(owner, async (tx) => {
     const fixture = await insertFixtureRows(tx);
     const [policyEvent] = await tx<{ recorded_at: Date }[]>`
@@ -181,23 +201,79 @@ async function main() {
       values (${fixture.policies}, 'endorsed', '2028-03-01', '2000-01-01T00:00:00Z', '{"annual_premium_cents": 1}'::jsonb)
       returning recorded_at
     `;
-    const [operation] = await tx<{ created_at: Date }[]>`
+    const [operation] = await tx<{ id: string; created_at: Date }[]>`
       insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key, created_at)
-      values ('stripe_checkout', 'stripe', 1, ${fixture.policies}, 'guard-check-clock:' || gen_random_uuid()::text,
+      values ('stripe_refund', 'stripe', 1, ${fixture.policies}, 'guard-check-clock:' || gen_random_uuid()::text,
               '2000-01-01T00:00:00Z')
-      returning created_at
+      returning id, created_at
     `;
-    storedTimes = { policy_event: policyEvent.recorded_at, operation: operation.created_at };
+    const [allocation] = await tx<{ recorded_at: Date }[]>`
+      insert into refund_allocations (
+        refund_operation_id, policy_id, policy_event_id, collection_operation_id, payment_intent_id,
+        amount_cents, refunded_premium_cents, refunded_tax_cents, commission_clawback_cents, recorded_at
+      ) values (
+        ${operation.id}, ${fixture.policies}, ${fixture.policy_events}, ${fixture.money_operations},
+        'pi_guard_check_clock', 1, 1, 0, 0, '2000-01-01T00:00:00Z'
+      )
+      returning recorded_at
+    `;
+    storedTimes = {
+      policy_event: policyEvent.recorded_at,
+      operation: operation.created_at,
+      refund_allocation: allocation.recorded_at,
+    };
   });
-  const clockCheck = storedTimes as { policy_event: Date; operation: Date } | null;
+  const clockCheck = storedTimes as { policy_event: Date; operation: Date; refund_allocation: Date } | null;
   const serverClockWon =
     clockCheck !== null &&
     clockCheck.policy_event.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
-    clockCheck.operation.getTime() > Date.parse("2020-01-01T00:00:00Z");
+    clockCheck.operation.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
+    clockCheck.refund_allocation.getTime() > Date.parse("2020-01-01T00:00:00Z");
   report(
     "recorded_at and created_at ignore the client value",
     serverClockWon,
     clockCheck ? `stored ${clockCheck.policy_event.toISOString()} instead of 2000-01-01` : "no row read",
+  );
+
+  // 5. Migration 0005: the database refuses a refund whose parts do not add up to the amount
+  //    Stripe is asked for, and refuses a second cancellation of the same policy.
+  const brokenSplit = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [refundOperation] = await tx<{ id: string }[]>`
+      insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+      values ('stripe_refund', 'stripe', 100, ${fixture.policies}, 'guard-check-split:' || gen_random_uuid()::text)
+      returning id
+    `;
+    await tx`
+      insert into refund_allocations (
+        refund_operation_id, policy_id, policy_event_id, collection_operation_id, payment_intent_id,
+        amount_cents, refunded_premium_cents, refunded_tax_cents, commission_clawback_cents
+      ) values (
+        ${refundOperation.id}, ${fixture.policies}, ${fixture.policy_events}, ${fixture.money_operations},
+        'pi_guard_check_split', 100, 90, 5, 0
+      )
+    `;
+  });
+  report(
+    "a refund whose premium and tax do not add up to its amount is refused",
+    !!brokenSplit && /refund_allocations_check/i.test(brokenSplit),
+    brokenSplit ?? "no error raised",
+  );
+
+  const secondCancellation = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    for (const attempt of [1, 2]) {
+      await tx`
+        insert into policy_events (policy_id, event_type, effective_at, payload)
+        values (${fixture.policies}, 'cancelled', '2028-06-09',
+                ${tx.json({ attempt, calculation_method: "pro_rata" })})
+      `;
+    }
+  });
+  report(
+    "a policy cannot be cancelled twice",
+    !!secondCancellation && /policy_events_one_cancellation_per_policy/i.test(secondCancellation),
+    secondCancellation ?? "no error raised",
   );
 
   await owner.end();
