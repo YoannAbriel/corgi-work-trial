@@ -296,6 +296,14 @@ async function createPolicyAwaitingPayment(): Promise<{ policyId: string; operat
     const [broker] = await transaction<{ id: string }[]>`
       insert into brokers (name, commission_rate_bps) values ('Replay check broker', 1500) returning id
     `;
+    // Eligibility is checked again at binding time (lib/payments/collection.ts, slice B3), so
+    // the fixture broker needs a status on file. Provider 'seed' on purpose: the two-minute
+    // settling window applies to Stripe Connect statuses only, so a row written a moment ago
+    // is usable straight away.
+    await transaction`
+      insert into broker_kyb_events (broker_id, provider, status)
+      values (${broker.id}, 'seed', 'approved')
+    `;
     const [customer] = await transaction<{ id: string }[]>`
       insert into customers (name, email)
       values ('Replay check customer', 'replay-check-' || gen_random_uuid()::text || '@example.invalid')

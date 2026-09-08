@@ -155,6 +155,11 @@ export type CheckoutOperationView = {
   latestStatus: MoneyOperationStatus | null;
   checkoutUrl: string | null; // the hosted Stripe page, kept so a retry reuses the same session
   providerRef: string | null; // Checkout Session id
+  // Set when the money arrived but the policy was NOT bound because the broker was not
+  // eligible at that moment (lib/payments/collection.ts). It is read back from the operation's
+  // own 'succeeded' status row, so the page shows the reason that was recorded, not a fresh
+  // guess at why.
+  bindingRefusedReason: string | null;
 };
 
 // The policy's payment operation, if the broker has started one. There is at most one
@@ -186,12 +191,21 @@ export async function checkoutOperationOfPolicy(policyId: string): Promise<Check
      limit 1
   `;
 
+  // The payment succeeded; whether it also bound the policy is on that same row.
+  const [succeeded] = await sql<{ payload: { binding_refused_reason?: string } }[]>`
+    select payload from money_operation_events
+     where operation_id = ${operation.id} and status = 'succeeded'
+     order by sequence_number desc
+     limit 1
+  `;
+
   return {
     operationId: operation.id,
     amountCents: centsFromDatabase(operation.amount_cents, "amount_cents"),
     latestStatus: latest ? latest.status : null,
     checkoutUrl: accepted?.payload?.checkout_url ?? null,
     providerRef: accepted?.provider_ref ?? null,
+    bindingRefusedReason: succeeded?.payload?.binding_refused_reason ?? null,
   };
 }
 
