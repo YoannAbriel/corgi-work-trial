@@ -53,6 +53,21 @@ test("a PaymentIntent that did not succeed is not a record: no money moved", () 
   assert.deepEqual(stripeRecordsFromListing(listing).records, []);
 });
 
+test("the run note names the PaymentIntents that were dropped, so their absence is disclosed", () => {
+  const listing = withPaymentIntents([
+    { ...capturedListing.paymentIntents[0], id: "pi_processing", status: "processing" },
+    { ...capturedListing.paymentIntents[0], id: "pi_capture", status: "requires_capture" },
+    { ...capturedListing.paymentIntents[0], id: "pi_ok" },
+  ]);
+  const { records, note } = stripeRecordsFromListing(listing);
+  assert.equal(records.length, 1);
+  assert.match(note, /NOT compared: processing 1, requires_capture 1/);
+});
+
+test("when every PaymentIntent succeeded the note says so rather than staying silent", () => {
+  assert.match(stripeRecordsFromListing(capturedListing).note, /none was left out/);
+});
+
 test("a succeeded PaymentIntent with no metadata at all keeps no operation id (the planted break)", () => {
   const listing = withPaymentIntents([{ ...capturedListing.paymentIntents[0], id: "pi_planted", metadata: {} }]);
   const [record] = stripeRecordsFromListing(listing).records;
