@@ -1550,6 +1550,10 @@ div.note {
   text-align: right;
   overflow-wrap: anywhere;
 }
+.aside-list dd.aside-value-nowrap {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
 .aside-list dd .badge {
   margin: 0;
 }

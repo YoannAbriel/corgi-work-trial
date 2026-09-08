@@ -1,5 +1,4 @@
 import { PortalShell } from "@/components/portal-shell";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 import { isUuid } from "@/lib/http/path-ids";
@@ -66,9 +65,6 @@ export default async function NewClaimPage({ params }: { params: Promise<{ polic
         <label htmlFor="description">What happened</label>
         <input id="description" name="description" placeholder="water damage in the workshop" required />
         <button type="submit">Open a claim</button>
-        <Link href={`/policies/${policyId}`} className="button-link secondary">
-          Back to the policy
-        </Link>
       </form>
     </PortalShell>
   );

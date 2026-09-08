@@ -686,10 +686,10 @@ export default async function PolicyPage({
                       "not started"
                     ),
                   },
-                  { label: "Collected at Stripe", value: formatCentsAsUsd(ledger.collectedCents) },
-                  { label: "Refunded from Stripe", value: formatCentsAsUsd(ledger.refundedCents) },
-                  { label: "Commission owed to the broker, net", value: formatCentsAsUsd(ledger.commissionNetCents) },
-                  { label: "Unearned premium held", value: formatCentsAsUsd(ledger.unearnedPremiumCents) },
+                  { label: "Collected at Stripe", value: formatCentsAsUsd(ledger.collectedCents), nowrap: true },
+                  { label: "Refunded from Stripe", value: formatCentsAsUsd(ledger.refundedCents), nowrap: true },
+                  { label: "Commission owed to the broker, net", value: formatCentsAsUsd(ledger.commissionNetCents), nowrap: true },
+                  { label: "Unearned premium held", value: formatCentsAsUsd(ledger.unearnedPremiumCents), nowrap: true },
                   {
                     label: "Open claims",
                     value: openClaims.length === 0 ? "none" : `${openClaims.length}, reserve ${formatCentsAsUsd(openClaimReserveCents)}`,

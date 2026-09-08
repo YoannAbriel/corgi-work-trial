@@ -74,13 +74,13 @@ export function Facts({
 }
 
 // A vertical label and value list for the side column.
-export function AsideList({ items }: { items: { label: ReactNode; value: ReactNode }[] }) {
+export function AsideList({ items }: { items: { label: ReactNode; value: ReactNode; nowrap?: boolean }[] }) {
   return (
     <dl className="aside-list">
       {items.map((item, index) => (
         <div key={index}>
           <dt>{item.label}</dt>
-          <dd>{item.value}</dd>
+          <dd className={item.nowrap ? "aside-value-nowrap" : undefined}>{item.value}</dd>
         </div>
       ))}
     </dl>
