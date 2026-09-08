@@ -8,7 +8,7 @@ Files actually read in full this session: CLAUDE.md, AGENTS.md, AUTOMATIC-FAILS.
 
 Provider facts verified today against official documentation: Stripe refunds and refund webhooks work in test mode; Vercel Hobby cron runs at most once per day; Plaid sandbox is free and self-serve; Sumsub has an official MCP server, a trial sandbox and a review-state simulation API; Middesk issues a sandbox key at account creation with business-name triggers for verified, in_review and failed; Persona KYB requires contacting their team. Not yet verified: actual signup success for Sumsub or Middesk, Middesk webhook signature scheme, the modeled state's premium tax rate and source.
 
-Linear: authenticated in this session; the 16 domain tickets were listed read-only. Execution issues B0 to B14 are to be created next, domain tickets preserved as references.
+Linear: authenticated in this session; the 16 domain tickets were listed read-only and left unchanged. Execution issues B0 to B14 created as YOA-609 to YOA-623 with acceptance criteria, blocking relations, evidence and estimates; a project status update was posted. No scenario was marked passed.
 
 Written this session: docs/ATTACK-PLAN.md, docs/checkpoints/t-plus-2h-email.md (draft, Yoann sends), docs/PLAN.md, four decision entries in docs/DECISIONS.md. T+2h email send status: not confirmed at the time of this update; Yoann reports the actual send time in the email draft file.
 
