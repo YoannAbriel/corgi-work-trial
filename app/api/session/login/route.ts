@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const password = String(form.get("password") ?? "");
 
-  const [user] = await sql<{ id: string }[]>`select id from users where email = ${email}`;
+  const [user] = await sql<{ id: string; role: string }[]>`select id, role from users where email = ${email}`;
 
   // One message for a wrong email and a wrong password, so the form cannot be used to find out
   // which accounts exist.
@@ -27,7 +27,10 @@ export async function POST(request: Request) {
   const expiresAtEpochSeconds = Math.floor(Date.now() / 1000) + SESSION_LIFETIME_SECONDS;
   const cookie = signSessionCookie(user.id, expiresAtEpochSeconds, sessionSecret());
 
-  const response = redirectTo("/broker");
+  // Staff land on the operations map, everybody else on the broker journey (customers find
+  // their approvals from there; the screens ask the role question again for themselves).
+  const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
+  const response = redirectTo(isStaff ? "/ops" : "/broker");
   response.headers.append(
     "set-cookie",
     // HttpOnly: no script can read it. SameSite=Lax: it is not sent from another site's form.
