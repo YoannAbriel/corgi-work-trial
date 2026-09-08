@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -59,88 +60,89 @@ export default async function CustomerPage({
   // What is waiting for this customer, read once for the sidebar count and for the block below.
   const tasks = await workspaceTasks(user);
 
+  const notices = [
+    query.error ? <p key="error" className="error" role="alert">{query.error}</p> : null,
+    query.approved === "1" ? <p key="approved" className="note">Thank you, the endorsement is approved. Your broker collects the delta.</p> : null,
+    query.approved === "already" ? <p key="already" className="note">This endorsement was already approved.</p> : null,
+    query.correctionApproved === "1" ? (
+      <p key="capproved" className="note">Thank you, the correction is approved. Your broker collects the difference.</p>
+    ) : null,
+    query.correctionApproved === "already" ? <p key="calready" className="note">This correction was already approved.</p> : null,
+  ].filter(Boolean);
+
   return (
     <PortalShell user={user} active="policies" tasks={tasks}>
-      <h1>Your policies</h1>
-      <p className="lead">
-        Signed in as {user.displayName} ({user.email}).
-      </p>
+      <DetailHeading title="Your policies" lead={`${user.displayName} · ${user.email}`} />
+
+      {notices.length > 0 ? <div className="notices">{notices}</div> : null}
 
       <WhatNeedsYou tasks={tasks} />
 
-      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
-      {query.approved === "1" ? <p className="note">Thank you, the endorsement is approved. Your broker collects the delta.</p> : null}
-      {query.approved === "already" ? <p className="note">This endorsement was already approved.</p> : null}
-      {query.correctionApproved === "1" ? (
-        <p className="note">Thank you, the correction is approved. Your broker collects the difference.</p>
-      ) : null}
-      {query.correctionApproved === "already" ? (
-        <p className="note">This correction was already approved.</p>
-      ) : null}
-
-      {rows.length === 0 ? (
-        <p className="note">No policy is attached to your account yet.</p>
-      ) : (
-        <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
-<table>
-          <thead>
-            <tr>
-              <th>Policy</th>
-              <th>Broker</th>
-              <th>Term</th>
-              <th>Status</th>
-              <th className="amount">Annual premium in force</th>
-              <th>Endorsement</th>
-              <th>Correction</th>
-              <th>Documents</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((policy) => (
-              <tr key={policy.policy_id}>
-                <td>{policy.policy_number}</td>
-                <td>{policy.broker_name}</td>
-                <td>
-                  {policy.effective_at} to {policy.term_end}
-                </td>
-                <td>{policy.status}</td>
-                <td className="amount">{formatCentsAsUsd(centsFromDatabase(policy.annual_premium_cents, "annual_premium_cents"))}</td>
-                <td>
-                  {policy.live?.standing.state === "awaiting_approval" ? (
-                    <Link href={`/policies/${policy.policy_id}/endorsements/${policy.live.request.eventId}/approve`}>
-                      Approval needed: {formatCentsAsUsd(policy.live.request.figures.deltaTotalCents)}
-                    </Link>
-                  ) : policy.live ? (
-                    <span className="note">{policy.live.request.description} (approved, awaiting payment by the broker)</span>
-                  ) : (
-                    <span className="note">none pending</span>
-                  )}
-                </td>
-                <td>
-                  {policy.correctionsToApprove.length === 0 ? (
-                    <span className="note">none pending</span>
-                  ) : (
-                    policy.correctionsToApprove.map((correction) => (
-                      <Link
-                        key={correction.rebookEventId}
-                        href={`/policies/${policy.policy_id}/corrections/${correction.rebookEventId}/approve`}
-                      >
-                        Approval needed: {formatCentsAsUsd(correction.collection!.amountCents)}
-                      </Link>
-                    ))
-                  )}
-                </td>
-                <td>
-                  <a href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}>Declarations</a>
-                  {" / "}
-                  <a href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}>Schedule</a>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-</div>
-      )}
+      <Panel title="Policies" className="list-panel">
+        {rows.length === 0 ? (
+          <Empty>No policy is attached to your account yet.</Empty>
+        ) : (
+          <div className="table-scroll" role="region" aria-label="Your policies" tabIndex={0}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Policy</th>
+                  <th>Broker</th>
+                  <th>Term</th>
+                  <th>Status</th>
+                  <th className="amount">Annual premium in force</th>
+                  <th>Waiting for you</th>
+                  <th>Documents</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((policy) => (
+                  <tr key={policy.policy_id}>
+                    <td>{policy.policy_number}</td>
+                    <td>{policy.broker_name}</td>
+                    <td>
+                      {policy.effective_at} to {policy.term_end}
+                    </td>
+                    <td>
+                      <Chip tone={policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "neutral" : "warn"}>
+                        {policy.status.replace(/_/g, " ")}
+                      </Chip>
+                    </td>
+                    <td className="amount">{formatCentsAsUsd(centsFromDatabase(policy.annual_premium_cents, "annual_premium_cents"))}</td>
+                    <td>
+                      {policy.live?.standing.state === "awaiting_approval" ? (
+                        <Link
+                          href={`/policies/${policy.policy_id}/endorsements/${policy.live.request.eventId}/approve`}
+                          className="button-link orange small"
+                        >
+                          Approve the endorsement, {formatCentsAsUsd(policy.live.request.figures.deltaTotalCents)}
+                        </Link>
+                      ) : policy.live ? (
+                        <span className="note">{policy.live.request.description}: approved, awaiting payment by the broker</span>
+                      ) : null}
+                      {policy.correctionsToApprove.map((correction) => (
+                        <Link
+                          key={correction.rebookEventId}
+                          href={`/policies/${policy.policy_id}/corrections/${correction.rebookEventId}/approve`}
+                          className="button-link orange small"
+                        >
+                          Approve the correction, {formatCentsAsUsd(correction.collection!.amountCents)}
+                        </Link>
+                      ))}
+                      {!policy.live && policy.correctionsToApprove.length === 0 ? <span className="note">nothing</span> : null}
+                    </td>
+                    <td>
+                      <a href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}>Declarations</a>
+                      {" / "}
+                      <a href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}>Schedule</a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </PortalShell>
   );
 }

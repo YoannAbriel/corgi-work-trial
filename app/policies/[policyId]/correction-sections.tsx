@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Disclosure } from "@/components/disclosures";
 import { Empty, Panel } from "@/components/detail-layout";
+import { JournalTable } from "@/components/journal-table";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { correctionsOfPolicy, policyAsItStoodOn, policyTimeline } from "@/lib/policy/correction-read";
 import { FormulaLinesTable } from "./formula-lines";
@@ -97,46 +98,7 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
           <FormulaLinesTable lines={correction.lines} />
 
           <h4>The entries it posted</h4>
-          <div className="table-scroll" role="region" aria-label="Policy details table 1" tabIndex={0}>
-<table className="ledger">
-            <thead>
-              <tr>
-                <th>Entry</th>
-                <th>Effective</th>
-                <th>Recorded (UTC)</th>
-                <th>Account</th>
-                <th className="amount">Debit</th>
-                <th className="amount">Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {correction.entries.map((entry) =>
-                entry.lines.map((line, lineIndex) => (
-                  <tr key={`${entry.entryId}-${line.accountId}-${lineIndex}`}>
-                    {lineIndex === 0 ? (
-                      <>
-                        <td rowSpan={entry.lines.length}>
-                          {entry.entryType}
-                          {entry.reversesEntryId ? (
-                            <>
-                              <br />
-                              <span className="note">reverses entry {entry.reversesEntryId.slice(0, 8)}</span>
-                            </>
-                          ) : null}
-                        </td>
-                        <td rowSpan={entry.lines.length}>{entry.effectiveAt}</td>
-                        <td rowSpan={entry.lines.length}>{entry.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
-                      </>
-                    ) : null}
-                    <td>{line.accountName}</td>
-                    <td className="amount">{line.debitCents > 0 ? formatCentsAsUsd(line.debitCents) : ""}</td>
-                    <td className="amount">{line.creditCents > 0 ? formatCentsAsUsd(line.creditCents) : ""}</td>
-                  </tr>
-                )),
-              )}
-            </tbody>
-          </table>
-</div>
+          <JournalTable entries={correction.entries} visibleEntries={6} ariaLabel="Correction entries" />
           <p className="note">
             The cash entries of the original endorsement are not in this table on purpose: Stripe really does hold that
             money, so reversing them would make the ledger claim it left. What the correction changes is what the

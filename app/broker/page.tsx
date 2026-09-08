@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -18,12 +19,9 @@ export default async function BrokerPage() {
     const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
     return (
       <PortalShell active="policies" user={user}>
-        <h1>
-          Your <em>policies.</em>
-        </h1>
+        <DetailHeading title="Your policies" />
         <p className="error" role="alert">
-          This page is the broker journey. Your account has the role &quot;
-          {user.role}&quot;.
+          This page is the broker journey. Your account has the role &quot;{user.role}&quot;.
         </p>
         {isStaff ? (
           <p>
@@ -47,92 +45,80 @@ export default async function BrokerPage() {
 
   return (
     <PortalShell active="policies" user={user} tasks={tasks}>
-      <h1>
-        Your <em>policies.</em>
-      </h1>
-      <p className="lead">
-        Signed in as {user.displayName} ({user.email}).
-      </p>
+      <DetailHeading
+        title="Your policies"
+        lead={`${user.displayName} · ${user.email}`}
+        chips={<Chip tone={kyb.status === "approved" ? "ok" : "warn"}>business verification {kyb.status}</Chip>}
+        actions={
+          <>
+            <Link className="button-link orange" href="/broker/policies/new">
+              New policy
+            </Link>
+            <Link className="button-link secondary" href="/broker/kyb">
+              Business verification
+            </Link>
+            <Link className="button-link secondary" href="/broker/statements">
+              Statements
+            </Link>
+          </>
+        }
+      />
+
+      {kyb.status === "approved" ? null : (
+        <div className="notices">
+          <p className="note">{kyb.explanation}</p>
+          {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
+            <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
+          )}
+        </div>
+      )}
 
       <WhatNeedsYou tasks={tasks} />
 
-      <p
-        className={
-          kyb.status === "approved" ? "badge badge-ok" : "badge badge-warn"
-        }
-      >
-        KYB status: {kyb.status}
-      </p>
-      <p className="note">{kyb.explanation}</p>
-      {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
-        <p className="note">
-          {KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not
-          provider evidence.
-        </p>
-      )}
-
-      <div className="page-actions">
-        <Link className="button-link" href="/broker/policies/new">
-          New policy
-        </Link>
-        <Link className="button-link secondary" href="/broker/kyb">
-          Business verification
-        </Link>
-        <Link className="button-link secondary" href="/broker/statements">Statements</Link>
-      </div>
-
-      {policies.length === 0 ? (
-        <section className="empty-state">
-          <img
-            src="/illustrations/corgi-engraving.webp"
-            width="1152"
-            height="768"
-            alt=""
-          />
-          <h2>
-            Your next policy <em>starts here.</em>
-          </h2>
-          <p>No policy yet. Start with &quot;New policy&quot;.</p>
-        </section>
-      ) : (
-        <div
-          className="table-scroll"
-          role="region"
-          aria-label="Policies"
-          tabIndex={0}
-        >
-          <table>
-            <thead>
-              <tr>
-                <th>Policy</th>
-                <th>Customer</th>
-                <th>State</th>
-                <th>Effective</th>
-                <th>Status</th>
-                <th className="amount">Total charge</th>
-              </tr>
-            </thead>
-            <tbody>
-              {policies.map((policy) => (
-                <tr key={policy.policyId}>
-                  <td>
-                    <Link href={`/policies/${policy.policyId}`}>
-                      {policy.policyNumber}
-                    </Link>
-                  </td>
-                  <td>{policy.customerName}</td>
-                  <td>{policy.stateCode}</td>
-                  <td>{policy.effectiveAt}</td>
-                  <td>{policy.status}</td>
-                  <td className="amount">
-                    {formatCentsAsUsd(policy.totalChargeCents)}
-                  </td>
+      <Panel title="Policies" className="list-panel">
+        {policies.length === 0 ? (
+          <Empty>No policy yet. Start with &quot;New policy&quot;.</Empty>
+        ) : (
+          <div className="table-scroll" role="region" aria-label="Policies" tabIndex={0}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Policy</th>
+                  <th>Customer</th>
+                  <th>State</th>
+                  <th>Effective</th>
+                  <th>Status</th>
+                  <th className="amount">Total charge</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {policies.map((policy) => (
+                  <tr key={policy.policyId}>
+                    <td>
+                      <Link href={`/policies/${policy.policyId}`}>{policy.policyNumber}</Link>
+                    </td>
+                    <td>{policy.customerName}</td>
+                    <td>{policy.stateCode}</td>
+                    <td>{policy.effectiveAt}</td>
+                    <td>
+                      <Chip tone={policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "neutral" : "warn"}>
+                        {policy.status.replace(/_/g, " ")}
+                      </Chip>
+                    </td>
+                    <td className="amount">{formatCentsAsUsd(policy.totalChargeCents)}</td>
+                    <td>
+                      <Link href={`/policies/${policy.policyId}`} className="button-link secondary small">
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
     </PortalShell>
   );
 }

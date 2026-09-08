@@ -1,6 +1,7 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Facts, Panel } from "@/components/detail-layout";
+import { JournalTable } from "@/components/journal-table";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -232,12 +233,12 @@ export default async function PolicyPage({
               </form>
             ) : null}
             {canChange && !liveEndorsement ? (
-              <Link href={`/policies/${policy.policyId}/endorse`} className="button-link secondary">
+              <Link href={`/policies/${policy.policyId}/endorse`} className="button-link orange">
                 Endorse
               </Link>
             ) : null}
             {canChange ? (
-              <Link href={`/policies/${policy.policyId}/cancel`} className="button-link secondary">
+              <Link href={`/policies/${policy.policyId}/cancel`} className="button-link danger">
                 Cancel the policy
               </Link>
             ) : null}
@@ -659,38 +660,7 @@ export default async function PolicyPage({
               {entries.length === 0 ? (
                 <Empty>Nothing has been posted yet. The four issuance entries are written when Stripe confirms the payment.</Empty>
               ) : (
-                <div className="table-scroll" role="region" aria-label="Policy journal" tabIndex={0}>
-                  <table className="ledger">
-                    <thead>
-                      <tr>
-                        <th>Entry</th>
-                        <th>Effective</th>
-                        <th>Recorded (UTC)</th>
-                        <th>Account</th>
-                        <th className="amount">Debit</th>
-                        <th className="amount">Credit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map((entry) =>
-                        entry.lines.map((line, lineIndex) => (
-                          <tr key={`${entry.entryId}-${line.accountId}-${lineIndex}`}>
-                            {lineIndex === 0 ? (
-                              <>
-                                <td rowSpan={entry.lines.length}>{entry.entryType}</td>
-                                <td rowSpan={entry.lines.length}>{entry.effectiveAt}</td>
-                                <td rowSpan={entry.lines.length}>{entry.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
-                              </>
-                            ) : null}
-                            <td>{line.accountName}</td>
-                            <td className="amount">{line.debitCents > 0 ? formatCentsAsUsd(line.debitCents) : ""}</td>
-                            <td className="amount">{line.creditCents > 0 ? formatCentsAsUsd(line.creditCents) : ""}</td>
-                          </tr>
-                        )),
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                <JournalTable entries={entries} ariaLabel="Policy journal" />
               )}
             </Panel>
           </>

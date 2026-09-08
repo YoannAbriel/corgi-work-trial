@@ -1588,3 +1588,132 @@ div.note {
     justify-content: flex-start;
   }
 }
+
+/* Journal blocks (components/journal-table.tsx) and the "show all" fold */
+table.journal td {
+  padding: 10px 14px;
+}
+table.journal tr.entry-first > td {
+  border-top: 2px solid #e6e6e9;
+}
+table.journal tbody tr:first-child > td {
+  border-top: 0;
+}
+table.journal tr.entry-line > td {
+  border-bottom: 1px solid #f2f2f4;
+}
+table.journal td.account-credit {
+  padding-left: 34px;
+  color: #55565b;
+}
+table.journal td.amount.debit {
+  color: var(--ink);
+  font-weight: 500;
+}
+table.journal td.amount.credit {
+  color: #55565b;
+}
+.entry-tag {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #f1f1f3;
+  color: #44454b;
+  border: 1px solid #e1e1e4;
+}
+.entry-in {
+  background: #edf6ee;
+  color: #366648;
+  border-color: #c6dfca;
+}
+.entry-out {
+  background: #fff1e8;
+  color: #a33d00;
+  border-color: #f4cdb5;
+}
+.entry-reversal {
+  background: #f3f0fa;
+  color: #5b4a8a;
+  border-color: #dcd3ee;
+}
+details.show-all {
+  margin-top: 10px;
+}
+details.show-all > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+}
+details.show-all > summary::-webkit-details-marker {
+  display: none;
+}
+details.show-all > summary::before {
+  content: "+";
+  font-weight: 600;
+}
+details.show-all[open] > summary::before {
+  content: "\2212";
+}
+details.show-all > .table-scroll {
+  margin-top: 10px;
+}
+/* Action colours: money in is black, a change is orange, stopping cover is red on white */
+.button-link.danger,
+button.danger {
+  background: white;
+  color: #a32c25;
+  border: 1px solid #efc9c5;
+  box-shadow: 0 4px 0 #efc9c5;
+}
+.button-link.danger:hover,
+button.danger:hover {
+  background: #fff1ef;
+  color: #84231d;
+}
+.button-link.danger:active,
+button.danger:active {
+  background: #ffe4e0;
+  box-shadow: 0 1px 0 #efc9c5;
+}
+/* List screens share the detail heading; the table sits in one panel */
+.list-panel .table-scroll {
+  margin: 0;
+}
+.list-panel table td {
+  vertical-align: middle;
+}
+td .badge {
+  margin: 0;
+}
+.button-link.small,
+button.small {
+  font-size: 13px;
+  min-height: 30px;
+  padding: 5px 12px;
+  border-radius: 9px;
+  box-shadow: 0 3px 0 #e1e1e1;
+}
+.button-link.small:active,
+button.small:active {
+  box-shadow: 0 1px 0 #e1e1e1;
+}
+button.orange {
+  color: white;
+  background: var(--active);
+  border-color: var(--active);
+  box-shadow: 0 4px 0 #cc4a00;
+}
+button.orange:hover {
+  background: #ff7d33;
+}
