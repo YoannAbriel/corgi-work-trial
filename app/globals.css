@@ -1590,34 +1590,53 @@ div.note {
 }
 
 /* Journal blocks (components/journal-table.tsx) and the "show all" fold */
-table.journal td {
-  padding: 10px 14px;
+.journal {
+  display: grid;
+  gap: 6px;
 }
-table.journal tr.entry-first > td {
-  border-top: 2px solid #e6e6e9;
+.journal-list {
+  display: grid;
+  gap: 10px;
 }
-table.journal tbody tr:first-child > td {
-  border-top: 0;
+.entry-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px 128px;
+  padding: 0 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
 }
-table.journal tr.entry-line > td {
-  border-bottom: 1px solid #f2f2f4;
+.entry-columns span:not(:first-child) {
+  text-align: right;
 }
-table.journal td.account-credit {
-  padding-left: 34px;
-  color: #55565b;
+.entry-block {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+  overflow: hidden;
 }
-table.journal td.amount.debit {
-  color: var(--ink);
+.entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 7px 12px;
+  background: #fafafa;
+  border-bottom: 1px solid #ededee;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.entry-when b {
   font-weight: 500;
-}
-table.journal td.amount.credit {
-  color: #55565b;
+  color: var(--ink);
 }
 .entry-tag {
   display: inline-block;
+  white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  padding: 3px 8px;
+  padding: 2px 8px;
   border-radius: 6px;
   background: #f1f1f3;
   color: #44454b;
@@ -1637,6 +1656,42 @@ table.journal td.amount.credit {
   background: #f3f0fa;
   color: #5b4a8a;
   border-color: #dcd3ee;
+}
+table.entry-lines {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+table.entry-lines col.amount-column {
+  width: 128px;
+}
+table.entry-lines td {
+  padding: 7px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  border-bottom: 1px solid #f2f2f4;
+  vertical-align: middle;
+}
+table.entry-lines tr:last-child td {
+  border-bottom: 0;
+}
+table.entry-lines td.account {
+  color: var(--ink);
+}
+table.entry-lines td.credit-side {
+  padding-left: 32px;
+  color: #55565b;
+}
+table.entry-lines td.amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+table.entry-lines td.debit {
+  font-weight: 500;
+}
+table.entry-lines td.credit {
+  color: #55565b;
 }
 details.show-all {
   margin-top: 10px;
@@ -1665,7 +1720,7 @@ details.show-all > summary::before {
 details.show-all[open] > summary::before {
   content: "\2212";
 }
-details.show-all > .table-scroll {
+details.show-all > .journal-list {
   margin-top: 10px;
 }
 /* Action colours: money in is black, a change is orange, stopping cover is red on white */

@@ -1,7 +1,7 @@
 import { formatCentsAsUsd } from "@/lib/money/cents";
 
 // The journal of one thing (a policy, a claim, a correction), read straight from the entries
-// and their lines. Each entry is a small block: a header row with the entry type, its effective
+// and their lines. Each entry is one block: a header line with the entry type, its effective
 // date and the instant it was recorded, then one row per line with the account, the debit and
 // the credit. Every entry balances by construction (a database constraint), so a reader can add
 // each block up.
@@ -34,43 +34,30 @@ export function JournalTable({
   const folded = newestFirst.slice(visibleEntries);
 
   return (
-    <>
-      <div className="table-scroll" role="region" aria-label={ariaLabel} tabIndex={0}>
-        <table className="journal">
-          <thead>
-            <tr>
-              <th>Entry</th>
-              <th>Effective</th>
-              <th>Recorded (UTC)</th>
-              <th>Account</th>
-              <th className="amount">Debit</th>
-              <th className="amount">Credit</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((entry) => (
-              <EntryRows key={entry.entryId} entry={entry} />
-            ))}
-          </tbody>
-        </table>
+    <div className="journal" role="region" aria-label={ariaLabel}>
+      <div className="entry-columns" aria-hidden="true">
+        <span>Account</span>
+        <span>Debit</span>
+        <span>Credit</span>
+      </div>
+      <div className="journal-list">
+        {shown.map((entry) => (
+          <EntryBlock key={entry.entryId} entry={entry} />
+        ))}
       </div>
       {folded.length > 0 ? (
         <details className="show-all">
           <summary>
             Show all {entries.length} entries ({folded.length} older)
           </summary>
-          <div className="table-scroll" role="region" aria-label={`${ariaLabel}, older entries`} tabIndex={0}>
-            <table className="journal">
-              <tbody>
-                {folded.map((entry) => (
-                  <EntryRows key={entry.entryId} entry={entry} />
-                ))}
-              </tbody>
-            </table>
+          <div className="journal-list">
+            {folded.map((entry) => (
+              <EntryBlock key={entry.entryId} entry={entry} />
+            ))}
           </div>
         </details>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -82,34 +69,34 @@ function toneOf(entryType: string): "in" | "out" | "reversal" | "neutral" {
   return "neutral";
 }
 
-function EntryRows({ entry }: { entry: JournalEntryForTable }) {
+function EntryBlock({ entry }: { entry: JournalEntryForTable }) {
   const tone = toneOf(entry.entryType);
+  const recorded = entry.recordedAt.toISOString().replace("T", " ").slice(0, 19);
   return (
-    <>
-      {entry.lines.map((line, index) => (
-        <tr key={`${entry.entryId}-${line.accountId}-${index}`} className={index === 0 ? "entry-first" : "entry-line"}>
-          {index === 0 ? (
-            <>
-              <td rowSpan={entry.lines.length}>
-                <span className={`entry-tag entry-${tone}`}>{entry.entryType}</span>
-                {entry.reversesEntryId ? (
-                  <>
-                    <br />
-                    <span className="note">reverses {entry.reversesEntryId.slice(0, 8)}</span>
-                  </>
-                ) : null}
-              </td>
-              <td rowSpan={entry.lines.length}>{entry.effectiveAt}</td>
-              <td rowSpan={entry.lines.length} className="note">
-                {entry.recordedAt.toISOString().replace("T", " ").slice(0, 19)}
-              </td>
-            </>
-          ) : null}
-          <td className={line.debitCents > 0 ? "account-debit" : "account-credit"}>{line.accountName}</td>
-          <td className="amount debit">{line.debitCents > 0 ? formatCentsAsUsd(line.debitCents) : ""}</td>
-          <td className="amount credit">{line.creditCents > 0 ? formatCentsAsUsd(line.creditCents) : ""}</td>
-        </tr>
-      ))}
-    </>
+    <div className="entry-block">
+      <div className="entry-head">
+        <span className={`entry-tag entry-${tone}`}>{entry.entryType}</span>
+        <span className="entry-when">
+          effective <b>{entry.effectiveAt}</b> · recorded {recorded} UTC
+        </span>
+        {entry.reversesEntryId ? <span className="entry-when">reverses {entry.reversesEntryId.slice(0, 8)}</span> : null}
+      </div>
+      <table className="entry-lines">
+        <colgroup>
+          <col />
+          <col className="amount-column" />
+          <col className="amount-column" />
+        </colgroup>
+        <tbody>
+          {entry.lines.map((line, index) => (
+            <tr key={`${entry.entryId}-${line.accountId}-${index}`}>
+              <td className={line.debitCents > 0 ? "account" : "account credit-side"}>{line.accountName}</td>
+              <td className="amount debit">{line.debitCents > 0 ? formatCentsAsUsd(line.debitCents) : ""}</td>
+              <td className="amount credit">{line.creditCents > 0 ? formatCentsAsUsd(line.creditCents) : ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
