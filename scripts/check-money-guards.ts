@@ -1,7 +1,8 @@
 import postgres from "postgres";
 
-// Proves, on a real database, that the tables added by migrations 0002, 0004, 0005 and 0006
-// are append-only, exactly the way scripts/check-ledger-guards.ts does it for the ledger core.
+// Proves, on a real database, that the tables added by migrations 0002, 0004, 0005, 0006 and
+// 0008 are append-only, exactly the way scripts/check-ledger-guards.ts does it for the ledger
+// core.
 //
 //   as the owner   : UPDATE, DELETE and TRUNCATE are refused by triggers, even for the role
 //                    that owns the schema, and recorded_at cannot be chosen by the client;
@@ -39,6 +40,14 @@ const PROTECTED_TABLES = [
   // Added by migration 0006 (slice B3): what a broker declared for business verification,
   // and the Stripe Connected Account Agreement acceptance sent with it.
   "broker_kyb_submissions",
+  // Added by migration 0008 (slice B7): claims, the money-out approval queue, and what the
+  // simulated payout rail believes.
+  "claims",
+  "claim_events",
+  "claimant_bank_accounts",
+  "approval_requests",
+  "approval_decisions",
+  "simulator_provider_records",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -136,6 +145,60 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     )
     returning id
   `;
+  // Slice B7. Two demo users are needed because maker-checker is about two different people:
+  // the one who asks and the one who decides.
+  const [maker] = await tx<{ id: string }[]>`
+    insert into users (email, display_name, role)
+    values ('guard-maker-' || gen_random_uuid()::text || '@example.invalid', 'guard check maker', 'staff_ops')
+    returning id
+  `;
+  const [checker] = await tx<{ id: string }[]>`
+    insert into users (email, display_name, role)
+    values ('guard-checker-' || gen_random_uuid()::text || '@example.invalid', 'guard check checker', 'staff_approver')
+    returning id
+  `;
+  const [claim] = await tx<{ id: string }[]>`
+    insert into claims (policy_id, occurred_at, reported_at, description, claimant_name)
+    values (${policy.id}, '2028-05-01', '2028-05-02', 'guard check loss', 'guard check claimant')
+    returning id
+  `;
+  const [claimPayout] = await tx<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, claim_id, idempotency_key)
+    values ('claim_payout', 'simulator', 120000, ${policy.id}, ${claim.id},
+            'guard-check-payout:' || gen_random_uuid()::text)
+    returning id
+  `;
+  const [claimEvent] = await tx<{ id: string }[]>`
+    insert into claim_events (claim_id, event_type, amount_cents) values (${claim.id}, 'reserve_set', 500000)
+    returning id
+  `;
+  const [bankAccount] = await tx<{ id: string }[]>`
+    insert into claimant_bank_accounts (
+      claim_id, account_holder_name, routing_number_last4, account_number_last4,
+      account_token, verification_status, provider
+    ) values (
+      ${claim.id}, 'guard check claimant', '0000', '6789',
+      'sim_ba_' || md5(gen_random_uuid()::text), 'verified', 'simulator'
+    )
+    returning id
+  `;
+  const [approvalRequest] = await tx<{ id: string }[]>`
+    insert into approval_requests (kind, subject_kind, subject_id, amount_cents, intent_hash, destination, requested_by)
+    values ('claim_payment', 'claim', ${claim.id}, 120000, repeat('a', 64), 'guard check destination', ${maker.id})
+    returning id
+  `;
+  const [approvalDecision] = await tx<{ id: string }[]>`
+    insert into approval_decisions (request_id, decided_by, decision)
+    values (${approvalRequest.id}, ${checker.id}, 'approved')
+    returning id
+  `;
+  const [providerRecord] = await tx<{ id: string }[]>`
+    insert into simulator_provider_records (transfer_ref, amount_cents, destination_token, status, settlement_date)
+    values ('sim_tr_' || md5(gen_random_uuid()::text), 120000, 'sim_ba_guard_check', 'sent', '2028-05-10')
+    returning id
+  `;
+  void claimPayout;
+
   return {
     brokers: broker.id,
     policies: policy.id,
@@ -146,6 +209,12 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     broker_kyb_events: kybEvent.id,
     refund_allocations: allocation.id,
     broker_kyb_submissions: kybSubmission.id,
+    claims: claim.id,
+    claim_events: claimEvent.id,
+    claimant_bank_accounts: bankAccount.id,
+    approval_requests: approvalRequest.id,
+    approval_decisions: approvalDecision.id,
+    simulator_provider_records: providerRecord.id,
   };
 }
 
@@ -339,9 +408,286 @@ async function main() {
     secondCancellation ?? "no error raised",
   );
 
+  // 6. Migration 0008: maker-checker is a DATABASE rule, not only application code.
+  //    Every case below is attempted with the OWNER connection and raw SQL, which is the most
+  //    privileged path there is: none of the application checks are in the way, and the
+  //    decision is still refused.
+  await runMakerCheckerChecks(owner);
+
+  // 7. Migration 0008: a claim event has to say a coherent thing about money.
+  await runClaimEventShapeChecks(owner);
+
   await owner.end();
   await runtime.end();
   process.exit(failures === 0 ? 0 : 1);
+}
+
+// ---------------------------------------------------------------------------
+// Maker-checker, proved against the database itself (slice B7, migration 0008)
+// ---------------------------------------------------------------------------
+
+// Everything here runs as the OWNER, with plain SQL, in transactions that are rolled back. That
+// is deliberate: the application refuses these things too, but a rule that only lives in the
+// application can be walked around by a script, a console or a route written next month. What
+// this section proves is that the DATABASE refuses them.
+async function runMakerCheckerChecks(owner: postgres.Sql): Promise<void> {
+  // A request asked for by one user, ready to be decided by whoever the case needs.
+  async function requestAskedBy(tx: postgres.TransactionSql, requesterRole: string): Promise<{ requestId: string; requesterId: string }> {
+    const fixture = await insertFixtureRows(tx);
+    const [requester] = await tx<{ id: string }[]>`
+      insert into users (email, display_name, role)
+      values ('mc-requester-' || gen_random_uuid()::text || '@example.invalid', 'maker', ${requesterRole})
+      returning id
+    `;
+    const [request] = await tx<{ id: string }[]>`
+      insert into approval_requests (kind, subject_kind, subject_id, amount_cents, intent_hash, destination, requested_by)
+      values ('claim_payment', 'claim', ${fixture.claims}, 324156, repeat('b', 64), 'a destination', ${requester.id})
+      returning id
+    `;
+    return { requestId: request.id, requesterId: requester.id };
+  }
+
+  // 1. The initiator cannot approve their own money-out, even when they are a staff_approver.
+  const selfApproval = await expectError(owner, async (tx) => {
+    const { requestId, requesterId } = await requestAskedBy(tx, "staff_approver");
+    await tx`
+      insert into approval_decisions (request_id, decided_by, decision)
+      values (${requestId}, ${requesterId}, 'approved')
+    `;
+  });
+  report(
+    "the person who asked cannot approve their own money-out",
+    !!selfApproval && /cannot approve it/i.test(selfApproval),
+    selfApproval ?? "no error raised",
+  );
+
+  // 2. Only a staff_approver may decide. Every other role in the system is refused, and that is
+  //    the same branch that will refuse the 'agent' principals of the MCP surface in slice B11.
+  for (const role of ["staff_ops", "broker", "customer"]) {
+    const wrongRole = await expectError(owner, async (tx) => {
+      const { requestId } = await requestAskedBy(tx, "staff_ops");
+      const [decider] = await tx<{ id: string }[]>`
+        insert into users (email, display_name, role)
+        values ('mc-decider-' || gen_random_uuid()::text || '@example.invalid', 'not an approver', ${role})
+        returning id
+      `;
+      await tx`
+        insert into approval_decisions (request_id, decided_by, decision)
+        values (${requestId}, ${decider.id}, 'approved')
+      `;
+    });
+    report(
+      `a user with the role ${role} cannot approve a money-out`,
+      !!wrongRole && /only a staff_approver/i.test(wrongRole),
+      wrongRole ?? "no error raised",
+    );
+  }
+
+  // 3. An agent principal cannot even exist yet: the users.role CHECK of migration 0002 does not
+  //    allow 'agent'. When slice B11 adds it, the trigger checked above is what keeps refusing
+  //    it, because it demands exactly 'staff_approver'.
+  const agentPrincipal = await expectError(owner, async (tx) => {
+    await tx`
+      insert into users (email, display_name, role)
+      values ('mc-agent-' || gen_random_uuid()::text || '@example.invalid', 'an MCP api key', 'agent')
+    `;
+  });
+  report(
+    "an 'agent' principal cannot be created today, and the approver trigger would refuse it anyway",
+    !!agentPrincipal && /users_role_check/i.test(agentPrincipal),
+    agentPrincipal ?? "no error raised",
+  );
+
+  // 4. A decision by a user who does not exist at all.
+  const unknownDecider = await expectError(owner, async (tx) => {
+    const { requestId } = await requestAskedBy(tx, "staff_ops");
+    await tx`
+      insert into approval_decisions (request_id, decided_by, decision)
+      values (${requestId}, gen_random_uuid(), 'approved')
+    `;
+  });
+  // The trigger runs before the foreign key is checked, so the refusal comes with a readable
+  // sentence rather than a constraint name. Either would be a refusal; this is the better one.
+  report(
+    "a decision by a user that does not exist is refused",
+    !!unknownDecider && /(does not exist|violates foreign key constraint)/i.test(unknownDecider),
+    unknownDecider ?? "no error raised",
+  );
+
+  // 5. One decision per request, forever: a rejected request is not re-decided, and two
+  //    approvers racing cannot both write an answer.
+  const secondDecision = await expectError(owner, async (tx) => {
+    const { requestId } = await requestAskedBy(tx, "staff_ops");
+    for (const decision of ["approved", "rejected"]) {
+      const [approver] = await tx<{ id: string }[]>`
+        insert into users (email, display_name, role)
+        values ('mc-approver-' || gen_random_uuid()::text || '@example.invalid', 'approver', 'staff_approver')
+        returning id
+      `;
+      await tx`
+        insert into approval_decisions (request_id, decided_by, decision)
+        values (${requestId}, ${approver.id}, ${decision})
+      `;
+    }
+  });
+  report(
+    "a request can be decided only once",
+    !!secondDecision && /approval_decisions_request_id_key/i.test(secondDecision),
+    secondDecision ?? "no error raised",
+  );
+
+  // 6. A distinct staff_approver CAN decide: the guard refuses the wrong people, not everybody.
+  let approvedByADifferentApprover = false;
+  await expectError(owner, async (tx) => {
+    const { requestId } = await requestAskedBy(tx, "staff_ops");
+    const [approver] = await tx<{ id: string }[]>`
+      insert into users (email, display_name, role)
+      values ('mc-ok-' || gen_random_uuid()::text || '@example.invalid', 'a real approver', 'staff_approver')
+      returning id
+    `;
+    await tx`
+      insert into approval_decisions (request_id, decided_by, decision, reason)
+      values (${requestId}, ${approver.id}, 'approved', 'checked against the file')
+    `;
+    approvedByADifferentApprover = true;
+  });
+  report(
+    "a different staff_approver can approve it",
+    approvedByADifferentApprover,
+    approvedByADifferentApprover ? "the decision was accepted" : "the decision was refused",
+  );
+
+  // 7. One approval can fund at most one money operation: the "at most one financial effect"
+  //    guarantee for concurrent executions, as a unique index.
+  const twoOperationsOneApproval = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    for (const attempt of [1, 2]) {
+      await tx`
+        insert into money_operations (kind, provider, amount_cents, policy_id, claim_id, idempotency_key, approval_request_id)
+        values ('claim_payout', 'simulator', 120000, ${fixture.policies}, ${fixture.claims},
+                'guard-check-approval:' || ${attempt} || ':' || gen_random_uuid()::text, ${fixture.approval_requests})
+      `;
+    }
+  });
+  report(
+    "one approval can fund at most one money operation",
+    !!twoOperationsOneApproval && /money_operations_one_per_approval_request/i.test(twoOperationsOneApproval),
+    twoOperationsOneApproval ?? "no error raised",
+  );
+
+  // 8. One payment moves through each rail stage at most once.
+  const twoSends = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [payout] = await tx<{ id: string }[]>`
+      insert into money_operations (kind, provider, amount_cents, policy_id, claim_id, idempotency_key)
+      values ('claim_payout', 'simulator', 120000, ${fixture.policies}, ${fixture.claims},
+              'guard-check-stage:' || gen_random_uuid()::text)
+      returning id
+    `;
+    for (const attempt of [1, 2]) {
+      void attempt;
+      await tx`
+        insert into claim_events (claim_id, event_type, amount_cents, money_operation_id)
+        values (${fixture.claims}, 'payment_sent', 120000, ${payout.id})
+      `;
+    }
+  });
+  report(
+    "a claim payment cannot be sent twice",
+    !!twoSends && /claim_events_one_stage_per_payment/i.test(twoSends),
+    twoSends ?? "no error raised",
+  );
+
+  // 9. The simulated bank cannot settle the same transfer twice either.
+  const twoSettlements = await expectError(owner, async (tx) => {
+    const transferRef = `sim_tr_guard_${Math.trunc(Number(process.pid))}`;
+    for (const attempt of [1, 2]) {
+      void attempt;
+      await tx`
+        insert into simulator_provider_records (transfer_ref, amount_cents, destination_token, status, settlement_date)
+        values (${transferRef}, 120000, 'sim_ba_guard', 'settled', '2028-05-10')
+      `;
+    }
+  });
+  report(
+    "the simulated rail cannot settle one transfer twice",
+    !!twoSettlements && /simulator_provider_records_transfer_ref_status_key/i.test(twoSettlements),
+    twoSettlements ?? "no error raised",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Claim events have to say a coherent thing about money (migration 0008)
+// ---------------------------------------------------------------------------
+
+async function runClaimEventShapeChecks(owner: postgres.Sql): Promise<void> {
+  const closedWithAmount = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into claim_events (claim_id, event_type, amount_cents) values (${fixture.claims}, 'closed', 1)
+    `;
+  });
+  report(
+    "a 'closed' claim event cannot carry an amount",
+    !!closedWithAmount && /claim_events_check/i.test(closedWithAmount),
+    closedWithAmount ?? "no error raised",
+  );
+
+  const paymentWithoutOperation = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into claim_events (claim_id, event_type, amount_cents) values (${fixture.claims}, 'payment_sent', 120000)
+    `;
+  });
+  report(
+    "a payment event must name the money operation it is about",
+    !!paymentWithoutOperation && /claim_events_check/i.test(paymentWithoutOperation),
+    paymentWithoutOperation ?? "no error raised",
+  );
+
+  const reserveWithOperation = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into claim_events (claim_id, event_type, amount_cents, money_operation_id)
+      values (${fixture.claims}, 'reserve_set', 500000, ${fixture.money_operations})
+    `;
+  });
+  report(
+    "a reserve event cannot name a money operation",
+    !!reserveWithOperation && /claim_events_check/i.test(reserveWithOperation),
+    reserveWithOperation ?? "no error raised",
+  );
+
+  const reportedBeforeItHappened = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into claims (policy_id, occurred_at, reported_at, description, claimant_name)
+      values (${fixture.policies}, '2028-05-10', '2028-05-01', 'reported early', 'guard check claimant')
+    `;
+  });
+  report(
+    "a loss cannot be reported before it happened",
+    !!reportedBeforeItHappened && /claims_check/i.test(reportedBeforeItHappened),
+    reportedBeforeItHappened ?? "no error raised",
+  );
+
+  const badIntentHash = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [requester] = await tx<{ id: string }[]>`
+      insert into users (email, display_name, role)
+      values ('hash-' || gen_random_uuid()::text || '@example.invalid', 'maker', 'staff_ops')
+      returning id
+    `;
+    await tx`
+      insert into approval_requests (kind, subject_kind, subject_id, amount_cents, intent_hash, destination, requested_by)
+      values ('claim_payment', 'claim', ${fixture.claims}, 120000, 'not-a-sha256', 'somewhere', ${requester.id})
+    `;
+  });
+  report(
+    "an approval request must carry a real sha256 of its intent",
+    !!badIntentHash && /approval_requests_intent_hash_check/i.test(badIntentHash),
+    badIntentHash ?? "no error raised",
+  );
 }
 
 main().catch((error) => {

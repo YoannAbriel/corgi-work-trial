@@ -15,6 +15,7 @@
     "check:payment-replay": "tsx scripts/check-payment-replay.ts",
     "check:refund-replay": "tsx scripts/check-refund-replay.ts",
     "check:kyb-replay": "tsx scripts/check-kyb-replay.ts",
+    "check:claims-and-approvals": "tsx scripts/check-claims-and-approvals.ts",
     "seed": "tsx scripts/seed.ts",
     "rebuild:policy-current": "tsx scripts/rebuild-policy-current.ts",
     "test": "node --import tsx --test lib/**/*.test.ts",

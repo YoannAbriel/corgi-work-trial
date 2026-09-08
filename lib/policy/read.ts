@@ -393,6 +393,10 @@ export type RefundOperationView = {
   // card refunds this build creates, and nothing is reversed automatically, so it is shown as
   // something an operator has to look at.
   failedAfterCompletion: boolean;
+  // Maker-checker (slice B7): a refund above $1,000 carries an approval request and does not
+  // leave for Stripe until a second person has approved it. Null below the threshold.
+  approvalRequestId: string | null;
+  approvalDecision: "approved" | "rejected" | null;
 };
 
 export async function refundOperationsOfPolicy(policyId: string): Promise<RefundOperationView[]> {
@@ -405,6 +409,8 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
       commission_clawback_cents: string;
       payment_intent_id: string;
       requested_at: Date;
+      approval_request_id: string | null;
+      approval_decision: "approved" | "rejected" | null;
     }[]
   >`
     select operation.id as operation_id,
@@ -413,9 +419,12 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
            allocation.refunded_tax_cents,
            allocation.commission_clawback_cents,
            allocation.payment_intent_id,
-           operation.created_at as requested_at
+           operation.created_at as requested_at,
+           operation.approval_request_id,
+           decision.decision as approval_decision
       from money_operations operation
       join refund_allocations allocation on allocation.refund_operation_id = operation.id
+      left join approval_decisions decision on decision.request_id = operation.approval_request_id
      where operation.policy_id = ${policyId} and operation.kind = 'stripe_refund'
      order by operation.created_at
   `;
@@ -456,6 +465,8 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
           ? String(lastFailure.payload.reason ?? lastFailure.payload.message ?? "Stripe refused the refund")
           : null,
       failedAfterCompletion: state === "completed" && ownEvents[ownEvents.length - 1]?.status === "failed",
+      approvalRequestId: operation.approval_request_id,
+      approvalDecision: operation.approval_decision,
     };
   });
 }

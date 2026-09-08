@@ -1,6 +1,9 @@
 import type Stripe from "stripe";
 import type postgres from "postgres";
 import { sql } from "@/db/client";
+import { assertIntentIsApproved } from "@/lib/approvals/approvals";
+import { stripePaymentDestination, type MoneyOutIntent } from "@/lib/approvals/intent";
+import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
 import { refundCompletedEntries } from "@/lib/ledger/cancellation-entries";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
@@ -115,6 +118,90 @@ export async function recoverPendingRefund(operation: RefundOperation): Promise<
   return ours ?? null;
 }
 
+// ---------------------------------------------------------------------------
+// Sending a refund that is waiting: after an approval, or after a crash
+// ---------------------------------------------------------------------------
+
+// The intent an approver approves for a cancellation refund, and the one this module rebuilds
+// from the operation before calling Stripe. Every part of it is immutable (the operation's
+// amount, the allocation's PaymentIntent), so a mismatch means the approval names a different
+// refund, not that this one changed under it.
+export function refundIntent(policyId: string, amountCents: number, paymentIntentId: string): MoneyOutIntent {
+  return {
+    kind: "refund",
+    subjectKind: "policy",
+    subjectId: policyId,
+    amountCents,
+    destination: stripePaymentDestination(paymentIntentId),
+  };
+}
+
+export class RefundSendRefused extends Error {}
+
+// Whether this refund is allowed to leave for Stripe right now. Exported on its own so the
+// screens can say why a button is not there, and so the check script can prove the refusal
+// without calling Stripe.
+//
+// Two gates, and the second one is what makes maker-checker impossible to skip:
+//   - an operation that carries an approval request needs an approved decision whose intent
+//     still matches this refund;
+//   - an operation ABOVE the threshold that carries no request at all is refused outright, so
+//     that any code path which forgets the queue fails closed instead of paying.
+export async function assertRefundMaySend(
+  database: postgres.Sql,
+  operation: RefundOperation,
+): Promise<void> {
+  if (operation.refundId) {
+    throw new RefundSendRefused("this refund has already been created at Stripe");
+  }
+  if (operation.state === "completed") {
+    throw new RefundSendRefused("this refund has already been paid to the customer");
+  }
+  if (operation.approvalRequestId) {
+    await assertIntentIsApproved(
+      database,
+      operation.approvalRequestId,
+      refundIntent(operation.policyId, operation.amountCents, operation.paymentIntentId),
+    );
+    return;
+  }
+  if (moneyOutNeedsApproval(operation.amountCents)) {
+    throw new RefundSendRefused(
+      "this refund is above the approval threshold but carries no approval request; it cannot be sent",
+    );
+  }
+}
+
+// The staff action behind one button, used for two situations that need exactly the same thing:
+//
+//   "send this approved refund"  the cancellation queued it because it is above $1,000, an
+//                                approver has said yes, and the money can go;
+//   "send it to Stripe again"    the cancellation committed and the process died before
+//                                refunds.create was reached, so the operation is stuck in
+//                                'requested' with no refund id (review finding F-B5-03).
+//
+// Both call issueRefundsAtStripe, which lists the PaymentIntent's refunds first and reuses the
+// operation's own idempotency key, so a refund Stripe already created is adopted rather than
+// created a second time.
+export async function sendRequestedRefund(
+  input: { policyId: string; operationId: string; actorUserId: string },
+  database: postgres.Sql = sql,
+): Promise<RefundIssueOutcome> {
+  const operation = await loadRefundOperation(database, input.operationId);
+  // The operation id comes from a URL, so it is checked against the policy in that same URL.
+  if (!operation || operation.policyId !== input.policyId) {
+    throw new RefundSendRefused("this refund operation does not belong to this policy");
+  }
+  if (operation.state === "failed") {
+    throw new RefundSendRefused(
+      "this refund failed; use the re-issue action, which decides whether the same attempt can be retried or a new one is needed",
+    );
+  }
+  await assertRefundMaySend(database, operation);
+  const [outcome] = await issueRefundsAtStripe([input.operationId], database);
+  return outcome;
+}
+
 // Staff action after a FAILED refund: the bank sent the money back, the customer is still owed
 // it, and refund_payable is still open. A new attempt is a NEW intent, so it gets a new money
 // operation with a new idempotency key (reusing the old key would make Stripe hand back the
@@ -124,13 +211,58 @@ export async function recoverPendingRefund(operation: RefundOperation): Promise<
 // entry and must be cleared exactly once, by whichever attempt finally completes.
 export class RefundReissueRefused extends Error {}
 
+// WHICH RECOVERY A FAILURE DESERVES (review finding F-B5-02). The two failures look the same on
+// the operation and must not be recovered the same way:
+//
+//   our call to Stripe failed (stage 'create_refund')
+//       We do not know whether Stripe created the refund: a timeout after acceptance looks
+//       exactly like a refusal. Opening a NEW operation would give it a NEW idempotency key, and
+//       the recovery listing only matches its own operation id, so Stripe could end up creating
+//       a SECOND refund and the customer would be paid twice. The only safe move is to retry the
+//       SAME operation with the SAME key, after listing the PaymentIntent's refunds and adopting
+//       one that already carries this operation id.
+//
+//   Stripe said the refund failed (stage 'refund_lifecycle')
+//       The money came back, that refund is dead and its key can never produce a live refund
+//       again, so a new operation with a new key is the only way forward. Even then, Stripe is
+//       asked what it actually holds for the previous operation before anything new is opened.
 export async function reissueRefund(
   input: { policyId: string; failedOperationId: string; actorUserId: string },
   database: postgres.Sql = sql,
 ): Promise<{ operationId: string; outcome: RefundIssueOutcome }> {
+  const failed = await loadRefundOperation(database, input.failedOperationId);
+  if (!failed || failed.policyId !== input.policyId) {
+    throw new RefundReissueRefused("this refund operation does not belong to this policy");
+  }
+
+  if (failed.lastFailureStage === "create_refund") {
+    // The same operation, the same key. issueRefundsAtStripe checks the sandbox itself and
+    // lists the PaymentIntent's refunds before creating anything, so a refund Stripe already
+    // made for this operation is adopted rather than made a second time.
+    const [outcome] = await issueRefundsAtStripe([input.failedOperationId], database);
+    return { operationId: input.failedOperationId, outcome };
+  }
+
+  await assertPreviousRefundIsReallyDead(failed);
   const operationId = await createReissuedRefundOperation(input, database);
   const [outcome] = await issueRefundsAtStripe([operationId], database);
   return { operationId, outcome };
+}
+
+// Asks Stripe, not our database, what became of the previous attempt. Our records can be behind
+// (a webhook not yet delivered, a status that changed a second ago), and opening a second refund
+// while the first one is alive would pay the customer twice.
+async function assertPreviousRefundIsReallyDead(failed: RefundOperation): Promise<void> {
+  await assertStripeSandbox();
+  const atStripe = await stripe.refunds.list({ payment_intent: failed.paymentIntentId, limit: 100 });
+  const previous = atStripe.data.filter((refund) => refund.metadata?.operation_id === failed.operationId);
+  const stillAlive = previous.filter((refund) => refund.status !== "failed" && refund.status !== "canceled");
+  if (stillAlive.length > 0) {
+    throw new RefundReissueRefused(
+      `Stripe still holds refund ${stillAlive[0].id} for this attempt with status "${stillAlive[0].status}", ` +
+        "so a second refund would pay the customer twice; wait for that one to fail or complete",
+    );
+  }
 }
 
 // The database half of a re-issue, on its own so that scripts/check-refund-replay.ts can prove
@@ -149,6 +281,16 @@ export async function createReissuedRefundOperation(
   if (failed.state !== "failed") {
     throw new RefundReissueRefused(
       `only a failed refund can be re-issued; this one is "${failed.state}". Sending another refund for the same liability would pay the customer twice`,
+    );
+  }
+  // Defence in depth for review finding F-B5-02: a failure of OUR call to Stripe leaves the
+  // outcome unknown, so it is recovered by retrying the same operation under the same key
+  // (reissueRefund above), never by opening a new one. Refused here as well as there, because
+  // this function is exported and called directly by the check script.
+  if (failed.lastFailureStage === "create_refund") {
+    throw new RefundReissueRefused(
+      "this attempt failed while we were calling Stripe, so Stripe may have created the refund anyway; " +
+        "it has to be retried under the same idempotency key, not re-issued as a new refund",
     );
   }
 
@@ -398,6 +540,13 @@ export type RefundOperation = {
   commissionClawbackCents: number;
   state: RefundState;
   refundId: string | null; // the Stripe refund id, once it exists
+  // Set when the cancellation queued this refund for maker-checker (above $1,000). Null below
+  // the threshold, and null on every operation created before slice B7.
+  approvalRequestId: string | null;
+  // Where the last failure came from, which decides how a re-issue is allowed to recover:
+  //   'create_refund'     OUR call to Stripe failed; the refund may or may not exist there;
+  //   'refund_lifecycle'  STRIPE said the refund itself failed or was cancelled.
+  lastFailureStage: "create_refund" | "refund_lifecycle" | null;
 };
 
 // Where a refund stands, read from its append-only events.
@@ -422,7 +571,9 @@ export function refundStateFromEvents(statuses: string[]): RefundState {
   return "requested";
 }
 
-async function loadRefundOperation(
+// Exported so the send action and the recovery job can read an operation without duplicating
+// the join between the operation, its allocation, its policy and its lifecycle.
+export async function loadRefundOperation(
   database: postgres.Sql,
   operationId: string,
 ): Promise<RefundOperation | null> {
@@ -440,11 +591,13 @@ async function loadRefundOperation(
       refunded_premium_cents: string;
       refunded_tax_cents: string;
       commission_clawback_cents: string;
+      approval_request_id: string | null;
     }[]
   >`
     select operation.id,
            operation.amount_cents,
            operation.idempotency_key,
+           operation.approval_request_id,
            policy.id            as policy_id,
            policy.policy_number as policy_number,
            broker.id            as broker_id,
@@ -465,14 +618,21 @@ async function loadRefundOperation(
     return null;
   }
 
-  const events = await database<{ status: string; provider_ref: string | null }[]>`
-    select status, provider_ref from money_operation_events
+  const events = await database<{ status: string; provider_ref: string | null; payload: { stage?: string } }[]>`
+    select status, provider_ref, payload from money_operation_events
      where operation_id = ${operationId}
      order by sequence_number
   `;
   // On a refund operation, provider_ref only ever holds the Stripe refund id: the PaymentIntent
   // being given back lives in refund_allocations, not in the lifecycle events.
   const refundId = events.find((event) => event.provider_ref !== null)?.provider_ref ?? null;
+  const lastFailure = [...events].reverse().find((event) => event.status === "failed");
+  const lastFailureStage =
+    lastFailure?.payload?.stage === "create_refund"
+      ? ("create_refund" as const)
+      : lastFailure
+        ? ("refund_lifecycle" as const)
+        : null;
 
   return {
     operationId: row.id,
@@ -489,6 +649,8 @@ async function loadRefundOperation(
     commissionClawbackCents: centsFromDatabase(row.commission_clawback_cents, "commission_clawback_cents"),
     state: refundStateFromEvents(events.map((event) => event.status)),
     refundId,
+    approvalRequestId: row.approval_request_id,
+    lastFailureStage,
   };
 }
 

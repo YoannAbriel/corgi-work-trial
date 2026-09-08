@@ -16,7 +16,10 @@ export type JournalEntryHeader = {
   effectiveAt: string; // business date, "YYYY-MM-DD"
   policyId: string | null;
   brokerId: string | null;
-  sourceKind: "money_operation" | "policy_event" | "correction" | "statement_run";
+  // Optional because most entries have no claim; the claim entries of slice B7 set it so that a
+  // claim's ledger can be read on its own (lib/ledger/claim-entries.ts).
+  claimId?: string | null;
+  sourceKind: "money_operation" | "policy_event" | "claim_event" | "correction" | "statement_run";
   sourceId: string;
   createdBy: string | null; // user id when a human caused it, null for provider events
   description: string;
@@ -48,10 +51,10 @@ export async function postJournalEntry(
 
   const [entry] = await transaction<{ id: string }[]>`
     insert into journal_entries
-      (entry_type, effective_at, policy_id, broker_id, source_kind, source_id, created_by, description)
+      (entry_type, effective_at, policy_id, claim_id, broker_id, source_kind, source_id, created_by, description)
     values
-      (${header.entryType}, ${header.effectiveAt}, ${header.policyId}, ${header.brokerId},
-       ${header.sourceKind}, ${header.sourceId}, ${header.createdBy}, ${header.description})
+      (${header.entryType}, ${header.effectiveAt}, ${header.policyId}, ${header.claimId ?? null},
+       ${header.brokerId}, ${header.sourceKind}, ${header.sourceId}, ${header.createdBy}, ${header.description})
     returning id
   `;
 

@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
+import { claimsWithPositions } from "@/lib/claims/read";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import {
   cancellationOfPolicy,
@@ -26,6 +28,7 @@ export default async function PolicyPage({
     payment?: string;
     cancelled?: string;
     reissued?: string;
+    refundSent?: string;
     bound?: string;
   }>;
 }) {
@@ -48,13 +51,16 @@ export default async function PolicyPage({
     redirect("/broker");
   }
 
-  const [kyb, operation, entries, cancellation, refunds, voidCorrection, query] = await Promise.all([
+  const [kyb, operation, entries, cancellation, refunds, voidCorrection, claims, query] = await Promise.all([
     brokerKybState(policy.brokerId),
     checkoutOperationOfPolicy(policyId),
     journalEntriesOfPolicy(policyId),
     cancellationOfPolicy(policyId),
     refundOperationsOfPolicy(policyId),
     voidCorrectionOfPolicy(policyId),
+    // Slice B7: the claims of this policy, each with the reserve and the incurred amount folded
+    // from its own events.
+    claimsWithPositions(sql, policyId),
     searchParams,
   ]);
 
@@ -77,6 +83,10 @@ export default async function PolicyPage({
   // hiding the form is a convenience, never the control.
   const canCancel = (isOwningBroker || user.role === "staff_ops") && policy.status === "bound";
   const today = new Date().toISOString().slice(0, 10);
+  // Slice B7: an open claim survives a cancellation untouched, which is the live-fire question,
+  // so the explanation sits next to the cancellation amounts it explains.
+  const openClaims = claims.filter((claim) => !claim.position.isClosed);
+  const openClaimReserveCents = openClaims.reduce((total, claim) => total + claim.position.reserveCents, 0);
 
   return (
     <main>
@@ -112,6 +122,7 @@ export default async function PolicyPage({
         </p>
       ) : null}
       {query.reissued ? <p className="note">A new refund was re-issued: Stripe answered {query.reissued}.</p> : null}
+      {query.refundSent ? <p className="note">The refund was sent to Stripe: {query.refundSent}.</p> : null}
       {query.bound === "1" ? (
         <p className="note">The policy is now bound and the four issuance entries are in the journal below.</p>
       ) : null}
@@ -317,6 +328,17 @@ export default async function PolicyPage({
               given back a cent that was never collected.
             </p>
           ) : null}
+          {/* Slice B7: the same explanation the cancellation preview gave, kept next to the
+              amounts it explains. The figures are the claims as they stand now; the figures as
+              they stood when the policy was cancelled are on the cancellation event itself. */}
+          {openClaims.length > 0 ? (
+            <p className="note">
+              This policy has {openClaims.length} open claim, and the cancellation did not touch it: the open claim
+              keeps its reserve of {formatCentsAsUsd(openClaimReserveCents)}, anything already paid on it stays paid,
+              and the refund above covers unearned premium only, because the loss happened while the policy was in
+              force. The commission clawback follows the refunded premium alone, for the same reason.
+            </p>
+          ) : null}
         </>
       ) : null}
 
@@ -337,12 +359,18 @@ export default async function PolicyPage({
                 <tr key={refund.operationId}>
                   <td>
                     {/* Requested and completed are never mixed up: money asked for is not money
-                        the customer has received. */}
+                        the customer has received. Above $1,000 a third state sits in front of
+                        both: the refund is recorded and owed, and it is not going anywhere until
+                        a second person approves it (slice B7, /ops/approvals). */}
                     {refund.state === "completed"
                       ? `completed ${formatCentsAsUsd(refund.amountCents)}${refund.completedOn ? ` on ${refund.completedOn}` : ""}`
                       : refund.state === "failed"
                         ? "requested, not completed"
-                        : `requested ${formatCentsAsUsd(refund.amountCents)}`}
+                        : refund.approvalRequestId && refund.approvalDecision !== "approved"
+                          ? refund.approvalDecision === "rejected"
+                            ? "awaiting approval: rejected"
+                            : "awaiting approval"
+                          : `requested ${formatCentsAsUsd(refund.amountCents)}`}
                   </td>
                   <td className="amount">{formatCentsAsUsd(refund.amountCents)}</td>
                   <td>
@@ -376,6 +404,31 @@ export default async function PolicyPage({
                         {formatCentsAsUsd(refund.commissionClawbackCents)}
                       </span>
                     )}
+                    {/* Slice B7: one button for two situations. A refund above $1,000 that a
+                        second person has approved, and a refund stuck in 'requested' because the
+                        process died before Stripe was called (review finding F-B5-03). Both are
+                        sent with the operation's own idempotency key, so Stripe can never create
+                        a second refund for it. */}
+                    {refund.state === "requested" &&
+                    user.role === "staff_ops" &&
+                    (!refund.approvalRequestId || refund.approvalDecision === "approved") ? (
+                      <form
+                        method="post"
+                        action={`/api/policies/${policy.policyId}/refunds/${refund.operationId}/send`}
+                        className="inline-form"
+                      >
+                        <button type="submit">
+                          {refund.approvalRequestId ? "Send this approved refund to Stripe" : "Send to Stripe again"}
+                        </button>
+                      </form>
+                    ) : null}
+                    {refund.state === "requested" && refund.approvalRequestId && refund.approvalDecision !== "approved" ? (
+                      <span className="note">
+                        <br />
+                        Above the approval threshold: it waits in{" "}
+                        <Link href="/ops/approvals">the approvals queue</Link> until a second person decides.
+                      </span>
+                    ) : null}
                     {refund.failedAfterCompletion ? (
                       <p className="error">
                         Stripe reported a failure after this refund had completed. Nothing was reversed
@@ -388,6 +441,79 @@ export default async function PolicyPage({
             </tbody>
           </table>
         </>
+      ) : null}
+
+      {/* --- Slice B7: claims on this policy --- */}
+      <h2>Claims</h2>
+      <p className="note">
+        Incurred is what a claim has cost so far: paid plus the reserve still outstanding. A claim
+        can be opened on a cancelled policy too, as long as the loss happened while the policy was
+        in force. Cancelling never touches an open claim or its reserve.
+      </p>
+      {claims.length === 0 ? (
+        <p className="note">No claim on this policy.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Claim</th>
+              <th>Claimant</th>
+              <th>Loss date</th>
+              <th>State</th>
+              <th className="amount">Reserve</th>
+              <th className="amount">Paid</th>
+              <th className="amount">Incurred</th>
+            </tr>
+          </thead>
+          <tbody>
+            {claims.map((claim) => (
+              <tr key={claim.claimId}>
+                <td>
+                  {/* Only staff work on a claim, so only staff get the link to its screen. */}
+                  {isStaff ? (
+                    <Link href={`/ops/claims/${claim.claimId}`}>{claim.claimNumber}</Link>
+                  ) : (
+                    claim.claimNumber
+                  )}
+                </td>
+                <td>{claim.claimantName}</td>
+                <td>{claim.occurredAt}</td>
+                <td>{claim.position.isClosed ? "closed" : "open"}</td>
+                <td className="amount">{formatCentsAsUsd(claim.position.reserveCents)}</td>
+                <td className="amount">{formatCentsAsUsd(claim.position.paidCents)}</td>
+                <td className="amount">{formatCentsAsUsd(claim.position.incurredCents)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {/* A claim needs cover to have existed, so the form is offered on a bound policy and on a
+          cancelled one (the loss can predate the cancellation). openClaim checks the same thing
+          on the server from the policy's events, so a voided or unpaid policy is refused there
+          whatever the page shows. */}
+      {user.role === "staff_ops" && (policy.status === "bound" || policy.status === "cancelled") ? (
+        <form method="post" action={`/api/policies/${policy.policyId}/claims`} className="card">
+          <label htmlFor="claimantName">Claimant name</label>
+          {/* The bank ownership check compares the account holder with this name, so it is the
+              name on the claim that decides where money may go. */}
+          <input id="claimantName" name="claimantName" defaultValue={policy.customerName} required />
+          <label htmlFor="occurredAt">Date of loss</label>
+          <input
+            id="occurredAt"
+            name="occurredAt"
+            type="date"
+            required
+            min={policy.effectiveAt}
+            max={policy.termEnd}
+            defaultValue={today > policy.effectiveAt && today <= policy.termEnd ? today : policy.effectiveAt}
+          />
+          <label htmlFor="reportedAt">Date reported to us</label>
+          <input id="reportedAt" name="reportedAt" type="date" required defaultValue={today} />
+          <label htmlFor="description">What happened</label>
+          <input id="description" name="description" placeholder="water damage in the workshop" required />
+          <button type="submit">Open a claim</button>
+        </form>
       ) : null}
 
       <h2>Journal entries</h2>
