@@ -1365,3 +1365,9 @@ details.sandbox-reference dd {
     padding: 10px 12px;
   }
 }
+
+/* A note that carries the sandbox affordance is a div rather than a paragraph, because a details
+   element cannot live inside a p. It keeps the spacing of the paragraph it replaces. */
+div.note {
+  margin: 12px 0;
+}

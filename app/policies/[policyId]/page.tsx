@@ -235,7 +235,9 @@ export default async function PolicyPage({
 
       <h2>Payment</h2>
       {operation ? (
-        <p className="note">
+        // A details element is not allowed inside a paragraph, so a note carrying the
+        // affordance is a div. Same class, same look.
+        <div className="note">
           Last status of the premium payment: {operation.latestStatus ?? "none"}.
           <SandboxReferences
             references={[
@@ -243,7 +245,7 @@ export default async function PolicyPage({
               { label: "Stripe Checkout Session", value: operation.providerRef },
             ]}
           />
-        </p>
+        </div>
       ) : (
         <p className="note">No payment started yet.</p>
       )}
@@ -256,7 +258,8 @@ export default async function PolicyPage({
             Voided by a correction on {voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC:{" "}
             {voidCorrection.reason}
           </p>
-          <p className="note">
+          {/* A div, not a p: a details element is not allowed inside a paragraph. */}
+          <div className="note">
             {voidCorrection.reversedEntryCount > 0
               ? `${voidCorrection.reversedEntryCount} entries were reversed. `
               : ""}
@@ -265,7 +268,7 @@ export default async function PolicyPage({
             <SandboxReferences
               references={[{ label: "Correction event id", value: voidCorrection.correctionEventId }]}
             />
-          </p>
+          </div>
         </>
       ) : null}
 
@@ -458,7 +461,8 @@ export default async function PolicyPage({
               <h3>
                 Effective {row.effectiveAt}: {row.description}
               </h3>
-              <p className="note">
+              {/* A div, not a p: a details element is not allowed inside a paragraph. */}
+              <div className="note">
                 {row.figures.daysRemaining} of {row.figures.termDays} days remained from {row.effectiveAt}. Every figure
                 below is the one stored on the endorsement event and posted to the journal; none of it is recomputed
                 for display.
@@ -472,7 +476,7 @@ export default async function PolicyPage({
                       : [{ label: "Stripe references", value: null }]
                   }
                 />
-              </p>
+              </div>
               <FormulaLinesTable lines={row.lines} />
               {/* Slice B8: the panel's live-fire test. Staff operations can put a wrong effective
                   date right; the preview shows the whole impact before anything is written. */}
@@ -915,7 +919,8 @@ function EndorsementInProgress({
       <FormulaLinesTable lines={endorsement.lines} />
 
       {collection ? (
-        <p className="note">
+        // A div, not a p: a details element is not allowed inside a paragraph.
+        <div className="note">
           Last status of the delta payment: {collection.latestStatus ?? "none"}
           {collection.isDead ? ". The hosted page expired: the next Pay click opens a new session under a new key." : ""}
           <SandboxReferences
@@ -925,7 +930,7 @@ function EndorsementInProgress({
               { label: "Stripe PaymentIntent", value: collection.paymentIntentId },
             ]}
           />
-        </p>
+        </div>
       ) : null}
 
       {collection?.applicationRefusedReason ? (

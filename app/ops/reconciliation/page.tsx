@@ -80,6 +80,14 @@ export default async function ReconciliationPage({
         and stores the comparison. Signed in as {user.displayName} ({user.role}). All times are UTC.
       </p>
 
+      {/* The two integration labels stay on the page, never behind a disclosure: what is live and
+          what is simulated is the first thing a reader has to know (AF-02). The detail of each
+          one is in "how to read this" below. */}
+      <p className="note">
+        Two sources: <strong>Stripe (LIVE SANDBOX)</strong> and the{" "}
+        <strong>claim payout rail (LOCAL SIMULATOR)</strong>.
+      </p>
+
       <Disclosure>
         <p>
           Two sources: <strong>Stripe</strong> (LIVE SANDBOX: PaymentIntents, Refunds and BalanceTransactions listed
