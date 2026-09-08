@@ -36,7 +36,13 @@ Checks executed: `npm run check:ledger-guards` 10/10 PASS on the trial database,
 
 Ledger practice check against Modern Treasury, Square Books and Stripe Ledger write-ups recorded in ARCHITECTURE.md section 1; created_by added to journal headers. Probe objects left in the Stripe sandbox carry metadata corgi_probe. B0 is complete. Independent review of B1a is grouped with the B1b/B2 money-path review. Walkthrough status: NOT REVIEWED WITH YOANN.
 
-Next acceptance criterion: B1b pure pro-rata functions with worked examples and tests, then B2 issuance and Stripe Checkout with journal posting. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
+## 2026-09-08T09:17:36+00:00 | B1b done: premium arithmetic with tests (commit ea5085d)
+
+`lib/money/dates.ts` (calendar dates, term end on the same date next year or February 28, real day counts) and `lib/money/premium.ts` (earned and unearned premium floored/ceiled, endorsement delta over remaining days from the effective date, state tax floored when charged and ceiled when refunded, commission on collected premium, pro-rata cancellation refund breakdown). All arithmetic in bigint cents. `npm test` (node --test through tsx): 14/14 PASS, including earned + unearned = written on every day of a 366-day term, both example dates (January 1: 32786 / 87214; March 1: 32876 / 87124), backdating changing the delta (43606 vs 48524), the refund breakdown 87214 + 2617 + 0 = 89831. docs/COMPLIANCE-MATRIX.md created with the ledger, webhook, sandbox, secrets and deployment rows.
+
+B1 status: implementation complete (B1a + B1b), tests PASS; independent review requested next; walkthrough NOT REVIEWED WITH YOANN. Open for Yoann: which example date to recite (both are tested), commission clawback rounding (B5), negative endorsement delta handling (B4), closed-month revision rule (B9), modeled state and tax rate source (B2).
+
+Next acceptance criterion: B2 issuance with Stripe Checkout, journal posting on payment_intent.succeeded, replay twice is one. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
 
