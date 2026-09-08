@@ -74,6 +74,12 @@ export type DiffItem = {
   providerAmountCents: number | null; // signed
   ledgerAmountCents: number | null; // signed
   differenceCents: number | null; // provider minus ledger, a missing side counting as zero
+  // WHEN THE COMPARED RECORD BELONGS. ISO instant. This is what lets a later run say whether it
+  // actually re-examined a break or simply did not look at it: a run only resolves a break whose
+  // record date falls inside its window (review finding F-B10-01, lib/reconciliation/read.ts).
+  // The provider's own created time when there is a provider record, because the provider is the
+  // authority on when its money moved; the money operation's created time otherwise.
+  recordAt: string;
   note: string;
 };
 
@@ -136,6 +142,7 @@ function classifyPair(provider: ProviderRecord, ledger: LedgerRecord, input: Dif
     providerAmountCents: providerAmount,
     ledgerAmountCents: ledger.cashCents,
     differenceCents: providerAmount - ledger.cashCents,
+    recordAt: provider.createdAt,
     note,
   });
 
@@ -189,6 +196,7 @@ function classifyProviderAlone(provider: ProviderRecord): DiffItem {
     providerAmountCents: providerAmount,
     ledgerAmountCents: null,
     differenceCents: providerAmount,
+    recordAt: provider.createdAt,
     note,
   });
   const identity = provider.operationId
@@ -212,6 +220,8 @@ function classifyLedgerAlone(ledger: LedgerRecord, input: DiffInput): DiffItem {
     providerAmountCents: null,
     ledgerAmountCents: ledger.cashCents,
     differenceCents: -ledger.cashCents,
+    // No provider record, so the money operation's own creation time is the date of this record.
+    recordAt: ledger.requestedAt,
     note,
   });
 
