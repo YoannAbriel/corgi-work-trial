@@ -354,6 +354,26 @@ export async function claimPayoutOperation(
   };
 }
 
+// The payment named in a URL must belong to the claim named in the same URL.
+//
+// Without this check, POST /api/claims/{claimId}/payments/{operationId} acts on another claim's
+// payment: the money functions read the claim from the operation itself, so the financial effect
+// lands on the right claim, but on a claim the caller did not name, and only the redirect is
+// wrong (review finding F-B7-08). The refund routes already refuse the same mismatch.
+export async function assertPaymentBelongsToClaim(
+  claimId: string,
+  operationId: string,
+  database: postgres.Sql = sql,
+): Promise<void> {
+  const operation = await claimPayoutOperation(database, operationId);
+  if (!operation) {
+    throw new ClaimRefused("this claim payment does not exist");
+  }
+  if (operation.claimId !== claimId) {
+    throw new ClaimRefused("this payment belongs to another claim");
+  }
+}
+
 export type SendClaimPaymentResult = {
   outcome: "sent" | "already_sent";
   transferRef: string;

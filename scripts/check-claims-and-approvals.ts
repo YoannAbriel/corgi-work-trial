@@ -71,8 +71,14 @@ async function main() {
   // .env.local read first.
   const { recordSuccessfulPayment } = await import("@/lib/payments/collection");
   const { openClaim, setClaimReserve, closeClaim, ClaimRefused } = await import("@/lib/claims/claims");
-  const { addClaimantBankAccount, requestClaimPayment, sendClaimPayment, settleClaimPayment, returnClaimPayment } =
-    await import("@/lib/claims/payments");
+  const {
+    addClaimantBankAccount,
+    assertPaymentBelongsToClaim,
+    requestClaimPayment,
+    sendClaimPayment,
+    settleClaimPayment,
+    returnClaimPayment,
+  } = await import("@/lib/claims/payments");
   const { decideApprovalRequest, approvalRequest, assertIntentIsApproved, ApprovalRefused } = await import(
     "@/lib/approvals/approvals"
   );
@@ -862,6 +868,24 @@ async function main() {
     reissueGateAnswer.status === "refused",
     `${reissueGateAnswer.status}: ${reissueGateAnswer.detail}`,
   );
+
+  // ---------------------------------------------------------------------------
+  // 11d. The LOW findings of the B7 review, closed one by one
+  // ---------------------------------------------------------------------------
+
+  // F-B7-08: the payment in the URL must belong to the claim in the URL.
+  const wrongPair = await refusal(() =>
+    assertPaymentBelongsToClaim(claim.claimId, firstSixHundred.operationId, runtime),
+  );
+  report(
+    "a payment of another claim cannot be driven from this claim's URL",
+    /belongs to another claim/.test(wrongPair),
+    wrongPair,
+  );
+  const rightPair = await refusal(() =>
+    assertPaymentBelongsToClaim(splitClaim.claimId, firstSixHundred.operationId, runtime),
+  );
+  report("the claim that owns the payment passes the same check", rightPair === "no error raised", rightPair);
 
   // ---------------------------------------------------------------------------
   // 12. The whole ledger still balances
