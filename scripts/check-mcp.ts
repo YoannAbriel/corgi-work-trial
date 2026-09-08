@@ -473,7 +473,8 @@ async function main() {
   // 4. The write tool: it queues, it never pays
   // -------------------------------------------------------------------------
 
-  const journalBefore = await journalEntryCount();
+  const ourPolicies = [policy.policyId, otherPolicy.policyId];
+  const journalBefore = await fixtureJournalCount(ourPolicies, claim.claimId);
 
   const brokerAsksToPay = await callTool(brokerKey.presentedKey, "request_claim_payment", {
     claimNumber: claim.claimNumber,
@@ -502,10 +503,11 @@ async function main() {
 
   const requestId = asked.ok ? String(asked.value.approvalRequestId) : "";
   const operationStatus = await latestOperationStatus(asked.ok ? String(asked.value.moneyOperationId) : "");
+  const journalAfterAsking = await fixtureJournalCount(ourPolicies, claim.claimId);
   report(
     "NO MONEY MOVED: the journal is unchanged and the operation is still only 'requested'",
-    (await journalEntryCount()) === journalBefore && operationStatus === "requested",
-    `${journalBefore} journal entries before and after, operation status "${operationStatus}"`,
+    journalAfterAsking === journalBefore && operationStatus === "requested",
+    `${journalBefore} journal entries before, ${journalAfterAsking} after, operation status "${operationStatus}"`,
   );
 
   const agentAsks = await callTool(agentKey.presentedKey, "request_claim_payment", {
@@ -593,8 +595,9 @@ async function main() {
   );
   report(
     "approving still moves no money: sending is a separate staff action the surface does not expose",
-    (await journalEntryCount()) === journalBefore && (await latestOperationStatus(asked.ok ? String(asked.value.moneyOperationId) : "")) === "requested",
-    `${journalBefore} journal entries, operation still 'requested'`,
+    (await fixtureJournalCount(ourPolicies, claim.claimId)) === journalBefore &&
+      (await latestOperationStatus(asked.ok ? String(asked.value.moneyOperationId) : "")) === "requested",
+    `${journalBefore} journal entries on this check's policies and claim, operation still 'requested'`,
   );
 
   const badAmount = await callTool(staffKey.presentedKey, "request_claim_payment", {
@@ -611,7 +614,7 @@ async function main() {
   // 5. Running the reconciliation
   // -------------------------------------------------------------------------
 
-  const beforeReconciliation = await journalEntryCount();
+  const beforeReconciliation = await fixtureJournalCount(ourPolicies, claim.claimId);
   const reconciled = await callTool(staffKey.presentedKey, "run_reconciliation", { windowDays: 1 });
   const runs = reconciled.ok ? (reconciled.value.runs as { runId: string; source: string; status: string }[]) : [];
   report(
@@ -626,8 +629,10 @@ async function main() {
   );
   report(
     "RUNNING THE RECONCILIATION MOVES NO MONEY: not one journal entry was posted",
-    (await journalEntryCount()) === beforeReconciliation && reconciled.ok && reconciled.value.moneyMoved === false,
-    `${beforeReconciliation} journal entries before and after`,
+    (await fixtureJournalCount(ourPolicies, claim.claimId)) === beforeReconciliation &&
+      reconciled.ok &&
+      reconciled.value.moneyMoved === false,
+    `${beforeReconciliation} journal entries on this check's policies and claim, before and after`,
   );
   const brokerReconciles = await callTool(brokerKey.presentedKey, "run_reconciliation", {});
   report(
@@ -803,8 +808,15 @@ async function expectDatabaseError(
   }
 }
 
-async function journalEntryCount(): Promise<number> {
-  const [row] = await owner<{ count: string }[]>`select count(*)::text as count from journal_entries`;
+// How many journal entries exist for THIS check's own policies and claim. Counting every entry
+// in the database would be wrong here: corgi_test is shared, and another agent's check running at
+// the same time would change the total and make "no money moved" look false when nothing of ours
+// moved at all.
+async function fixtureJournalCount(policyIds: string[], claimId: string): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`
+    select count(*)::text as count from journal_entries
+     where policy_id in ${owner(policyIds)} or claim_id = ${claimId}
+  `;
   return Number(row.count);
 }
 
