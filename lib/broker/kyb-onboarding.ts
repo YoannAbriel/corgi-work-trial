@@ -26,9 +26,13 @@ import {
 //   1. the submission row is written and COMMITTED before Stripe is called. It carries what
 //      the broker declared and, above all, the Stripe Connected Account Agreement acceptance
 //      with its real instant and IP address. If the process dies during the provider call,
-//      that acceptance is still on file and the retry reuses the same idempotency key.
-//   2. Stripe is called with that key, so a retry after a lost answer returns the account it
-//      already created instead of creating a second one for the same broker.
+//      that acceptance is still on file, with the key the call was made under.
+//   2. Stripe is called with that key. The key protects against the SAME request being sent
+//      twice (a double-clicked form): Stripe answers with the account it already created.
+//      It does not replay a lost answer: the EIN is never stored, so a broker who submits
+//      again after a lost answer sends a new request under a new key, and Stripe may hold a
+//      second, unused connected account for that broker (review finding F-B3-02, accepted:
+//      an orphan test account costs nothing and binds nothing).
 //   3. what Stripe answered is appended to broker_kyb_events, never written over anything.
 //
 // A provider error at step 2 is a fact about the broker, so it is appended as a 'failed'
