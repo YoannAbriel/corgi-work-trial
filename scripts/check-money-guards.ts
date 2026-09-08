@@ -1,7 +1,7 @@
 import postgres from "postgres";
 
-// Proves, on a real database, that the tables added by migrations 0002 and 0004 are
-// append-only, exactly the way scripts/check-ledger-guards.ts does it for the ledger core.
+// Proves, on a real database, that the tables added by migrations 0002, 0004, 0005 and 0006
+// are append-only, exactly the way scripts/check-ledger-guards.ts does it for the ledger core.
 //
 //   as the owner   : UPDATE, DELETE and TRUNCATE are refused by triggers, even for the role
 //                    that owns the schema, and recorded_at cannot be chosen by the client;
@@ -36,6 +36,9 @@ const PROTECTED_TABLES = [
   "broker_kyb_events",
   // Added by migration 0005 (slice B5): what each Stripe refund gives back and why.
   "refund_allocations",
+  // Added by migration 0006 (slice B3): what a broker declared for business verification,
+  // and the Stripe Connected Account Agreement acceptance sent with it.
+  "broker_kyb_submissions",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -101,6 +104,21 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
   const [kybEvent] = await tx<{ id: string }[]>`
     insert into broker_kyb_events (broker_id, provider, status) values (${broker.id}, 'seed', 'approved') returning id
   `;
+  // The verification the broker submitted. Only the last four digits of the EIN are ever
+  // stored; the number itself goes to Stripe and comes back to nobody.
+  const [kybSubmission] = await tx<{ id: string }[]>`
+    insert into broker_kyb_submissions (
+      broker_id, provider, provider_idempotency_key, legal_name, ein_last4,
+      address_line1, address_city, address_state, address_postal_code,
+      business_url, contact_email, terms_accepted_at, terms_accepted_ip, submitted_by
+    ) values (
+      ${broker.id}, 'stripe_connect', 'guard-check-kyb:' || gen_random_uuid()::text,
+      'Guard Check Brokerage LLC', '0000', 'address_full_match', 'San Francisco', 'CA', '94105',
+      'https://example.invalid/guard-check', 'guard-check@example.invalid',
+      '2026-09-08T12:00:00Z', '203.0.113.10', null
+    )
+    returning id
+  `;
   // A refund of that collection, with the allocation row that says what it gives back
   // (migration 0005). 89172 = 87124 of premium + 2048 of tax, the recited example.
   const [refundOperation] = await tx<{ id: string }[]>`
@@ -127,6 +145,7 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     state_tax_rates: taxRate.id,
     broker_kyb_events: kybEvent.id,
     refund_allocations: allocation.id,
+    broker_kyb_submissions: kybSubmission.id,
   };
 }
 
@@ -193,7 +212,7 @@ async function main() {
   }
 
   // 4. recorded_at and created_at come from the database clock, not from the client.
-  let storedTimes: { policy_event: Date; operation: Date; refund_allocation: Date } | null = null;
+  let storedTimes: { policy_event: Date; operation: Date; refund_allocation: Date; kyb_submission: Date } | null = null;
   await expectError(owner, async (tx) => {
     const fixture = await insertFixtureRows(tx);
     const [policyEvent] = await tx<{ recorded_at: Date }[]>`
@@ -217,18 +236,35 @@ async function main() {
       )
       returning recorded_at
     `;
+    const [kybSubmission] = await tx<{ recorded_at: Date }[]>`
+      insert into broker_kyb_submissions (
+        broker_id, provider, provider_idempotency_key, legal_name, ein_last4,
+        address_line1, address_city, address_state, address_postal_code,
+        business_url, contact_email, terms_accepted_at, terms_accepted_ip, recorded_at
+      ) values (
+        ${fixture.brokers}, 'stripe_connect', 'guard-check-clock:' || gen_random_uuid()::text,
+        'Guard Check Brokerage LLC', '0000', 'address_full_match', 'San Francisco', 'CA', '94105',
+        'https://example.invalid/guard-check', 'guard-check@example.invalid',
+        '2026-09-08T12:00:00Z', '203.0.113.10', '2000-01-01T00:00:00Z'
+      )
+      returning recorded_at
+    `;
     storedTimes = {
       policy_event: policyEvent.recorded_at,
       operation: operation.created_at,
       refund_allocation: allocation.recorded_at,
+      kyb_submission: kybSubmission.recorded_at,
     };
   });
-  const clockCheck = storedTimes as { policy_event: Date; operation: Date; refund_allocation: Date } | null;
+  const clockCheck = storedTimes as
+    | { policy_event: Date; operation: Date; refund_allocation: Date; kyb_submission: Date }
+    | null;
   const serverClockWon =
     clockCheck !== null &&
     clockCheck.policy_event.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
     clockCheck.operation.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
-    clockCheck.refund_allocation.getTime() > Date.parse("2020-01-01T00:00:00Z");
+    clockCheck.refund_allocation.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
+    clockCheck.kyb_submission.getTime() > Date.parse("2020-01-01T00:00:00Z");
   report(
     "recorded_at and created_at ignore the client value",
     serverClockWon,
@@ -270,6 +306,33 @@ async function main() {
       `;
     }
   });
+  // 6. Migration 0006: a broker cannot submit the same verification twice. The key is derived
+  //    from the broker and the attempt number, so a double-clicked form computes it twice and
+  //    the second insert is refused instead of creating a second Stripe account.
+  const secondSubmissionUnderTheSameKey = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    for (const attempt of [1, 2]) {
+      await tx`
+        insert into broker_kyb_submissions (
+          broker_id, provider, provider_idempotency_key, legal_name, ein_last4,
+          address_line1, address_city, address_state, address_postal_code,
+          business_url, contact_email, terms_accepted_at, terms_accepted_ip
+        ) values (
+          ${fixture.brokers}, 'stripe_connect', 'guard-check-double-submit:' || ${fixture.brokers},
+          'Guard Check Brokerage LLC', ${String(attempt).padStart(4, "0")}, 'address_full_match',
+          'San Francisco', 'CA', '94105', 'https://example.invalid/guard-check',
+          'guard-check@example.invalid', '2026-09-08T12:00:00Z', '203.0.113.10'
+        )
+      `;
+    }
+  });
+  report(
+    "a second submission under the same idempotency key is refused",
+    !!secondSubmissionUnderTheSameKey &&
+      /broker_kyb_submissions_provider_idempotency_key_key/i.test(secondSubmissionUnderTheSameKey),
+    secondSubmissionUnderTheSameKey ?? "no error raised",
+  );
+
   report(
     "a policy cannot be cancelled twice",
     !!secondCancellation && /policy_events_one_cancellation_per_policy/i.test(secondCancellation),
