@@ -21,7 +21,7 @@ export default async function OpsClaimsPage() {
 
   return (
     <PortalShell active="claims" user={user}>
-      <h1>Claims</h1>
+      <h1>Track your <em>claims.</em></h1>
       <p className="lead">
         Signed in as {user.displayName} ({user.role}). Incurred is what a claim has cost so far:
         paid plus the reserve still outstanding.

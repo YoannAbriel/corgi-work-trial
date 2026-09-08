@@ -26,7 +26,7 @@ export default async function OpsBrokersPage({
 
   return (
     <PortalShell active="verification" user={user}>
-      <h1>Brokers and their verification</h1>
+      <h1>Brokers & <em>verification.</em></h1>
       <p className="note">
         Verification runs on Stripe Connect business verification in test mode, which is not a dedicated KYB vendor;
         every status below comes from Stripe&apos;s own answers, never from a form.

@@ -1,0 +1,15 @@
+{
+  "purpose": "Original decorative empty-state artwork generated on user-owned DGX Spark; no reference screenshot or account data used. Not integration evidence.",
+  "generator": "Existing ComfyUI service and installed Krea model",
+  "model": "krea2_turbo_fp8_scaled.safetensors",
+  "job_id": "59633218-4d3b-4bb1-9b00-acb7e840b637",
+  "prompt": "A sophisticated monochrome editorial illustration for an insurance policy workspace. A small Pembroke Welsh corgi sits attentively beside a tidy stack of plain paper documents and a simple abstract protective shield, a tiny sprig of leaves beside the papers. Fine black ink stippling and newspaper halftone texture, photogravure collage aesthetic, tasteful vintage scientific engraving with modern minimalist composition. Black and gray only on perfectly pure white background, no beige, no orange, no color. The entire compact group occupies the middle sixty percent with generous empty white margins all around. Front three-quarter view, gentle natural expression, recognizable short corgi legs and large upright ears. Sparse refined composition, no cartoon clay, no laptop, no text, no letters, no numbers, no logos, no watermarks, no frame.",
+  "seed": 180930,
+  "steps": 8,
+  "file": "public/illustrations/corgi-engraving.webp",
+  "width": 1152,
+  "height": 768,
+  "bytes": 45268,
+  "sha256": "4294da130e3957b499a55f17ff2a6e0df8d35dc0181b189e437612f15b98819f",
+  "selection": "First generation retained after visual inspection. Converted to WebP without creative pixel edits."
+}

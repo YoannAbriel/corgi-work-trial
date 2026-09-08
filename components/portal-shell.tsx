@@ -1,19 +1,22 @@
 import Link from "next/link";
 import {
   ClipboardCheck,
-  Dog,
   FileText,
   Home,
   LogIn,
+  Shapes,
   ShieldCheck,
   UserRound,
   WalletCards,
 } from "lucide-react";
 import type { SignedInUser } from "@/lib/auth/current-user";
+import { PortalFrame } from "./portal-frame";
 
-type Section = "home" | "policies" | "verification" | "claims" | "approvals" | "login";
+type Section =
+  "home" | "policies" | "verification" | "claims" | "approvals" | "login";
 
-// Presentation only. Pages keep their existing server-side identity and ownership checks.
+// Pages retain their server-side identity and ownership checks. This component
+// passes only rendered UI and the section label across the client boundary.
 export function PortalShell({
   children,
   user,
@@ -26,95 +29,115 @@ export function PortalShell({
   const isStaff = user?.role === "staff_ops" || user?.role === "staff_approver";
   const links = isStaff
     ? [
-        { href: "/ops", label: "Home", section: "home", icon: Home },
-        { href: "/broker", label: "Policies", section: "policies", icon: FileText },
+        { href: "/ops", label: "Overview", section: "home", icon: Home },
+        {
+          href: "/broker",
+          label: "Policies",
+          section: "policies",
+          icon: FileText,
+        },
         {
           href: "/ops/brokers",
-          label: "Brokers and verification",
+          label: "Brokers & verification",
           section: "verification",
           icon: ShieldCheck,
         },
-        { href: "/ops/claims", label: "Claims", section: "claims", icon: WalletCards },
-        { href: "/ops/approvals", label: "Approvals", section: "approvals", icon: ClipboardCheck },
+        {
+          href: "/ops/claims",
+          label: "Claims",
+          section: "claims",
+          icon: WalletCards,
+        },
+        {
+          href: "/ops/approvals",
+          label: "Approvals",
+          section: "approvals",
+          icon: ClipboardCheck,
+        },
       ]
     : user?.role === "broker"
       ? [
-          { href: "/broker", label: "Policies", section: "policies", icon: FileText },
-          { href: "/broker/kyb", label: "Business verification", section: "verification", icon: ShieldCheck },
+          {
+            href: "/broker",
+            label: "Policies",
+            section: "policies",
+            icon: FileText,
+          },
+          {
+            href: "/broker/kyb",
+            label: "Business verification",
+            section: "verification",
+            icon: ShieldCheck,
+          },
         ]
       : [
-          { href: "/", label: "Home", section: "home", icon: Home },
+          { href: "/", label: "Overview", section: "home", icon: Home },
           { href: "/login", label: "Sign in", section: "login", icon: LogIn },
         ];
+  const sectionLabel =
+    links.find((link) => link.section === active)?.label ?? "Policies";
+  const roleLabel =
+    user?.role === "staff_approver"
+      ? "Staff approver"
+      : user?.role === "staff_ops"
+        ? "Staff operations"
+        : user?.role === "broker"
+          ? "Broker"
+          : "Customer";
+
+  const sidebar = (
+    <>
+      <div className="brand">
+        <span className="workspace-icon">
+          <Shapes size={20} strokeWidth={1.8} aria-hidden="true" />
+        </span>
+        <span>
+          <strong>Corgi</strong>
+          <span className="brand-product">Policy administration</span>
+        </span>
+      </div>
+      <div className="navigation-label">
+        {isStaff ? "Operations" : "Insurance"}
+      </div>
+      <nav aria-label="Main navigation" className="sidebar-nav">
+        {links.map(({ href, label, section, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            prefetch={false}
+            aria-current={active === section ? "page" : undefined}
+          >
+            <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
+            <span>{label}</span>
+          </Link>
+        ))}
+      </nav>
+      <div className="sidebar-account">
+        <div className="account-identity">
+          <span className="account-avatar">
+            <UserRound size={19} aria-hidden="true" />
+          </span>
+          <span>
+            <strong>{user?.displayName ?? "Trial workspace"}</strong>
+            <span>{user ? roleLabel : "Synthetic data only"}</span>
+          </span>
+        </div>
+        {user ? (
+          <form method="post" action="/api/session/logout">
+            <button type="submit" className="quiet-button">
+              Sign out
+            </button>
+          </form>
+        ) : null}
+      </div>
+    </>
+  );
 
   return (
-    <div className="portal">
-      <a className="skip-link" href="#main-content">
-        Skip to content
-      </a>
-      <aside className="sidebar">
-        <div className="brand" aria-label="Corgi policy administration">
-          <Dog size={30} strokeWidth={1.7} aria-hidden="true" />
-          <span className="wordmark" translate="no">
-            Corgi
-          </span>
-          <span className="brand-product">
-            Policy <br />
-            administration
-          </span>
-        </div>
-        <nav aria-label="Main navigation" className="sidebar-nav">
-          {links.map(({ href, label, section, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              prefetch={false}
-              aria-current={active === section ? "page" : undefined}
-            >
-              <Icon size={19} strokeWidth={1.7} aria-hidden="true" />
-              <span>{label}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="sidebar-bottom">
-          <img
-            src="/illustrations/corgi-landscape.webp"
-            width="768"
-            height="512"
-            alt=""
-            className="sidebar-art"
-          />
-          <p>
-            Small details.
-            <br />
-            <strong>Thoughtfully covered.</strong>
-          </p>
-        </div>
-      </aside>
-      <div className="portal-body">
-        <header className="topbar">
-          <span className="environment-badge">
-            <ShieldCheck size={15} aria-hidden="true" /> Sandbox workspace
-          </span>
-          {user ? (
-            <div className="account">
-              <UserRound size={19} aria-hidden="true" />
-              <span>{user.displayName}</span>
-              <form method="post" action="/api/session/logout">
-                <button type="submit" className="quiet-button">
-                  Sign out
-                </button>
-              </form>
-            </div>
-          ) : (
-            <span className="topbar-label">Policy administration · Track 1</span>
-          )}
-        </header>
-        <main id="main-content" tabIndex={-1}>
-          {children}
-        </main>
-        <footer className="portal-footer">Sandbox providers and synthetic data only. No real money.</footer>
-      </div>
-    </div>
+    <PortalFrame sidebar={sidebar} sectionLabel={sectionLabel}>
+      <main id="main-content" tabIndex={-1}>
+        {children}
+      </main>
+    </PortalFrame>
   );
 }

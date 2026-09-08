@@ -6,10 +6,12 @@ export default function HomePage() {
   return (
     <PortalShell>
       <div className="home-intro">
-        <h1>Corgi policy administration</h1>
+        <h1>
+          Your policy <em>workspace.</em>
+        </h1>
         <p className="lead">
-          One place for the whole policy story. Manage coverage, follow payments and keep every detail in
-          view.
+          One place for the whole policy story. Manage coverage, follow payments
+          and keep every detail in view.
         </p>
       </div>
       <div className="action-grid">
@@ -35,7 +37,9 @@ export default function HomePage() {
       </div>
       <section className="welcome-banner">
         <div>
-          <h2>A little care goes a long way.</h2>
+          <h2>
+            Every policy. <em>Clearly covered.</em>
+          </h2>
           <p>
             Clear records. Thoughtful decisions.
             <br />
@@ -43,11 +47,16 @@ export default function HomePage() {
           </p>
           <span className="note">Track 1 work trial build</span>
         </div>
-        <img src="/illustrations/corgi-desk.webp" width="1024" height="1024" alt="" />
+        <img
+          src="/illustrations/corgi-engraving.webp"
+          width="1152"
+          height="768"
+          alt=""
+        />
       </section>
       <p className="note">
-        Payments run on Stripe in test mode: no real card, no real money. Health check:{" "}
-        <a href="/api/health">/api/health</a>
+        Payments run on Stripe in test mode: no real card, no real money. Health
+        check: <a href="/api/health">/api/health</a>
       </p>
     </PortalShell>
   );
