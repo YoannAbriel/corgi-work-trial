@@ -47,6 +47,8 @@ npm run check:ledger-seal                            # entries sealed at commit;
 npm run check:payment-replay                         # same payment delivered twice posts once; wrong amount refused; expired session gets a new attempt
 npm run check:refund-replay                          # refund posted once; refund.failed posts nothing; clawback once
 npm run check:kyb-replay                             # KYB status appended only on change; settling window; binding refused unless approved
+npm run check:claims-and-approvals                   # incurred = paid + reserve after every step; limits; maker-checker refusals; rejected refund re-issue returns to the queue
+npm run check:reconciliation                         # every classification once; a planted PaymentIntent of $42.42 (created in the sandbox on each run) is found; a failed fetch never reads clean
 npm run void:fabricated-binding -- --policy=CGP-xxxxx --reason="..."   # operations correction: reversal entries plus a dated event (asks Stripe first)
 npm run rebuild:policy-current                       # rebuilds the policy_current cache from events, proving it is a cache
 ```

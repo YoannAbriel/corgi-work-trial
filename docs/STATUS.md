@@ -114,7 +114,7 @@ Deployed evidence at 15:38Z: GET /api/jobs/daily answers 401 with no credential 
 
 B7 reviewer, trial-database evidence (read-only plus one synthetic claim): all 16 protected tables carry their triggers and app_runtime holds INSERT and SELECT only; claim CLM-00212 on CGP-01274 created through the deployed screens (reserve $5,000, one $1,200 payment approved by approver@example.com, sent and settled on the simulator, reserve left at $3,800 so the cancel-with-open-claim preview stays demonstrable); maker-checker refused the initiator, a broker, a customer and an anonymous caller over HTTP; a changed destination after approval broke the intent hash; the screen's SHA-256 recomputed independently matched; both job endpoints 401 without the secret and 200 with it; a throwaway database migrated 0001 to 0010 in order matched the trial catalogue. Money guards on corgi_test: the solo rerun hit deadlocks on the TRUNCATE probes while the B4 builder and the B10 reviewer used the same database; a quiet rerun is pending.
 
-Next: B7 re-review, refund leg of rule 14 through the approval queue
+Next: verdicts of the B7 re-review and the B10 review; B4 merge (then B8 backdated correction and as-of, which needs the endorsement events); B9 statement merge; LOW findings merge (delegate running: F-B7-05 to 10, F-B2-18, F-B2-19, F-B3-04, F-B3-05); the Codex interface branch integrated after B4; then B11 MCP (needs B9 and B10), B12 polish, B13 hardening and walkthrough, B14 freeze package. T+24h email to be sent by Yoann. Refund leg of rule 14 deferred and disclosed.
 
 ## Earlier status (kept as history)
 
