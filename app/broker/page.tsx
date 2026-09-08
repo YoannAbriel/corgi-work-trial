@@ -45,7 +45,7 @@ export default async function BrokerPage() {
 
       <p className={kyb.status === "approved" ? "badge badge-ok" : "badge badge-warn"}>KYB status: {kyb.status}</p>
       <p className="note">{kyb.explanation}</p>
-      {kyb.isProviderEvidence ? null : (
+      {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
         <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
       )}
 

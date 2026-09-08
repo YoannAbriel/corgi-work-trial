@@ -63,3 +63,11 @@ test("policyWasVoided answers the question on its own, for the checkout guard", 
   assert.equal(policyWasVoided(["quoted", "issued"]), false);
   assert.equal(policyWasVoided(["quoted"]), false);
 });
+
+test("a succeeded payment without issuance reads paid_not_bound, never awaiting_payment", () => {
+  // The broker was not eligible when the money arrived: the cash is parked in the suspense
+  // account and staff bind later. Offering the broker a second payment here would be wrong.
+  assert.equal(derivePolicyStatus({ policyEventTypes: ["quoted"], latestPaymentStatus: "succeeded" }), "paid_not_bound");
+  // Once staff bind, the issuance wins.
+  assert.equal(derivePolicyStatus({ policyEventTypes: ["quoted", "issued"], latestPaymentStatus: "succeeded" }), "bound");
+});

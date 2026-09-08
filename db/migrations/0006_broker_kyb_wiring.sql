@@ -42,15 +42,16 @@
 -- broker_kyb_events.provider_ref as soon as Stripe answers, which is the same shape the money
 -- tables already use (intent first, provider reference on the events). What this row carries
 -- instead is the idempotency key the provider call will use: it is known before the call, it
--- is unique, and it is what makes a retry after a lost answer safe.
+-- is unique, and it turns a double-sent request into one Stripe account. (It does not replay
+-- a lost answer: the EIN is not stored, so a later resubmission uses a new key.)
 create table broker_kyb_submissions (
   id                  uuid primary key default gen_random_uuid(),
   sequence_number     bigserial not null,          -- total order of recording, ties impossible
   broker_id           uuid not null references brokers (id),
   provider            text not null,               -- 'stripe_connect'
   -- Derived from the broker id and the attempt number (lib/broker/kyb-onboarding.ts), never
-  -- random: a submission retried after a lost answer reuses it, and the unique index below
-  -- turns a double-clicked form into one submission instead of two Stripe accounts.
+  -- random: the unique index below turns a double-clicked form into one submission instead
+  -- of two Stripe accounts. A resubmission after a lost answer is a new attempt, new key.
   provider_idempotency_key text not null unique,
   -- What the broker declared. These are the values sent to Stripe for verification.
   legal_name          text not null,

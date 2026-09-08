@@ -1,5 +1,8 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
+import { createApprovalRequest } from "@/lib/approvals/approvals";
+import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { openClaimsOfPolicy } from "@/lib/claims/read";
 import { premiumEarnedToDateEntry, refundRequestedEntry } from "@/lib/ledger/cancellation-entries";
 import { postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
@@ -12,7 +15,7 @@ import {
   type CollectionToRefund,
   type RefundSlice,
 } from "@/lib/money/refund-allocation";
-import { issueRefundsAtStripe } from "@/lib/payments/refunds";
+import { issueRefundsAtStripe, refundIntent } from "@/lib/payments/refunds";
 import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 import type { PolicyTerms } from "./terms";
 
@@ -66,26 +69,61 @@ export type CancellationPlan = {
   premiumToRecogniseAsEarnedCents: number;
   slices: RefundSlice[]; // one Stripe refund per slice; empty when nothing is owed back
   policyVersion: string; // see policyVersion() below
+  // Above $1,000 of money-out, a second human has to approve before anything leaves for Stripe
+  // (lib/approvals/threshold.ts). The preview says so before the broker confirms.
+  refundNeedsApproval: boolean;
+  // What the open claims of this policy hold, and why the cancellation leaves them alone.
+  openClaims: OpenClaimsAtCancellation;
 };
 
-// Everything a claim could ever have to say about a cancellation, in one named place.
-//
-// Claims do not exist yet: they arrive in slice B7. The rule is written here now so that the
-// answer at the live-fire debrief is a rule that was decided in advance, not an improvisation:
+// Everything a claim has to say about a cancellation, in one named place.
 //
 //   AN OPEN CLAIM DOES NOT BLOCK A CANCELLATION, AND IT DOES NOT CHANGE THE REFUND.
 //
-// The refund gives back unearned premium only: premium paid for cover that will not be
-// provided after the cancellation date. A claim is a loss that happened while the policy WAS
-// in force, so it stays payable, its reserve stays open, and neither is touched by the
-// cancellation. The commission clawback follows the refunded premium alone, for the same
-// reason. What B7 adds here is the narrow case where the business does want to stop the
-// operator: for instance a claim whose paid amount already exceeds what would be left of the
-// premium, which is a decision for a human rather than a refund to send automatically.
-export function assertCancellationAllowed(policy: { policyId: string; policyNumber: string }): void {
-  // Deliberately empty in v0: nothing about a claim blocks a cancellation today, and pretending
-  // otherwise would be inventing a rule. Slice B7 fills this in with the claim reads it needs.
-  void policy;
+// The refund gives back unearned premium only: premium paid for cover that will not be provided
+// after the cancellation date. A claim is a loss that happened while the policy WAS in force, so
+// it stays payable, its reserve stays open, and neither is touched by the cancellation. The
+// commission clawback follows the refunded premium alone, for the same reason.
+//
+// This is the live-fire question ("cancel with an open claim and explain refund, commission and
+// reserve"), so the function does not merely allow the cancellation: it returns the sentence and
+// the figures the preview and the explained-amounts screen show, and those come from the claim
+// events rather than from a rule typed into a page.
+//
+// Nothing refuses a cancellation here in v0, and inventing a refusal would be inventing a rule.
+// The function is still the place where one would go: a business that wanted to stop, say, a
+// cancellation on a claim already paid past the remaining premium would put that test here, and
+// it would apply to the preview and to the execution at once.
+export type OpenClaimsAtCancellation = {
+  openClaimCount: number;
+  reserveCents: number; // still expected to be paid on those claims, untouched by the cancellation
+  paidCents: number; // already paid on them, untouched too
+  explanation: string | null; // null when the policy has no open claim
+};
+
+export async function assertCancellationAllowed(
+  database: Queryable,
+  policy: { policyId: string; policyNumber: string },
+): Promise<OpenClaimsAtCancellation> {
+  const openClaims = await openClaimsOfPolicy(database, policy.policyId);
+  if (openClaims.length === 0) {
+    return { openClaimCount: 0, reserveCents: 0, paidCents: 0, explanation: null };
+  }
+
+  const reserveCents = openClaims.reduce((total, claim) => total + claim.position.reserveCents, 0);
+  const paidCents = openClaims.reduce((total, claim) => total + claim.position.paidCents, 0);
+  const claimNumbers = openClaims.map((claim) => claim.claimNumber).join(", ");
+
+  return {
+    openClaimCount: openClaims.length,
+    reserveCents,
+    paidCents,
+    explanation:
+      `Policy ${policy.policyNumber} has ${openClaims.length} open claim (${claimNumbers}). ` +
+      "Cancelling does not touch it: the open claim keeps its reserve, anything already paid on it stays paid, " +
+      "and the refund covers unearned premium only, because the loss happened while the policy was in force. " +
+      "The commission clawback follows the refunded premium alone, for the same reason.",
+  };
 }
 
 // A short string identifying "the policy as it stood when the preview was computed": how many
@@ -153,7 +191,10 @@ export async function planCancellation(
       "this policy carries an endorsement: cancelling it needs the per-segment earning (issuance segment plus each endorsement segment from its own date), which this build does not compute yet",
     );
   }
-  assertCancellationAllowed({ policyId: policy.policyId, policyNumber: policy.policyNumber });
+  const openClaims = await assertCancellationAllowed(database, {
+    policyId: policy.policyId,
+    policyNumber: policy.policyNumber,
+  });
 
   // The effective date must be a day the policy actually covers.
   if (!isCalendarDate(request.effectiveAt)) {
@@ -224,6 +265,11 @@ export async function planCancellation(
     premiumToRecogniseAsEarnedCents,
     slices,
     policyVersion: await policyVersion(database, request.policyId),
+    // The threshold is read against the WHOLE refund, not against each Stripe payment it is
+    // split over: splitting a refund across two collections must not let it slip under $1,000.
+    refundNeedsApproval:
+      breakdown.totalRefundCents > 0 && moneyOutNeedsApproval(breakdown.totalRefundCents),
+    openClaims,
   };
 }
 
@@ -235,6 +281,10 @@ export type CancellationResult = {
   plan: CancellationPlan;
   cancellationEventId: string;
   refundOperationIds: string[];
+  // The refunds that are NOT going anywhere until a second human approves them, and the
+  // requests that are waiting for that person. Empty below the threshold.
+  refundOperationIdsAwaitingApproval: string[];
+  approvalRequestIds: string[];
 };
 
 // The whole cancellation: recompute, write, then ask Stripe for the money.
@@ -243,9 +293,22 @@ export async function cancelPolicy(
   request: CancellationRequest & { expectedPolicyVersion: string },
 ): Promise<CancellationResult> {
   const written = await recordCancellation(request);
+
+  // Maker-checker (general non-negotiable 6, slice B7). The cancellation itself is recorded
+  // either way: the policy really is cancelled, the premium really has stopped earning, and the
+  // customer really is owed the money, so the event and its journal entries are written.
+  //
+  // What waits is the money leaving. A refund above $1,000 stays in status 'requested' with an
+  // approval request beside it, and only the staff action "send this refund to Stripe" runs
+  // issueRefundsAtStripe once a second person has approved it
+  // (app/api/policies/[policyId]/refunds/[operationId]/send).
+  const sendNow = written.refundOperationIds.filter(
+    (operationId) => !written.refundOperationIdsAwaitingApproval.includes(operationId),
+  );
+
   // Outbox: the intent is committed, so the provider call can be retried or resumed with the
   // same key. A provider failure is recorded on the operation and does not undo the cancellation.
-  await issueRefundsAtStripe(written.refundOperationIds);
+  await issueRefundsAtStripe(sendNow);
   return written;
 }
 
@@ -265,6 +328,8 @@ export async function recordCancellation(
   }
 
   const refundOperationIds: string[] = [];
+  const refundOperationIdsAwaitingApproval: string[] = [];
+  const approvalRequestIds: string[] = [];
   let cancellationEventId = "";
 
   await database.begin(async (transaction) => {
@@ -299,17 +364,46 @@ export async function recordCancellation(
     //    Stripe payment being given back. The operation is 'requested': we owe the money and we
     //    have not asked Stripe for it yet.
     for (const slice of plan.slices) {
+      // Maker-checker, written in THIS transaction and before the operation it gates, so there
+      // is no instant in which a refund exists that nobody has to approve. The approval request
+      // carries the sha256 of what is being approved (policy, amount, Stripe payment), and the
+      // execution recomputes that hash before calling Stripe.
+      const approvalRequestId = plan.refundNeedsApproval
+        ? await createApprovalRequest(transaction, {
+            intent: refundIntent(plan.policyId, slice.amountCents, slice.paymentIntentId),
+            destinationDescription: `Stripe payment ${slice.paymentIntentId} (card refund to the customer)`,
+            requestedByUserId: request.actor.userId,
+            payload: {
+              policy_number: plan.policyNumber,
+              cancellation_effective_at: plan.effectiveAt,
+              refunded_premium_cents: slice.refundedPremiumCents,
+              refunded_tax_cents: slice.refundedTaxCents,
+              total_refund_cents: plan.breakdown.totalRefundCents,
+            },
+          })
+        : null;
+
       const attempt = (await countRefundOperations(transaction, plan.policyId, slice.paymentIntentId)) + 1;
       const [operation] = await transaction<{ id: string }[]>`
-        insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key, created_by)
+        insert into money_operations
+          (kind, provider, amount_cents, policy_id, idempotency_key, approval_request_id, created_by)
         values ('stripe_refund', 'stripe', ${slice.amountCents}, ${plan.policyId},
-                ${refundIdempotencyKey(plan.policyId, slice.paymentIntentId, attempt)}, ${request.actor.userId})
+                ${refundIdempotencyKey(plan.policyId, slice.paymentIntentId, attempt)},
+                ${approvalRequestId}, ${request.actor.userId})
         returning id
       `;
+      if (approvalRequestId) {
+        approvalRequestIds.push(approvalRequestId);
+        refundOperationIdsAwaitingApproval.push(operation.id);
+      }
       await transaction`
         insert into money_operation_events (operation_id, status, payload)
         values (${operation.id}, 'requested',
-                ${transaction.json({ note: "cancellation recorded; the Stripe refund has not been created yet" })})
+                ${transaction.json({
+                  note: approvalRequestId
+                    ? "cancellation recorded; this refund waits for a second person to approve it before Stripe is called"
+                    : "cancellation recorded; the Stripe refund has not been created yet",
+                })})
       `;
       await transaction`
         insert into refund_allocations (
@@ -339,7 +433,13 @@ export async function recordCancellation(
     await refreshPolicyCurrent(transaction, plan.policyId);
   });
 
-  return { plan, cancellationEventId, refundOperationIds };
+  return {
+    plan,
+    cancellationEventId,
+    refundOperationIds,
+    refundOperationIdsAwaitingApproval,
+    approvalRequestIds,
+  };
 }
 
 // The figures kept on the cancellation event, in the same snake_case as the SQL columns.
@@ -365,6 +465,13 @@ function cancellationPayload(plan: CancellationPlan): Record<string, string | nu
     refunded_fee_cents: plan.breakdown.refundedFeeCents,
     total_refund_cents: plan.breakdown.totalRefundCents,
     commission_clawback_cents: plan.breakdown.commissionClawbackCents,
+    // What the open claims of this policy held at the moment it was cancelled. None of it is
+    // touched by the cancellation; it is recorded so the explanation can be given later from
+    // the event itself rather than recomputed from claims that have moved on since.
+    open_claim_count: plan.openClaims.openClaimCount,
+    open_claim_reserve_cents: plan.openClaims.reserveCents,
+    open_claim_paid_cents: plan.openClaims.paidCents,
+    refund_needed_approval: plan.refundNeedsApproval,
   };
 }
 

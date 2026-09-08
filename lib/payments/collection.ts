@@ -3,7 +3,7 @@ import { sql } from "@/db/client";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState } from "@/lib/broker/kyb";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
-import { issuanceAndCollectionEntries } from "@/lib/ledger/policy-entries";
+import { issuanceAndCollectionEntries, unappliedCashReceivedEntry, type CollectedFrom } from "@/lib/ledger/policy-entries";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { foldPolicyEvents, refreshPolicyCurrent } from "@/lib/policy/current";
 import { policyTermsToPayload } from "@/lib/policy/terms";
@@ -25,10 +25,11 @@ import { policyTermsToPayload } from "@/lib/policy/terms";
 // The check already runs when the payment page is opened (lib/payments/checkout.ts), but the
 // question "may this broker bind?" is answered again at the moment the policy would actually
 // be bound, because minutes pass between the two and a verification can fail in between. When
-// the broker is not approved, the money is recorded as arrived and NOTHING is journaled and
-// NOTHING is bound: the payment becomes an operations case that a human resolves with
-// retryBindingAfterEligibility once the broker is verified. See its comment for the ledger
-// consequence, which is deliberate and visible rather than hidden.
+// the broker is not approved, the policy is NOT bound, but the money is journaled the moment
+// it exists (rule 14, DECISIONS.md, review findings F-B2-17 and F-B3-01): cash at Stripe
+// against a liability to the customer, in the suspense account unapplied_customer_cash. The
+// payment becomes an operations case: retryBindingAfterEligibility applies the parked cash to
+// the policy once the broker is verified. Ledger cash equals Stripe cash at every instant.
 
 // Each function below takes the database handle as a parameter whose default is the
 // application pool. Production always uses the default; scripts/check-payment-replay.ts and
@@ -37,8 +38,8 @@ import { policyTermsToPayload } from "@/lib/policy/terms";
 export type CollectionOutcome =
   | { kind: "posted" }
   | { kind: "already_posted" }
-  // The money arrived and is recorded on the operation, but the policy was NOT bound and
-  // nothing was journaled, because the broker is not eligible.
+  // The money arrived: it is recorded on the operation and journaled in the suspense account,
+  // but the policy was NOT bound, because the broker is not eligible.
   | { kind: "binding_refused"; reason: string }
   | { kind: "refused"; reason: string };
 
@@ -91,16 +92,12 @@ export async function recordSuccessfulPayment(
 // screen or a direct call to the route cannot bind an ineligible broker's policy.
 //
 // It re-runs the same posting transaction as a first delivery would: the same four entries
-// under the same money operation id, the same 'issued' event. Nothing is special-cased, which
-// is why a second run answers "already posted" instead of doubling anything.
-//
-// The ledger consequence of the refusal, stated plainly because it is a real gap and the
-// reconciliation screen will show it: between the refusal and this retry, Stripe holds cash
-// that our ledger does not show. The money is recorded on the operation (status 'succeeded',
-// with the refusal reason), the policy page says "paid, binding refused", and the difference
-// is a provider-only record that reconciliation reports as a break with its age. Posting the
-// cash to a suspense account instead would keep the ledger complete; that is a design question
-// for the coordinator and Yoann, not a decision this function should make quietly.
+// under the same money operation id, the same 'issued' event, with one difference that the
+// transaction works out for itself: the cash of this payment was already booked at receipt
+// (unapplied_cash_received), so premium_collected debits unapplied_customer_cash instead of
+// cash_stripe. Nothing else is special-cased, which is why a second run answers "already
+// posted" instead of doubling anything. After it, the suspense account is back to zero for
+// this policy and cash_stripe shows the money exactly once.
 export async function retryBindingAfterEligibility(
   request: { policyId: string; actorUserId: string },
   database: postgres.Sql = sql,
@@ -137,6 +134,11 @@ async function postCollectionAndBind(
     await database.begin(async (transaction) => {
       const { terms } = await foldPolicyEvents(transaction, operation.policyId);
 
+      // Was this payment parked at receipt? Then the cash is applied, not booked again.
+      const collectedFrom: CollectedFrom = (await cashWasParked(transaction, operation.operationId))
+        ? "unapplied_customer_cash"
+        : "cash_stripe";
+
       const entries = issuanceAndCollectionEntries({
         operationId: operation.operationId,
         policyId: operation.policyId,
@@ -148,6 +150,7 @@ async function postCollectionAndBind(
         taxCents: terms.taxCents,
         feeCents: terms.feeCents,
         commissionRateBps: operation.commissionRateBps,
+        collectedFrom,
       });
       for (const entry of entries) {
         await postJournalEntry(transaction, entry.header, entry.lines);
@@ -217,10 +220,11 @@ async function interpretUniqueViolation(
     return { kind: "already_posted" };
   }
 
-  // Any other constraint: the entries of THIS operation decide. They are the only proof that
-  // this payment was ever booked. The operation's own 'succeeded' status is not proof, because
-  // a payment whose binding was refused carries one with nothing posted.
-  if (await operationHasJournalEntries(database, operation.operationId)) {
+  // Any other constraint: the issuance entries of THIS operation decide. They are the only
+  // proof that this payment was ever applied to the policy. The operation's own 'succeeded'
+  // status is not proof, and neither is the parking entry, because a payment whose binding
+  // was refused carries both with nothing applied.
+  if (await operationHasIssuanceEntries(database, operation.operationId)) {
     return { kind: "already_posted" };
   }
 
@@ -274,31 +278,66 @@ async function correctionThatReversedOperation(
   return null;
 }
 
-async function operationHasJournalEntries(database: postgres.Sql, operationId: string): Promise<boolean> {
+async function operationHasIssuanceEntries(database: postgres.Sql, operationId: string): Promise<boolean> {
   const [row] = await database<{ count: string }[]>`
     select count(*)::text as count from journal_entries
-     where source_kind = 'money_operation' and source_id = ${operationId}
+     where source_kind = 'money_operation' and source_id = ${operationId} and entry_type = 'premium_collected'
   `;
   return Number(row.count) > 0;
 }
 
-// The money arrived, the policy is not bound. One appended status, no journal entry at all:
-// the operation's history says the payment succeeded AND why nothing was booked, and the
-// policy page reads the reason back from this payload.
+// True when the cash of this operation was booked at receipt into the suspense account and
+// that booking still stands (a reversal of it would mean a correction took the money out).
+async function cashWasParked(database: postgres.Sql | postgres.TransactionSql, operationId: string): Promise<boolean> {
+  const [row] = await database<{ count: string }[]>`
+    select count(*)::text as count
+      from journal_entries parked
+     where parked.source_kind = 'money_operation'
+       and parked.source_id = ${operationId}
+       and parked.entry_type = 'unapplied_cash_received'
+       and not exists (select 1 from journal_entries reversal where reversal.reverses_entry_id = parked.id)
+  `;
+  return Number(row.count) > 0;
+}
+
+// The money arrived, the policy is not bound. One transaction: the cash is journaled into the
+// suspense account (Dr cash_stripe, Cr unapplied_customer_cash, rule 14), the operation's
+// history says the payment succeeded AND why nothing was applied, and the cache reads
+// paid_not_bound. The policy page reads the reason back from the operation's payload.
+//
+// A second delivery of the same payment meets the journal's unique key on the parking entry:
+// the whole transaction rolls back and nothing is appended twice, which is the answer wanted.
 async function recordPaymentWithoutBinding(
   database: postgres.Sql,
   operation: CheckoutOperation,
   payment: SuccessfulPayment,
   reason: string,
 ): Promise<void> {
-  await database.begin(async (transaction) => {
-    await appendSucceededEventOnce(transaction, payment, {
-      amount_received_cents: payment.amountReceivedCents,
-      paid_on: payment.paidOn,
-      binding_refused_reason: reason,
+  try {
+    await database.begin(async (transaction) => {
+      const parked = unappliedCashReceivedEntry({
+        operationId: operation.operationId,
+        policyId: operation.policyId,
+        policyNumber: operation.policyNumber,
+        brokerId: operation.brokerId,
+        paymentDate: payment.paidOn,
+        amountCents: payment.amountReceivedCents,
+        reason,
+      });
+      await postJournalEntry(transaction, parked.header, parked.lines);
+      await appendSucceededEventOnce(transaction, payment, {
+        amount_received_cents: payment.amountReceivedCents,
+        paid_on: payment.paidOn,
+        binding_refused_reason: reason,
+      });
+      await refreshPolicyCurrent(transaction, operation.policyId);
     });
-    await refreshPolicyCurrent(transaction, operation.policyId);
-  });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return; // already parked by an earlier delivery of the same payment
+    }
+    throw error;
+  }
 }
 
 // Appends the 'succeeded' status of an operation, and only the first time.

@@ -46,9 +46,13 @@ export default async function BrokerKybPage({
 
       <p className={`badge ${kyb.status === "approved" ? "badge-ok" : "badge-warn"}`}>KYB status: {kyb.status}</p>
       <p className="note">{kyb.explanation}</p>
-      {kyb.isProviderEvidence ? null : (
+      {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
         <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
       )}
+      <p className="note">
+        Stripe Connect business verification (test mode) is not a dedicated KYB vendor; it is the live check this
+        build runs, and the status above is Stripe&apos;s answer.
+      </p>
 
       {query.error ? <p className="error">{query.error}</p> : null}
       {query.submitted ? (

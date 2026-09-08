@@ -284,7 +284,8 @@ async function handleAccountUpdated(event: Stripe.AccountUpdatedEvent): Promise<
   return {
     status: "done",
     reason: outcome.appended
-      ? `broker KYB ${outcome.previousStatus ?? "unknown"} -> ${outcome.status} (${outcome.reason})`
+      ? `broker KYB ${outcome.previousStatus ?? "unknown"} -> ${outcome.status} (${outcome.reason})` +
+        (outcome.expiredCheckoutSessions ? `; ${outcome.expiredCheckoutSessions} open payment page(s) expired` : "")
       : `broker KYB unchanged at ${outcome.status}: nothing appended`,
   };
 }

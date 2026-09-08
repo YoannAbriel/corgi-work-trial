@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { entryTotals, issuanceAndCollectionEntries } from "./policy-entries";
+import { entryTotals, issuanceAndCollectionEntries, unappliedCashReceivedEntry } from "./policy-entries";
 
 // The recited example, decided by Yoann on 2026-09-08:
 //   $1,200 annual premium, California premium tax 235 bps = 2820 cents, $25 fee,
@@ -106,4 +106,36 @@ test("a broker on a 0% commission gets no commission entry rather than an empty 
     entries.find((entry) => entry.header.entryType === "commission_earned"),
     undefined,
   );
+});
+
+// Rule 14: money that arrives while the broker is not eligible is parked, then applied.
+test("parked money is booked at receipt against the customer liability, and balances", () => {
+  const parked = unappliedCashReceivedEntry({
+    operationId: RECITED_EXAMPLE.operationId,
+    policyId: RECITED_EXAMPLE.policyId,
+    policyNumber: RECITED_EXAMPLE.policyNumber,
+    brokerId: RECITED_EXAMPLE.brokerId,
+    paymentDate: "2028-03-01",
+    amountCents: 125320,
+    reason: "broker not eligible",
+  });
+  assert.equal(parked.header.entryType, "unapplied_cash_received");
+  assert.equal(parked.header.sourceId, RECITED_EXAMPLE.operationId);
+  assert.deepEqual(parked.lines, [
+    { accountId: "cash_stripe", debitCents: 125320 },
+    { accountId: "unapplied_customer_cash", creditCents: 125320 },
+  ]);
+  assert.deepEqual(entryTotals(parked), { debitCents: 125320, creditCents: 125320 });
+});
+
+test("binding a parked payment applies the cash instead of booking it a second time", () => {
+  const entries = issuanceAndCollectionEntries({ ...RECITED_EXAMPLE, collectedFrom: "unapplied_customer_cash" });
+  assert.equal(amountOn(entries, "premium_collected", "unapplied_customer_cash").debitCents, 125320);
+  assert.equal(amountOn(entries, "premium_collected", "premium_receivable").creditCents, 125320);
+  // cash_stripe is never touched by the application step: it was debited at receipt.
+  for (const entry of entries) {
+    assert.ok(!entry.lines.some((line) => line.accountId === "cash_stripe"), `${entry.header.entryType} touches cash_stripe`);
+  }
+  // The default path is unchanged.
+  assert.equal(amountOn(issuanceAndCollectionEntries(RECITED_EXAMPLE), "premium_collected", "cash_stripe").debitCents, 125320);
 });

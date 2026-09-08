@@ -28,6 +28,27 @@ import type { JournalEntryDraft, JournalLineDraft } from "./post";
 // When a customer pays in advance of the effective date, premium_receivable is temporarily
 // negative in an as-of view: that is the customer's credit balance, and it clears when
 // coverage starts. recorded_at (set by the database) shows that all four were booked together.
+//
+// The parked case (rule 14, DECISIONS.md). When the money arrives while the broker is not
+// eligible, the policy is not bound, but the cash exists, so it is journaled at once against a
+// liability to the customer, and nothing else:
+//
+//   unapplied_cash_received  Dr cash_stripe           125320   Cr unapplied_customer_cash  125320
+//
+// When staff bind the policy later, the same four entries as above are posted, except that
+// premium_collected debits unapplied_customer_cash instead of cash_stripe: the cash was
+// already booked at receipt, and what happens now is that it is APPLIED to the policy.
+//
+//   premium_collected    Dr unapplied_customer_cash 125320   Cr premium_receivable   125320
+//
+// After that, unapplied_customer_cash is back to zero and cash_stripe shows the money exactly
+// once, whichever path the payment took. Ledger cash equals Stripe cash at every instant.
+
+// Where the collected money is taken from when the policy is bound:
+//   cash_stripe              the normal path: the payment is booked and applied in one go;
+//   unapplied_customer_cash  the parked path: the cash was booked at receipt (see
+//                            unappliedCashReceivedEntry) and is applied now.
+export type CollectedFrom = "cash_stripe" | "unapplied_customer_cash";
 
 export type IssuanceCollectionInput = {
   operationId: string; // money_operations.id: the key every entry is filed under
@@ -40,6 +61,7 @@ export type IssuanceCollectionInput = {
   taxCents: number;
   feeCents: number;
   commissionRateBps: number;
+  collectedFrom?: CollectedFrom; // defaults to cash_stripe
 };
 
 export function issuanceAndCollectionEntries(input: IssuanceCollectionInput): JournalEntryDraft[] {
@@ -93,15 +115,19 @@ export function issuanceAndCollectionEntries(input: IssuanceCollectionInput): Jo
     });
   }
 
+  const collectedFrom: CollectedFrom = input.collectedFrom ?? "cash_stripe";
   entries.push({
     header: {
       ...commonHeader,
       entryType: "premium_collected",
       effectiveAt: input.paymentDate,
-      description: `Policy ${input.policyNumber} premium, tax and fee collected at Stripe`,
+      description:
+        collectedFrom === "cash_stripe"
+          ? `Policy ${input.policyNumber} premium, tax and fee collected at Stripe`
+          : `Policy ${input.policyNumber} premium, tax and fee applied from the customer's unapplied cash`,
     },
     lines: [
-      { accountId: "cash_stripe", debitCents: totalChargeCents },
+      { accountId: collectedFrom, debitCents: totalChargeCents },
       { accountId: "premium_receivable", creditCents: totalChargeCents },
     ],
   });
@@ -122,6 +148,39 @@ export function issuanceAndCollectionEntries(input: IssuanceCollectionInput): Jo
   }
 
   return entries;
+}
+
+// The one entry posted when the money arrives but the policy cannot be bound (rule 14).
+// The cash is real, so it is booked; what it is for is not settled yet, so the other side is a
+// liability to the customer rather than premium. Filed under the money operation like the
+// issuance entries, so a second delivery of the same payment meets the journal's unique key.
+export type UnappliedCashInput = {
+  operationId: string;
+  policyId: string;
+  policyNumber: string;
+  brokerId: string;
+  paymentDate: string; // date the payment succeeded at Stripe, "YYYY-MM-DD"
+  amountCents: number; // the whole charge Stripe collected: premium, tax and fee
+  reason: string; // why the binding was refused, copied on the entry for the reader
+};
+
+export function unappliedCashReceivedEntry(input: UnappliedCashInput): JournalEntryDraft {
+  return {
+    header: {
+      policyId: input.policyId,
+      brokerId: input.brokerId,
+      sourceKind: "money_operation",
+      sourceId: input.operationId,
+      createdBy: null, // caused by a Stripe event, not by a person clicking
+      entryType: "unapplied_cash_received",
+      effectiveAt: input.paymentDate,
+      description: `Policy ${input.policyNumber}: customer money received at Stripe, binding refused (${input.reason})`,
+    },
+    lines: [
+      { accountId: "cash_stripe", debitCents: input.amountCents },
+      { accountId: "unapplied_customer_cash", creditCents: input.amountCents },
+    ],
+  };
 }
 
 // Sums both sides of a draft. Used by the tests, and by nothing else: in production the

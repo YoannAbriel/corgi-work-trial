@@ -2,8 +2,9 @@ import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { mapAccountToEligibility, requirementErrorCodes, type VerifiableAccount } from "@/lib/kyb/eligibility";
 import { readBrokerVerification, startBrokerVerification, type UsBusinessAddress } from "@/lib/kyb/stripe-connect";
+import { expireOpenCheckoutSessionsOfBroker } from "@/lib/payments/checkout";
 import { assertStripeSandbox } from "@/lib/stripe";
-import { STRIPE_CONNECT_PROVIDER, type KybStatus } from "./eligibility";
+import { STRIPE_CONNECT_PROVIDER, bindingIsAllowed, type KybStatus } from "./eligibility";
 import {
   appendBrokerKybEvent,
   appendBrokerKybEventIfChanged,
@@ -26,9 +27,13 @@ import {
 //   1. the submission row is written and COMMITTED before Stripe is called. It carries what
 //      the broker declared and, above all, the Stripe Connected Account Agreement acceptance
 //      with its real instant and IP address. If the process dies during the provider call,
-//      that acceptance is still on file and the retry reuses the same idempotency key.
-//   2. Stripe is called with that key, so a retry after a lost answer returns the account it
-//      already created instead of creating a second one for the same broker.
+//      that acceptance is still on file, with the key the call was made under.
+//   2. Stripe is called with that key. The key protects against the SAME request being sent
+//      twice (a double-clicked form): Stripe answers with the account it already created.
+//      It does not replay a lost answer: the EIN is never stored, so a broker who submits
+//      again after a lost answer sends a new request under a new key, and Stripe may hold a
+//      second, unused connected account for that broker (review finding F-B3-02, accepted:
+//      an orphan test account costs nothing and binds nothing).
 //   3. what Stripe answered is appended to broker_kyb_events, never written over anything.
 //
 // A provider error at step 2 is a fact about the broker, so it is appended as a 'failed'
@@ -198,6 +203,9 @@ export type KybUpdateOutcome = {
   requirementErrorCodes: string[];
   appended: boolean;
   previousStatus: KybStatus | null;
+  // How many of the broker's open payment pages were closed because the new status forbids
+  // binding (see expireOpenCheckoutSessionsOfBroker). Only set by the Stripe refresh.
+  expiredCheckoutSessions?: number;
 };
 
 // Maps a freshly read account and records the result if, and only if, the status changed.
@@ -260,7 +268,7 @@ export async function refreshBrokerKybFromStripe(
 ): Promise<KybUpdateOutcome> {
   await assertStripeSandbox();
   const account = await readBrokerVerification(request.providerAccountId);
-  return applyKybAccountUpdate(
+  const outcome = await applyKybAccountUpdate(
     {
       brokerId: request.brokerId,
       account,
@@ -270,6 +278,13 @@ export async function refreshBrokerKybFromStripe(
     },
     database,
   );
+  // The broker can no longer bind: close the payment pages still open on their policies, so
+  // that a customer does not pay for a policy that cannot be bound (rule 14, technical
+  // addition). Done after the status is committed, and only on a real change.
+  if (outcome.appended && !bindingIsAllowed(outcome.status)) {
+    outcome.expiredCheckoutSessions = await expireOpenCheckoutSessionsOfBroker(request.brokerId, database);
+  }
+  return outcome;
 }
 
 // ---------------------------------------------------------------------------------------
