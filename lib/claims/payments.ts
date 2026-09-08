@@ -240,11 +240,17 @@ export async function requestClaimPayment(
     // the money operation carries its id. Nothing can move without it. The threshold is per
     // CLAIM, not per payment (lib/approvals/threshold.ts, review finding F-B7-02): what has
     // already been sent and what is still waiting on this claim count with this payment.
-    const needsApproval = claimPayoutNeedsApproval({
-      amountCents: input.amountCents,
-      claimPaidCents: snapshot.position.paidCents,
-      claimPendingCents: snapshot.pendingCents,
-    });
+    // RULE 21 (decided by Yoann on 2026-09-08, DECISIONS.md): a request raised by an agent goes
+    // to the human approval queue whatever the amount. The threshold is a convenience for
+    // people; it is never a door for a machine (review finding F-B11-01).
+    const raisedByAgent = input.requestedThrough?.principalKind === "agent";
+    const needsApproval =
+      raisedByAgent ||
+      claimPayoutNeedsApproval({
+        amountCents: input.amountCents,
+        claimPaidCents: snapshot.position.paidCents,
+        claimPendingCents: snapshot.pendingCents,
+      });
     const intent = claimPaymentIntent(snapshot.claimId, input.amountCents, bankAccount.accountToken);
     const approvalRequestId = needsApproval
       ? await createApprovalRequest(transaction, {
@@ -279,9 +285,11 @@ export async function requestClaimPayment(
       insert into money_operation_events (operation_id, status, payload)
       values (${operation.id}, 'requested',
               ${transaction.json({
-                note: needsApproval
-                  ? "waiting for a second person to approve it before anything leaves"
-                  : "below the approval threshold; it can be sent to the rail straight away",
+                note: raisedByAgent
+                  ? "raised by an agent: waiting for a second person to approve it whatever the amount (rule 21)"
+                  : needsApproval
+                    ? "waiting for a second person to approve it before anything leaves"
+                    : "below the approval threshold; it can be sent to the rail straight away",
               })})
     `;
     await transaction`
@@ -472,6 +480,12 @@ export async function sendClaimPayment(
         transaction,
         current.approvalRequestId,
         claimPaymentIntent(current.claimId, current.amountCents, bankAccount.accountToken),
+      );
+    } else if (await wasRaisedByAnAgent(transaction, current.operationId)) {
+      // Rule 21, fail closed: an agent-raised payment without an approval request cannot exist
+      // after this rule landed; if one ever does, it does not leave.
+      throw new ClaimRefused(
+        "this payment was raised by an agent and carries no approval request; an agent-raised payment never leaves without a second person (rule 21)",
       );
     } else if (
       claimPayoutNeedsApproval({
@@ -781,6 +795,22 @@ export async function claimPayments(
     });
   }
   return views;
+}
+
+// Whether the payment_requested event of an operation says an agent asked for it. Read from the
+// immutable claim event, not from the operation, so the answer cannot drift.
+async function wasRaisedByAnAgent(
+  database: postgres.Sql | postgres.TransactionSql,
+  operationId: string,
+): Promise<boolean> {
+  const [row] = await database<{ kind: string | null }[]>`
+    select payload -> 'requested_through' ->> 'principalKind' as kind
+      from claim_events
+     where money_operation_id = ${operationId} and event_type = 'payment_requested'
+     order by recorded_at
+     limit 1
+  `;
+  return row?.kind === "agent";
 }
 
 function railStatusOf(

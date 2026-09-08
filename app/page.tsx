@@ -13,6 +13,9 @@ export default function HomePage() {
           One place for the whole policy story. Manage coverage, follow payments
           and keep every detail in view.
         </p>
+        {/* Visible before signing in, on purpose (review finding F-UI-02): a reader who never
+            gets past this page still learns that nothing here is real money. */}
+        <p className="sandbox-note">Work-trial build on sandbox providers and test data. No real money moves here.</p>
       </div>
       <div className="action-grid">
         <Link className="action-card" href="/login">

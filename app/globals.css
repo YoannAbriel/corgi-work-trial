@@ -1787,3 +1787,11 @@ button.orange:hover {
     padding-left: 20px;
   }
 }
+
+/* The one visible sandbox sentence on the public pages (F-UI-02): light and small, never hidden */
+.sandbox-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  letter-spacing: 0.01em;
+}

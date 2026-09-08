@@ -22,6 +22,7 @@ export default async function LoginPage({
           Welcome to your <em>workspace.</em>
         </h1>
         <p className="lead">Sign in to Corgi policy administration.</p>
+        <p className="sandbox-note">Work-trial build on sandbox providers and test data. No real money moves here.</p>
       </div>
 
       <div className="login-grid">

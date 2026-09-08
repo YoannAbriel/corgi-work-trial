@@ -486,10 +486,43 @@ async function main() {
     brokerAsksToPay.ok ? "it answered" : brokerAsksToPay.refusal,
   );
 
+  const agentAsks = await callTool(agentKey.presentedKey, "request_claim_payment", {
+    claimNumber: claim.claimNumber,
+    amountCents: 50000,
+  });
+  report(
+    "an AGENT key can ask too, and the answer says the request was raised by an agent",
+    agentAsks.ok && agentAsks.value.raisedByAgent === true,
+    agentAsks.ok ? `approval request created: ${String(agentAsks.value.approvalRequestCreated)}` : agentAsks.refusal,
+  );
+  // $500 is below the $1,000 threshold and nothing is waiting on this claim yet: a person would
+  // get "ready to send". An agent does not: rule 21 (decided 2026-09-08) puts every agent-raised
+  // payment in the human queue, whatever the amount (review finding F-B11-01).
+  const agentRequestId = agentAsks.ok ? String(agentAsks.value.approvalRequestId) : "";
+  const agentRequestPayload = await approvalPayload(agentRequestId);
+  report(
+    "AND THE IMMUTABLE REQUEST ITSELF SAYS SO: the approver sees it was raised by an agent",
+    agentRequestPayload?.raised_by_agent === true && String(agentRequestPayload?.raised_through).includes(agentKey.keyPrefix),
+    JSON.stringify({ raised_by_agent: agentRequestPayload?.raised_by_agent, raised_through: agentRequestPayload?.raised_through }),
+  );
+  report(
+    "RULE 21: AN AGENT ASKING FOR $500 ON A QUIET CLAIM CREATES AN APPROVAL REQUEST ANYWAY, below the threshold",
+    agentAsks.ok && agentAsks.value.approvalRequestCreated === true && /staff_approver/.test(String(agentAsks.value.mustBeDecidedBy)),
+    agentAsks.ok ? `$500, nothing pending before it: approval request created ${String(agentAsks.value.approvalRequestCreated)}` : agentAsks.refusal,
+  );
+  report(
+    "and the agent-raised operation is 'requested', never 'ready to send'",
+    (await latestOperationStatus(agentAsks.ok ? String(agentAsks.value.moneyOperationId) : "")) === "requested",
+    "operation status read back from money_operation_events",
+  );
+
+
   const asked = await callTool(staffKey.presentedKey, "request_claim_payment", {
     claimNumber: claim.claimNumber,
     amountCents: PAYMENT_CENTS,
   });
+  // $1,200 alone is above the threshold; with the agent's $500 already waiting on this claim the
+  // cumulative rule of decision 17 applies twice over.
   report(
     "A STAFF_OPS KEY ASKING FOR $1,200 CREATES AN APPROVAL REQUEST, and says who must decide it",
     asked.ok && asked.value.approvalRequestCreated === true && /staff_approver/.test(String(asked.value.mustBeDecidedBy)),
@@ -508,30 +541,6 @@ async function main() {
     "NO MONEY MOVED: the journal is unchanged and the operation is still only 'requested'",
     journalAfterAsking === journalBefore && operationStatus === "requested",
     `${journalBefore} journal entries before, ${journalAfterAsking} after, operation status "${operationStatus}"`,
-  );
-
-  const agentAsks = await callTool(agentKey.presentedKey, "request_claim_payment", {
-    claimNumber: claim.claimNumber,
-    amountCents: 50000,
-  });
-  report(
-    "an AGENT key can ask too, and the answer says the request was raised by an agent",
-    agentAsks.ok && agentAsks.value.raisedByAgent === true,
-    agentAsks.ok ? `approval request created: ${String(agentAsks.value.approvalRequestCreated)}` : agentAsks.refusal,
-  );
-  // $500 alone is below the threshold, but the claim already has $1,200 waiting, so the
-  // cumulative rule of decision 17 applies: it needs an approver too.
-  const agentRequestId = agentAsks.ok ? String(agentAsks.value.approvalRequestId) : "";
-  const agentRequestPayload = await approvalPayload(agentRequestId);
-  report(
-    "AND THE IMMUTABLE REQUEST ITSELF SAYS SO: the approver sees it was raised by an agent",
-    agentRequestPayload?.raised_by_agent === true && String(agentRequestPayload?.raised_through).includes(agentKey.keyPrefix),
-    JSON.stringify({ raised_by_agent: agentRequestPayload?.raised_by_agent, raised_through: agentRequestPayload?.raised_through }),
-  );
-  report(
-    "the cumulative per-claim threshold still applies to a request raised through MCP",
-    agentAsks.ok && agentAsks.value.approvalRequestCreated === true,
-    agentAsks.ok ? `$500 on a claim already holding $1,200: ${String(agentAsks.value.approvalRequestCreated)}` : agentAsks.refusal,
   );
 
   // The agent principal is a staff_ops user. It cannot approve, twice over.
