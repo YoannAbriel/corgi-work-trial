@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import { collectedFigures } from "@/lib/statements/compute";
 import { commissionPayableMovementCents } from "@/lib/statements/journal";
 import { isUuid } from "@/lib/http/path-ids";
 import {
@@ -30,8 +31,6 @@ import {
 // of the two queries above, and the only interactive elements are a link to the PDF and a form
 // that posts a new run.
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const KIND_LABEL: Record<StatementLineRow["kind"], string> = {
   premium_collected: "Premium collected",
   commission_earned: "Commission earned",
@@ -46,9 +45,8 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
     redirect("/login");
   }
   const { runId } = await params;
-  if (!isUuid(runId)) notFound(); // a malformed id is an unknown page, not a 500 (F-B7-07)
   // A malformed id is a wrong address, not a server error: it must not reach the uuid column.
-  if (!UUID.test(runId)) {
+  if (!isUuid(runId)) {
     notFound();
   }
 
@@ -78,6 +76,11 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
     changesAgainstPrevious(sql, run.runId),
   ]);
   const tiesToTheLedger = ledgerMovementCents === run.netDueCents;
+  const collected = collectedFigures(run);
+  // Two revisions written in different formats hash different texts, so neither "identical" nor
+  // "changed" is an answer about them (review finding F-B9-09).
+  const formatChanged =
+    run.previousCanonicalVersion !== null && run.previousCanonicalVersion !== run.canonicalVersion;
 
   return (
     <main>
@@ -93,6 +96,16 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
         {run.supersedesRunId ? ", superseding the previous revision of this month" : ", the first run of this month"}.
         All times are UTC.
       </p>
+
+      {collected.formatNote ? <p className="badge badge-warn">{collected.formatNote}</p> : null}
+
+      {formatChanged ? (
+        <p className="note">
+          The statement format changed between revision {run.revision - 1} (v{run.previousCanonicalVersion}) and
+          this one (v{run.canonicalVersion}): the two documents hash different texts, so they cannot be compared
+          by hash. The journal entries below still can be, and they are.
+        </p>
+      ) : null}
 
       {run.monthWasStillRunning ? (
         <p className="badge badge-warn">
@@ -150,6 +163,16 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           </tr>
         </tbody>
       </table>
+
+      <h2>Reproducing this statement</h2>
+      <p className="note">
+        Running {run.statementMonth} again for {run.brokerName} with the knowledge cutoff above reads the same
+        journal entries and produces the same content hash, because a journal row can never change and its
+        recording time is stamped by the database. One case does not reproduce, and it is the reason a
+        provisional run says so: an entry whose database transaction started before that cutoff and committed
+        after this run had read the ledger is absent here and present in a later run with the same cutoff. Once
+        the month is closed and quiet, which is what a monthly statement is for, it cannot happen.
+      </p>
 
       <h2>Ties to the ledger</h2>
       {tiesToTheLedger ? (
@@ -223,14 +246,23 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
         <tbody>
           <tr>
             <th>Cash collected from customers (premium, tax and fee)</th>
-            <td className="amount">{formatCentsAsUsd(run.cashCollectedCents)}</td>
+            <td className="amount">{formatCentsAsUsd(collected.cashCollectedCents)}</td>
           </tr>
+          {collected.premiumCollectedCents === null ? (
+            <tr>
+              <th>Premium collected, which is the commission base</th>
+              <td className="amount">
+                <span className="note">not stored on this revision</span>
+              </td>
+            </tr>
+          ) : (
+            <tr>
+              <th>Premium collected, which is the commission base</th>
+              <td className="amount">{formatCentsAsUsd(collected.premiumCollectedCents)}</td>
+            </tr>
+          )}
           <tr>
-            <th>Premium collected, which is the commission base</th>
-            <td className="amount">{formatCentsAsUsd(run.premiumCollectedCents)}</td>
-          </tr>
-          <tr>
-            <th>Commission earned on that premium</th>
+            <th>Commission earned{collected.premiumCollectedCents === null ? "" : " on that premium"}</th>
             <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
           </tr>
           <tr>

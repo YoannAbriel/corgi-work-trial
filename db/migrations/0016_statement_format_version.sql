@@ -1,0 +1,60 @@
+-- 0016: every statement run says which format its own columns are in.
+-- Strictly additive: one column, and its default states a fact about the existing rows rather
+-- than inventing a figure for them. Slice B9, review finding F-B9-09 (HIGH).
+--
+-- WHAT WENT WRONG, written down because the lesson is the point.
+--
+-- Migration 0015 changed what statement_runs.premium_collected_cents MEANS, from the cash the
+-- customer paid to the premium alone, and added cash_collected_cents NOT NULL DEFAULT 0. Its
+-- safety argument was that the trial database held zero published runs. That was true when it was
+-- written and false about twenty minutes later: the independent reviewer had by then run three
+-- statements on the deployed application (2026-09 revisions 1 and 2, and 2027-09 revision 1, with
+-- 20 lines between them). Those rows now read cash_collected_cents = 0 and
+-- premium_collected_cents = 594817, which is the CASH, so the next render would have printed
+-- "Cash collected $0.00" on a document the whole slice promises can never change.
+--
+-- The root cause is not the reviewer's run. It is that a row could not say which meaning its own
+-- columns hold, so a stored run silently inherited whatever the current code believed. A protected
+-- append-only table must carry its own format marker: history is only readable if each row says
+-- how to read it.
+--
+-- THE FIX. canonical_version says which shape a row is in, and the two shapes are:
+--
+--   1  premium_collected_cents holds the CASH (premium, tax and fee together), there is no
+--      cash_collected_cents worth reading, and the lines carry no commission base. This is what
+--      every row written before 0015 holds, which is why the default is 1: it is not a guess, it
+--      is what those rows are.
+--   2  cash_collected_cents holds the cash, premium_collected_cents holds the premium alone
+--      (the commission base), and every cash line carries commission_base_cents.
+--
+-- The screens and the PDF branch on it (lib/statements/compute.ts, collectedFigures): a v1 run is
+-- rendered with its v1 labels and a visible note saying so, never with the v2 labels. Two revisions
+-- of different formats are reported as "format changed" rather than as identical or as changed,
+-- because their hashes cover different texts (corgi.broker-statement.v1 against v2) and comparing
+-- them would answer a question nobody asked.
+--
+-- RULE FROM NOW ON, for these two tables and for any protected table: prefer a NULLABLE column to
+-- NOT NULL DEFAULT <value>. A null reads "not recorded on this row", which is the truth about a row
+-- written before the column existed; a default of zero reads "zero", which is a figure, and a
+-- figure nobody computed has no business on a financial document. The default of 1 below is the
+-- exception that proves the rule: it records what those rows ARE, and there is no third
+-- possibility.
+
+-- BEFORE APPLYING THIS TO A DATABASE THAT ALREADY HOLDS RUNS, check that none of them was written
+-- by the v2 code, because the default below would then mislabel it and no UPDATE can put it right
+-- (AF-03): the answer would be to run a fresh revision, not to repair the row. A v2-shaped row is
+-- recognisable without ambiguity:
+--
+--   select count(*) from statement_runs run
+--    where run.cash_collected_cents <> 0
+--       or exists (select 1 from statement_lines line
+--                   where line.run_id = run.id and line.commission_base_cents is not null);
+--
+-- Checked read-only on the trial database before this file was written: three runs, all of them
+-- v1-shaped (cash 0, no line carrying a base), so the default states what they are. The window in
+-- which a v2-shaped row could exist is the one where migration 0015 is applied and the v2 code is
+-- deployed while this migration is not; keeping the two together closes it.
+
+alter table statement_runs
+  add column canonical_version integer not null default 1
+  check (canonical_version between 1 and 2);

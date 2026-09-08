@@ -23,6 +23,8 @@ const MARCH: StatementRunDetail = {
     supersedesRunId: "22222222-2222-4222-8222-222222222222",
     contentHash: "a".repeat(64),
     identicalToPrevious: false,
+    canonicalVersion: 2,
+    previousCanonicalVersion: 2,
     monthWasStillRunning: false,
     cashCollectedCents: 125320,
     premiumCollectedCents: 120000,
@@ -98,6 +100,31 @@ test("a statement produced before its month is over says so on the document", as
   const printedText = extractTextFromPdf(await renderStatementPdf(provisional));
   assert.ok(printedText.includes("MONTH IN PROGRESS, PROVISIONAL"), "the provisional label is not on the page");
   assert.ok(printedText.includes("2028-03-12"), "the cutoff it is provisional at is not on the page");
+});
+
+test("a statement stored in the older format is printed with the older format's meaning", async () => {
+  // Migration 0016, review finding F-B9-09: three runs on the trial database were written before
+  // the premium column changed meaning. Their premium column holds the CASH and no line carries a
+  // commission base, so the document says so instead of printing "Cash collected $0.00".
+  const v1: StatementRunDetail = {
+    run: {
+      ...MARCH.run,
+      canonicalVersion: 1,
+      previousCanonicalVersion: null,
+      supersedesRunId: null,
+      revision: 1,
+      cashCollectedCents: 0, // filled by the migration's default, never by a run
+      premiumCollectedCents: 125320, // the CASH, in the column that now means premium
+    },
+    lines: MARCH.lines.map((line) => ({ ...line, commissionBaseCents: null })),
+  };
+  const printedText = extractTextFromPdf(await renderStatementPdf(v1));
+  assert.ok(printedText.includes("Statement format v1"), "the format note is not on the page");
+  assert.ok(printedText.includes("$1,253.20"), "the cash is not on the page");
+  assert.ok(printedText.includes("not stored"), "the missing premium is not said to be missing");
+  // Never the labels of a format this run was not written in: on a v1 row the commission line
+  // cannot say "on that premium", because the premium it rests on was not stored.
+  assert.ok(!printedText.includes("on that premium"), "a v1 statement must not carry the v2 labels");
 });
 
 test("a month with no movement prints an empty statement rather than an empty page", async () => {

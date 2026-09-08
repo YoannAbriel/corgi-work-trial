@@ -1,4 +1,5 @@
 import { formatCalendarDate, formatCents, formatUtcTimestamp } from "@/lib/documents/format";
+import { collectedFigures } from "./compute";
 import type { StatementLineRow, StatementRunDetail } from "./read";
 
 // The broker monthly statement as a real PDF file.
@@ -77,6 +78,10 @@ const KIND_LABEL: Record<StatementLineRow["kind"], string> = {
 export async function renderStatementPdf(statement: StatementRunDetail): Promise<Buffer> {
   const { Document, Page, Text, View, renderToBuffer } = await loadPdfRenderer();
   const { run, lines } = statement;
+  // A run says which shape its own columns are in (migration 0016). A v1 run stored the cash in
+  // the premium column and no commission base, so it is printed with its own labels and a note,
+  // never with the labels of a format it was not written in.
+  const collected = collectedFigures(run);
 
   return renderToBuffer(
     <Document
@@ -95,6 +100,8 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
         <Text style={styles.documentSubtitle}>
           {`${run.brokerName}, ${run.statementMonth}, revision ${run.revision}`}
         </Text>
+
+        {collected.formatNote ? <Text style={styles.provisional}>{collected.formatNote}</Text> : null}
 
         {run.monthWasStillRunning ? (
           <Text style={styles.provisional}>
@@ -162,14 +169,18 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
         <Text style={styles.sectionTitle}>Totals</Text>
         <View style={styles.rowWithRule}>
           <Text style={styles.descriptionColumn}>Cash collected from customers (premium, tax and fee)</Text>
-          <Text style={styles.amountColumn}>{formatCents(run.cashCollectedCents)}</Text>
+          <Text style={styles.amountColumn}>{formatCents(collected.cashCollectedCents)}</Text>
         </View>
         <View style={styles.rowWithRule}>
           <Text style={styles.descriptionColumn}>Premium collected, which is the commission base</Text>
-          <Text style={styles.amountColumn}>{formatCents(run.premiumCollectedCents)}</Text>
+          <Text style={styles.amountColumn}>
+            {collected.premiumCollectedCents === null ? "not stored" : formatCents(collected.premiumCollectedCents)}
+          </Text>
         </View>
         <View style={styles.rowWithRule}>
-          <Text style={styles.descriptionColumn}>Commission earned on that premium</Text>
+          <Text style={styles.descriptionColumn}>
+            {collected.premiumCollectedCents === null ? "Commission earned" : "Commission earned on that premium"}
+          </Text>
           <Text style={styles.amountColumn}>{formatCents(run.commissionEarnedCents)}</Text>
         </View>
         <View style={styles.rowWithRule}>
@@ -197,9 +208,12 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
           </Text>
           <Text>
             Net due is the movement of this broker&apos;s commission payable account in the ledger for this
-            month. Running this month again with the knowledge cutoff above reads the same journal entries
-            and produces the same content hash; a correction recorded after that cutoff produces a new
-            revision instead of changing this one.
+            month. Running this month again for the same broker with the knowledge cutoff above reads the same
+            journal entries and produces the same content hash, because a journal row can never change and its
+            recording time is stamped by the database. One case does not reproduce: an entry whose database
+            transaction started before that cutoff and committed after this run had read the ledger is absent
+            here and present in a later run with the same cutoff. It cannot happen once the month is closed and
+            quiet. A correction recorded after the cutoff produces a new revision instead of changing this one.
           </Text>
         </View>
       </Page>

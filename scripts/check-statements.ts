@@ -83,6 +83,7 @@ async function main() {
   const { runStatement, StatementRunRefused } = await import("@/lib/statements/run");
   const { commissionPayableMovementCents } = await import("@/lib/statements/journal");
   const { changesAgainstPrevious, listStatementRuns, statementRun } = await import("@/lib/statements/read");
+  const { collectedFigures } = await import("@/lib/statements/compute");
   const { renderStatementPdf } = await import("@/lib/statements/pdf");
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
@@ -475,7 +476,49 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
-  // 6. The document
+  // 6. A run stored in the older format is read with the older format's meaning
+  // ---------------------------------------------------------------------------
+  //
+  // Review finding F-B9-09. Migration 0015 changed what premium_collected_cents means, and three
+  // runs written before it already existed: their premium column holds the CASH and their lines
+  // carry no commission base. Migration 0016 puts a format marker on every row so those documents
+  // can still be read for what they are. The row below is one of them, shaped by hand as the owner
+  // because no code writes v1 rows any more.
+
+  const olderFormatRunId = await insertRunInTheOlderFormat(brokerA, "2028-05-01", TOTAL_CHARGE_CENTS);
+  const olderFormat = await statementRun(runtime, olderFormatRunId);
+  const olderFigures = olderFormat ? collectedFigures(olderFormat.run) : null;
+  report(
+    "A RUN STORED IN THE OLDER FORMAT READS AS THE CASH IT HOLDS, not as a premium and a zero cash",
+    olderFormat?.run.canonicalVersion === 1 &&
+      olderFigures?.cashCollectedCents === TOTAL_CHARGE_CENTS &&
+      olderFigures?.premiumCollectedCents === null &&
+      (olderFigures?.formatNote ?? "").startsWith("Statement format v1"),
+    `version ${olderFormat?.run.canonicalVersion}, cash ${olderFigures?.cashCollectedCents}, premium ${olderFigures?.premiumCollectedCents}`,
+  );
+
+  const newFormatOfThatMonth = await runStatement(
+    { brokerId: brokerA, statementMonth: "2028-05", actorUserId: staffUserId },
+    runtime,
+  );
+  const newFormat = await statementRun(runtime, newFormatOfThatMonth.runId);
+  report(
+    "the next revision of that month is written in the current format and is flagged as a format change",
+    newFormat?.run.canonicalVersion === 2 &&
+      newFormat.run.previousCanonicalVersion === 1 &&
+      newFormat.run.identicalToPrevious === false &&
+      newFormat.run.supersedesRunId === olderFormatRunId,
+    `revision ${newFormat?.run.revision} v${newFormat?.run.canonicalVersion} supersedes a v${newFormat?.run.previousCanonicalVersion} run, identical = ${newFormat?.run.identicalToPrevious}`,
+  );
+  report(
+    "the older revision is untouched: it still says what it said, in the format it was written in",
+    (await statementRun(runtime, olderFormatRunId))?.run.canonicalVersion === 1 &&
+      (await statementRun(runtime, olderFormatRunId))?.run.premiumCollectedCents === TOTAL_CHARGE_CENTS,
+    `revision 1 still reads ${(await statementRun(runtime, olderFormatRunId))?.run.premiumCollectedCents} in its premium column`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 7. The document
   // ---------------------------------------------------------------------------
 
   const pdf = await renderStatementPdf(marchOne!);
@@ -486,11 +529,17 @@ async function main() {
   );
 
   const runsOfBrokerA = await listStatementRuns(runtime, { brokerId: brokerA, limit: 50 });
+  report(
+    "the list screens read the same two formats side by side",
+    runsOfBrokerA.some((run) => run.canonicalVersion === 1) &&
+      runsOfBrokerA.some((run) => run.canonicalVersion === 2 && run.previousCanonicalVersion === 1),
+    `${runsOfBrokerA.filter((run) => run.canonicalVersion === 1).length} in the older format, ${runsOfBrokerA.filter((run) => run.canonicalVersion === 2).length} in the current one`,
+  );
   const runsOfEveryBroker = await listStatementRuns(runtime, { limit: 200 });
   report(
     "a broker's own list holds only that broker's statements, and the staff list holds more",
     runsOfBrokerA.every((run) => run.brokerId === brokerA) &&
-      runsOfBrokerA.length === 6 &&
+      runsOfBrokerA.length === 8 &&
       runsOfEveryBroker.length > runsOfBrokerA.length,
     `${runsOfBrokerA.length} runs for broker A, ${runsOfEveryBroker.length} in the staff list`,
   );
@@ -504,6 +553,30 @@ async function main() {
 // ---------------------------------------------------------------------------
 // The fixture world
 // ---------------------------------------------------------------------------
+
+// A statement run in the shape rows had before migration 0015: the premium column holds the cash,
+// there is no cash column worth reading and no line carries a commission base. Written as the OWNER
+// with plain SQL because no code writes this shape any more, which is the whole point: it is the
+// shape three real runs on the trial database are in.
+async function insertRunInTheOlderFormat(
+  brokerId: string,
+  firstDayOfMonth: string,
+  cashCents: number,
+): Promise<string> {
+  const commissionCents = Math.floor((PREMIUM_CENTS * COMMISSION_RATE_BPS) / 10000);
+  const [run] = await owner<{ id: string }[]>`
+    insert into statement_runs (
+      broker_id, statement_month, revision, knowledge_cutoff, content_hash, canonical_version,
+      cash_collected_cents, premium_collected_cents, commission_earned_cents, clawback_cents,
+      adjustment_cents, net_due_cents
+    ) values (
+      ${brokerId}, ${firstDayOfMonth}, 1, now(), repeat('b', 64), 1,
+      0, ${cashCents}, ${commissionCents}, 0, 0, ${commissionCents}
+    )
+    returning id
+  `;
+  return run.id;
+}
 
 // The calendar month before the current one, which is over whatever the day: the honest way to
 // exercise a definitive statement while the demo policies are dated in 2028.

@@ -25,6 +25,12 @@ export type StatementRunRow = {
   supersedesRunId: string | null;
   contentHash: string;
   identicalToPrevious: boolean;
+  // Which shape this row is in (migration 0016). Read it through collectedFigures rather than
+  // branching on it by hand: a v1 row's premium column holds the cash.
+  canonicalVersion: number;
+  // The format of the revision this run supersedes, null on revision 1. When it differs, the two
+  // documents are not comparable by hash and the screens say "format changed".
+  previousCanonicalVersion: number | null;
   // True when the month was still running at this run's own cutoff: the statement is provisional
   // (decision 19). Derived from the two stored dates, never stored, so it can never drift.
   monthWasStillRunning: boolean;
@@ -48,6 +54,7 @@ export async function listStatementRuns(
   const rows = await database<RunRowShape[]>`
     select run.id, run.broker_id, broker.name as broker_name, run.statement_month, run.revision,
            run.knowledge_cutoff, run.supersedes_run_id, run.content_hash, run.identical_to_previous,
+           run.canonical_version, previous.canonical_version as previous_canonical_version,
            run.cash_collected_cents::text, run.premium_collected_cents::text,
            run.commission_earned_cents::text,
            run.clawback_cents::text, run.adjustment_cents::text, run.net_due_cents::text,
@@ -55,6 +62,9 @@ export async function listStatementRuns(
       from statement_runs run
       join brokers broker on broker.id = run.broker_id
       left join users operator on operator.id::text = run.run_by
+      -- The revision this one replaces, for its format alone: two runs written in different
+      -- formats cannot be compared by hash (review finding F-B9-09).
+      left join statement_runs previous on previous.id = run.supersedes_run_id
      -- No broker asked for means every broker: the condition then compares the column with
      -- itself, which is true for every row.
      where run.broker_id = coalesce(${options.brokerId ?? null}::uuid, run.broker_id)
@@ -90,6 +100,7 @@ export async function statementRun(database: postgres.Sql, runId: string): Promi
   const [row] = await database<RunRowShape[]>`
     select run.id, run.broker_id, broker.name as broker_name, run.statement_month, run.revision,
            run.knowledge_cutoff, run.supersedes_run_id, run.content_hash, run.identical_to_previous,
+           run.canonical_version, previous.canonical_version as previous_canonical_version,
            run.cash_collected_cents::text, run.premium_collected_cents::text,
            run.commission_earned_cents::text,
            run.clawback_cents::text, run.adjustment_cents::text, run.net_due_cents::text,
@@ -97,6 +108,9 @@ export async function statementRun(database: postgres.Sql, runId: string): Promi
       from statement_runs run
       join brokers broker on broker.id = run.broker_id
       left join users operator on operator.id::text = run.run_by
+      -- The revision this one replaces, for its format alone: two runs written in different
+      -- formats cannot be compared by hash (review finding F-B9-09).
+      left join statement_runs previous on previous.id = run.supersedes_run_id
      where run.id = ${runId}
   `;
   if (!row) {
@@ -207,6 +221,8 @@ type RunRowShape = {
   supersedes_run_id: string | null;
   content_hash: string;
   identical_to_previous: boolean;
+  canonical_version: number;
+  previous_canonical_version: number | null;
   cash_collected_cents: string;
   premium_collected_cents: string;
   commission_earned_cents: string;
@@ -252,6 +268,8 @@ function toRunRow(row: RunRowShape): StatementRunRow {
     supersedesRunId: row.supersedes_run_id,
     contentHash: row.content_hash,
     identicalToPrevious: row.identical_to_previous,
+    canonicalVersion: row.canonical_version,
+    previousCanonicalVersion: row.previous_canonical_version,
     monthWasStillRunning: monthWasStillRunningAt(monthOfFirstDay(row.statement_month.toISOString().slice(0, 10)), row.knowledge_cutoff),
     cashCollectedCents: centsFromDatabase(row.cash_collected_cents, "cash_collected_cents"),
     premiumCollectedCents: centsFromDatabase(row.premium_collected_cents, "premium_collected_cents"),

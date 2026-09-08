@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import { collectedFigures } from "@/lib/statements/compute";
 import { brokersForStatements, listStatementRuns, type StatementRunRow } from "@/lib/statements/read";
 
 // /ops/statements: run a broker's monthly statement, and read every run ever made.
@@ -135,6 +136,12 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
                   <span className="badge badge-ok">identical to revision {run.revision - 1}</span>
                 </>
               ) : null}
+              {run.previousCanonicalVersion !== null && run.previousCanonicalVersion !== run.canonicalVersion ? (
+                <>
+                  <br />
+                  <span className="badge badge-warn">format changed, not comparable by hash</span>
+                </>
+              ) : null}
               {run.supersedesRunId ? (
                 <>
                   <br />
@@ -146,9 +153,7 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
             </td>
             <td>{utc(run.knowledgeCutoff)}</td>
             <td className="amount">
-              {formatCentsAsUsd(run.premiumCollectedCents)} premium
-              <br />
-              <span className="note">{formatCentsAsUsd(run.cashCollectedCents)} cash</span>
+              <CollectedCell run={run} />
             </td>
             <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
             <td className="amount">{formatCentsAsUsd(-run.clawbackCents)}</td>
@@ -161,6 +166,29 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+
+// The collected figures of a run, read according to the format the row says it is in: a v1 run
+// stored the cash in the premium column and no commission base at all (migration 0016).
+function CollectedCell({ run }: { run: StatementRunRow }) {
+  const collected = collectedFigures(run);
+  if (collected.premiumCollectedCents === null) {
+    return (
+      <>
+        {formatCentsAsUsd(collected.cashCollectedCents)} cash
+        <br />
+        <span className="note">format v1: premium not stored</span>
+      </>
+    );
+  }
+  return (
+    <>
+      {formatCentsAsUsd(collected.premiumCollectedCents)} premium
+      <br />
+      <span className="note">{formatCentsAsUsd(collected.cashCollectedCents)} cash</span>
+    </>
   );
 }
 

@@ -3,6 +3,7 @@ import { sql } from "@/db/client";
 import { isUniqueViolation } from "@/lib/ledger/post";
 import {
   assertStatementMonth,
+  CANONICAL_STATEMENT_VERSION,
   computeStatement,
   firstDayOfMonth,
   type StatementTotals,
@@ -109,8 +110,10 @@ export async function runStatement(
   // to confuse: the loser's whole transaction rolls back and it can simply run again.
   try {
     return await database.begin(async (transaction) => {
-      const [previous] = await transaction<{ id: string; revision: number; content_hash: string }[]>`
-        select id, revision, content_hash
+      const [previous] = await transaction<
+        { id: string; revision: number; content_hash: string; canonical_version: number }[]
+      >`
+        select id, revision, content_hash, canonical_version
           from statement_runs
          where broker_id = ${request.brokerId}
            and statement_month = ${firstDayOfMonth(request.statementMonth)}
@@ -118,16 +121,23 @@ export async function runStatement(
          limit 1
       `;
       const revision = previous ? previous.revision + 1 : 1;
-      const identicalToPrevious = previous ? previous.content_hash === statement.contentHash : false;
+      // Two runs written in different formats hash different texts, so "identical" is not a
+      // question that can be answered between them: the screens say "format changed" instead
+      // (review finding F-B9-09).
+      const identicalToPrevious =
+        previous !== undefined &&
+        previous.canonical_version === CANONICAL_STATEMENT_VERSION &&
+        previous.content_hash === statement.contentHash;
 
       const [run] = await transaction<{ id: string; created_at: Date }[]>`
         insert into statement_runs (
           broker_id, statement_month, revision, knowledge_cutoff, supersedes_run_id, content_hash,
-          identical_to_previous, cash_collected_cents, premium_collected_cents,
+          identical_to_previous, canonical_version, cash_collected_cents, premium_collected_cents,
           commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents, run_by
         ) values (
           ${request.brokerId}, ${firstDayOfMonth(request.statementMonth)}, ${revision},
           ${knowledgeCutoff}, ${previous?.id ?? null}, ${statement.contentHash}, ${identicalToPrevious},
+          ${CANONICAL_STATEMENT_VERSION},
           ${statement.totals.cashCollectedCents}, ${statement.totals.premiumCollectedCents},
           ${statement.totals.commissionEarnedCents}, ${statement.totals.clawbackCents},
           ${statement.totals.adjustmentCents}, ${statement.totals.netDueCents}, ${request.actorUserId}

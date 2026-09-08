@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { listStatementRuns } from "@/lib/statements/read";
+import { collectedFigures } from "@/lib/statements/compute";
+import { listStatementRuns, type StatementRunRow } from "@/lib/statements/read";
 
 // /broker/statements: the broker's own monthly statements, read-only.
 //
@@ -95,9 +96,7 @@ export default async function BrokerStatementsPage() {
                 </td>
                 <td>{run.knowledgeCutoff.toISOString().replace("T", " ").slice(0, 19)}</td>
                 <td className="amount">
-                  {formatCentsAsUsd(run.premiumCollectedCents)} premium
-                  <br />
-                  <span className="note">{formatCentsAsUsd(run.cashCollectedCents)} cash</span>
+                  <CollectedCell run={run} />
                 </td>
                 <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
                 <td className="amount">{formatCentsAsUsd(-run.clawbackCents)}</td>
@@ -111,5 +110,27 @@ export default async function BrokerStatementsPage() {
         </table>
       )}
     </main>
+  );
+}
+
+// The collected figures of a run, read according to the format the row says it is in: a v1 run
+// stored the cash in the premium column and no commission base at all (migration 0016).
+function CollectedCell({ run }: { run: StatementRunRow }) {
+  const collected = collectedFigures(run);
+  if (collected.premiumCollectedCents === null) {
+    return (
+      <>
+        {formatCentsAsUsd(collected.cashCollectedCents)} cash
+        <br />
+        <span className="note">format v1: premium not stored</span>
+      </>
+    );
+  }
+  return (
+    <>
+      {formatCentsAsUsd(collected.premiumCollectedCents)} premium
+      <br />
+      <span className="note">{formatCentsAsUsd(collected.cashCollectedCents)} cash</span>
+    </>
   );
 }

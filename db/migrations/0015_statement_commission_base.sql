@@ -1,4 +1,4 @@
--- 0013: a statement shows the cash the customer paid AND the premium the commission was earned on.
+-- 0015: a statement shows the cash the customer paid AND the premium the commission was earned on.
 -- Strictly additive: it adds two columns and changes no existing value. Slice B9, decision 19
 -- (DECISIONS.md, 2026-09-08T16:53:40Z, point 2).
 --
@@ -36,6 +36,11 @@
 --
 -- The default exists only so the column can be added to a table that already had rows in the
 -- disposable database; every insert made by lib/statements/run.ts supplies the value.
+--
+-- THAT DEFAULT WAS A MISTAKE, and migration 0016 says why at length: three runs already existed on
+-- the trial database when this file was applied, so they now read zero here and hold the cash in
+-- premium_collected_cents. 0016 adds the format marker that lets them be read correctly, and the
+-- rule from now on is a NULLABLE column rather than NOT NULL DEFAULT on these tables.
 alter table statement_runs add column cash_collected_cents bigint not null default 0;
 
 -- On a cash line (a collection or a refund), the premium part of it: the movement of

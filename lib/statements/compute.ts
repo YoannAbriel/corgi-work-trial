@@ -125,6 +125,53 @@ export type StatementInput = {
 // lands on the same statement line kind as the entry it undoes, with the opposite amount.
 const REVERSAL_PREFIX = "reversal_of_";
 
+// Which shape a statement is in. It is written on every run (statement_runs.canonical_version,
+// migration 0016) and on the first line of the text that is hashed, so a stored document can
+// always say how to read itself.
+//
+//   1  the premium column held the CASH, there was no separate cash column, and no line carried a
+//      commission base. Every run written before migration 0015 is in this shape.
+//   2  the cash and the premium are two figures, and every cash line carries the premium it holds.
+//
+// Bumping this is not a formality: a run of an older version keeps its lines, its totals and its
+// hash forever, and a new run is honestly not comparable with it by hash.
+export const CANONICAL_STATEMENT_VERSION = 2;
+
+// What the note says on a screen or a document rendered from a v1 row.
+export const STATEMENT_FORMAT_V1_NOTE =
+  "Statement format v1: the premium column holds the cash collected (premium, tax and fee together), and the commission base was not stored. A newer revision of this month, run today, records both figures.";
+
+// The two collected figures of a run, read according to the shape the run says it is in. This is
+// the one place that knows what an old column meant, so no screen has to.
+export type CollectedFigures = {
+  cashCollectedCents: number;
+  // Null on a v1 run: the premium alone was never stored, and showing the cash under a "premium"
+  // label is exactly the mistake this function exists to prevent.
+  premiumCollectedCents: number | null;
+  formatNote: string | null;
+};
+
+export function collectedFigures(run: {
+  canonicalVersion: number;
+  cashCollectedCents: number;
+  premiumCollectedCents: number;
+}): CollectedFigures {
+  if (run.canonicalVersion >= CANONICAL_STATEMENT_VERSION) {
+    return {
+      cashCollectedCents: run.cashCollectedCents,
+      premiumCollectedCents: run.premiumCollectedCents,
+      formatNote: null,
+    };
+  }
+  // v1: the column named premium held the cash, and cash_collected_cents was filled by a default
+  // rather than by a run, so it says nothing at all.
+  return {
+    cashCollectedCents: run.premiumCollectedCents,
+    premiumCollectedCents: null,
+    formatNote: STATEMENT_FORMAT_V1_NOTE,
+  };
+}
+
 export function computeStatement(input: StatementInput): ComputedStatement {
   assertStatementMonth(input.statementMonth);
 
@@ -288,7 +335,7 @@ function sortedForReading(lines: StatementLine[]): StatementLine[] {
 // them. No v1 run had been published when v2 arrived.
 function canonicalTextOf(input: StatementInput, lines: StatementLine[], totals: StatementTotals): string {
   const rows = [
-    "corgi.broker-statement.v2",
+    `corgi.broker-statement.v${CANONICAL_STATEMENT_VERSION}`,
     `broker|${input.brokerId}`,
     `month|${input.statementMonth}`,
   ];
