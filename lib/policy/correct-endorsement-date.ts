@@ -13,6 +13,7 @@ import {
   type CorrectionThresholdTotals,
   type EndorsementDateCorrection,
 } from "@/lib/money/correction";
+import { isUuid } from "@/lib/http/path-ids";
 import { isCalendarDate } from "@/lib/money/dates";
 import {
   endorsementFormulaLines,
@@ -129,8 +130,6 @@ type Queryable = postgres.Sql | postgres.TransactionSql;
 // the endorsement posted (the cash, the commission) stays untouched.
 const BILLED_ENTRY_TYPES = ["endorsement_premium_written", "endorsement_tax_billed"];
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 // ---------------------------------------------------------------------------
 // Preview: read everything, compute everything, write nothing
 // ---------------------------------------------------------------------------
@@ -152,7 +151,7 @@ export async function planEndorsementDateCorrection(
   }
   // The event id arrives from a URL or a form. Anything that is not one of our uuids is refused
   // here, so a malformed id becomes a sentence on the page instead of a Postgres cast error.
-  if (!UUID.test(input.correctedEventId)) {
+  if (!isUuid(input.correctedEventId)) {
     throw new CorrectionRefused("this policy has no endorsement in force with that id");
   }
 
