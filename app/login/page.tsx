@@ -30,7 +30,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <p className="note">
         Demo accounts, created by the seed script: broker@example.com, customer@example.com,
         ops@example.com, approver@example.com. They all use the demo password shared with the
-        reviewers. This build implements the broker journey; the staff screens arrive in later slices.
+        reviewers. The broker signs in for policies and business verification; the operations and
+        approver accounts see the brokers screen at /ops/brokers.
       </p>
     </main>
   );

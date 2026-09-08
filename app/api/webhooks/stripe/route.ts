@@ -1,5 +1,8 @@
 import type Stripe from "stripe";
 import { sql } from "@/db/client";
+import { brokerIdForProviderAccount } from "@/lib/broker/kyb";
+import { refreshBrokerKybFromStripe } from "@/lib/broker/kyb-onboarding";
+import { parseAccountUpdatedEvent } from "@/lib/kyb/eligibility";
 import {
   recordCheckoutSessionCompleted,
   recordExpiredCheckoutSession,
@@ -13,7 +16,7 @@ import {
   recordFailedRefund,
 } from "@/lib/payments/refunds";
 import { replyForRefusedLease, type WebhookProcessingStatus } from "@/lib/payments/webhook-inbox";
-import { stripe, stripeWebhookSigningSecret } from "@/lib/stripe";
+import { stripe, stripeWebhookSigningSecrets } from "@/lib/stripe";
 
 // POST /api/webhooks/stripe
 //
@@ -26,6 +29,18 @@ import { stripe, stripeWebhookSigningSecret } from "@/lib/stripe";
 // 5. Process: post the money for the event types we handle, record the others as ignored with
 //    the reason, so nothing is silently dropped.
 // 6. Answer 200 when done or ignored, 500 when processing failed so Stripe retries later.
+//
+// ONE ENDPOINT, V1 EVENTS ONLY, AND WHY (slice B3).
+// Broker verification runs on Accounts v2, and Stripe also publishes those changes as v2 thin
+// event notifications (`v2.core.account[requirements].updated`). They are NOT handled here.
+// A thin notification needs its own event destination at Stripe with its own signing secret,
+// a second route, and a second environment variable, and `stripe@22.6.1` no longer exposes the
+// `parseThinEvent` helper the plan mentioned: it was renamed to `parseEventNotification` and
+// comes with a whole notification-handler class (see the SDK changelog for 22.x). Against
+// that, the v1 `account.updated` event already fires for v2 accounts, is already registered on
+// this endpoint, and is enough, because we never read the event body anyway: it only tells us
+// which account to go and read again. Adding a thin-event route would add a secret and a
+// surface without changing a single decision.
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -34,10 +49,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "missing stripe-signature header" }, { status: 400 });
   }
 
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, stripeWebhookSigningSecret());
-  } catch {
+  // Two Stripe endpoints point at this route with two signing secrets: the account endpoint
+  // (payments and refunds of our own account) and the Connect endpoint (account.updated of the
+  // brokers' connected accounts; Stripe only delivers those through an endpoint created with
+  // connect=true). A delivery is accepted when it verifies against either secret.
+  const event = verifyAgainstKnownSecrets(rawBody, signature);
+  if (!event) {
     return Response.json({ error: "invalid signature" }, { status: 400 });
   }
 
@@ -75,6 +92,18 @@ export async function POST(request: Request) {
     `;
     return Response.json({ received: false, status: "failed" }, { status: 500 });
   }
+}
+
+// Returns the verified event, or null when the signature matches none of our endpoint secrets.
+function verifyAgainstKnownSecrets(rawBody: string, signature: string): Stripe.Event | null {
+  for (const secret of stripeWebhookSigningSecrets()) {
+    try {
+      return stripe.webhooks.constructEvent(rawBody, signature, secret);
+    } catch {
+      // not this endpoint's secret; try the next one
+    }
+  }
+  return null;
 }
 
 // Inserts the immutable event and its pending processing row. If the event already exists,
@@ -156,6 +185,9 @@ async function processStripeEvent(event: Stripe.Event): Promise<ProcessingOutcom
       return handleRefundEvent(event.data.object);
     case "charge.refunded":
       return handleChargeRefunded(event.data.object);
+    // A connected account changed at Stripe: the broker's business verification moved.
+    case "account.updated":
+      return handleAccountUpdated(event);
     default:
       return { status: "ignored", reason: `no handler for ${event.type}` };
   }
@@ -176,9 +208,58 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent): Prom
   if (outcome.kind === "refused") {
     return { status: "ignored", reason: outcome.reason };
   }
+  if (outcome.kind === "binding_refused") {
+    // The event WAS handled: the money is recorded on the operation. Nothing was journaled and
+    // the policy is not bound, because the broker is not eligible. Stripe must not retry, and
+    // the case is now visible on the policy page for staff to resolve.
+    return { status: "done", reason: `paid, binding refused: ${outcome.reason}` };
+  }
   return {
     status: "done",
     reason: outcome.kind === "already_posted" ? "already posted by an earlier delivery of this payment" : undefined,
+  };
+}
+
+// A connected account changed at Stripe.
+//
+// Accounts created through the v2 API still emit the v1 `account.updated` event, which is what
+// the deployed endpoint is registered for; `event.data.object.id` is the account, and
+// `event.account` names it too on a Connect delivery.
+//
+// The event's own payload is NOT what we act on. It is the v1 view of a v2 account, it is
+// untrusted input, and deliveries can arrive out of order. So the account is read again from
+// the API and that read is what decides the status. The status is appended only if it differs
+// from the last one recorded, which is why replaying this event ten times adds nothing.
+async function handleAccountUpdated(event: Stripe.AccountUpdatedEvent): Promise<ProcessingOutcome> {
+  const providerAccountId = parseAccountUpdatedEvent({
+    id: event.id,
+    type: event.type,
+    livemode: event.livemode,
+    account: event.account,
+    data: { object: { id: event.data.object.id } },
+  });
+  if (!providerAccountId) {
+    return { status: "ignored", reason: "account.updated carries no account id" };
+  }
+
+  const brokerId = await brokerIdForProviderAccount(providerAccountId);
+  if (!brokerId) {
+    // An account somebody else created on this sandbox, or one of the adapter's probe
+    // accounts. It is not ours to interpret, so it is recorded and left alone.
+    return { status: "ignored", reason: `connected account ${providerAccountId} belongs to no broker of ours` };
+  }
+
+  const outcome = await refreshBrokerKybFromStripe({
+    brokerId,
+    providerAccountId,
+    source: "account.updated",
+    actorUserId: null, // a provider event, not a person
+  });
+  return {
+    status: "done",
+    reason: outcome.appended
+      ? `broker KYB ${outcome.previousStatus ?? "unknown"} -> ${outcome.status} (${outcome.reason})`
+      : `broker KYB unchanged at ${outcome.status}: nothing appended`,
   };
 }
 

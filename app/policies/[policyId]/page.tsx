@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
+import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
 import { claimsWithPositions } from "@/lib/claims/read";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -11,6 +12,7 @@ import {
   journalEntriesOfPolicy,
   policyDetail,
   refundOperationsOfPolicy,
+  voidCorrectionOfPolicy,
 } from "@/lib/policy/read";
 
 // One policy: what it costs, where it stands, and every journal entry it produced.
@@ -27,6 +29,7 @@ export default async function PolicyPage({
     cancelled?: string;
     reissued?: string;
     refundSent?: string;
+    bound?: string;
   }>;
 }) {
   const user = await currentUser();
@@ -48,19 +51,26 @@ export default async function PolicyPage({
     redirect("/broker");
   }
 
-  const [kyb, operation, entries, cancellation, refunds, claims, query] = await Promise.all([
+  const [kyb, operation, entries, cancellation, refunds, voidCorrection, claims, query] = await Promise.all([
     brokerKybState(policy.brokerId),
     checkoutOperationOfPolicy(policyId),
     journalEntriesOfPolicy(policyId),
     cancellationOfPolicy(policyId),
     refundOperationsOfPolicy(policyId),
+    voidCorrectionOfPolicy(policyId),
     // Slice B7: the claims of this policy, each with the reserve and the incurred amount folded
     // from its own events.
     claimsWithPositions(sql, policyId),
     searchParams,
   ]);
 
-  const canPay = isOwningBroker && policy.status !== "bound" && policy.status !== "cancelled";
+  // Two different questions, kept apart on purpose. The first is about this policy, the second
+  // is about the broker behind it; the server asks both again when the button is pressed and
+  // again when Stripe confirms the payment, so hiding or disabling a button is never the
+  // control, only the explanation.
+  const policyCanBePaid =
+    isOwningBroker && policy.status !== "bound" && policy.status !== "cancelled" && policy.status !== "voided";
+  const brokerMayBind = bindingIsAllowed(kyb.status);
   // Cancelling is the owning broker's or staff operations' decision. The same check runs again
   // on the server when the preview is computed and when the cancellation is confirmed, so
   // hiding the form is a convenience, never the control.
@@ -85,6 +95,7 @@ export default async function PolicyPage({
 
       <p className={`badge ${policy.status === "bound" ? "badge-ok" : "badge-warn"}`}>Status: {policy.status}</p>
       <p className={`badge ${kyb.status === "approved" ? "badge-ok" : "badge-warn"}`}>KYB: {kyb.status}</p>
+      <p className="note">{kyb.explanation}</p>
       {kyb.isProviderEvidence ? null : (
         <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
       )}
@@ -105,6 +116,12 @@ export default async function PolicyPage({
       ) : null}
       {query.reissued ? <p className="note">A new refund was re-issued: Stripe answered {query.reissued}.</p> : null}
       {query.refundSent ? <p className="note">The refund was sent to Stripe: {query.refundSent}.</p> : null}
+      {query.bound === "1" ? (
+        <p className="note">The policy is now bound and the four issuance entries are in the journal below.</p>
+      ) : null}
+      {query.bound === "already" ? (
+        <p className="note">This policy was already bound; nothing was posted a second time.</p>
+      ) : null}
 
       <h2>Charge</h2>
       <table className="amounts">
@@ -158,12 +175,65 @@ export default async function PolicyPage({
         <p className="note">No payment started yet.</p>
       )}
 
-      {canPay ? (
+      {policy.status === "voided" && voidCorrection ? (
+        <>
+          {/* The issuance and its four entries are still in the database; the fold no longer
+              applies them, and the reversal entries are visible in the journal below. */}
+          <p className="error">
+            Voided by a correction on {voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC:{" "}
+            {voidCorrection.reason}
+          </p>
+          <p className="note">
+            Correction event {voidCorrection.correctionEventId}
+            {voidCorrection.reversedEntryCount > 0 ? `, ${voidCorrection.reversedEntryCount} entries reversed` : ""}.
+            Nothing was deleted: the original entries and their reversals are both in the journal below, and this
+            policy can no longer be paid. A replacement needs a new draft.
+          </p>
+        </>
+      ) : null}
+
+      {operation?.bindingRefusedReason ? (
+        <>
+          <p className="error">
+            Paid, binding refused: {operation.bindingRefusedReason}. The customer&apos;s money arrived at Stripe and is
+            recorded on the operation above, but nothing was journaled and the policy is NOT bound. Until this is
+            resolved, Stripe holds cash that the ledger does not show, and reconciliation reports it as a break.
+          </p>
+          {user.role === "staff_ops" ? (
+            <form method="post" action={`/api/policies/${policy.policyId}/bind`} className="inline-form">
+              <button type="submit">Bind now that the broker is eligible</button>
+            </form>
+          ) : (
+            <p className="note">Staff operations can bind this policy once the broker&apos;s verification passes.</p>
+          )}
+        </>
+      ) : null}
+
+      {policyCanBePaid && brokerMayBind ? (
         <form method="post" action={`/api/policies/${policy.policyId}/checkout`} className="inline-form">
           <button type="submit">
             {operation ? "Continue the payment at Stripe" : "Pay with Stripe (test mode)"}
           </button>
         </form>
+      ) : null}
+      {policyCanBePaid && !brokerMayBind ? (
+        <>
+          {/* Disabled with the reason next to it. The server refuses the same request anyway
+              (lib/payments/checkout.ts and again at binding time), so this is the explanation,
+              not the guard. */}
+          <button type="button" disabled>
+            Pay with Stripe (test mode)
+          </button>
+          <p className="note">
+            Payment is blocked while the broker is not approved. {kyb.explanation}
+            {isOwningBroker ? (
+              <>
+                {" "}
+                <Link href="/broker/kyb">Submit or check the business verification</Link>.
+              </>
+            ) : null}
+          </p>
+        </>
       ) : null}
 
       {canCancel ? (
@@ -410,7 +480,11 @@ export default async function PolicyPage({
         </table>
       )}
 
-      {user.role === "staff_ops" && policy.status !== "draft" ? (
+      {/* A claim needs cover to have existed, so the form is offered on a bound policy and on a
+          cancelled one (the loss can predate the cancellation). openClaim checks the same thing
+          on the server from the policy's events, so a voided or unpaid policy is refused there
+          whatever the page shows. */}
+      {user.role === "staff_ops" && (policy.status === "bound" || policy.status === "cancelled") ? (
         <form method="post" action={`/api/policies/${policy.policyId}/claims`} className="card">
           <label htmlFor="claimantName">Claimant name</label>
           {/* The bank ownership check compares the account holder with this name, so it is the

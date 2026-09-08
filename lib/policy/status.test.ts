@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { derivePolicyStatus } from "./status";
+import { derivePolicyStatus, policyWasVoided } from "./status";
 
 test("a quoted policy with no payment started is a draft", () => {
   assert.equal(derivePolicyStatus({ policyEventTypes: ["quoted"], latestPaymentStatus: null }), "draft");
@@ -34,4 +34,32 @@ test("a cancelled policy stays cancelled", () => {
     derivePolicyStatus({ policyEventTypes: ["quoted", "issued", "cancelled"], latestPaymentStatus: "succeeded" }),
     "cancelled",
   );
+});
+
+test("a policy whose issuance was reversed by a correction is voided", () => {
+  // The void marks the payment attempt dead (reason 'expired'), so without this rule the
+  // policy would read as 'payment_failed' and the correction would be invisible.
+  assert.equal(
+    derivePolicyStatus({ policyEventTypes: ["quoted", "correction_reversal"], latestPaymentStatus: "failed" }),
+    "voided",
+  );
+});
+
+test("a correction that re-books the policy is not a void", () => {
+  // Only the negative is asserted, and deliberately: what a re-booked policy shows instead is
+  // decided by slice B8, which does not exist yet. What matters here is that the re-book stops
+  // the policy from reading as voided.
+  assert.notEqual(
+    derivePolicyStatus({
+      policyEventTypes: ["quoted", "correction_reversal", "correction_rebook"],
+      latestPaymentStatus: "succeeded",
+    }),
+    "voided",
+  );
+});
+
+test("policyWasVoided answers the question on its own, for the checkout guard", () => {
+  assert.equal(policyWasVoided(["quoted", "correction_reversal"]), true);
+  assert.equal(policyWasVoided(["quoted", "issued"]), false);
+  assert.equal(policyWasVoided(["quoted"]), false);
 });
