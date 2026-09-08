@@ -135,6 +135,31 @@ The rate is data, not code: `lib/policy/tax-rate.ts` reads the row in force on t
 effective date, and a rate change is a new row. If the panel disputes the effective date, only
 that seeded row changes; no code moves.
 
+Independent corroboration, fetched on 2026-09-08 by a separate read-only research agent, kept
+here so the figure can be defended without re-searching:
+
+- Cal. Const. art. XIII s. 28(d), verbatim: "The rate of the tax to be applied to the basis of
+  the annual tax in respect to each year is 2.35 percent."
+- Cal. Const. art. XIII s. 28(c), the base, verbatim: "the amount of gross premiums, less return
+  premiums, received in such year by such insurer upon its business done in this State, other
+  than premiums received for reinsurance and for ocean marine insurance."
+- Rev. & Tax. Code s. 12202 (`.../codes_displaySection.xhtml?lawCode=RTC&sectionNum=12202.`):
+  2.35 percent for all years except 1982 to 1985, which were 2.33 percent. **No source states an
+  effective date for the rate itself**, so the seeded `effective_from` of 1986-01-01 is derived
+  from that exception window and the seeded note says so.
+- California Department of Insurance 2025 P&C return instructions FS-001, verbatim: "Line 2:
+  Tax Rate - the tax rate of 2.35 %."
+
+Caveats worth knowing at the debrief, none of which change the modelled rate: surplus lines are
+3 percent on the broker (Ins. Code s. 1775.5), not 2.35; a retaliatory tax exists for foreign
+insurers (Const. s. 28(f)(3), Ins. Code ss. 685, 685.1) and is a separate schedule; ocean marine
+and reinsurance are outside the base. **Directly relevant to slice B5**: the base is gross
+premiums *less return premiums* received in the year (CDI FS-001 Schedule A line 3.3 cites RTC
+12221 and the Constitution), which supports Yoann's decision that the premium tax follows the
+premium and is refunded on the unearned portion at cancellation. It is an annual net
+computation at the insurer level, not a per-policy refund of tax by the state; the build's
+per-policy treatment is the practical equivalent and stays a stated rule of this build.
+
 ## 6. Assumptions, all labelled in the code and the interface
 
 1. **Flat policy fee $25** (`FLAT_POLICY_FEE_CENTS`, `lib/policy/charge.ts`). An assumption of
