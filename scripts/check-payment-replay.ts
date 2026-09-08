@@ -48,7 +48,7 @@ const runtime = postgres(runtimeUrl, { max: 2, prepare: false });
 async function main() {
   // Imported here rather than at the top of the file: lib/payments/collection.ts opens the
   // application connection pool as soon as it is loaded, which needs .env.local read first.
-  const { recordSuccessfulPayment } = await import("@/lib/payments/collection");
+  const { recordSuccessfulPayment, recordCheckoutSessionCompleted } = await import("@/lib/payments/collection");
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
     select current_database()
@@ -76,6 +76,30 @@ async function main() {
     "the second delivery of the same payment is recognised as already posted",
     second.kind === "already_posted",
     `outcome: ${second.kind}`,
+  );
+
+  // Stripe may deliver checkout.session.completed AFTER payment_intent.succeeded (seen on the
+  // deployed app on 2026-09-08, F-B2-20). The late event must not drag the operation's last
+  // status back from succeeded to provider_accepted.
+  const late = await recordCheckoutSessionCompleted(
+    { operationId, sessionId: `cs_replay_check_${operationId.slice(0, 8)}`, paymentStatus: "paid" },
+    runtime,
+  );
+  const [lastStatus] = await owner<{ status: string }[]>`
+    select status from money_operation_events
+     where operation_id = ${operationId}
+     order by sequence_number desc
+     limit 1
+  `;
+  report(
+    "a checkout.session.completed arriving after the success is recorded as already known",
+    late.kind === "already_posted",
+    `outcome: ${late.kind}`,
+  );
+  report(
+    "the operation's last status stays succeeded after the late session event",
+    lastStatus?.status === "succeeded",
+    `last status: ${lastStatus?.status ?? "none"}`,
   );
 
   // What is actually in the journal after two deliveries.

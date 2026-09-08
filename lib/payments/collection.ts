@@ -502,15 +502,25 @@ export async function recordCheckoutSessionCompleted(
   if (!operation) {
     return { kind: "refused", reason: `no stripe_checkout money operation ${completion.operationId}` };
   }
-  await database`
+  // ORDER IS NOT GUARANTEED. Stripe can deliver checkout.session.completed AFTER
+  // payment_intent.succeeded (seen on the deployed app on 2026-09-08: both events arrived in the
+  // same second and the operation's last status read provider_accepted although the money was
+  // posted and the policy bound, F-B2-20). A status never goes backwards: once the operation has
+  // reached a final status, this step is recorded as already known and nothing is appended.
+  const appended = await database`
     insert into money_operation_events (operation_id, status, provider_ref, payload)
-    values (${completion.operationId}, 'provider_accepted', ${completion.sessionId},
-            ${database.json({
-              note: "checkout.session.completed: the hosted page was completed; money posts on payment_intent.succeeded",
-              payment_status: completion.paymentStatus,
-            })})
+    select ${completion.operationId}, 'provider_accepted', ${completion.sessionId},
+           ${database.json({
+             note: "checkout.session.completed: the hosted page was completed; money posts on payment_intent.succeeded",
+             payment_status: completion.paymentStatus,
+           })}
+     where not exists (
+       select 1 from money_operation_events
+        where operation_id = ${completion.operationId} and status in ('succeeded', 'failed')
+     )
+    returning id
   `;
-  return { kind: "posted" };
+  return appended.length === 0 ? { kind: "already_posted" } : { kind: "posted" };
 }
 
 type CheckoutOperation = {
