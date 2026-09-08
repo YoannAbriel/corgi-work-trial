@@ -3,6 +3,7 @@ import { sql } from "@/db/client";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState } from "@/lib/broker/kyb";
 import { endorsementCollectionEntries } from "@/lib/ledger/endorsement-entries";
+import { unappliedCashReceivedEntry, type CollectedFrom } from "@/lib/ledger/policy-entries";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { endorsementCheckoutIdempotencyKey } from "@/lib/money/idempotency";
@@ -244,12 +245,12 @@ export async function recordSuccessfulEndorsementPayment(
   const standing = await endorsementRequestStanding(database, request);
   if (standing.state === "superseded") {
     const reason = `the quote was superseded by a later ${standing.supersededByEventType ?? "event"} before the payment arrived`;
-    await recordPaymentWithoutApplying(database, payment, reason);
+    await parkPaymentWithoutApplying(database, link, payment, reason);
     return { kind: "application_refused", reason };
   }
   if (standing.state === "awaiting_approval") {
     const reason = "the customer has not approved this endorsement";
-    await recordPaymentWithoutApplying(database, payment, reason);
+    await parkPaymentWithoutApplying(database, link, payment, reason);
     return { kind: "application_refused", reason };
   }
 
@@ -257,7 +258,7 @@ export async function recordSuccessfulEndorsementPayment(
   const kyb = await brokerKybState(link.brokerId, database);
   if (!bindingIsAllowed(kyb.status)) {
     const reason = `broker not eligible: the KYB status is "${kyb.status}" and must be "approved"`;
-    await recordPaymentWithoutApplying(database, payment, reason);
+    await parkPaymentWithoutApplying(database, link, payment, reason);
     return { kind: "application_refused", reason };
   }
 
@@ -306,6 +307,11 @@ async function postDeltaAndApply(
   try {
     await database.begin(async (transaction) => {
       const { terms } = await foldPolicyEvents(transaction, link.policyId);
+      // Was this delta parked in the suspense account at receipt (rule 14)? Then the cash is
+      // applied, not booked a second time.
+      const collectedFrom: CollectedFrom = (await cashWasParked(transaction, link.operationId))
+        ? "unapplied_customer_cash"
+        : "cash_stripe";
       const entries = endorsementCollectionEntries({
         operationId: link.operationId,
         policyId: link.policyId,
@@ -317,6 +323,7 @@ async function postDeltaAndApply(
         deltaPremiumCents: link.deltaPremiumCents,
         deltaTaxCents: link.deltaTaxCents,
         commissionCents: request.figures.commissionDeltaCents,
+        collectedFrom,
       });
       for (const entry of entries) {
         await postJournalEntry(transaction, entry.header, entry.lines);
@@ -336,10 +343,12 @@ async function postDeltaAndApply(
     return { kind: "posted" };
   } catch (error) {
     if (isUniqueViolation(error)) {
-      // Either the journal key (this operation already posted) or the one-endorsement-per-request
-      // index (another attempt applied it). Only this operation's own entries prove a posting;
-      // anything else is refused and stays visible rather than being read as success.
-      if (await operationHasJournalEntries(database, link.operationId)) {
+      // Either the journal key (this operation already posted the delta) or the
+      // one-endorsement-per-request index (another attempt applied it). The proof of a posting
+      // is THIS operation's own endorsement_premium_collected entry, not any entry at all: a
+      // payment that was parked in the suspense account (rule 14) already has an entry and has
+      // NOT been applied. Anything else is refused and stays visible for a human.
+      if (await deltaWasCollected(database, link.operationId)) {
         return { kind: "already_posted" };
       }
       return {
@@ -361,8 +370,10 @@ export async function recordExpiredEndorsementCheckout(
   if (!link) {
     return { kind: "refused", reason: `no endorsement delta operation ${expiry.operationId}` };
   }
+  // Any entry under this operation means the money arrived: either the delta was applied, or it
+  // was parked in the suspense account. Either way the hosted page cannot be declared unpaid.
   if (await operationHasJournalEntries(database, link.operationId)) {
-    return { kind: "refused", reason: "this delta was paid and applied: an expired session changes nothing" };
+    return { kind: "refused", reason: "this delta was paid: an expired session changes nothing" };
   }
   await database`
     insert into money_operation_events (operation_id, status, provider_ref, payload)
@@ -507,16 +518,79 @@ async function operationHasJournalEntries(database: postgres.Sql, operationId: s
   return Number(row.count) > 0;
 }
 
-// The money arrived, the endorsement is not applied. One appended status, no journal entry: the
-// operation's history says the payment succeeded AND why nothing was applied.
-async function recordPaymentWithoutApplying(database: postgres.Sql, payment: SuccessfulPayment, reason: string): Promise<void> {
-  await database.begin(async (transaction) => {
-    await appendSucceededEventOnce(transaction, payment, {
-      amount_received_cents: payment.amountReceivedCents,
-      paid_on: payment.paidOn,
-      application_refused_reason: reason,
+// True when THIS operation posted the delta itself, which is the only proof that the endorsement
+// was applied by this payment. A parked payment has an unapplied_cash_received entry and no
+// endorsement_premium_collected one.
+async function deltaWasCollected(database: postgres.Sql, operationId: string): Promise<boolean> {
+  const [row] = await database<{ count: string }[]>`
+    select count(*)::text as count from journal_entries
+     where source_kind = 'money_operation'
+       and source_id = ${operationId}
+       and entry_type = 'endorsement_premium_collected'
+  `;
+  return Number(row.count) > 0;
+}
+
+// The money arrived and the endorsement is NOT applied. The cash exists, so the ledger records
+// it the moment it exists: Dr cash_stripe / Cr unapplied_customer_cash, the same suspense
+// account and the same entry type as an issuance payment that could not be bound (rule 14,
+// DECISIONS.md 12:54Z). Ledger cash equals Stripe cash at every instant; what is not yet decided
+// is whose premium it is.
+//
+// One transaction: the parking entry, and the operation's history saying the payment succeeded
+// AND why nothing was applied. A second delivery of the same payment meets the journal's unique
+// key on (money operation, entry type), the whole transaction rolls back, and nothing is
+// appended twice.
+//
+// The way out is either retryEndorsementApplication (the endorsement is applied and
+// endorsement_premium_collected debits the suspense account, clearing it) or, for a quote that
+// will never be applied, a refund of the parked amount, which is money out and therefore goes
+// through the approval queue.
+async function parkPaymentWithoutApplying(
+  database: postgres.Sql,
+  link: EndorsementCollection,
+  payment: SuccessfulPayment,
+  reason: string,
+): Promise<void> {
+  try {
+    await database.begin(async (transaction) => {
+      const parked = unappliedCashReceivedEntry({
+        operationId: link.operationId,
+        policyId: link.policyId,
+        policyNumber: link.policyNumber,
+        brokerId: link.brokerId,
+        paymentDate: payment.paidOn,
+        amountCents: payment.amountReceivedCents,
+        reason,
+        whatWasRefused: "the endorsement",
+      });
+      await postJournalEntry(transaction, parked.header, parked.lines);
+      await appendSucceededEventOnce(transaction, payment, {
+        amount_received_cents: payment.amountReceivedCents,
+        paid_on: payment.paidOn,
+        application_refused_reason: reason,
+      });
     });
-  });
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return; // already parked by an earlier delivery of the same payment
+    }
+    throw error;
+  }
+}
+
+// True when the cash of this delta operation was booked at receipt into the suspense account and
+// that booking still stands (a reversal of it would mean a correction took the money out).
+async function cashWasParked(database: postgres.Sql | postgres.TransactionSql, operationId: string): Promise<boolean> {
+  const [row] = await database<{ count: string }[]>`
+    select count(*)::text as count
+      from journal_entries parked
+     where parked.source_kind = 'money_operation'
+       and parked.source_id = ${operationId}
+       and parked.entry_type = 'unapplied_cash_received'
+       and not exists (select 1 from journal_entries reversal where reversal.reverses_entry_id = parked.id)
+  `;
+  return Number(row.count) > 0;
 }
 
 // Appends the 'succeeded' status once, the guard inside the statement so two deliveries cannot

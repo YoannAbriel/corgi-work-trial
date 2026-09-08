@@ -1,3 +1,4 @@
+import type { CollectedFrom } from "./policy-entries";
 import type { JournalEntryDraft, JournalLineDraft } from "./post";
 
 // The journal entries of an endorsement.
@@ -18,6 +19,16 @@ import type { JournalEntryDraft, JournalLineDraft } from "./post";
 //   endorsement_tax_billed          Dr premium_receivable    1023  Cr premium_tax_payable    1023
 //   endorsement_premium_collected   Dr cash_stripe          44584  Cr premium_receivable    44584
 //   endorsement_commission_earned   Dr commission_expense    6534  Cr commission_payable     6534
+//
+// When the delta is paid while the endorsement CANNOT be applied (the broker lost eligibility,
+// or a later request superseded the quote), the cash is booked at receipt into the suspense
+// account exactly as at issuance (rule 14, DECISIONS.md 12:54Z):
+//
+//   unapplied_cash_received         Dr cash_stripe          44584  Cr unapplied_customer_cash 44584
+//
+// and when staff later apply it, endorsement_premium_collected debits unapplied_customer_cash
+// instead of cash_stripe, so the money is applied rather than booked twice and the suspense
+// balance returns to zero.
 //
 // The mirror image of the four issuance entries (lib/ledger/policy-entries.ts), minus the fee:
 // the flat policy fee is charged at issuance only, never again on an endorsement. Same two
@@ -48,6 +59,12 @@ export type EndorsementCollectionInput = {
   deltaPremiumCents: number; // positive
   deltaTaxCents: number; // zero or positive
   commissionCents: number; // already computed by lib/money/endorsement.ts, zero or positive
+  // Where the cash comes from when the entries are posted. 'cash_stripe' is the ordinary case:
+  // the money arrives and the endorsement is applied in the same transaction. When the delta was
+  // paid while the endorsement could NOT be applied, the cash was already booked into the
+  // suspense account at receipt (rule 14, unappliedCashReceivedEntry), so applying it later
+  // debits 'unapplied_customer_cash' instead and the suspense balance returns to zero.
+  collectedFrom?: CollectedFrom; // defaults to cash_stripe
 };
 
 export function endorsementCollectionEntries(input: EndorsementCollectionInput): JournalEntryDraft[] {
@@ -55,6 +72,7 @@ export function endorsementCollectionEntries(input: EndorsementCollectionInput):
     throw new Error("endorsementCollectionEntries needs a positive delta; a refund or a zero delta is handled elsewhere");
   }
   const collectedCents = input.deltaPremiumCents + input.deltaTaxCents;
+  const collectedFrom: CollectedFrom = input.collectedFrom ?? "cash_stripe";
 
   const commonHeader = {
     policyId: input.policyId,
@@ -99,10 +117,13 @@ export function endorsementCollectionEntries(input: EndorsementCollectionInput):
       ...commonHeader,
       entryType: "endorsement_premium_collected",
       effectiveAt: input.paymentDate,
-      description: `Policy ${input.policyNumber} endorsement premium and tax collected at Stripe`,
+      description:
+        collectedFrom === "cash_stripe"
+          ? `Policy ${input.policyNumber} endorsement premium and tax collected at Stripe`
+          : `Policy ${input.policyNumber} endorsement premium and tax applied from the customer's unapplied cash`,
     },
     lines: [
-      { accountId: "cash_stripe", debitCents: collectedCents },
+      { accountId: collectedFrom, debitCents: collectedCents },
       { accountId: "premium_receivable", creditCents: collectedCents },
     ],
   });

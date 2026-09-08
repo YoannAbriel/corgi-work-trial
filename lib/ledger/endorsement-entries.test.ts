@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { endorsementCollectionEntries, endorsementRefundRequestedEntry } from "./endorsement-entries";
-import { entryTotals } from "./policy-entries";
+import { entryTotals, unappliedCashReceivedEntry } from "./policy-entries";
 import type { JournalEntryDraft } from "./post";
 
 // The recited example (DECISIONS.md): $1,200 raised to $1,800 on 2028-06-09 (day 100 of 365):
@@ -143,4 +143,42 @@ test("a premium reduction opens the refund liability with the premium and its ta
   });
   assert.equal(withoutTax.lines.length, 2);
   assert.equal(amountOn(withoutTax, "refund_payable").creditCents, 43562);
+});
+
+test("a delta paid while the endorsement cannot be applied is applied later from the suspense account", () => {
+  // Rule 14 (DECISIONS.md 12:54Z). At receipt the cash is parked:
+  //   unapplied_cash_received  Dr cash_stripe 44584 / Cr unapplied_customer_cash 44584
+  const parked = unappliedCashReceivedEntry({
+    operationId: "66666666-6666-4666-8666-666666666666",
+    ...POLICY,
+    paymentDate: "2028-06-10",
+    amountCents: 44584,
+    reason: 'broker not eligible: the KYB status is "pending" and must be "approved"',
+    whatWasRefused: "the endorsement",
+  });
+  assert.equal(parked.header.entryType, "unapplied_cash_received");
+  assert.match(parked.header.description, /the endorsement refused/);
+  assert.equal(amountOn(parked, "cash_stripe").debitCents, 44584);
+  assert.equal(amountOn(parked, "unapplied_customer_cash").creditCents, 44584);
+
+  // When staff apply it, the cash comes out of the suspense account, not out of Stripe again.
+  const applied = endorsementCollectionEntries({
+    operationId: "66666666-6666-4666-8666-666666666666",
+    ...POLICY,
+    effectiveAt: "2028-06-09",
+    paymentDate: "2028-06-10",
+    deltaPremiumCents: 43561,
+    deltaTaxCents: 1023,
+    commissionCents: 6534,
+    collectedFrom: "unapplied_customer_cash",
+  });
+  const collectedEntry = applied.find((entry) => entry.header.entryType === "endorsement_premium_collected");
+  assert.ok(collectedEntry);
+  assert.equal(amountOn(collectedEntry, "unapplied_customer_cash").debitCents, 44584);
+  assert.equal(collectedEntry.lines.some((line) => line.accountId === "cash_stripe"), false);
+  // The suspense account nets to zero: credited at receipt, debited when applied.
+  assert.equal(
+    amountOn(parked, "unapplied_customer_cash").creditCents - amountOn(collectedEntry, "unapplied_customer_cash").debitCents,
+    0,
+  );
 });

@@ -10,6 +10,8 @@ import postgres from "postgres";
 //      and the delta cannot be collected without it;
 //   4. the same delta payment delivered twice posts the four entries ONCE and applies the
 //      endorsement ONCE; the issuance path refuses a delta operation; a wrong amount is refused;
+//      a delta paid while the endorsement cannot be applied is parked in the suspense account
+//      (rule 14) and applied from there later, never booked twice;
 //   5. an expired hosted page starts a new attempt under a new key;
 //   6. a premium reduction is applied at once with its refund operation; the completed refund
 //      delivered twice posts once; a failed refund posts nothing; a refund above $1,000 waits in
@@ -335,13 +337,21 @@ async function main() {
   await owner`insert into broker_kyb_events (broker_id, provider, status) values (${held.brokerId}, 'seed', 'pending')`;
   const heldPayment = { operationId: heldAttempt.operationId, paymentIntentId: `pi_held_${heldAttempt.operationId.slice(0, 8)}`, amountReceivedCents: 44584, paidOn: DAY_100 };
   const heldOutcome = await recordSuccessfulEndorsementPayment(heldPayment, runtime);
-  report("a delta paid while the broker is not eligible is recorded and NOT applied", heldOutcome.kind === "application_refused" && (await entriesOfOperation(heldAttempt.operationId)).size === 0, heldOutcome.kind === "application_refused" ? heldOutcome.reason : heldOutcome.kind);
+  report("a delta paid while the broker is not eligible is recorded and NOT applied", heldOutcome.kind === "application_refused" && (await entriesOfOperation(heldAttempt.operationId)).get("unapplied_cash_received") === 1, heldOutcome.kind === "application_refused" ? heldOutcome.reason : heldOutcome.kind);
+  // Rule 14 (DECISIONS.md 12:54Z): the cash exists, so the ledger records it at once against a
+  // liability to the customer. Ledger cash equals Stripe cash even though nothing is endorsed.
+  report("the delta cash is parked in the suspense account, not left out of the ledger", (await amountOnOperation(heldAttempt.operationId, "cash_stripe", "debit")) === 44584 && (await amountOnOperation(heldAttempt.operationId, "unapplied_customer_cash", "credit")) === 44584, `cash_stripe ${await amountOnOperation(heldAttempt.operationId, "cash_stripe", "debit")}, unapplied_customer_cash ${await amountOnOperation(heldAttempt.operationId, "unapplied_customer_cash", "credit")}`);
+  const heldTwice = await recordSuccessfulEndorsementPayment(heldPayment, runtime);
+  report("the same parked payment delivered twice parks once", heldTwice.kind === "application_refused" && (await entriesOfOperation(heldAttempt.operationId)).get("unapplied_cash_received") === 1 && (await countOperationEvents(heldAttempt.operationId, "succeeded")) === 1, describe(await entriesOfOperation(heldAttempt.operationId)));
   const staffTooEarly = await retryEndorsementApplication({ policyId: held.policyId, requestEventId: heldRequested.requestEventId, actorUserId: held.staffUserId }, runtime);
   report("staff cannot apply it while the broker is still not eligible", staffTooEarly.kind === "application_refused", staffTooEarly.kind);
   await owner`insert into broker_kyb_events (broker_id, provider, status) values (${held.brokerId}, 'seed', 'approved')`;
   const staffApplies = await retryEndorsementApplication({ policyId: held.policyId, requestEventId: heldRequested.requestEventId, actorUserId: held.staffUserId }, runtime);
   const staffAgain = await retryEndorsementApplication({ policyId: held.policyId, requestEventId: heldRequested.requestEventId, actorUserId: held.staffUserId }, runtime);
-  report("staff apply it once the broker is eligible; a second run posts nothing more", staffApplies.kind === "posted" && staffAgain.kind === "already_posted" && (await entriesOfOperation(heldAttempt.operationId)).size === 4 && (await countOperationEvents(heldAttempt.operationId, "succeeded")) === 1, `${staffApplies.kind}, then ${staffAgain.kind}; ${describe(await entriesOfOperation(heldAttempt.operationId))}`);
+  report("staff apply it once the broker is eligible; a second run posts nothing more", staffApplies.kind === "posted" && staffAgain.kind === "already_posted" && (await entriesOfOperation(heldAttempt.operationId)).size === 5 && (await countOperationEvents(heldAttempt.operationId, "succeeded")) === 1, `${staffApplies.kind}, then ${staffAgain.kind}; ${describe(await entriesOfOperation(heldAttempt.operationId))}`);
+  // Applying the parked cash debits the suspense account instead of cash_stripe: the money is
+  // applied, not booked twice, and the suspense balance for this policy returns to zero.
+  report("applying the parked delta clears the suspense account and books the cash once", (await netBalance(held.policyId, "unapplied_customer_cash")) === 0 && (await amountOnOperation(heldAttempt.operationId, "cash_stripe", "debit")) === 44584 && (await amountOnOperation(heldAttempt.operationId, "unapplied_customer_cash", "debit")) === 44584, `unapplied_customer_cash net ${await netBalance(held.policyId, "unapplied_customer_cash")}, cash_stripe debited ${await amountOnOperation(heldAttempt.operationId, "cash_stripe", "debit")} once`);
 
   // ---------------------------------------------------------------------------
   // 5. The recited reduction: applied at once, refunded through Stripe, delivered twice

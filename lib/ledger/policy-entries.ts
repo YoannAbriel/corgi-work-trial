@@ -161,7 +161,11 @@ export type UnappliedCashInput = {
   brokerId: string;
   paymentDate: string; // date the payment succeeded at Stripe, "YYYY-MM-DD"
   amountCents: number; // the whole charge Stripe collected: premium, tax and fee
-  reason: string; // why the binding was refused, copied on the entry for the reader
+  reason: string; // why nothing was applied, copied on the entry for the reader
+  // What could not be done with the money. "binding" for an issuance payment (rule 14), "the
+  // endorsement" for an endorsement delta that arrived while it could not be applied (slice B4).
+  // Both park the cash the same way, in the same account, under the same entry type.
+  whatWasRefused?: string;
 };
 
 export function unappliedCashReceivedEntry(input: UnappliedCashInput): JournalEntryDraft {
@@ -174,7 +178,7 @@ export function unappliedCashReceivedEntry(input: UnappliedCashInput): JournalEn
       createdBy: null, // caused by a Stripe event, not by a person clicking
       entryType: "unapplied_cash_received",
       effectiveAt: input.paymentDate,
-      description: `Policy ${input.policyNumber}: customer money received at Stripe, binding refused (${input.reason})`,
+      description: `Policy ${input.policyNumber}: customer money received at Stripe, ${input.whatWasRefused ?? "binding"} refused (${input.reason})`,
     },
     lines: [
       { accountId: "cash_stripe", debitCents: input.amountCents },
