@@ -53,6 +53,12 @@ export type BrokerVerificationRequest = {
   // Extra metadata to store on the account. The fixture-capture test uses it to tag its
   // probe accounts with `corgi_probe`; the application does not set it.
   additionalMetadata?: Record<string, string>;
+  // Stable key for the account creation, derived from the broker and the attempt number and
+  // committed on the submission row before this call is made (lib/broker/kyb-onboarding.ts).
+  // If the answer is lost and the submission is retried, Stripe returns the account it already
+  // created instead of creating a second one for the same broker. Optional because the
+  // fixture-capture test deliberately wants a new account on every run.
+  idempotencyKey?: string;
 };
 
 // The fields we ask Stripe to expand on the account. Without `requirements` the response
@@ -66,48 +72,51 @@ const INCLUDED_ACCOUNT_FIELDS = ["requirements", "identity", "configuration.reci
 export async function startBrokerVerification(
   request: BrokerVerificationRequest,
 ): Promise<{ providerAccountId: string; rawResponse: Stripe.V2.Core.Account }> {
-  const account = await stripe.v2.core.accounts.create({
-    display_name: request.legalName,
-    contact_email: request.contactEmail,
-    // No Stripe-hosted dashboard for the broker: this account exists to be verified and to
-    // receive commission, not to be logged into.
-    dashboard: "none",
-    identity: {
-      country: "us",
-      entity_type: "company",
-      attestations: {
-        terms_of_service: {
-          account: { date: request.termsOfServiceAcceptedAt, ip: request.termsOfServiceAcceptedFromIp },
+  const account = await stripe.v2.core.accounts.create(
+    {
+      display_name: request.legalName,
+      contact_email: request.contactEmail,
+      // No Stripe-hosted dashboard for the broker: this account exists to be verified and to
+      // receive commission, not to be logged into.
+      dashboard: "none",
+      identity: {
+        country: "us",
+        entity_type: "company",
+        attestations: {
+          terms_of_service: {
+            account: { date: request.termsOfServiceAcceptedAt, ip: request.termsOfServiceAcceptedFromIp },
+          },
         },
-      },
-      business_details: {
-        registered_name: request.legalName,
-        id_numbers: [{ type: "us_ein", value: request.employerIdentificationNumber }],
-        address: {
-          country: "us",
-          line1: request.address.line1,
-          city: request.address.city,
-          state: request.address.state,
-          postal_code: request.address.postalCode,
+        business_details: {
+          registered_name: request.legalName,
+          id_numbers: [{ type: "us_ein", value: request.employerIdentificationNumber }],
+          address: {
+            country: "us",
+            line1: request.address.line1,
+            city: request.address.city,
+            state: request.address.state,
+            postal_code: request.address.postalCode,
+          },
         },
+        // No `structure` field: Stripe rejects `private_company` for a US company, and the
+        // entity type above is what drives the verification.
       },
-      // No `structure` field: Stripe rejects `private_company` for a US company, and the
-      // entity type above is what drives the verification.
+      configuration: {
+        // The recipient configuration is what makes Stripe verify the entity: it is the
+        // configuration that lets the account receive money from the platform.
+        recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } },
+      },
+      defaults: {
+        // The platform (us) pays the fees and carries the losses. Stated explicitly because it
+        // decides which requirements Stripe asks the account for.
+        responsibilities: { fees_collector: "application", losses_collector: "application" },
+        profile: { business_url: request.businessUrl },
+      },
+      metadata: { broker_id: request.brokerId, ...request.additionalMetadata },
+      include: [...INCLUDED_ACCOUNT_FIELDS],
     },
-    configuration: {
-      // The recipient configuration is what makes Stripe verify the entity: it is the
-      // configuration that lets the account receive money from the platform.
-      recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } },
-    },
-    defaults: {
-      // The platform (us) pays the fees and carries the losses. Stated explicitly because it
-      // decides which requirements Stripe asks the account for.
-      responsibilities: { fees_collector: "application", losses_collector: "application" },
-      profile: { business_url: request.businessUrl },
-    },
-    metadata: { broker_id: request.brokerId, ...request.additionalMetadata },
-    include: [...INCLUDED_ACCOUNT_FIELDS],
-  });
+    request.idempotencyKey ? { idempotencyKey: request.idempotencyKey } : undefined,
+  );
 
   refuseLiveModeAccount(account);
   return { providerAccountId: account.id, rawResponse: account };
