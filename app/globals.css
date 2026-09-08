@@ -89,3 +89,28 @@ table.amounts { max-width: 520px; }
 table.amounts th { font-weight: 400; color: var(--ink-2); }
 table.amounts tr.total th, table.amounts tr.total td { font-weight: 600; color: var(--ink); }
 table.ledger td:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* --- Slice B7: claims and the money-out approval queue. --- */
+
+/* One approval request, boxed so two requests are never read as one. */
+section.card-block {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-top: 24px;
+}
+section.card-block h2 { margin-top: 0; }
+
+/* The exact text an approver is approving, shown character for character next to its hash. */
+pre.intent {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  background: #eceff2;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0 0 6px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

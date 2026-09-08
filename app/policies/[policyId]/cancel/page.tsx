@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CancellationRefused, planCancellation } from "@/lib/policy/cancel";
@@ -107,6 +108,27 @@ export default async function CancelPolicyPage({
         </p>
       ) : null}
 
+      {/* Slice B7: an open claim is the live-fire question, so the answer is on the screen the
+          operator is looking at when they take the decision, with the claim's own figures. */}
+      {plan.openClaims.explanation ? (
+        <>
+          <h2>This policy has an open claim</h2>
+          <p className="note">{plan.openClaims.explanation}</p>
+          <table className="amounts">
+            <tbody>
+              <tr>
+                <th>Reserve still held on the open claim, untouched by this cancellation</th>
+                <td className="amount">{formatCentsAsUsd(plan.openClaims.reserveCents)}</td>
+              </tr>
+              <tr>
+                <th>Already paid on it, untouched too</th>
+                <td className="amount">{formatCentsAsUsd(plan.openClaims.paidCents)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      ) : null}
+
       <h2>What the broker gives back</h2>
       <table className="amounts">
         <tbody>
@@ -150,6 +172,18 @@ export default async function CancelPolicyPage({
         Confirming writes the cancellation, the journal entries and the refund request in one transaction, then asks
         Stripe for the money. The refund only counts as completed when Stripe&apos;s webhook says it left.
       </p>
+      {/* Slice B7: maker-checker. Above the threshold the cancellation still happens, and so do
+          its journal entries; what waits is the money leaving. */}
+      {plan.refundNeedsApproval ? (
+        <p className="note">
+          <strong>
+            This refund is above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it requires approval.
+          </strong>{" "}
+          Confirming cancels the policy and records what the customer is owed, but nothing is sent to Stripe until a
+          staff approver who is not you approves it in the money-out queue. The threshold is an assumption of this
+          build, not a regulatory figure.
+        </p>
+      ) : null}
       <form method="post" action={`/api/policies/${policyId}/cancel`} className="card">
         <input type="hidden" name="effectiveAt" value={plan.effectiveAt} />
         {/* Short-rate is representable but not computed by this build: the method is stored on
