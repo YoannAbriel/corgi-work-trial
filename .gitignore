@@ -13,3 +13,13 @@ node_modules/
 .next/
 coverage/
 .local/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo
+.vercel
+.env*
+# Locally installed agent skills (Stripe, Neon): tooling, not trial code
+.agents/
+.claude/skills/
+skills-lock.json
+.env.vercel.local

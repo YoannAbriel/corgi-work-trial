@@ -12,7 +12,15 @@ Linear: authenticated in this session; the 16 domain tickets were listed read-on
 
 Written this session: docs/ATTACK-PLAN.md, docs/checkpoints/t-plus-2h-email.md (draft, Yoann sends), docs/PLAN.md, four decision entries in docs/DECISIONS.md. T+2h email: SENT by Yoann at 09:49 Europe/Zurich (07:49 UTC) on the candidate thread, reported by him and recorded at 2026-09-08T08:07:11+00:00. Checkpoint met; the thread header is authoritative.
 
-Next acceptance criterion: B0 bootstrap and deploy. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
+## 2026-09-08T08:20:34+00:00 | B0 bootstrap and deploy: in progress, deployment live
+
+Done: Next.js 16 app hand-written at the repository root (no create-next-app boilerplate), TypeScript strict, plain CSS; `db/client.ts` pool on the Neon pooled endpoint; `scripts/migrate.ts` runner applying `db/migrations/*.sql` once each inside a transaction; `GET /api/health`; gitleaks pre-commit hook in `.githooks/` (activated locally with `git config core.hooksPath .githooks`, to be documented in README); `.env.example` with placeholders. Vercel project `corgi-work-trial` linked and connected to the GitHub repository; Neon `corgi-trial-db` provisioned through the Vercel Marketplace and connected to all environments. Production URL: https://corgi-work-trial-iota.vercel.app
+
+Checks actually run: `npm run typecheck` PASS; `npm run build` PASS; `npm run migrate` against Neon PASS (schema_migrations created, no migration yet); `curl https://corgi-work-trial-iota.vercel.app/api/health` from the dev machine returned HTTP 200 with database ok and revision 1e40dc7 (AF-01 evidence for this revision only; the app has no product behaviour yet). Stripe key verified as test mode (`sk_test_` prefix, account US, test balance call); no key value was printed. Assistant choices, minor: npm instead of pnpm (corepack broken locally), no Tailwind, no ORM.
+
+Pending in B0: Sumsub trial account and app token (Yoann, in progress), Stripe webhook endpoint (after B2 route exists), history secret scan result below, README setup section. Not started: everything from B1.
+
+Next acceptance criterion: B1 ledger core and pro-rata math. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
 

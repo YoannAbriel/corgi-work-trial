@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks the commit when gitleaks finds a secret in the staged content (AF-05).
+# Installed with: git config core.hooksPath .githooks
+gitleaks protect --staged --redact --no-banner --no-color
