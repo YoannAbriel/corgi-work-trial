@@ -142,6 +142,17 @@ export async function planCancellation(
   if (eventTypes.includes("cancelled")) {
     throw new CancellationRefused("this policy is already cancelled");
   }
+  // After an endorsement the written premium is no longer one segment earning from the term
+  // start: the issuance segment earns from the term start and each endorsement's delta earns
+  // from its own effective date (ARCHITECTURE.md section 3). cancellationBreakdown() below
+  // computes one segment, so running it here would give the customer the wrong refund. Refused
+  // loudly rather than computed wrong; the per-segment rule is a money decision for Yoann
+  // (docs/handoffs/b4-implementation-notes.md, decisions needed).
+  if (eventTypes.includes("endorsed")) {
+    throw new CancellationRefused(
+      "this policy carries an endorsement: cancelling it needs the per-segment earning (issuance segment plus each endorsement segment from its own date), which this build does not compute yet",
+    );
+  }
   assertCancellationAllowed({ policyId: policy.policyId, policyNumber: policy.policyNumber });
 
   // The effective date must be a day the policy actually covers.
@@ -401,8 +412,9 @@ async function premiumAlreadyRecognisedAsEarned(database: Queryable, policyId: s
 }
 
 // The payments that can still give money back: every collected Stripe payment of this policy,
-// minus what has already been refunded on it.
-async function collectionsStillRefundable(database: Queryable, policyId: string): Promise<CollectionToRefund[]> {
+// minus what has already been refunded on it. Exported for lib/policy/endorse.ts, which refunds
+// a premium reduction through the same allocation (newest collection first).
+export async function collectionsStillRefundable(database: Queryable, policyId: string): Promise<CollectionToRefund[]> {
   const collections = await database<
     { operation_id: string; payment_intent_id: string; amount_cents: string; collected_on: string }[]
   >`
@@ -454,8 +466,8 @@ async function collectionsStillRefundable(database: Queryable, policyId: string)
 }
 
 // How many refund operations already exist for this policy and this payment, so the next one
-// gets its own idempotency key (see lib/money/idempotency.ts).
-async function countRefundOperations(
+// gets its own idempotency key (see lib/money/idempotency.ts). Shared with lib/policy/endorse.ts.
+export async function countRefundOperations(
   database: Queryable,
   policyId: string,
   paymentIntentId: string,
