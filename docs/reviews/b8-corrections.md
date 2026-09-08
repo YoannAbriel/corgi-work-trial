@@ -251,3 +251,144 @@ Two reservations, both small. The four copies of the UUID regex (F-B8-03) are th
 Residual limitations of this review: the correction has never run on the deployed application or against real Stripe money, so every money figure above is proven on the disposable database and by arithmetic rather than by a provider round trip. The verdict covers `e7b5913` only; the interface commits since then change the pages this slice added and would need a look before submission, though they touch no money code. This is an engineering assessment of a sandbox implementation, not a legal or regulatory certification.
 
 **Walkthrough status: NOT REVIEWED WITH YOANN.**
+
+---
+
+# Re-review after the fixes, slice B8
+
+- **Timestamp**: 2026-09-08T19:40:00Z (re-review started 19:12Z).
+- **Revision re-reviewed**: `2755d11a135007780d0c989e9176268d47a5c895`, the merge of the fix branch onto main. The four fix commits are `2bb5e13` (F-B8-01), `512f991` (F-B8-02, F-B8-04, F-B4-13), `27c988a` (F-B8-03, F-B8-05, F-B8-07) and `45ea482` (the last uuid regex copy). The first review covered `e7b5913`.
+- **Reviewer**: independent re-reviewer sub-agent, a different context from the builder who wrote the fixes and from the reviewer who wrote the record above. Wrote no application code, delegated to nobody, and wrote no file in the repository except this section. Created nothing on the trial database and nothing on the deployed application.
+- **Walkthrough status**: `NOT REVIEWED WITH YOANN`.
+- **Verdict**: **PASS** for slice B8 at `2755d11`, with two new LOW findings (F-B8-08, F-B8-09) and F-B8-06 left open by the coordinator's decision. The three findings that carried the FAIL are resolved and each is proven by a check line or a deployed response rather than by a claim.
+
+## 11. Startup receipt of this re-review
+
+Read in full before any check: `CLAUDE.md`, `AUTOMATIC-FAILS.md` (all six rules and the operating gate), `READABLE-CODE.md`, `AGENTS.md`, `WORKFLOW-48H.md`, `REVIEWER.md`, and sections 1 to 10 of this record (the first review, verdict FAIL, findings F-B8-01 to F-B8-07 and the referred F-B4-13). Read by targeted section: `docs/DECISIONS.md` entries 17, 18 and 19 (cumulative money-out on a claim, cancellation segment by segment, the broker statement's two money columns), `docs/ARCHITECTURE.md` sections 3, 3.x and 6, and the eight B8 and F-B4-13 rows of `docs/reviews/FINDINGS.md`. Read line by line in the corrected tree: `lib/statements/compute.ts` (the `DISPOSITIONS` table, `statementDisposition`, `STATEMENT_CASH_ENTRY_TYPES`, `classify`, `statementLineFor`, `totalsOf`, `canonicalTextOf`), `lib/statements/journal.ts` (the whole query, both premium subqueries), `lib/statements/entry-types.test.ts`, the five `*_ENTRY_TYPES` exports and `REVERSAL_ENTRY_TYPE_PREFIX` in `lib/ledger/`, `lib/ledger/correction-entries.ts`, `lib/money/correction.ts` and its test additions, `lib/policy/correct-endorsement-date.ts` (the plan, the transaction, `rebookPayload`, `settleTheDifference`, `openRefundsForDifference`, `moneyStillWaitingForTheCustomer`), `lib/policy/correction-read.ts`, `lib/payments/correction-collection.ts`, `lib/http/path-ids.ts`, the recovery block and `loadRefundOperation` of `lib/payments/refunds.ts`, the three correction routes, the two correction pages, `app/policies/[policyId]/correction-sections.tsx`, the correction notices of `app/policies/[policyId]/page.tsx`, and the B8 additions to `scripts/check-statements.ts` and `scripts/check-correction-replay.ts`. Not read this time: `READINESS-CHECKLIST.md`, `STRESS-TEST-PLAN.md`, `READINESS-BACKLOG.json`, `GAP-REVIEW.md`, `docs/COMPLIANCE-MATRIX.md`, `docs/PLAN.md`, `docs/STATUS.md`, `docs/handoffs/b8-implementation-notes.md`. Absent files: none of the mandatory files were missing.
+
+Planned checks, all executed except where section 15 says otherwise: read the corrected diff finding by finding; run `check:statements` once and `check:correction-replay` once on `corgi_test`; run the typecheck and the two unit files the fix adds to; scan the fix range for secrets; and exercise the five correction entry points over HTTP on the deployed revision. `check:money-guards` was deliberately NOT run: the coordinator proved it at 19:11Z on an ephemeral database, 184 of 184, and a second run would only add contention on the shared database.
+
+## 12. Finding by finding
+
+| ID | Sev | State at `2755d11` | The line that proves it |
+|---|---|---|---|
+| F-B8-01 | HIGH | **RESOLVED** | `check:statements`: "THE CORRECTION DIFFERENCE IS ON THE STATEMENT: 5047 of cash, 4931 of premium, 739 earned (cash 5047, premium 4931, earned 739, net due 739)" |
+| F-B8-02 | MEDIUM | **RESOLVED** | `check:correction-replay`: "and it STILL NEEDS AN APPROVER, because the policy already has 90068 on its way back (pending 90068, already refunded 0)" and "so it is QUEUED with an approval request and nothing is sent to Stripe (1 approval request(s), 0 sent)" |
+| F-B8-03 | MEDIUM | **RESOLVED** | section 14: the five entry points answer 400 or 404 on a malformed id on the deployed revision |
+| F-B8-04 | LOW | **RESOLVED** | `check:correction-replay`: "and it STILL NEEDS THE CUSTOMER, because 48762 of quotes are already waiting for them (waiting 48762: $50.47 to collect, counting the $487.62 still waiting for this customer on this policy, is above $500.00, so the customer has to approve it)" |
+| F-B8-05 | LOW | **RESOLVED** | `lib/policy/correction-read.ts:337` now branches on the two date keys being strings and otherwise says "the event above was reversed and nothing re-books it, so it no longer counts", with the reason. Read in the diff; the deployed CGP-01061 timeline is in section 14. |
+| F-B8-06 | LOW | **OPEN**, by the coordinator's decision (B13-2 batch). Not a blocker of this verdict. | unchanged: `check:correction-replay` still has no probe for a voided policy, none for an endorsement whose delta was refunded, and none for a cancellation after a correction |
+| F-B8-07 | LOW | **RESOLVED** | `app/policies/[policyId]/correction-sections.tsx:265`: the field defaults to `today` only when `today > termStart`, and to the term start otherwise, so it can no longer start on a date its own `min` rejects |
+| F-B4-13 | LOW as referred | **RESOLVED**, closed with F-B8-02 and F-B8-04 as the first review said it would be | the two read paths it named, `correction-read.ts:110` and `:220`, now read `difference_customer_approval_required` and `difference_refund_needs_approval` from the re-book event instead of recomputing; replay line: "the verdict and the totals behind it are written on the correction event, not recomputed later (read back: needs approval true)" |
+| F-B8-08 | LOW | **NEW**, opened by this re-review, section 13 | a correction refund split over more than one Stripe payment gives every one of its refund lines the whole correction's premium as the commission base |
+| F-B8-09 | LOW | **NEW**, opened by this re-review, section 13 | the F-B8-07 clamp was applied to the as-of field and not to the two document date fields beside it, which still ship `min="2026-09-17" value="2026-09-08"` on the deployed CGP-01274 |
+
+### F-B8-01, what I checked beyond the check line
+
+The fix is two halves and both hold.
+
+**The classification.** `DISPOSITIONS` in `lib/statements/compute.ts` now names every entry type with either a line or an explicit "ignored, because", and `STATEMENT_CASH_ENTRY_TYPES` is derived from that same table, so `lib/statements/journal.ts` selects on a list it can no longer disagree with. I checked the exhaustiveness claim rather than believing the test: `grep -rn "entryType:" lib scripts app db` returns 19 literals, every one of them written `satisfies` one of the five exported unions, and the only other writers of `journal_entries.entry_type` are `lib/ledger/reverse.ts` (which prefixes an existing type) and four guard check scripts that insert deliberately fabricated rows on the disposable database. So the five `*_ENTRY_TYPES` lists really are the set of types the application can post, and `lib/statements/entry-types.test.ts` walking all of them plus their reversals is a real gate: 19 assertions, all passing. The runtime fallback of rule 1 is kept, so an unknown type that moved the payable still lands as an adjustment rather than disappearing.
+
+**The premium base.** The second sum added to `unearned_premium_cents` reads the correction's own two events rather than the money operation. I traced the ids by hand: the reversal entries are filed `source_kind = 'correction'`, `source_id = reversalEvent.id` by `reverseJournalEntry`; the re-booked premium and tax under `source_id = rebookEvent.id`; and the re-book payload carries `correction_reversal_event_id`, which is exactly the pair the subquery reads. Their net movement of `unearned_premium` is the premium of the difference (43561 - 38630 = 4931 in the recited example, and the check asserts 4931 x 15% = 739 with adjustment 0). Both scalar subqueries are safe against a multi-row error: `correction_collections.collection_operation_id` and `refund_allocations.refund_operation_id` are both declared `unique`. The two sums cannot both fire: a correction posts nothing moving `unearned_premium` under its settlement operation, which I verified in `correctionCollectionEntries` (cash against the receivable) and `correctionRefundRequestedEntry` (receivable against refund payable). An ordinary cancellation refund is untouched by the new branch, because its `refund_allocations.policy_event_id` is the `cancelled` event and the subquery filters on `event_type = 'correction_rebook'`. `premium_earned_to_date`, the other entry that moves `unearned_premium`, is filed under the policy event and not under the refund operation, so it does not pollute the first sum either.
+
+**The three months.** The check adds them up independently of the classifier and against a separate SQL sum of the ledger cash: "the three months add up to the CORRECTED endorsement: 169904 of cash, 163561 of premium, 24533 earned" and "the cash on the three statements is the cash the ledger holds for that policy, to the cent (ledger 169904, statements 169904)". The closed month is unchanged and reproducible: "JULY STILL RECONCILES after the correction (revision 2, same hash true)". That is the right answer under decision 19: the correction's cash is effective on the day the money moved, so it is a September line and July keeps what it published.
+
+### F-B8-02, what I checked beyond the check line
+
+The gate is read from the policy at plan time (`policyRefundTotals` and `moneyStillWaitingForTheCustomer` in `planEndorsementDateCorrection`), the pure function takes the totals as arguments and no longer reaches for the thresholds itself, and both verdicts plus the three totals behind them are written on the re-book event and read back by `correctionsOfPolicy` and `collectionOfCorrection`. `startCorrectionCheckout` and `approveCorrectionCollection` ask the cumulative question again at the moment money would be collected, which can only ever demand more approval, never less.
+
+The second half of the finding, the part that made it MEDIUM, is the terminal refusal. `correctEndorsementDate` no longer discards the outcome of `issueRefundsAtStripe`; a `refused` outcome is written as a `failed` money operation event with `stage: "approval"`, which is the exact shape `loadRefundOperation` maps to `lastFailureStage === "approval"` and that `reissueRefund` releases by opening a new operation **with** a new approval request rather than calling Stripe. The route turns the same outcome into `correction=refund-refused`, and the policy page prints a notice saying nothing was sent and pointing at the button. So the customer is no longer left owed money with no in-application way to pay them. The rejection race itself (a refusal arriving after the plan said the refund could go) is proven by reading the recovery path and by the shape B7 already exercises, not by a new check line: see section 15.
+
+One note for the record, not a finding. The read paths now default both verdicts to `false` when the re-book payload does not carry them, which is the honest reading for a correction written before this commit. No `correction_rebook` event exists on the trial database today (the only correction there is the B8a void of CGP-01061, a `correction_reversal` with no re-book), so no stored correction reads back a wrong verdict, and the collection gate re-asks the question cumulatively before any money is taken in any case.
+
+### F-B8-03, F-B8-05, F-B8-07
+
+All three read as described in `27c988a`. The three routes call `badPathIdResponse` on their first line, before `currentUser()` and before any query, and the two pages call `isUuid` plus `notFound()`. The four local copies of the uuid regex inside the correction module are gone (`45ea482` removed the last one, in `planEndorsementDateCorrection`); the copies that remain in `lib/payments/refunds.ts`, `lib/auth/current-user.ts`, `lib/reconciliation/stripe-records.ts`, `app/api/webhooks/stripe/route.ts` and `app/api/statements/[runId]/pdf/route.ts` are outside this slice and outside this verdict. The deployed behaviour is in section 14.
+
+## 13. New finding
+
+### F-B8-08 (LOW): a correction refund split over two payments counts its premium base twice
+
+**Trigger.** `lib/statements/journal.ts`, the second premium sum. It finds the correction from `refund_allocations.refund_operation_id` and then sums the whole correction's movement of `unearned_premium`. A correction refund is allocated newest collection first and opens **one money operation per PaymentIntent** (`openRefundsForDifference`), and every one of those rows carries the same `policy_event_id = rebookEventId`. So when a correction gives back more than the newest collection holds, each of its `refund_completed` entries is given the whole correction's premium as its commission base.
+
+**Reachable sequence**, on the recited policy. An endorsement keyed 2028-07-09 collects 39537 on its own PaymentIntent. Correction 1 to 2028-06-09 collects a difference of 5047 on a second PaymentIntent. Correction 2 on that re-book, to 2028-08-09, owes back 10262: 5047 comes off the newest collection and 5215 off the endorsement's, so two refund operations. When both complete, both refund lines print "of which premium" as the same -10027 instead of roughly -4931 and -5096. Nothing blocks the sequence: the guards a correction applies are "the most recent endorsement in force", a zero premium receivable and no correction refund in flight, and all three hold at that point.
+
+**Consequence, and why it is LOW.** The totals are unaffected: `totalsOf` never adds a refund line's base to `premiumCollectedCents`, and net due is still asserted against the movement of `commission_payable`, so the statement still ties to the ledger to the cent and the invariant assertion in `computeStatement` cannot be tripped by this. What is wrong is a figure printed on the refund line of the screen, the PDF and the MCP tool output, and hashed into the canonical text. It needs a chain of two corrections whose second refund exceeds the newest collection, which no check exercises today and which the demo does not reach.
+
+**Required correction.** Read the slice's own figure instead of the correction's total: `refund_allocations.refunded_premium_cents` is already stored per operation, decided once at correction time, and is exactly the premium that refund gives back. One added check line covering a correction refund over two payments would close it.
+
+### F-B8-09 (LOW): the F-B8-07 fix was applied to one date field and not to the two beside it
+
+**Trigger.** `app/policies/[policyId]/page.tsx:226` and `:231`, the two document as-of fields: `defaultValue={today} min={policy.effectiveAt}`, which is exactly the shape F-B8-07 named and `correction-sections.tsx` fixed. On a policy whose term has not begun, they ship a value the input itself rejects.
+
+**Measured on the deployed CGP-01274**, whose term starts 2026-09-17: `id="asOfDeclarations" min="2026-09-17" value="2026-09-08"` and the same for `asOfSchedule`, one section above the corrected `asOf` field that now reads `min="2026-09-17" value="2026-09-17"`.
+
+**Consequence.** The browser refuses to submit either form until the operator changes the date, so "Open the declarations page (PDF)" and "Open the endorsement schedule (PDF)" do nothing on the one bound future-dated policy of the demo. Every other date input on that page already clamps its default into its own range (`endorsementEffectiveAt`, the cancellation date, the date of loss), so these two are the exception rather than the pattern.
+
+**Required correction.** The same one-line clamp the F-B8-07 fix used, in the two places: `today > policy.effectiveAt ? today : policy.effectiveAt`.
+
+## 14. The deployed application
+
+**Which revision was exercised, and why it is the right one.** `/api/health` reported `c5bcf2a` at 19:31Z, before any HTTP work, and `41be7fc` at 19:35Z, after it: main moved forward twice during the re-review. Both are strict DESCENDANTS of `2755d11` (`git merge-base --is-ancestor 2755d11 41be7fc` exits 0), so both carry every B8 fix commit. I checked what they add on top: `git diff --stat 2755d11 41be7fc` touches interface files, `components/`, docs and four read modules, and NOT one file of the B8 scope. `lib/statements/*`, `lib/money/correction.ts`, `lib/policy/correct-endorsement-date.ts`, `lib/policy/correction-read.ts`, `lib/payments/correction-collection.ts`, `lib/ledger/*`, `lib/http/path-ids.ts`, the three correction routes, the two correction pages, `correction-sections.tsx` and the scripts are byte for byte those of `2755d11`. The one B8 file that is touched is `app/policies/[policyId]/page.tsx`, and I checked in the deployed source that the two notices the F-B8-02 fix added, `refund-refused` and `refund-failed`, are still there (lines 1019 and 1021). So the responses below are this slice's code.
+
+**F-B8-03, the five entry points, malformed policy id**, signed in as `ops@example.com`, session cookie only, nothing created:
+
+| Request | At `e7b5913` | Now |
+|---|---|---|
+| `GET /policies/not-a-uuid/corrections/new?endorsedEventId=<uuid>` | 500 | **404** |
+| `GET /policies/not-a-uuid/corrections/<uuid>/approve` | 500 | **404** |
+| `POST /api/policies/not-a-uuid/corrections` | 500 | **400** |
+| `POST /api/policies/not-a-uuid/corrections/<uuid>/checkout` | 500 | **400** |
+| `POST /api/policies/not-a-uuid/corrections/<uuid>/approve` | 500 | **400** |
+
+The malformed re-book event id is answered the same way: `POST .../corrections/not-a-uuid/checkout` and `.../approve` answer 400, and the approval page answers 404. The neighbouring slices still answer as they did, so the register is now consistent: `GET /policies/not-a-uuid` 404, `GET /policies/not-a-uuid/endorse` 404, `POST /api/policies/not-a-uuid/endorsements` 400. The 400 body echoes nothing a caller put in the URL: it is the single line `the policyId in this URL is not a valid identifier`.
+
+A well-formed but unknown policy id is still a refusal and not an error: `POST /api/policies/<unknown uuid>/corrections` with a complete form answers `303` to `?error=this%20policy%20does%20not%20exist`. Nothing was created by that probe, because the policy it names does not exist, and no other probe reached a write path.
+
+**F-B8-05** on the deployed CGP-01061 (`de2fb99f-8db4-4aa3-9ee5-827e444ab5ad`), the timeline entry that used to print two question marks:
+
+```
+Correction: the event above was reversed and nothing re-books it, so it no longer counts
+(Bound on 2026-09-08 through a locally signed webhook during development (pi_local_...);
+Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01
+and Yoann's decision.)
+```
+
+No occurrence of "put right to ?" remains anywhere on that page.
+
+**F-B8-07** on the deployed CGP-01274 (`104d2966-be96-4c36-9956-caf0762f8b15`), the one policy whose term has not begun: the field the finding named now renders `min="2026-09-17" value="2026-09-17"`, so it no longer ships a value its own constraint rejects. Two sibling fields on the same page still do, which is F-B8-09 below.
+
+**One observation outside this slice, for the coordinator, not a B8 finding.** A POST with no form body at all answers 500 rather than 400, on the correction route and equally on B4's `POST /api/policies/<uuid>/endorsements`. It is the house-wide consequence of `await request.formData()` on an empty body, it predates B8, and it is not what F-B8-03 was about (a malformed path id, which is now handled). Worth one shared guard at some point; it blocks nothing here.
+
+## 15. Checks executed, and checks not executed
+
+| Check | Result |
+|---|---|
+| `curl /api/health` before and after the HTTP work | `c5bcf2a` at 19:31Z and `41be7fc` at 19:35Z, database ok; both strict descendants of `2755d11` that touch no B8 file, see section 14 |
+| `npm run typecheck` | exit 0 |
+| `npx tsx --test lib/statements/entry-types.test.ts lib/money/correction.test.ts` | 19 tests, 19 pass, 0 fail |
+| `npm run check:statements` (one run, `corgi_test`) | 48 PASS, 0 FAIL, "ALL CHECKS PASSED" |
+| `npm run check:correction-replay` (one run, `corgi_test`) | 55 PASS, 0 FAIL, exit 0 |
+| `gitleaks dir` over the whole `e7b5913..2755d11` diff | 844 KB scanned, no leaks found |
+| Independent read of the entry-type exhaustiveness claim (every `entryType:` literal and every raw `insert into journal_entries`) | 19 literals, all `satisfies` one of the five exported unions; the only other writers are `reverse.ts` and four guard check scripts |
+| Independent read of the two premium subqueries against the schema (`correction_collections`, `refund_allocations`, migrations 0005 and 0014) | both scalar subqueries are unique-constrained; the two sums are mutually exclusive; F-B8-08 is the one case they get wrong |
+| The correction entry points over HTTP on the deployed revision | section 14 |
+
+**Not executed, and why.**
+
+- **`npm run check:money-guards`**: deliberately not run. The coordinator proved it at 19:11Z on an ephemeral database, 184 of 184, and the shared `corgi_test` was already carrying two of my runs. The B8 fixes add no table, no trigger and no grant, so the guard surface is unchanged since that run.
+- **The full `npm test` suite**: only the two files the fix touches were run, to keep the shared database free. The typecheck covers the whole tree.
+- **No correction, and no money movement of any kind, on the deployed application.** The HTTP work was malformed-id probes and read-only page fetches, signed in as `ops@example.com`.
+- **The refusal race of F-B8-02** (the gate saying no after the plan said yes) is proven by reading the recovery path, not by a check line: no check drives a correction refund to `refused` through `correctEndorsementDate`.
+- **F-B8-08 is not reproduced end to end.** It is derived from the schema, the allocation code and the query; no check exercises a correction refund split over two payments.
+- **No load or concurrency testing**, and no re-audit of `collectionsStillRefundable`, unchanged since the first review.
+
+## 16. Verdict
+
+**PASS** for slice B8 at `2755d11`. F-B8-01, F-B8-02, F-B8-03, F-B8-04, F-B8-05, F-B8-07 and the referred F-B4-13 are resolved, each against a check line or a deployed response rather than against a claim. F-B8-06 stays open by the coordinator's decision and is not a blocker here. F-B8-08 and F-B8-09 are new and both LOW: neither touches a total, the ledger tie or a money movement, and neither is a reason to hold the slice.
+
+Nothing in the corrected diff updates or deletes a money row: the four commits add a lookup table, a query branch, two threshold arguments, one `insert into money_operation_events`, path-id guards and screen sentences. The correction transaction itself is unchanged, and the replay still proves that not one of the 36 rows that existed before a correction changes, byte for byte. On AF-06 the fix improves the reading path rather than lengthening it: the disposition table is one screen of names with a reason beside each, the approval sentence is one pure function, and the two threshold questions now live where every other slice asks them. The one place a reader has to work is the second premium subquery in `lib/statements/journal.ts`, twenty lines of SQL joining three tables through a payload key; its comment explains why it exists, and F-B8-08 is the corner it gets wrong.
+
+Residual limitations: the correction still has never run against real Stripe money, so every figure remains proven on the disposable database and by arithmetic. This verdict covers `2755d11` and the B8 scope only, not the B11 and F-B2-20 work merged alongside it. This is an engineering assessment of a sandbox implementation, not a legal or regulatory certification.
+
+**Walkthrough status: NOT REVIEWED WITH YOANN.**
