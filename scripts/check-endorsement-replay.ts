@@ -12,11 +12,11 @@ import postgres from "postgres";
 //      endorsement ONCE; the issuance path refuses a delta operation; a wrong amount is refused;
 //   5. an expired hosted page starts a new attempt under a new key;
 //   6. a premium reduction is applied at once with its refund operation; the completed refund
-//      delivered twice posts once; a failed refund posts nothing; a refund above $1,000 is held
-//      for a human approver (B7 hook) and not sent;
+//      delivered twice posts once; a failed refund posts nothing; a refund above $1,000 waits in
+//      the maker-checker queue, the initiator cannot approve it and a distinct approver can;
 //   7. a cancelled, voided or unbound policy cannot be endorsed; the effective date must be in
-//      the term and not before the previous endorsement; an endorsed policy cannot be cancelled
-//      by this build;
+//      the term and not before the previous endorsement; an endorsed policy IS cancellable, and
+//      its refund is the sum of the written segments, each earning from its own date;
 //   8. the whole ledger still balances.
 //
 // It runs the production functions with the restricted runtime role. It calls Stripe for real
@@ -80,6 +80,8 @@ async function main() {
     EndorsementCheckoutRefused,
   } = await import("@/lib/payments/endorsement-collection");
   const { readEndorsementRequest, endorsementRequestStanding } = await import("@/lib/policy/endorsement-requests");
+  const { decideApprovalRequest } = await import("@/lib/approvals/approvals");
+  const { assertRefundMaySend, loadRefundOperation } = await import("@/lib/payments/refunds");
   const { voidFabricatedBinding } = await import("@/lib/policy/void-fabricated-binding");
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`select current_database()`;
@@ -97,6 +99,17 @@ async function main() {
         return error.message;
       }
       throw error;
+    }
+  };
+
+  // The message of any refusal, whatever class raised it. Used for the maker-checker refusals,
+  // which come from lib/approvals and lib/payments/refunds rather than from this slice.
+  const messageOf = async (action: () => Promise<unknown>): Promise<string> => {
+    try {
+      await action();
+      return "no refusal";
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error);
     }
   };
 
@@ -231,10 +244,36 @@ async function main() {
 
   const beforePrevious = await refusal(() => planEndorsement({ ...raise, effectiveAt: "2028-05-01", newAnnualPremiumCents: 200000 }, runtime));
   report("an endorsement cannot be backdated before the one in force", /before the previous one/.test(beforePrevious), beforePrevious);
-  const cancelEndorsed = await refusal(() =>
-    recordCancellation({ policyId: paid.policyId, effectiveAt: "2028-09-01", calculationMethod: "pro_rata", actor: { userId: paid.brokerUserId, role: "broker", brokerId: paid.brokerId } }, runtime),
+  // Cancelling an ENDORSED policy: the refund is the sum of the segments, each earning from its
+  // own date, never the annual premium in force priced over the whole term.
+  //   issuance    floor(120000 x 184 / 365) = 60493 earned of 120000
+  //   endorsement floor(43561 x 84 / 265)   = 13808 earned of 43561
+  //   written 163561, earned 74301, unearned 89260; tax back ceil(89260 x 2.35%) = 2098
+  const cancelEndorsed = await recordCancellation(
+    { policyId: paid.policyId, effectiveAt: "2028-09-01", calculationMethod: "pro_rata", actor: { userId: paid.brokerUserId, role: "broker", brokerId: paid.brokerId } },
+    runtime,
   );
-  report("cancelling an endorsed policy is refused by this build (per-segment earning not computed)", /carries an endorsement/.test(cancelEndorsed), cancelEndorsed);
+  const endorsedBreakdown = cancelEndorsed.plan.breakdown;
+  report(
+    "an endorsed policy is cancelled on its segments: 163561 written, 74301 earned, 89260 given back",
+    endorsedBreakdown.writtenPremiumCents === 163561 && endorsedBreakdown.earnedPremiumCents === 74301 && endorsedBreakdown.unearnedPremiumCents === 89260,
+    `written ${endorsedBreakdown.writtenPremiumCents}, earned ${endorsedBreakdown.earnedPremiumCents}, unearned ${endorsedBreakdown.unearnedPremiumCents}`,
+  );
+  report(
+    "the tax cap is the tax the ledger still holds (2820 at issuance + 1023 on the delta), not the tax on the annual premium in force",
+    cancelEndorsed.plan.taxChargedCents === 3843 && endorsedBreakdown.refundedTaxCents === 2098 && endorsedBreakdown.totalRefundCents === 91358,
+    `held ${cancelEndorsed.plan.taxChargedCents}, tax back ${endorsedBreakdown.refundedTaxCents}, refund ${endorsedBreakdown.totalRefundCents}`,
+  );
+  report(
+    "the refund is split over the two payments that funded the policy, newest first",
+    cancelEndorsed.plan.slices.length === 2 && cancelEndorsed.plan.slices.reduce((total, slice) => total + slice.amountCents, 0) === 91358,
+    cancelEndorsed.plan.slices.map((slice) => `${slice.paymentIntentId} ${slice.amountCents}`).join(", "),
+  );
+  report(
+    "the commission clawback follows the refunded premium alone",
+    endorsedBreakdown.commissionClawbackCents === 13389 && cancelEndorsed.plan.slices.reduce((total, slice) => total + slice.commissionClawbackCents, 0) === 13389,
+    `${endorsedBreakdown.commissionClawbackCents} cents`,
+  );
 
   // ---------------------------------------------------------------------------
   // 3. Above $500: customer approval, wrong users, stale hash after a second request
@@ -314,7 +353,7 @@ async function main() {
   const lowerPlan = await planEndorsement(lower, runtime);
   report("the preview of -$600 on day 100 refunds 43562 + 1024 with a 6534 clawback", lowerPlan.figures.deltaPremiumCents === -43562 && lowerPlan.figures.deltaTaxCents === -1024 && lowerPlan.figures.deltaTotalCents === -44586 && lowerPlan.figures.commissionDeltaCents === -6534, `${lowerPlan.figures.deltaPremiumCents}, ${lowerPlan.figures.deltaTaxCents}, ${lowerPlan.figures.commissionDeltaCents}`);
   const loweredResult = await recordEndorsementRequest({ ...lower, expectedQuoteHash: lowerPlan.figures.quoteHash }, runtime);
-  report("the reduction is applied in the same transaction, with one refund operation, not held", loweredResult.appliedImmediately && loweredResult.refundOperationIds.length === 1 && !loweredResult.refundHeldForApproval && (await policyCurrent(lowered.policyId)).annual === 60000, `applied ${loweredResult.appliedImmediately}, ${loweredResult.refundOperationIds.length} refund(s), annual now ${(await policyCurrent(lowered.policyId)).annual}`);
+  report("the reduction is applied in the same transaction, with one refund operation, not held", loweredResult.appliedImmediately && loweredResult.refundOperationIds.length === 1 && loweredResult.refundOperationIdsAwaitingApproval.length === 0 && (await policyCurrent(lowered.policyId)).annual === 60000, `applied ${loweredResult.appliedImmediately}, ${loweredResult.refundOperationIds.length} refund(s), annual now ${(await policyCurrent(lowered.policyId)).annual}`);
   const refundOperationId = loweredResult.refundOperationIds[0];
   report("the refund allocation carries premium 43562, tax 1024, clawback 6534 on the issuance payment", (await allocationOf(refundOperationId)) === `43562/1024/6534/${lowered.paymentIntentId}`, await allocationOf(refundOperationId));
   report("the refund operation waits for Stripe under the derived key", (await operationIdempotencyKey(refundOperationId)) === `policy-refund:${lowered.policyId}:${lowered.paymentIntentId}`, await operationIdempotencyKey(refundOperationId));
@@ -337,12 +376,33 @@ async function main() {
   await recordFailedRefund({ operationId: failingResult.refundOperationIds[0], refundId: "re_failed_endorsement", reason: "expired_or_canceled_card" }, runtime);
   report("a failed endorsement refund posts NO journal entry and the customer is still owed", describe(await entryTypesOfPolicy(failing.policyId)) === entriesBeforeFailure && (await netBalance(failing.policyId, "refund_payable")) === -44586, `refund_payable net ${await netBalance(failing.policyId, "refund_payable")}`);
 
-  // A reduction above $1,000 is held for a human approver (B7 hook) and not sent to Stripe.
+  // A reduction above $1,000 goes through the same maker-checker queue as a cancellation refund
+  // (slice B7): the endorsement is applied and the customer is owed the money, but nothing is
+  // asked of Stripe until a SECOND person approves it.
   const large = await createPaidPolicy(recordSuccessfulPayment, 1200000);
   const largeActor: Actor = { userId: large.brokerUserId, role: "broker", brokerId: large.brokerId, customerId: null };
   const largePlan = await planEndorsement({ ...lower, policyId: large.policyId, newAnnualPremiumCents: 600000, actor: largeActor }, runtime);
+  report("the preview says the reduction of over $1,000 needs an approver", largePlan.refundNeedsApproval && largePlan.figures.deltaTotalCents < -100000, `${-largePlan.figures.deltaTotalCents} cents, needs approval ${largePlan.refundNeedsApproval}`);
   const largeResult = await recordEndorsementRequest({ ...lower, policyId: large.policyId, newAnnualPremiumCents: 600000, actor: largeActor, expectedQuoteHash: largePlan.figures.quoteHash }, runtime);
-  report("a refund above $1,000 is held for a distinct human approver (B7 hook), operation still requested", largeResult.refundHeldForApproval && largePlan.figures.deltaTotalCents < -100000 && (await countOperationEvents(largeResult.refundOperationIds[0], "provider_accepted")) === 0, `${-largePlan.figures.deltaTotalCents} cents, held ${largeResult.refundHeldForApproval}`);
+  const largeRefundId = largeResult.refundOperationIds[0];
+  report("the refund waits for a distinct human approver: one request written, nothing sent to Stripe", largeResult.refundOperationIdsAwaitingApproval.length === 1 && largeResult.approvalRequestIds.length === 1 && (await countOperationEvents(largeRefundId, "provider_accepted")) === 0, `${largeResult.approvalRequestIds.length} approval request(s), ${await countOperationEvents(largeRefundId, "provider_accepted")} provider_accepted event(s)`);
+  report("the endorsement is applied all the same: the cover is reduced and the customer is owed the money", (await policyCurrent(large.policyId)).annual === 600000 && (await netBalance(large.policyId, "refund_payable")) < 0, `annual now ${(await policyCurrent(large.policyId)).annual}, refund_payable net ${await netBalance(large.policyId, "refund_payable")}`);
+
+  const largeOperation = await loadRefundOperation(runtime, largeRefundId);
+  const beforeApproval = await messageOf(() => assertRefundMaySend(runtime, largeOperation!));
+  report("the refund cannot be sent before somebody approves it", /waiting for a second person/.test(beforeApproval), beforeApproval);
+  const selfApproval = await messageOf(() =>
+    decideApprovalRequest({ requestId: largeResult.approvalRequestIds[0], decidedByUserId: large.brokerUserId, decidedByRole: "staff_approver", decision: "approved", reason: null }, runtime),
+  );
+  report("the person who asked for it cannot approve it, even claiming the approver role", /cannot approve it/.test(selfApproval), selfApproval);
+  const wrongRole = await messageOf(() =>
+    decideApprovalRequest({ requestId: largeResult.approvalRequestIds[0], decidedByUserId: large.staffUserId, decidedByRole: "staff_ops", decision: "approved", reason: null }, runtime),
+  );
+  report("an operator who is not a staff approver cannot approve it", /only a staff approver/.test(wrongRole), wrongRole);
+  await decideApprovalRequest({ requestId: largeResult.approvalRequestIds[0], decidedByUserId: large.approverUserId, decidedByRole: "staff_approver", decision: "approved", reason: "checked against the endorsement" }, runtime);
+  const approvedOperation = await loadRefundOperation(runtime, largeRefundId);
+  const afterApproval = await messageOf(() => assertRefundMaySend(runtime, approvedOperation!));
+  report("once a distinct staff approver has approved it, the refund may be sent", afterApproval === "no refusal", afterApproval);
 
   // ---------------------------------------------------------------------------
   // 6. Refusals: cancelled, voided, unbound, outside the term, no change
@@ -396,6 +456,7 @@ type Fixture = {
   brokerUserId: string;
   customerUserId: string;
   staffUserId: string;
+  approverUserId: string;
   operationId: string;
   paymentIntentId: string;
 };
@@ -422,6 +483,10 @@ async function createPolicyAwaitingPayment(annualPremiumCents = ANNUAL_PREMIUM_C
     const [staffUser] = await transaction<{ id: string }[]>`
       insert into users (email, display_name, role) values (${`endorsement-ops-${suffix}@example.invalid`}, 'Endorsement check operator', 'staff_ops') returning id
     `;
+    // The second human of maker-checker: needed as soon as a reduction gives back over $1,000.
+    const [approverUser] = await transaction<{ id: string }[]>`
+      insert into users (email, display_name, role) values (${`endorsement-approver-${suffix}@example.invalid`}, 'Endorsement check approver', 'staff_approver') returning id
+    `;
     const [policy] = await transaction<{ id: string }[]>`insert into policies (broker_id, customer_id, state_code) values (${broker.id}, ${customer.id}, 'CA') returning id`;
     await transaction`
       insert into policy_events (policy_id, event_type, effective_at, payload)
@@ -437,7 +502,7 @@ async function createPolicyAwaitingPayment(annualPremiumCents = ANNUAL_PREMIUM_C
     await transaction`insert into money_operation_events (operation_id, status) values (${operation.id}, 'requested')`;
     return {
       policyId: policy.id, brokerId: broker.id, customerId: customer.id, brokerUserId: brokerUser.id, customerUserId: customerUser.id, staffUserId: staffUser.id,
-      operationId: operation.id, paymentIntentId: `pi_endorsement_check_${operation.id.slice(0, 8)}`,
+      approverUserId: approverUser.id, operationId: operation.id, paymentIntentId: `pi_endorsement_check_${operation.id.slice(0, 8)}`,
     };
   });
 }
@@ -550,7 +615,7 @@ async function allocationOf(operationId: string): Promise<string> {
 }
 
 main().catch(async (error) => {
-  console.error("check failed to run:", error instanceof Error ? error.message : error);
+  console.error("check failed to run:", error instanceof Error ? (error.stack ?? error.message) : error);
   // Postgres names the waiting processes and the query on a lock failure: keep that visible.
   const details = error as { detail?: string; query?: string; hint?: string };
   if (details.detail || details.query) {

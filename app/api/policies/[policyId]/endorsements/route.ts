@@ -35,7 +35,7 @@ export async function POST(request: Request, context: { params: Promise<{ policy
     });
     const outcome = !result.appliedImmediately
       ? "requested"
-      : result.refundHeldForApproval
+      : result.refundOperationIdsAwaitingApproval.length > 0
         ? "refund-held"
         : result.refundOperationIds.length > 0
           ? "refund-requested"

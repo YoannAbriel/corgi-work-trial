@@ -114,3 +114,45 @@ test("a superseded issuance un-binds the policy without deleting anything", () =
 test("a policy with no event carrying terms cannot be folded", () => {
   assert.throws(() => applyPolicyEvents([REQUESTED]), /no event carrying its terms/);
 });
+
+test("the fold lists the written premium segments a cancellation gives back", () => {
+  // Before any endorsement there is one piece of premium: the annual premium over the term.
+  const bound = applyPolicyEvents([QUOTED, ISSUED]);
+  assert.deepEqual(bound.writtenPremiumSegments, [
+    { writtenPremiumCents: 120000, startsOn: "2028-03-01", endsOn: "2029-03-01" },
+  ]);
+
+  // The endorsement adds the money it actually moved, earning from its own effective date.
+  // 43561 is the prorated delta, never the 60000 difference in annual premium.
+  const endorsed = applyPolicyEvents([QUOTED, ISSUED, REQUESTED, APPROVED, ENDORSED]);
+  assert.deepEqual(endorsed.writtenPremiumSegments, [
+    { writtenPremiumCents: 120000, startsOn: "2028-03-01", endsOn: "2029-03-01" },
+    { writtenPremiumCents: 43561, startsOn: "2028-06-09", endsOn: "2029-03-01" },
+  ]);
+
+  // A reversed endorsement leaves no segment behind: the policy is back to its issued premium.
+  const REVERSAL = row("e8", "correction_reversal", "2028-06-09", { reason: "wrong date" }, "e5");
+  const reversed = applyPolicyEvents([QUOTED, ISSUED, REQUESTED, APPROVED, ENDORSED, REVERSAL]);
+  assert.deepEqual(reversed.writtenPremiumSegments, [
+    { writtenPremiumCents: 120000, startsOn: "2028-03-01", endsOn: "2029-03-01" },
+  ]);
+});
+
+test("a premium reduction is a negative segment", () => {
+  const REDUCED_TERMS: PolicyTerms = { ...ISSUED_TERMS, annualPremiumCents: 60000, taxCents: 1410, totalChargeCents: 63910 };
+  const REDUCED = row("e9", "endorsed", "2028-06-09", {
+    ...policyTermsToPayload(REDUCED_TERMS),
+    request_event_id: "e3",
+    delta_premium_cents: -43562,
+  });
+  const fold = applyPolicyEvents([QUOTED, ISSUED, REDUCED]);
+  assert.deepEqual(fold.writtenPremiumSegments, [
+    { writtenPremiumCents: 120000, startsOn: "2028-03-01", endsOn: "2029-03-01" },
+    { writtenPremiumCents: -43562, startsOn: "2028-06-09", endsOn: "2029-03-01" },
+  ]);
+});
+
+test("an endorsed event with no prorated delta is a broken event, not a zero", () => {
+  const BROKEN = row("e10", "endorsed", "2028-06-09", policyTermsToPayload(ENDORSED_TERMS));
+  assert.throws(() => applyPolicyEvents([QUOTED, ISSUED, BROKEN]), /delta_premium_cents/);
+});

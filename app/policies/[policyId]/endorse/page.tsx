@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd, parseUsdAmountToCents } from "@/lib/money/cents";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
@@ -127,9 +128,11 @@ export default async function EndorsePolicyPage({
         </p>
       ) : figures.direction === "refund" ? (
         <p className="note">
-          The endorsement is applied in one transaction with the refund request and its journal entries, then Stripe is
-          asked to refund the original payment. The refund counts as completed only when Stripe&apos;s webhook says it
-          left. A refund above $1,000 is held for a distinct human approver.
+          The endorsement is applied in one transaction with the refund request and its journal entries.{" "}
+          {plan.refundNeedsApproval
+            ? `This refund is above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it waits in the approval queue: a second person, never you, has to approve it before anything is sent to Stripe.`
+            : `At or below ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} no second approver is needed, so Stripe is asked to refund the original payment straight away.`}{" "}
+          The refund counts as completed only when Stripe&apos;s webhook says the money left.
         </p>
       ) : (
         <p className="note">The endorsement is applied at once: no money moves and no journal entry is posted.</p>

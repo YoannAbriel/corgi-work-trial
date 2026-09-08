@@ -11,7 +11,6 @@ import {
   type EndorsementRequest,
   type EndorsementRequestStanding,
 } from "./endorsement-requests";
-import { holdRefundForHumanApproval } from "./endorse";
 
 // Every read the policy page, the customer page and the approval page need about
 // endorsements. Nothing here computes money: the figures come from the immutable request and
@@ -30,6 +29,9 @@ export type EndorsementView = {
   collection: DeltaCollectionView | null;
   // The refund(s) of a negative delta.
   refunds: DeltaRefundView[];
+  // True while at least one refund of this endorsement is above $1,000 and still has no
+  // decision: nothing has been asked of Stripe and nothing will be until a second person says
+  // yes (lib/approvals). Read from the approval request itself, never assumed from the amount.
   refundHeldForApproval: boolean;
 };
 
@@ -56,6 +58,9 @@ export type DeltaRefundView = {
   refundId: string | null;
   completedOn: string | null;
   failureReason: string | null;
+  // Maker-checker (slice B7). Null below $1,000: no second person is involved at all.
+  approvalRequestId: string | null;
+  approvalDecision: "approved" | "rejected" | null;
 };
 
 export async function endorsementsOfPolicy(policyId: string, database: postgres.Sql = sql): Promise<EndorsementView[]> {
@@ -72,10 +77,9 @@ export async function endorsementsOfPolicy(policyId: string, database: postgres.
       endorsedAt,
       collection: await latestCollectionOfRequest(database, request.eventId),
       refunds,
-      refundHeldForApproval:
-        request.figures.direction === "refund" &&
-        holdRefundForHumanApproval(-request.figures.deltaTotalCents) &&
-        refunds.every((refund) => refund.state === "requested" && refund.refundId === null),
+      refundHeldForApproval: refunds.some(
+        (refund) => refund.approvalRequestId !== null && refund.approvalDecision === null,
+      ),
     });
   }
   return views;
@@ -181,12 +185,17 @@ async function refundsOfEndorsement(database: postgres.Sql, endorsedEventId: str
       refunded_tax_cents: string;
       commission_clawback_cents: string;
       payment_intent_id: string;
+      approval_request_id: string | null;
+      approval_decision: "approved" | "rejected" | null;
     }[]
   >`
     select operation.id as operation_id, operation.amount_cents, allocation.refunded_premium_cents,
-           allocation.refunded_tax_cents, allocation.commission_clawback_cents, allocation.payment_intent_id
+           allocation.refunded_tax_cents, allocation.commission_clawback_cents, allocation.payment_intent_id,
+           operation.approval_request_id,
+           decision.decision as approval_decision
       from refund_allocations allocation
       join money_operations operation on operation.id = allocation.refund_operation_id
+      left join approval_decisions decision on decision.request_id = operation.approval_request_id
      where allocation.policy_event_id = ${endorsedEventId}
      order by operation.created_at
   `;
@@ -214,6 +223,8 @@ async function refundsOfEndorsement(database: postgres.Sql, endorsedEventId: str
         state === "failed" && lastFailure
           ? String(lastFailure.payload.reason ?? lastFailure.payload.message ?? "Stripe refused the refund")
           : null,
+      approvalRequestId: allocation.approval_request_id,
+      approvalDecision: allocation.approval_decision,
     });
   }
   return refunds;

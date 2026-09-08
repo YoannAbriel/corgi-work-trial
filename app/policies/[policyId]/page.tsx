@@ -843,7 +843,7 @@ function endorsementNotice(outcome: string): string {
     case "refund-requested":
       return "The endorsement is in force and the refund was sent to Stripe. It counts as completed only when Stripe's webhook confirms the money left; refresh in a moment.";
     case "refund-held":
-      return "The endorsement is in force. The refund is above $1,000 and is held for a distinct human approver before anything is sent to Stripe (maker-checker, slice B7).";
+      return "The endorsement is in force. The refund is above $1,000, so it waits in the approval queue: a second person has to approve it before anything is sent to Stripe (maker-checker, /ops/approvals).";
     case "returned":
       return "You came back from the Stripe hosted page. The endorsement takes effect when Stripe's webhook confirms the delta was paid, not when the browser returns: refresh in a moment.";
     case "cancelled":

@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import type { WrittenPremiumSegment } from "@/lib/money/premium";
 import { derivePolicyStatus, type MoneyOperationStatus } from "./status";
 import { policyTermsFromPayload, type PolicyTerms } from "./terms";
 
@@ -21,6 +22,11 @@ export type PolicyFold = {
   // Effective date of the latest applied 'endorsed' event, null when none. A new endorsement
   // cannot be backdated before it (lib/policy/endorse.ts says why).
   latestEndorsementEffectiveAt: string | null;
+  // Every piece of premium written on this policy and the day it starts earning: the annual
+  // premium over the whole term, then each applied endorsement's prorated delta from its own
+  // effective date to the term end (ARCHITECTURE.md section 3). This is what a cancellation
+  // gives back, and it is NOT `terms.annualPremiumCents` once the policy has been endorsed.
+  writtenPremiumSegments: WrittenPremiumSegment[];
 };
 
 // One row of policy_events, as the fold reads it.
@@ -66,6 +72,7 @@ export function applyPolicyEvents(events: PolicyEventRow[]): PolicyFold {
   let terms: PolicyTerms | null = null;
   let boundAt: Date | null = null;
   let latestEndorsementEffectiveAt: string | null = null;
+  const endorsementSegments: WrittenPremiumSegment[] = [];
   for (const event of events) {
     if (supersededEventIds.has(event.id)) {
       continue; // reversed by a correction: kept in the table, no longer applied
@@ -79,12 +86,53 @@ export function applyPolicyEvents(events: PolicyEventRow[]): PolicyFold {
     }
     if (event.event_type === "endorsed") {
       latestEndorsementEffectiveAt = event.effective_at;
+      // The money the endorsement actually moved, signed: what the customer paid for the extra
+      // cover, or gave back. It earns from the endorsement's own effective date, so a policy
+      // endorsed on day 100 has two pieces of premium earning over two different windows.
+      endorsementSegments.push({
+        writtenPremiumCents: deltaPremiumCents(event.payload),
+        startsOn: event.effective_at,
+        endsOn: terms!.termEnd,
+      });
     }
   }
   if (terms === null) {
     throw new Error("the policy has no event carrying its terms");
   }
-  return { eventTypes, terms, boundAt, appliedEventCount: eventTypes.length, latestEndorsementEffectiveAt };
+  // The issuance segment first: the annual premium of the FIRST applied event that carried
+  // terms (the quote, or the re-booked terms when a correction superseded it), over the term.
+  const issuance = policyTermsFromPayload(firstAppliedTerms(events, supersededEventIds));
+  return {
+    eventTypes,
+    terms,
+    boundAt,
+    appliedEventCount: eventTypes.length,
+    latestEndorsementEffectiveAt,
+    writtenPremiumSegments: [
+      { writtenPremiumCents: issuance.annualPremiumCents, startsOn: issuance.termStart, endsOn: issuance.termEnd },
+      ...endorsementSegments,
+    ],
+  };
+}
+
+// The payload of the first applied event that carries terms. An endorsement carries terms too,
+// so the order matters: the first one is the policy as it was issued.
+function firstAppliedTerms(events: PolicyEventRow[], supersededEventIds: Set<string>): unknown {
+  const first = events.find((event) => !supersededEventIds.has(event.id) && carriesTerms(event.payload));
+  if (!first) {
+    throw new Error("the policy has no event carrying its terms");
+  }
+  return first.payload;
+}
+
+// The prorated delta an 'endorsed' event moved, read strictly: a missing or malformed figure is
+// a broken event, and guessing zero would silently refund the wrong amount at cancellation.
+function deltaPremiumCents(payload: unknown): number {
+  const value = (payload as { delta_premium_cents?: unknown })?.delta_premium_cents;
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+    throw new Error("an 'endorsed' event must carry delta_premium_cents as a whole number of cents");
+  }
+  return value;
 }
 
 // Rebuilds the cache row of one policy inside the caller's transaction.

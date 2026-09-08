@@ -1,5 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
+import { createApprovalRequest } from "@/lib/approvals/approvals";
+import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
 import { endorsementRefundRequestedEntry } from "@/lib/ledger/endorsement-entries";
 import { postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase, formatCentsAsUsd } from "@/lib/money/cents";
@@ -19,7 +21,7 @@ import {
   RefundCannotBeAllocated,
   type RefundSlice,
 } from "@/lib/money/refund-allocation";
-import { issueRefundsAtStripe } from "@/lib/payments/refunds";
+import { issueRefundsAtStripe, refundIntent } from "@/lib/payments/refunds";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
 import Stripe from "stripe";
 import { collectionsStillRefundable, countRefundOperations } from "./cancel";
@@ -90,6 +92,9 @@ export type EndorsementPlan = {
   newLimitLabel: string;
   description: string;
   reason: string | null;
+  // True when the reduction gives back more than $1,000, which needs a distinct human approver
+  // before anything leaves (lib/approvals/threshold.ts). The preview says so before confirming.
+  refundNeedsApproval: boolean;
 };
 
 type Queryable = postgres.Sql | postgres.TransactionSql;
@@ -174,6 +179,8 @@ export async function planEndorsement(input: EndorsementInputFromForm, database:
     newLimitLabel: limitLabel(input.newPerOccurrenceLimitCents, input.newAggregateLimitCents),
     description: describeChange(fold.terms, input),
     reason: input.reason && input.reason.trim().length > 0 ? input.reason.trim().slice(0, 200) : null,
+    // Only a reduction sends money out, so only a reduction can cross the money-out threshold.
+    refundNeedsApproval: figures.direction === "refund" && moneyOutNeedsApproval(-figures.deltaTotalCents),
   };
 }
 
@@ -202,9 +209,10 @@ export type EndorsementRequestResult = {
   appliedImmediately: boolean;
   endorsedEventId: string | null;
   refundOperationIds: string[];
-  // True when the refund is above the money-out threshold and waits for a human approver
-  // (see holdRefundForHumanApproval): nothing was sent to Stripe.
-  refundHeldForApproval: boolean;
+  // The refunds that are NOT going anywhere until a second human approves them, and the requests
+  // waiting for that person. Both empty at or below $1,000 (lib/approvals/threshold.ts).
+  refundOperationIdsAwaitingApproval: string[];
+  approvalRequestIds: string[];
 };
 
 // The whole request: recompute under a lock, write, then ask Stripe for a refund if one is owed.
@@ -214,10 +222,20 @@ export async function requestEndorsement(
   database: postgres.Sql = sql,
 ): Promise<EndorsementRequestResult> {
   const written = await recordEndorsementRequest(input, database);
-  if (written.refundOperationIds.length > 0 && !written.refundHeldForApproval) {
+
+  // Maker-checker on money out (slice B7), exactly as on a cancellation refund. The endorsement
+  // itself is recorded either way: the cover really has been reduced, the premium really has
+  // stopped earning on that part, and the customer really is owed the money. What waits is the
+  // money leaving. A refund above $1,000 stays in status 'requested' with its approval request
+  // beside it, and only the staff "send this refund to Stripe" action moves it once a second
+  // person has approved (app/api/policies/[policyId]/refunds/[operationId]/send).
+  const sendNow = written.refundOperationIds.filter(
+    (operationId) => !written.refundOperationIdsAwaitingApproval.includes(operationId),
+  );
+  if (sendNow.length > 0) {
     // Outbox: the intent is committed, so the provider call can be retried or resumed with the
     // same key. A provider failure is recorded on the operation and does not undo the endorsement.
-    await issueRefundsAtStripe(written.refundOperationIds, database);
+    await issueRefundsAtStripe(sendNow, database);
   }
   return written;
 }
@@ -275,7 +293,8 @@ export async function recordEndorsementRequest(
         appliedImmediately: false,
         endorsedEventId: null,
         refundOperationIds: [],
-        refundHeldForApproval: false,
+        refundOperationIdsAwaitingApproval: [],
+        approvalRequestIds: [],
       };
     }
 
@@ -290,10 +309,10 @@ export async function recordEndorsementRequest(
       collectionOperationId: null,
     });
 
-    const refundOperationIds =
+    const refunds =
       plan.figures.direction === "refund"
         ? await openRefundsForReduction(transaction, plan, request, endorsedEventId, input.actor.userId)
-        : [];
+        : { refundOperationIds: [], refundOperationIdsAwaitingApproval: [], approvalRequestIds: [] };
 
     await refreshPolicyCurrent(transaction, plan.policyId);
     return {
@@ -301,8 +320,7 @@ export async function recordEndorsementRequest(
       requestEventId: requestEvent.id,
       appliedImmediately: true,
       endorsedEventId,
-      refundOperationIds,
-      refundHeldForApproval: refundOperationIds.length > 0 && holdRefundForHumanApproval(-plan.figures.deltaTotalCents),
+      ...refunds,
     };
   });
 }
@@ -361,13 +379,19 @@ export async function applyEndorsement(
 // A premium reduction is refunded at once, like a partial cancellation (decided by Yoann,
 // DECISIONS.md 09:57Z): one Stripe refund per payment given back, newest collection first, each
 // with its allocation row and its refund entry, all in the caller's transaction.
+type OpenedRefunds = {
+  refundOperationIds: string[];
+  refundOperationIdsAwaitingApproval: string[];
+  approvalRequestIds: string[];
+};
+
 async function openRefundsForReduction(
   transaction: postgres.TransactionSql,
   plan: EndorsementPlan,
   request: EndorsementRequest,
   endorsedEventId: string,
   actorUserId: string,
-): Promise<string[]> {
+): Promise<OpenedRefunds> {
   const figures = request.figures;
   let slices: RefundSlice[];
   try {
@@ -385,18 +409,53 @@ async function openRefundsForReduction(
   }
 
   const refundOperationIds: string[] = [];
+  const refundOperationIdsAwaitingApproval: string[] = [];
+  const approvalRequestIds: string[] = [];
   for (const slice of slices) {
+    // Maker-checker, written in THIS transaction and before the operation it gates, so there is
+    // no instant in which a refund exists that nobody has to approve. The request carries the
+    // sha256 of what is approved (policy, amount, Stripe payment); lib/payments/refunds.ts
+    // rebuilds that hash from the operation and refuses to send when it differs.
+    //
+    // The threshold is read against the WHOLE refund owed to the customer, not against each
+    // Stripe payment it is split over, so splitting cannot slip a reduction under $1,000.
+    const approvalRequestId = plan.refundNeedsApproval
+      ? await createApprovalRequest(transaction, {
+          intent: refundIntent(plan.policyId, slice.amountCents, slice.paymentIntentId),
+          destinationDescription: `Stripe payment ${slice.paymentIntentId} (card refund to the customer)`,
+          requestedByUserId: actorUserId,
+          payload: {
+            policy_number: plan.policyNumber,
+            reason: "endorsement: the annual premium was reduced mid-term",
+            endorsement_effective_at: figures.effectiveAt,
+            refunded_premium_cents: slice.refundedPremiumCents,
+            refunded_tax_cents: slice.refundedTaxCents,
+            total_refund_cents: -figures.deltaTotalCents,
+          },
+        })
+      : null;
+
     const attempt = (await countRefundOperations(transaction, plan.policyId, slice.paymentIntentId)) + 1;
     const [operation] = await transaction<{ id: string }[]>`
-      insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key, created_by)
+      insert into money_operations
+        (kind, provider, amount_cents, policy_id, idempotency_key, approval_request_id, created_by)
       values ('stripe_refund', 'stripe', ${slice.amountCents}, ${plan.policyId},
-              ${refundIdempotencyKey(plan.policyId, slice.paymentIntentId, attempt)}, ${actorUserId})
+              ${refundIdempotencyKey(plan.policyId, slice.paymentIntentId, attempt)},
+              ${approvalRequestId}, ${actorUserId})
       returning id
     `;
+    if (approvalRequestId) {
+      approvalRequestIds.push(approvalRequestId);
+      refundOperationIdsAwaitingApproval.push(operation.id);
+    }
     await transaction`
       insert into money_operation_events (operation_id, status, payload)
       values (${operation.id}, 'requested',
-              ${transaction.json({ note: "endorsement recorded; the Stripe refund has not been created yet" })})
+              ${transaction.json({
+                note: approvalRequestId
+                  ? "endorsement recorded; this refund waits for a second person to approve it before Stripe is called"
+                  : "endorsement recorded; the Stripe refund has not been created yet",
+              })})
     `;
     await transaction`
       insert into refund_allocations (
@@ -421,7 +480,7 @@ async function openRefundsForReduction(
     await postJournalEntry(transaction, requested.header, requested.lines);
     refundOperationIds.push(operation.id);
   }
-  return refundOperationIds;
+  return { refundOperationIds, refundOperationIdsAwaitingApproval, approvalRequestIds };
 }
 
 // ---------------------------------------------------------------------------
@@ -469,26 +528,6 @@ export async function expireOpenEndorsementCheckouts(policyId: string, database:
       await stripe.checkout.sessions.expire(sessionId);
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// B7 HOOK: maker-checker on money out
-// ---------------------------------------------------------------------------
-
-// Assumption of this build, not a Corgi rule (DECISIONS.md 08:04Z): money out above $1,000 needs
-// a distinct human approver, never the initiator and never an agent. That queue is slice B7
-// (lib/approvals: moneyOutNeedsApproval, createApprovalRequest with kind 'refund' and subject
-// 'policy', assertIntentIsApproved at execution).
-//
-// B7 HOOK: replace this function with B7's rule and insert the approval request inside the
-// transaction of recordEndorsementRequest, right after the refund operations are written. Until
-// then a refund above the threshold is HELD here: the operation stays 'requested', the policy
-// page says a human approver is needed, and nothing is sent to Stripe. Failing closed is the
-// safe direction for money out.
-export const MONEY_OUT_APPROVAL_THRESHOLD_CENTS = 100000;
-
-export function holdRefundForHumanApproval(totalRefundCents: number): boolean {
-  return totalRefundCents > MONEY_OUT_APPROVAL_THRESHOLD_CENTS;
 }
 
 // ---------------------------------------------------------------------------
