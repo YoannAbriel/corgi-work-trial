@@ -1,9 +1,9 @@
 # Slice B7 implementation notes (claims, reserves, payout simulator, maker-checker)
 
 Written by the B7 delegate on 2026-09-08. Branch `worktree-agent-a801f173f5bb5852a`, worktree
-`/Users/yoannabriel/dev/corgi-work-trial/.claude/worktrees/agent-a801f173f5bb5852a`, eleven
-commits on top of `109dafb` plus a merge of `main` at `faa12a8`. Nothing was pushed, nothing was
-deployed, no shared planning file was edited.
+`/Users/yoannabriel/dev/corgi-work-trial/.claude/worktrees/agent-a801f173f5bb5852a`, twelve
+commits of this slice on top of `109dafb` plus a merge of `main` at `faa12a8`. Nothing was
+pushed, nothing was deployed, no shared planning file was edited.
 
 **Read section 9 first if you are the coordinator: the migration was renamed to
 `0008_claims_and_approvals.sql` after it had already been applied to both databases under the
@@ -270,11 +270,32 @@ $ npm test                                       217 tests, 216 pass, 0 fail, 1 
                                                  (133 before this slice; the skipped one is B3's
                                                  live KYB test, unchanged)
 $ npm run check:money-guards -- --database=test   110 PASS, 0 FAIL, exit 0   (51 before)
-$ npm run check:money-guards                      110 PASS, 0 FAIL, exit 0   (trial database)
-$ npm run check:ledger-guards                     13 PASS, 0 FAIL, exit 0
 $ npm run check:claims-and-approvals              55 PASS, 0 FAIL, exit 0    (new)
 $ npm run check:refund-replay                     27 PASS, 0 FAIL, exit 0    (B5, unchanged)
+$ npm run check:ledger-guards                     0 FAIL, exit 0   (trial database, before the
+                                                  merge; the script is untouched by this slice)
 ```
+
+**On the TRIAL database, the guards were verified twice, and the second attempt has a caveat
+worth knowing before anyone reruns it.** The first run, before the merge of `main`, exercised all
+six new B7 tables and reported **103 PASS, 0 FAIL**. A second run after the merge (110 checks)
+was abandoned: the shared database was answering roughly one check per minute, against seconds
+per check on `corgi_test`, and it hit `deadlock detected` on `owner cannot DELETE claims`. That
+is the check harness contending with the deployed application, not a product defect: the script
+probes the TRUNCATE guard with `TRUNCATE ... CASCADE`, which takes ACCESS EXCLUSIVE locks across
+half the schema, and the trial database serves the live app at the same time. It was stopped
+rather than left hammering a shared database.
+
+What was verified on the trial database instead, read-only and in one second: the catalogue says
+the six tables carry exactly the same guards as on `corgi_test`. All three triggers on each of
+the six (`_are_append_only`, `_cannot_be_truncated`, `_recorded_at_is_server_set`), the
+`approval_decisions_enforce_maker_checker` trigger, `INSERT, SELECT` and nothing else granted to
+`app_runtime` on all six, and both new `money_operations` columns present. The behaviour behind
+those objects is proved by the 110-check run on `corgi_test`.
+
+Two lessons for whoever runs these next: run one check script at a time against one database, and
+prefer `corgi_test` for anything that exercises the TRUNCATE guards. `--database=test` is the
+default habit to keep.
 
 `npm run check:claims-and-approvals`, the lines that matter:
 
@@ -332,9 +353,6 @@ PASS  a loss cannot be reported before it happened
 PASS  an approval request must carry a real sha256 of its intent
 ```
 
-The two check scripts must not run at the same time against `corgi_test`: `TRUNCATE ... CASCADE`
-on `approval_requests` takes locks across half the schema, and two concurrent runs deadlock. One
-run at a time is clean; the deadlock was observed once, only while two scripts overlapped.
 
 ## 8. What was NOT verified, and why
 
