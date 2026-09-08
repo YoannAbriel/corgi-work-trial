@@ -114,13 +114,10 @@ const REVERSAL_PREFIX = "reversal_of_";
 export function computeStatement(input: StatementInput): ComputedStatement {
   assertStatementMonth(input.statementMonth);
 
-  const lines: StatementLine[] = [];
-  for (const entry of sortedForReading(input.entries)) {
-    const line = statementLineFor(entry, lines.length);
-    if (line) {
-      lines.push(line);
-    }
-  }
+  // Classify first, then order, then number: the reading order depends on what each entry turned
+  // out to be, and the line number is simply its place in that order.
+  const classified = input.entries.map(statementLineFor).filter((line) => line !== null);
+  const lines = sortedForReading(classified).map((line, position) => ({ ...line, lineOrder: position }));
 
   const totals = totalsOf(lines);
 
@@ -142,8 +139,9 @@ export function computeStatement(input: StatementInput): ComputedStatement {
 
 // The one line a journal entry produces, or null when the entry is none of the statement's
 // business. The amount always comes from a movement the ledger actually posted; nothing here
-// multiplies a rate by anything.
-function statementLineFor(entry: BrokerJournalEntry, lineOrder: number): StatementLine | null {
+// multiplies a rate by anything. The line number is filled in afterwards, once the lines are in
+// their reading order.
+function statementLineFor(entry: BrokerJournalEntry): StatementLine | null {
   const baseType = entry.entryType.startsWith(REVERSAL_PREFIX)
     ? entry.entryType.slice(REVERSAL_PREFIX.length)
     : entry.entryType;
@@ -153,7 +151,7 @@ function statementLineFor(entry: BrokerJournalEntry, lineOrder: number): Stateme
     return null;
   }
   return {
-    lineOrder,
+    lineOrder: 0, // replaced by the position in the ordered list
     kind: kindAndAmount.kind,
     policyId: entry.policyId,
     policyNumber: entry.policyNumber,
@@ -223,15 +221,29 @@ function totalsOf(lines: StatementLine[]): StatementTotals {
   };
 }
 
-// The order the statement is printed and hashed in: by business date, then by the entry id, which
-// is unique. Two runs over the same entries therefore build the same list even if the database
-// returned the rows in a different order.
-function sortedForReading(entries: BrokerJournalEntry[]): BrokerJournalEntry[] {
-  return [...entries].sort((left, right) => {
+// The order a statement is printed and hashed in: by business date, then in the order a reader
+// expects a day to be told (the cash first, then what it did to the commission), then by the
+// journal entry id, which is unique and breaks every remaining tie.
+//
+// The last step is what makes the content hash reproducible: two runs over the same entries build
+// the same list even when the database returns the rows in a different order.
+const KIND_READING_ORDER: Record<StatementLineKind, number> = {
+  premium_collected: 0,
+  commission_earned: 1,
+  refund: 2,
+  clawback: 3,
+  adjustment: 4,
+};
+
+function sortedForReading(lines: StatementLine[]): StatementLine[] {
+  return [...lines].sort((left, right) => {
     if (left.effectiveAt !== right.effectiveAt) {
       return left.effectiveAt < right.effectiveAt ? -1 : 1;
     }
-    return left.entryId < right.entryId ? -1 : left.entryId > right.entryId ? 1 : 0;
+    if (left.kind !== right.kind) {
+      return KIND_READING_ORDER[left.kind] - KIND_READING_ORDER[right.kind];
+    }
+    return left.journalEntryId < right.journalEntryId ? -1 : left.journalEntryId > right.journalEntryId ? 1 : 0;
   });
 }
 

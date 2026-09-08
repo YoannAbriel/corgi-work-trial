@@ -108,7 +108,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           <tr>
             <th>Knowledge cutoff</th>
             <td>
-              {utc(run.knowledgeCutoff)} — only entries recorded at or before this instant are on the statement
+              {utc(run.knowledgeCutoff)}: only entries recorded at or before this instant are on the statement
             </td>
           </tr>
           <tr>

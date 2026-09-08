@@ -180,6 +180,17 @@ test("a correction recorded after the cutoff is simply not among the entries, an
   assert.equal(revisionTwo.totals.netDueCents, 0);
 });
 
+test("a day is told in the order a reader expects: the cash first, then what it did to the commission", () => {
+  // Fed in the opposite order on purpose. Without the reading order, two entries with the same
+  // effective date would be printed in the order of their random ids.
+  const march = computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-03", entries: [marchCommission, marchCollection] });
+  assert.deepEqual(march.lines.map((line) => line.kind), ["premium_collected", "commission_earned"]);
+  assert.deepEqual(march.lines.map((line) => line.lineOrder), [0, 1]);
+
+  const june = computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-06", entries: [juneClawback, juneRefund] });
+  assert.deepEqual(june.lines.map((line) => line.kind), ["refund", "clawback"]);
+});
+
 test("the hash does not depend on the order the database returned the rows in", () => {
   const inOneOrder = computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-03", entries: [marchCollection, marchCommission] });
   const inTheOther = computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-03", entries: [marchCommission, marchCollection] });
