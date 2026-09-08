@@ -8,6 +8,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { claimSnapshot } from "@/lib/claims/claims";
 import { claimPayments, latestClaimantBankAccount } from "@/lib/claims/payments";
 import { journalEntriesOfClaim, reserveHistory } from "@/lib/claims/read";
+import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { SIMULATED_REACHABLE_ROUTING_NUMBERS } from "@/lib/rails/bank-verification-simulator";
 import { SIMULATED_SETTLEMENT_DELAY_DAYS } from "@/lib/rails/simulator";
@@ -39,6 +40,11 @@ export default async function ClaimPage({
   }
 
   const { claimId } = await params;
+  // A path that is not a uuid is answered like an unknown claim, not with a 500 from the query
+  // that would cast it (review finding F-B7-07).
+  if (!isUuid(claimId)) {
+    notFound();
+  }
   const claim = await claimSnapshot(sql, claimId);
   if (!claim) {
     notFound();

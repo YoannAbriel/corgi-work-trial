@@ -1053,3 +1053,8 @@ table.approval-details td { min-width: 0; }
   table.approval-details th { padding-bottom: 4px; border-bottom: 0; }
   table.approval-details td { padding-top: 4px; }
 }
+
+/* --- Slice B4: the formula lines of an endorsement (preview, approval, explanation). --- */
+table.formula td:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+table.formula tr.total td { font-weight: 600; }
+h3 { margin-top: 24px; font-size: 16px; }

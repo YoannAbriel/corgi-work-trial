@@ -106,6 +106,30 @@ A Checkout Session expires after 24 hours (review finding F-B2-03). Yoann chose 
 
 Normal order is unchanged: KYB approved first, then the Pay button, then money. The case is a race: the broker is approved when the customer opens the Checkout page (valid 24 hours), Stripe flips the broker to failed while the page is open, the customer pays it. The ledger then records the cash the moment it exists: debit cash_stripe, credit unapplied_customer_cash (liability), for the full amount received (example: 125320 cents). The binding by staff later moves that balance to premium, tax and fee; a refund moves it back to cash_stripe. Ledger cash equals Stripe cash at every instant; nothing waits for a human to be true. Yoann's words: "je suis OK de faire un compte d'attente" after the explanation that binding waits for KYB but cash does not. Closes review finding F-B2-17; implemented right after the B7 merge. Assistant technical addition, not a money rule: when a broker loses eligibility, the app expires that broker's open Checkout Sessions (same call the void uses), shrinking the race from 24 hours to seconds.
 
+## 2026-09-08T14:32:14+00:00 | Explicit user decision | A claim payment is paid when it is sent, not when it settles
+
+$1,200 sent on the payout rail on Monday, landing on the customer's account on Wednesday: the claim counts the $1,200 as paid from Monday. The money left our control at sending (claim_payment_sent: claim_reserve down, claims_payable up); the settlement two days later is a fact of the rail, shown separately (claim_payment_settled); a bank return undoes it (paid back to zero, reserve restored). The recited formula stays two terms, true at every instant: incurred = paid + reserve. Yoann's words: "payé dès lundi". Confirms the B7 delegate's choice (docs/handoffs/b7-implementation-notes.md, deviation 2); the alternative, paid only at settlement with a third "in transit" term, was explained and declined.
+
+## 2026-09-08T15:12:56+00:00 | Explicit user decision | Reconciliation: staleness thresholds, daily job order, one cron
+
+1. Stale thresholds, assumptions of this build printed on the screen: a Stripe refund neither completed nor refused after 24 hours is a break; a simulated claim payout neither settled nor returned after 72 hours is a break (the simulator settles at two days; a real ACH credit would be one to three business days and the simulator models no banking calendar). One constant each.
+2. The daily job runs in this order: recover stuck operations, settle the simulated payouts that are due, then reconcile, so the comparison reads a ledger already repaired and the breaks shown are real. Yoann's words: "1 je dirais".
+3. One Vercel cron at 06:00 UTC on /api/jobs/daily (Hobby plan: few crons, daily granularity); the staff "Run now" form stays. Reconciliation moves no money (it appends runs and items), so slice B11 will also expose "run a reconciliation" as an MCP tool next to the three read tools, at Yoann's suggestion; the only MCP write that concerns money stays the approval-queued claim payment request.
+
+## 2026-09-08T15:34:03+00:00 | Explicit user decision | The money-out threshold on a claim is cumulative per claim
+
+$1,000 is the line for a claim, not for a payment line: a payment needs a distinct approver when it alone is above $1,000, or when it would bring the claim's money out (already sent and not returned, plus requested and still waiting, plus this one) above $1,000. Example: $600 goes without an approver; a second $600 on the same claim reaches $1,200 and waits for one. Yoann's words: "Cumul par sinistre". Closes review finding F-B7-02 (a maker could move any amount out of a claim as sub-threshold lines). A cancellation refund is one total computed once, so it never needed this rule.
+
+## 2026-09-08T16:09:04+00:00 | Explicit user decision | Cancelling an endorsed policy refunds segment by segment
+
+Each endorsement is a written premium segment with its own effective date and its own remaining days: the issuance segment earns over the whole term, an endorsement segment earns from its effective date over the days that remained then. At cancellation each segment's earned part is computed and rounded on its own (floor on earned, so the unearned part rounds in the customer's favour), and the refund is the sum of the unearned parts, which ties cent for cent to the premium_written entries in the journal. Consequence, stated: a cent or two more is refunded than if the cover in force were priced as one line over the remaining days. Example: $1,200 written 2028-03-01, raised by $600 annual effective 2028-06-09 (43561 cents written for the segment), cancelled 2028-09-01: earned 60493 + 13808 = 74301, unearned 89260, tax back 2098, clawback 13389. Yoann's words: "c'est une question de dates qui ne sont pas au même moment ... l'option A me semble plus logique". Closes review item F-B4-03.
+
+## 2026-09-08T16:53:40+00:00 | Explicit user decision | Broker statement: month by effective date, two money columns, provisional month
+
+1. A statement month groups entries by their effective date. A correction recorded on June 20 with effect on March 1 becomes revision 2 of the March statement, dated June 20, referencing revision 1 and showing the difference; it is never a line of June. "Mars reste mars."
+2. The statement shows both the cash collected (premium, tax and fee: 125320 cents in the recited example) and the premium collected that is the commission base (120000), so that 120000 x 15% = 18000 reads on the line; commission is never computed on tax or fee.
+3. A month that is not over may be run. The run is immutable like any other (hash, revision, cutoff) and is labeled "month in progress, provisional" on the screen and the PDF; the run at month end becomes the next revision. Yoann's words, on immutability: "un document qu'on génère ... ça doit être quelque chose d'immuable". Confirms the 10:02Z decision on closed-month revisions.
+
 
 ## 2026-09-08T14:08:52+00:00 | User request and assistant implementation choice | Isolated UI refresh
 
@@ -126,3 +150,7 @@ Yoann reported that Policies breadcrumbs did not follow subpages and asked for b
 ## 2026-09-08T16:43:46.681082+00:00 | UI-04: normal sandbox presentation
 
 Yoann explicitly replaces the intrusive visual-preview banner and role strip with normal product navigation and a discreet Sandbox indicator. Return navigation moves to the sidebar; staff Policies is restored using existing guarded reads. Local demo forms retain native markup and GET navigation; an isolated server refuses all write methods and gives honest no-execution feedback. No financial action is simulated as completed by clicking. Sidebar overflow is independently scrollable in short windows. Presentation-only copy reflects zero-refund and approval-waiting plans; backend decisions remain unchanged. No integration with Claude/main or deployment is included.
+
+## 2026-09-08T18:04:17.633422+00:00 | User instruction | Integrate the interface with main
+
+User requested UI-04 committed first, then main merged into the dedicated interface branch with main business logic preserved. Shared STATUS, PLAN and COMPLIANCE-MATRIX belong to Claude and are retained from main. UI decision entries, handoffs, licences and illustrations remain. The separate Back control was removed at the user's request; breadcrumbs remain. Claude owns final independent UI review, main merge, deployment and the live session. This checkpoint does not claim final review or candidate-understanding PASS.

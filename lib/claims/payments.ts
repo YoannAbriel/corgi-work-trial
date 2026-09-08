@@ -2,7 +2,7 @@ import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { assertIntentIsApproved, createApprovalRequest } from "@/lib/approvals/approvals";
 import { bankAccountDestination, type MoneyOutIntent } from "@/lib/approvals/intent";
-import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { claimPayoutNeedsApproval } from "@/lib/approvals/threshold";
 import {
   claimPaymentReturnedEntries,
   claimPaymentSentEntry,
@@ -24,12 +24,15 @@ import {
 } from "@/lib/rails/bank-verification-simulator";
 import {
   ClaimRefused,
+  actorUserId,
   assertClaimsOperator,
+  assertClaimsOperatorOrJob,
   claimSnapshot,
   entryContext,
   lockClaimForMoneyDecision,
   todayUtc,
   type ClaimActor,
+  type ClaimActorOrJob,
   type ClaimSnapshot,
 } from "./claims";
 import { claimPaymentRefusal } from "./limits";
@@ -220,8 +223,14 @@ export async function requestClaimPayment(
     }
 
     // Above the threshold, the approval request is written FIRST, in this same transaction, and
-    // the money operation carries its id. Nothing can move without it.
-    const needsApproval = moneyOutNeedsApproval(input.amountCents);
+    // the money operation carries its id. Nothing can move without it. The threshold is per
+    // CLAIM, not per payment (lib/approvals/threshold.ts, review finding F-B7-02): what has
+    // already been sent and what is still waiting on this claim count with this payment.
+    const needsApproval = claimPayoutNeedsApproval({
+      amountCents: input.amountCents,
+      claimPaidCents: snapshot.position.paidCents,
+      claimPendingCents: snapshot.pendingCents,
+    });
     const intent = claimPaymentIntent(snapshot.claimId, input.amountCents, bankAccount.accountToken);
     const approvalRequestId = needsApproval
       ? await createApprovalRequest(transaction, {
@@ -348,6 +357,26 @@ export async function claimPayoutOperation(
   };
 }
 
+// The payment named in a URL must belong to the claim named in the same URL.
+//
+// Without this check, POST /api/claims/{claimId}/payments/{operationId} acts on another claim's
+// payment: the money functions read the claim from the operation itself, so the financial effect
+// lands on the right claim, but on a claim the caller did not name, and only the redirect is
+// wrong (review finding F-B7-08). The refund routes already refuse the same mismatch.
+export async function assertPaymentBelongsToClaim(
+  claimId: string,
+  operationId: string,
+  database: postgres.Sql = sql,
+): Promise<void> {
+  const operation = await claimPayoutOperation(database, operationId);
+  if (!operation) {
+    throw new ClaimRefused("this claim payment does not exist");
+  }
+  if (operation.claimId !== claimId) {
+    throw new ClaimRefused("this payment belongs to another claim");
+  }
+}
+
 export type SendClaimPaymentResult = {
   outcome: "sent" | "already_sent";
   transferRef: string;
@@ -357,11 +386,16 @@ export type SendClaimPaymentResult = {
 // The only place a claim payment leaves for the rail. Everything is re-read and re-checked here
 // and not taken from the request that created the operation: an approval given yesterday must
 // not pay a claim whose destination account, reserve or limits have moved since.
+//
+// The actor is a staff operator, or SCHEDULED_JOB when the recovery job finishes a payment that
+// a person asked for and an approver approved but that never reached the rail (finding F-B7-05).
+// The job gains nothing by being here: every check below is re-run for it too.
 export async function sendClaimPayment(
-  input: { operationId: string; actor: ClaimActor },
+  input: { operationId: string; actor: ClaimActorOrJob },
   database: postgres.Sql = sql,
 ): Promise<SendClaimPaymentResult> {
-  assertClaimsOperator(input.actor);
+  assertClaimsOperatorOrJob(input.actor);
+  const sentBy = actorUserId(input.actor);
 
   return database.begin(async (transaction) => {
     const operation = await claimPayoutOperation(transaction, input.operationId);
@@ -415,9 +449,16 @@ export async function sendClaimPayment(
         current.approvalRequestId,
         claimPaymentIntent(current.claimId, current.amountCents, bankAccount.accountToken),
       );
-    } else if (moneyOutNeedsApproval(current.amountCents)) {
+    } else if (
+      claimPayoutNeedsApproval({
+        amountCents: current.amountCents,
+        claimPaidCents: snapshot.position.paidCents,
+        // This operation is part of the pending total and is the one being sent.
+        claimPendingCents: snapshot.pendingCents - current.amountCents,
+      })
+    ) {
       throw new ClaimRefused(
-        "this payment is above the approval threshold but carries no approval request; it cannot be sent",
+        "this payment would take the claim above the approval threshold but carries no approval request; it cannot be sent",
       );
     }
 
@@ -450,7 +491,7 @@ export async function sendClaimPayment(
       amountCents: current.amountCents,
       operationId: current.operationId,
       payload: { transfer_ref: transfer.transferRef, expected_settlement_date: transfer.settlementDate },
-      createdBy: input.actor.userId,
+      createdBy: sentBy,
     });
     await transaction`
       insert into money_operation_events (operation_id, status, provider_ref, payload)
@@ -459,7 +500,7 @@ export async function sendClaimPayment(
     `;
 
     const entry = claimPaymentSentEntry(
-      entryContext(snapshot, claimEventId, sentOn, input.actor.userId),
+      entryContext(snapshot, claimEventId, sentOn, sentBy),
       current.amountCents,
     );
     await postJournalEntry(transaction, entry.header, entry.lines);
@@ -475,7 +516,10 @@ export async function sendClaimPayment(
 export type SettleClaimPaymentInput = {
   operationId: string;
   settledOn: string; // the day the rail says the money left
-  broughtForwardBy: string | null; // user id when a person settled it early from the claim screen
+  // Who is settling: a staff operator pressing "settle now" on the LOCAL SIMULATOR controls, or
+  // SCHEDULED_JOB when the settlement job does it on its settlement date. Stated by every caller
+  // rather than inferred, and checked below (review finding F-B7-10).
+  settledBy: ClaimActorOrJob;
 };
 
 // The rail confirms the money has left. Called by the job for every transfer whose settlement
@@ -484,6 +528,9 @@ export async function settleClaimPayment(
   input: SettleClaimPaymentInput,
   database: postgres.Sql = sql,
 ): Promise<{ outcome: "settled" | "already_settled" }> {
+  assertClaimsOperatorOrJob(input.settledBy);
+  const broughtForwardBy = actorUserId(input.settledBy);
+
   return database.begin(async (transaction) => {
     const operation = await claimPayoutOperation(transaction, input.operationId);
     if (!operation) {
@@ -516,7 +563,7 @@ export async function settleClaimPayment(
       amountCents: current.amountCents,
       destinationToken: bankAccount?.accountToken ?? "",
       settledOn: input.settledOn,
-      note: input.broughtForwardBy
+      note: broughtForwardBy
         ? "LOCAL SIMULATOR: settlement brought forward from the claim screen"
         : "LOCAL SIMULATOR: settled by the scheduled job on its settlement date",
     });
@@ -527,7 +574,7 @@ export async function settleClaimPayment(
       amountCents: current.amountCents,
       operationId: current.operationId,
       payload: { transfer_ref: current.transferRef, settled_on: input.settledOn },
-      createdBy: input.broughtForwardBy,
+      createdBy: broughtForwardBy,
     });
     await transaction`
       insert into money_operation_events (operation_id, status, provider_ref, payload)
@@ -538,7 +585,7 @@ export async function settleClaimPayment(
     // The cash entry carries the day the cash moved, exactly as the collection and refund
     // entries do.
     const entry = claimPaymentSettledEntry(
-      entryContext(snapshot, claimEventId, input.settledOn, input.broughtForwardBy),
+      entryContext(snapshot, claimEventId, input.settledOn, broughtForwardBy),
       current.amountCents,
     );
     await postJournalEntry(transaction, entry.header, entry.lines);

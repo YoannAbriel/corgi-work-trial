@@ -6,7 +6,10 @@ import { currentUser } from "@/lib/auth/current-user";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
 import { claimsWithPositions } from "@/lib/claims/read";
+import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
+import { endorsementScheduleOfPolicy, endorsementsOfPolicy, type EndorsementView } from "@/lib/policy/endorsement-read";
 import {
   cancellationOfPolicy,
   checkoutOperationOfPolicy,
@@ -15,6 +18,13 @@ import {
   refundOperationsOfPolicy,
   voidCorrectionOfPolicy,
 } from "@/lib/policy/read";
+import {
+  CorrectEndorsementDateForm,
+  CorrectionsExplained,
+  PolicyAsOf,
+  PolicyTimeline,
+} from "./correction-sections";
+import { FormulaLinesTable } from "./formula-lines";
 
 // One policy: what it costs, where it stands, and every journal entry it produced.
 // The ledger table is the point of the page: the amounts shown at the top must be findable,
@@ -31,6 +41,11 @@ export default async function PolicyPage({
     reissued?: string;
     refundSent?: string;
     bound?: string;
+    endorsement?: string;
+    // Slice B8: the outcome of a backdated correction, and the date the "as it stood on" section
+    // rebuilds the policy for.
+    correction?: string;
+    asOf?: string;
   }>;
 }) {
   const user = await currentUser();
@@ -39,31 +54,35 @@ export default async function PolicyPage({
   }
 
   const { policyId } = await params;
+  if (!isUuid(policyId)) notFound(); // a malformed id is an unknown policy, not a 500 (F-B7-07)
   const policy = await policyDetail(policyId);
   if (!policy) {
     notFound();
   }
 
   // Ownership, checked on the server for every visit: a broker sees their own policies, staff
-  // can read any policy, nobody else gets in.
+  // can read any policy, the customer has their own screens under /customer, nobody else gets in.
   const isOwningBroker = user.role === "broker" && user.brokerId === policy.brokerId;
   const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
   if (!isOwningBroker && !isStaff) {
-    redirect("/broker");
+    redirect(user.role === "customer" ? "/customer" : "/broker");
   }
 
-  const [kyb, operation, entries, cancellation, refunds, voidCorrection, claims, query] = await Promise.all([
-    brokerKybState(policy.brokerId),
-    checkoutOperationOfPolicy(policyId),
-    journalEntriesOfPolicy(policyId),
-    cancellationOfPolicy(policyId),
-    refundOperationsOfPolicy(policyId),
-    voidCorrectionOfPolicy(policyId),
-    // Slice B7: the claims of this policy, each with the reserve and the incurred amount folded
-    // from its own events.
-    claimsWithPositions(sql, policyId),
-    searchParams,
-  ]);
+  const [kyb, operation, entries, cancellation, refunds, voidCorrection, endorsements, schedule, claims, query] =
+    await Promise.all([
+      brokerKybState(policy.brokerId),
+      checkoutOperationOfPolicy(policyId),
+      journalEntriesOfPolicy(policyId),
+      cancellationOfPolicy(policyId),
+      refundOperationsOfPolicy(policyId),
+      voidCorrectionOfPolicy(policyId),
+      endorsementsOfPolicy(policyId),
+      endorsementScheduleOfPolicy(policyId),
+      // Slice B7: the claims of this policy, each with the reserve and the incurred amount folded
+      // from its own events.
+      claimsWithPositions(sql, policyId),
+      searchParams,
+    ]);
 
   // Two different questions, kept apart on purpose. The first is about this policy, the second
   // is about the broker behind it; the server asks both again when the button is pressed and
@@ -79,11 +98,15 @@ export default async function PolicyPage({
     policy.status !== "voided" &&
     policy.status !== "paid_not_bound";
   const brokerMayBind = bindingIsAllowed(kyb.status);
-  // Cancelling is the owning broker's or staff operations' decision. The same check runs again
-  // on the server when the preview is computed and when the cancellation is confirmed, so
-  // hiding the form is a convenience, never the control.
-  const canCancel = (isOwningBroker || user.role === "staff_ops") && policy.status === "bound";
+  // Cancelling and endorsing are the owning broker's or staff operations' decisions. The same
+  // checks run again on the server when the preview is computed and when the action is
+  // confirmed, so hiding a form is a convenience, never the control.
+  const canChange = (isOwningBroker || user.role === "staff_ops") && policy.status === "bound";
   const today = new Date().toISOString().slice(0, 10);
+  const liveEndorsement = endorsements.find(
+    (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
+  );
+  const historicalRequests = endorsements.filter((endorsement) => endorsement.standing.state === "superseded");
   // Slice B7: an open claim survives a cancellation untouched, which is the live-fire question,
   // so the explanation sits next to the cancellation amounts it explains.
   const openClaims = claims.filter((claim) => !claim.position.isClosed);
@@ -97,8 +120,7 @@ export default async function PolicyPage({
 
       <h1>Policy {policy.policyNumber}</h1>
       <p className="lead">
-        {policy.customerName} ({policy.customerEmail}) — {policy.stateCode} — term {policy.effectiveAt} to{" "}
-        {policy.termEnd}
+        {policy.customerName} ({policy.customerEmail}), {policy.stateCode}, term {policy.effectiveAt} to {policy.termEnd}
       </p>
 
       <p className={`badge ${policy.status === "bound" ? "badge-ok" : "badge-warn"}`}>Status: {policy.status}</p>
@@ -122,18 +144,32 @@ export default async function PolicyPage({
           completed only when Stripe&apos;s webhook confirms the money left; refresh in a moment.
         </p>
       ) : null}
-      {query.reissued ? <p className="note" role="status">A new refund was re-issued: Stripe answered {query.reissued}.</p> : null}
-      {query.refundSent ? <p className="note" role="status">The refund was sent to Stripe: {query.refundSent}.</p> : null}
+      {query.reissued ? (
+        <p className="note">
+          {query.reissued === "queued_for_approval"
+            ? "A new refund attempt was raised and waits for a distinct approver (/ops/approvals); nothing was sent."
+            : query.reissued === "refused"
+              ? "The refund was not sent: the maker-checker gate refused it (see the reason on the refund line)."
+              : `A new refund was re-issued: Stripe answered ${query.reissued}.`}
+        </p>
+      ) : null}
+      {query.refundSent ? <p className="note">The refund was sent to Stripe: {query.refundSent}.</p> : null}
       {query.bound === "1" ? (
         <p className="note" role="status">The policy is now bound and the four issuance entries are in the journal below.</p>
       ) : null}
       {query.bound === "already" ? (
         <p className="note" role="status">This policy was already bound; nothing was posted a second time.</p>
       ) : null}
+      {query.endorsement ? <p className="note">{endorsementNotice(query.endorsement)}</p> : null}
+      {query.correction ? <p className="note">{correctionNotice(query.correction)}</p> : null}
 
-      <h2>Charge</h2>
-      <div className="table-scroll" role="region" aria-label="Policy charge" tabIndex={0}>
-        <table className="amounts">
+      <h2>Annual terms in force</h2>
+      <p className="note">
+        The premium and limits in force today. What was actually collected and refunded is in the endorsement schedule
+        and the journal below, never here.
+      </p>
+      <div className="table-scroll" role="region" aria-label="Annual terms in force" tabIndex={0}>
+      <table className="amounts">
         <tbody>
           <tr>
             <th>Annual premium</th>
@@ -141,16 +177,16 @@ export default async function PolicyPage({
           </tr>
           <tr>
             <th>
-              {policy.stateCode} premium tax ({(policy.taxRateBps / 100).toFixed(2)}%)
+              {policy.stateCode} premium tax on the annual premium ({(policy.taxRateBps / 100).toFixed(2)}%)
             </th>
             <td className="amount">{formatCentsAsUsd(policy.taxCents)}</td>
           </tr>
           <tr>
-            <th>Policy fee (flat, assumption of this build)</th>
+            <th>Policy fee (flat, charged at issuance only, assumption of this build)</th>
             <td className="amount">{formatCentsAsUsd(policy.feeCents)}</td>
           </tr>
           <tr className="total">
-            <th>Total charged to the customer</th>
+            <th>Total for a full annual term at these terms</th>
             <td className="amount">{formatCentsAsUsd(policy.totalChargeCents)}</td>
           </tr>
         </tbody>
@@ -177,11 +213,27 @@ export default async function PolicyPage({
       </table>
         </div>
 
+      <h2>Documents as of a date</h2>
+      <p className="note">
+        Real PDFs rebuilt from the policy events effective on or before the date you pick: between two endorsements the
+        declarations page shows the premium and limits in force on that day. Superseded events are skipped.
+      </p>
+      <form method="get" action={`/api/policies/${policy.policyId}/documents/declarations`} className="card">
+        <label htmlFor="asOfDeclarations">Declarations page as of</label>
+        <input id="asOfDeclarations" name="asOf" type="date" defaultValue={today} min={policy.effectiveAt} required />
+        <button type="submit">Open the declarations page (PDF)</button>
+      </form>
+      <form method="get" action={`/api/policies/${policy.policyId}/documents/endorsement-schedule`} className="card">
+        <label htmlFor="asOfSchedule">Endorsement schedule as of</label>
+        <input id="asOfSchedule" name="asOf" type="date" defaultValue={today} min={policy.effectiveAt} required />
+        <button type="submit">Open the endorsement schedule (PDF)</button>
+      </form>
+
       <h2>Payment</h2>
       {operation ? (
         <p className="note">
-          Money operation {operation.operationId} — last status: {operation.latestStatus ?? "none"}
-          {operation.providerRef ? ` — Stripe session ${operation.providerRef}` : ""}
+          Money operation {operation.operationId}, last status: {operation.latestStatus ?? "none"}
+          {operation.providerRef ? `, Stripe session ${operation.providerRef}` : ""}
         </p>
       ) : (
         <p className="note">No payment started yet.</p>
@@ -249,13 +301,197 @@ export default async function PolicyPage({
         </>
       ) : null}
 
-      {canCancel ? (
+      {liveEndorsement ? (
+        <EndorsementInProgress
+          endorsement={liveEndorsement}
+          policyId={policy.policyId}
+          isOwningBroker={isOwningBroker}
+          isStaffOperations={user.role === "staff_ops"}
+        />
+      ) : null}
+
+      {canChange && !liveEndorsement ? (
+        <>
+          <h2>Endorse this policy</h2>
+          <p className="note">
+            Change the annual premium or the limits from a date inside the term. The next screen shows the exact money it
+            moves, line by line, before anything is recorded. The money is always priced from the effective date: a
+            backdated endorsement charges more days, never the day it was typed.
+          </p>
+          <form method="get" action={`/policies/${policy.policyId}/endorse`} className="card">
+            <label htmlFor="newAnnualPremium">New annual premium (USD)</label>
+            <input
+              id="newAnnualPremium"
+              name="newAnnualPremium"
+              required
+              inputMode="decimal"
+              defaultValue={(policy.annualPremiumCents / 100).toFixed(2)}
+            />
+            <label htmlFor="newPerOccurrenceLimit">New per-occurrence limit (USD)</label>
+            <input
+              id="newPerOccurrenceLimit"
+              name="newPerOccurrenceLimit"
+              required
+              inputMode="decimal"
+              defaultValue={(policy.perOccurrenceLimitCents / 100).toFixed(2)}
+            />
+            <label htmlFor="newAggregateLimit">New aggregate limit (USD)</label>
+            <input
+              id="newAggregateLimit"
+              name="newAggregateLimit"
+              required
+              inputMode="decimal"
+              defaultValue={(policy.aggregateLimitCents / 100).toFixed(2)}
+            />
+            <label htmlFor="endorsementEffectiveAt">Effective date</label>
+            <input
+              id="endorsementEffectiveAt"
+              name="effectiveAt"
+              type="date"
+              required
+              defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}
+              min={policy.effectiveAt}
+              max={policy.termEnd}
+            />
+            <label htmlFor="reason">Reason (optional)</label>
+            <input id="reason" name="reason" maxLength={200} />
+            <button type="submit">Preview the endorsement</button>
+          </form>
+        </>
+      ) : null}
+      {canChange && liveEndorsement ? (
+        <p className="note">
+          A new endorsement can be requested once the one in progress is paid or superseded; requesting another change
+          now would replace this quote (its hash would no longer match).
+          {isOwningBroker || user.role === "staff_ops" ? (
+            <>
+              {" "}
+              <Link href={`/policies/${policy.policyId}/endorse?effectiveAt=${liveEndorsement.request.figures.effectiveAt}&newAnnualPremium=${(liveEndorsement.request.figures.newAnnualPremiumCents / 100).toFixed(2)}&newPerOccurrenceLimit=${(liveEndorsement.request.newPerOccurrenceLimitCents / 100).toFixed(2)}&newAggregateLimit=${(liveEndorsement.request.newAggregateLimitCents / 100).toFixed(2)}`}>
+                Re-quote the same change
+              </Link>
+              .
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
+      <h2>Endorsement schedule</h2>
+      {schedule.length === 0 ? (
+        <p className="note">No endorsement is in force on this policy.</p>
+      ) : (
+        <>
+          <div className="table-scroll" role="region" aria-label="Policy details table 1" tabIndex={0}>
+<table>
+            <thead>
+              <tr>
+                <th>Effective</th>
+                <th>Recorded (UTC)</th>
+                <th>Change</th>
+                <th className="amount">Prorated delta *</th>
+                <th className="amount">New annual premium</th>
+                <th>Stripe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedule.map((row) => (
+                <tr key={row.endorsedEventId}>
+                  <td>{row.effectiveAt}</td>
+                  <td>{row.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
+                  <td>
+                    {row.description}
+                    <br />
+                    <span className="note">{row.newLimitLabel}</span>
+                    {row.correctedFromEffectiveAt ? (
+                      <>
+                        <br />
+                        <span className="note">
+                          Corrected: entered as {row.correctedFromEffectiveAt}, put right to {row.effectiveAt}
+                        </span>
+                      </>
+                    ) : null}
+                  </td>
+                  <td className="amount">
+                    {formatCentsAsUsd(row.figures.deltaTotalCents)}
+                    <br />
+                    <span className="note">
+                      {formatCentsAsUsd(row.figures.deltaPremiumCents)} premium, {formatCentsAsUsd(row.figures.deltaTaxCents)} tax
+                    </span>
+                  </td>
+                  <td className="amount">{formatCentsAsUsd(row.figures.newAnnualPremiumCents)}</td>
+                  <td>{row.stripeReferences.length > 0 ? row.stripeReferences.join(", ") : "no money moved"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+</div>
+          <p className="note">
+            * The prorated delta is the money that actually moved: the annual premium difference priced over the days
+            remaining from the effective date to the end of the term, plus the state premium tax on it, rounded in the
+            customer&apos;s favour. It is not the change in the annual premium, which is what the last column shows.
+          </p>
+
+          <h2>Endorsements, explained</h2>
+          {schedule.map((row, index) => (
+            <div key={`explained-${row.endorsedEventId}`}>
+              <h3>
+                Effective {row.effectiveAt}: {row.description}
+              </h3>
+              <p className="note">
+                {row.figures.daysRemaining} of {row.figures.termDays} days remained from {row.effectiveAt}. Every figure
+                below is the one stored on the endorsement event and posted to the journal; none of it is recomputed
+                for display. Stripe references: {row.stripeReferences.length > 0 ? row.stripeReferences.join(", ") : "none"}.
+              </p>
+              <FormulaLinesTable lines={row.lines} />
+              {/* Slice B8: the panel's live-fire test. Staff operations can put a wrong effective
+                  date right; the preview shows the whole impact before anything is written. */}
+              {user.role === "staff_ops" && policy.status === "bound" && index === schedule.length - 1 ? (
+                <CorrectEndorsementDateForm
+                  policyId={policy.policyId}
+                  endorsedEventId={row.endorsedEventId}
+                  effectiveAt={row.effectiveAt}
+                  termStart={policy.effectiveAt}
+                  termEnd={policy.termEnd}
+                />
+              ) : null}
+            </div>
+          ))}
+        </>
+      )}
+
+      {historicalRequests.length > 0 ? (
+        <>
+          <h3>Superseded endorsement requests</h3>
+          <p className="note">
+            Quotes that were replaced by a later change before they took effect. They stay on the record; nothing was
+            collected or applied for them{" "}
+            {historicalRequests.some((request) => request.collection?.applicationRefusedReason)
+              ? "except where a payment is noted below, which operations must resolve."
+              : "."}
+          </p>
+          <ul>
+            {historicalRequests.map((request) => (
+              <li key={request.request.eventId} className="note">
+                {request.request.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC: {request.request.description},
+                effective {request.request.figures.effectiveAt}, {formatCentsAsUsd(request.request.figures.deltaTotalCents)}
+                {request.collection?.applicationRefusedReason
+                  ? `. Paid (${request.collection.paymentIntentId}) but not applied: ${request.collection.applicationRefusedReason}`
+                  : ""}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      {canChange ? (
         <>
           <h2>Cancel this policy</h2>
           <p className="note">
             Pick the day cover stops. The next screen shows exactly what would be refunded and clawed back before
             anything is written. A past date is allowed: an insurer often learns late that cover stopped, and the money
             is always computed from the day cover really stopped.
+            {schedule.length > 0
+              ? " This policy has been endorsed, so the refund is computed segment by segment: the issuance premium earns over the whole term and each endorsement earns its prorated amount from its own effective date."
+              : ""}
           </p>
           <form method="get" action={`/policies/${policy.policyId}/cancel`} className="card">
             <label htmlFor="effectiveAt">Cancellation effective date</label>
@@ -373,7 +609,9 @@ export default async function PolicyPage({
                     {refund.state === "completed"
                       ? `completed ${formatCentsAsUsd(refund.amountCents)}${refund.completedOn ? ` on ${refund.completedOn}` : ""}`
                       : refund.state === "failed"
-                        ? "requested, not completed"
+                        ? refund.failureStage === "approval"
+                          ? "rejected by the approver, nothing sent"
+                          : "failed, not completed"
                         : refund.approvalRequestId && refund.approvalDecision !== "approved"
                           ? refund.approvalDecision === "rejected"
                             ? "awaiting approval: rejected"
@@ -401,7 +639,11 @@ export default async function PolicyPage({
                             action={`/api/policies/${policy.policyId}/refunds/${refund.operationId}/reissue`}
                             className="inline-form"
                           >
-                            <button type="submit">Re-issue this refund</button>
+                            <button type="submit">
+                              {refund.failureStage === "approval"
+                                ? "Raise a new approval request for this refund"
+                                : "Re-issue this refund"}
+                            </button>
                           </form>
                         ) : null}
                       </>
@@ -527,6 +769,13 @@ export default async function PolicyPage({
         </form>
       ) : null}
 
+      {/* --- Slice B8: backdated corrections, both clocks, and the policy on any date --- */}
+      <CorrectionsExplained policyId={policy.policyId} canPay={isOwningBroker || user.role === "staff_ops"} />
+
+      <PolicyAsOf policyId={policy.policyId} asOf={query.asOf} termStart={policy.effectiveAt} today={today} />
+
+      <PolicyTimeline policyId={policy.policyId} />
+
       <h2>Journal entries</h2>
       {entries.length === 0 ? (
         <p className="note">
@@ -568,4 +817,126 @@ export default async function PolicyPage({
       )}
     </PortalShell>
   );
+}
+
+// The endorsement that is neither applied nor superseded: where it stands and what to do next.
+// Every figure comes from the immutable request event; every button is a form that the server
+// checks again.
+function EndorsementInProgress({
+  endorsement,
+  policyId,
+  isOwningBroker,
+  isStaffOperations,
+}: {
+  endorsement: EndorsementView;
+  policyId: string;
+  isOwningBroker: boolean;
+  isStaffOperations: boolean;
+}) {
+  const { request, standing, collection } = endorsement;
+  const figures = request.figures;
+  const paymentInFlight = collection && !collection.isDead && collection.latestStatus !== "succeeded" && collection.checkoutUrl;
+
+  return (
+    <>
+      <h2>Endorsement in progress</h2>
+      <p className="note">
+        Requested {request.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC, effective {figures.effectiveAt}:{" "}
+        {request.description}. {request.reason ? `Reason: ${request.reason}. ` : ""}
+        The policy terms stay as they are until the delta is paid.
+      </p>
+
+      {standing.state === "awaiting_approval" ? (
+        <p className="badge badge-warn">
+          Awaiting the customer&apos;s approval: {formatCentsAsUsd(figures.deltaTotalCents)} is above{" "}
+          {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}. The customer approves from their own screen (/customer).
+        </p>
+      ) : null}
+      {standing.approvedEventId ? (
+        <p className="badge badge-ok">
+          Approved by the customer on {standing.approvedAt?.toISOString().replace("T", " ").slice(0, 19)} UTC
+        </p>
+      ) : null}
+
+      <FormulaLinesTable lines={endorsement.lines} />
+
+      {collection ? (
+        <p className="note">
+          Delta operation {collection.operationId}, last status: {collection.latestStatus ?? "none"}
+          {collection.sessionId ? `, Stripe session ${collection.sessionId}` : ""}
+          {collection.paymentIntentId ? `, payment ${collection.paymentIntentId}` : ""}
+          {collection.isDead ? ". The hosted page expired: the next Pay click opens a new session under a new key." : ""}
+        </p>
+      ) : null}
+
+      {collection?.applicationRefusedReason ? (
+        <>
+          <p className="error">
+            Paid, not applied: {collection.applicationRefusedReason}. The money arrived at Stripe and is recorded on the
+            operation, but nothing was journaled and the endorsement is NOT in force.
+          </p>
+          {isStaffOperations ? (
+            <form method="post" action={`/api/policies/${policyId}/endorsements/${request.eventId}/apply`} className="inline-form">
+              <button type="submit">Apply now that the broker is eligible</button>
+            </form>
+          ) : (
+            <p className="note">Staff operations can apply it once the broker&apos;s verification passes.</p>
+          )}
+        </>
+      ) : null}
+
+      {standing.state === "approved" && isOwningBroker && !collection?.applicationRefusedReason ? (
+        <form method="post" action={`/api/policies/${policyId}/endorsements/${request.eventId}/checkout`} className="inline-form">
+          <input type="hidden" name="quoteHash" value={figures.quoteHash} />
+          <button type="submit">
+            {paymentInFlight ? "Continue the delta payment at Stripe" : `Pay the delta (${formatCentsAsUsd(figures.deltaTotalCents)}) with Stripe (test mode)`}
+          </button>
+        </form>
+      ) : null}
+      {standing.state === "approved" && !isOwningBroker ? (
+        <p className="note">The owning broker pays the delta from this page.</p>
+      ) : null}
+    </>
+  );
+}
+
+// What the operator sees after a backdated correction (slice B8).
+function correctionNotice(outcome: string): string {
+  switch (outcome) {
+    case "collect":
+      return "The effective date is corrected. The endorsement is in force on the right date, and the difference is now owed by the customer: collect it from the correction block below.";
+    case "refund-requested":
+      return "The effective date is corrected and the difference was sent back to Stripe as a refund. It counts as completed only when Stripe's webhook confirms the money left; refresh in a moment.";
+    case "refund-held":
+      return "The effective date is corrected. The difference owed back is above $1,000, so it waits in the approval queue: a second person has to approve it before anything is sent to Stripe (/ops/approvals).";
+    case "done":
+      return "The effective date is corrected. The corrected date prices the same amount, so no money moves.";
+    case "returned":
+      return "You came back from the Stripe hosted page. The difference is collected when Stripe's webhook confirms the payment, not when the browser returns: refresh in a moment.";
+    case "cancelled":
+      return "The payment page for the difference was left without paying. The difference is still owed and shows as an open receivable.";
+    default:
+      return outcome;
+  }
+}
+
+function endorsementNotice(outcome: string): string {
+  switch (outcome) {
+    case "requested":
+      return "The endorsement is requested. It takes effect when the delta is paid (after the customer's approval above $500).";
+    case "applied":
+      return "The endorsement is in force.";
+    case "already-applied":
+      return "This endorsement was already in force; nothing was posted a second time.";
+    case "refund-requested":
+      return "The endorsement is in force and the refund was sent to Stripe. It counts as completed only when Stripe's webhook confirms the money left; refresh in a moment.";
+    case "refund-held":
+      return "The endorsement is in force. The refund is above $1,000, so it waits in the approval queue: a second person has to approve it before anything is sent to Stripe (maker-checker, /ops/approvals).";
+    case "returned":
+      return "You came back from the Stripe hosted page. The endorsement takes effect when Stripe's webhook confirms the delta was paid, not when the browser returns: refresh in a moment.";
+    case "cancelled":
+      return "The delta payment page was left without paying.";
+    default:
+      return outcome;
+  }
 }

@@ -11,6 +11,7 @@ import {
   countBrokerKybSubmissions,
   insertBrokerKybSubmission,
   latestBrokerKybEvent,
+  submissionAwaitingProviderAnswer,
 } from "./kyb";
 
 // The two operations that talk to Stripe about a broker's business verification.
@@ -65,51 +66,87 @@ export type BrokerKybSubmissionResult = {
   reason: string;
 };
 
+// How long a submission whose Stripe answer never came back blocks a new one. Stripe creates the
+// connected account in about four seconds, so two minutes is long enough that a second click can
+// never start a second account, and short enough that a broker whose process died is not locked
+// out for the afternoon.
+export const SUBMISSION_IN_FLIGHT_MINUTES = 2;
+
 export async function submitBrokerKyb(
   request: BrokerKybSubmissionRequest,
   database: postgres.Sql = sql,
 ): Promise<BrokerKybSubmissionResult> {
   assertSubmissionIsUsable(request);
 
-  // One verification at a time. A broker whose Stripe verification is pending or approved does
-  // not need a second connected account; re-reading the one they have is the right action, and
-  // it is what the screens offer. A failed verification can always be submitted again with
-  // corrected details, which is the whole point of showing the failure.
-  const latestEvent = await latestBrokerKybEvent(request.brokerId, database);
-  if (latestEvent?.provider === STRIPE_CONNECT_PROVIDER) {
-    if (latestEvent.status === "approved") {
-      throw new BrokerKybRefused("this broker is already verified at Stripe");
+  // Step 1, in ONE transaction that holds an advisory lock on the broker: decide whether this
+  // broker may submit, and write the submission. The lock is the same key
+  // appendBrokerKybEventIfChanged takes, so a status arriving from a webhook and a submission
+  // cannot interleave either.
+  //
+  // Without it the guards below were read outside any lock and the only serialisation was the
+  // unique index on the derived idempotency key, which stops two clicks that computed the SAME
+  // attempt number and nothing else: a second click arriving after the first insert committed
+  // computed attempt 2 and created a SECOND connected account at Stripe (review finding F-B3-05).
+  //
+  // Stripe is deliberately NOT called inside this transaction: the outbox rule wants the
+  // submission and its terms acceptance committed before anything leaves, and a network call
+  // must never hold a database transaction open.
+  const { submissionId, idempotencyKey } = await database.begin(async (transaction) => {
+    await transaction`select pg_advisory_xact_lock(hashtext(${request.brokerId}))`;
+
+    // One verification at a time. A broker whose Stripe verification is pending or approved does
+    // not need a second connected account; re-reading the one they have is the right action, and
+    // it is what the screens offer. A failed verification can always be submitted again with
+    // corrected details, which is the whole point of showing the failure.
+    const latestEvent = await latestBrokerKybEvent(request.brokerId, transaction);
+    if (latestEvent?.provider === STRIPE_CONNECT_PROVIDER) {
+      if (latestEvent.status === "approved") {
+        throw new BrokerKybRefused("this broker is already verified at Stripe");
+      }
+      if (latestEvent.status === "pending") {
+        throw new BrokerKybRefused(
+          "a verification is already in progress at Stripe for this broker; check its status instead of starting another one",
+        );
+      }
     }
-    if (latestEvent.status === "pending") {
+
+    // The case the latest event cannot see: a submission committed moments ago whose Stripe
+    // answer has not been recorded yet. Its status row is exactly what does not exist yet.
+    const inFlight = await submissionAwaitingProviderAnswer(
+      request.brokerId,
+      SUBMISSION_IN_FLIGHT_MINUTES,
+      transaction,
+    );
+    if (inFlight) {
       throw new BrokerKybRefused(
-        "a verification is already in progress at Stripe for this broker; check its status instead of starting another one",
+        "a verification for this broker was sent to Stripe moments ago and has not answered yet; " +
+          "wait for it and check its status instead of starting another one",
       );
     }
-  }
 
-  const attempt = (await countBrokerKybSubmissions(request.brokerId, database)) + 1;
-  const idempotencyKey = brokerKybIdempotencyKey(request.brokerId, attempt);
-
-  // Step 1: committed before anything leaves for Stripe.
-  const { submissionId } = await insertBrokerKybSubmission(
-    {
-      brokerId: request.brokerId,
-      provider: STRIPE_CONNECT_PROVIDER,
-      providerIdempotencyKey: idempotencyKey,
-      legalName: request.legalName,
-      einLast4: request.employerIdentificationNumber.slice(-4),
-      addressLine1: request.address.line1,
-      addressCity: request.address.city,
-      addressState: request.address.state,
-      addressPostalCode: request.address.postalCode,
-      businessUrl: request.businessUrl,
-      contactEmail: request.contactEmail,
-      termsAcceptedAt: request.termsAcceptedAt,
-      termsAcceptedIp: request.termsAcceptedFromIp,
-      submittedBy: request.submittedByUserId,
-    },
-    database,
-  );
+    const attempt = (await countBrokerKybSubmissions(request.brokerId, transaction)) + 1;
+    const key = brokerKybIdempotencyKey(request.brokerId, attempt);
+    const inserted = await insertBrokerKybSubmission(
+      {
+        brokerId: request.brokerId,
+        provider: STRIPE_CONNECT_PROVIDER,
+        providerIdempotencyKey: key,
+        legalName: request.legalName,
+        einLast4: request.employerIdentificationNumber.slice(-4),
+        addressLine1: request.address.line1,
+        addressCity: request.address.city,
+        addressState: request.address.state,
+        addressPostalCode: request.address.postalCode,
+        businessUrl: request.businessUrl,
+        contactEmail: request.contactEmail,
+        termsAcceptedAt: request.termsAcceptedAt,
+        termsAcceptedIp: request.termsAcceptedFromIp,
+        submittedBy: request.submittedByUserId,
+      },
+      transaction,
+    );
+    return { submissionId: inserted.submissionId, idempotencyKey: key };
+  });
 
   // AF-04: Stripe's own statement that it is answering in test mode, before the first call
   // that creates anything.
@@ -206,6 +243,8 @@ export type KybUpdateOutcome = {
   // How many of the broker's open payment pages were closed because the new status forbids
   // binding (see expireOpenCheckoutSessionsOfBroker). Only set by the Stripe refresh.
   expiredCheckoutSessions?: number;
+  // Set instead of the count when Stripe refused to close the pages; the status stays recorded.
+  expiryError?: string;
 };
 
 // Maps a freshly read account and records the result if, and only if, the status changed.
@@ -282,7 +321,15 @@ export async function refreshBrokerKybFromStripe(
   // that a customer does not pay for a policy that cannot be bound (rule 14, technical
   // addition). Done after the status is committed, and only on a real change.
   if (outcome.appended && !bindingIsAllowed(outcome.status)) {
-    outcome.expiredCheckoutSessions = await expireOpenCheckoutSessionsOfBroker(request.brokerId, database);
+    // The status row is already committed. A Stripe error while closing the pages must not turn
+    // that committed transition into a webhook failure that a retry could not repair (the retry
+    // would find nothing to append): it is recorded on the outcome and shown, not thrown
+    // (review finding F-B7-11). A page left open is caught by rule 14 at payment time anyway.
+    try {
+      outcome.expiredCheckoutSessions = await expireOpenCheckoutSessionsOfBroker(request.brokerId, database);
+    } catch (error) {
+      outcome.expiryError = error instanceof Error ? error.message.slice(0, 300) : "unknown error while expiring sessions";
+    }
   }
   return outcome;
 }

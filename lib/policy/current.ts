@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import type { WrittenPremiumSegment } from "@/lib/money/premium";
 import { derivePolicyStatus, type MoneyOperationStatus } from "./status";
 import { policyTermsFromPayload, type PolicyTerms } from "./terms";
 
@@ -12,23 +13,36 @@ import { policyTermsFromPayload, type PolicyTerms } from "./terms";
 type Queryable = postgres.Sql | postgres.TransactionSql;
 
 export type PolicyFold = {
-  eventTypes: string[]; // in recording order
+  eventTypes: string[]; // in recording order, superseded events left out
   terms: PolicyTerms; // the terms carried by the last event that changed them
   boundAt: Date | null; // recording time of the 'issued' event, null while not bound
+  // How many events the fold applied. This is the "policy version" an endorsement quote is
+  // bound to (lib/money/endorsement.ts): any later event, applied or superseding, changes it.
+  appliedEventCount: number;
+  // Effective date of the latest applied 'endorsed' event, null when none. A new endorsement
+  // cannot be backdated before it (lib/policy/endorse.ts says why).
+  latestEndorsementEffectiveAt: string | null;
+  // Every piece of premium written on this policy and the day it starts earning: the annual
+  // premium over the whole term, then each applied endorsement's prorated delta from its own
+  // effective date to the term end (ARCHITECTURE.md section 3). This is what a cancellation
+  // gives back, and it is NOT `terms.annualPremiumCents` once the policy has been endorsed.
+  writtenPremiumSegments: WrittenPremiumSegment[];
 };
 
-// Reads every event of the policy in recording order and applies them:
-//   - an event carrying terms (quoted today; endorsed and corrections in later slices)
-//     replaces the terms;
-//   - 'issued' records when the policy became bound;
-//   - an event named by a later correction's supersedes_event_id is skipped: the correction
-//     row stays, the superseded row stays, but the fold no longer applies it. This is how a
-//     reversal un-binds a policy without deleting anything (slice B8).
+// One row of policy_events, as the fold reads it.
+export type PolicyEventRow = {
+  id: string;
+  event_type: string;
+  effective_at: string; // "YYYY-MM-DD"
+  payload: unknown;
+  recorded_at: Date;
+  supersedes_event_id: string | null;
+};
+
+// Reads every event of the policy in recording order and folds them (applyPolicyEvents).
 export async function foldPolicyEvents(database: Queryable, policyId: string): Promise<PolicyFold> {
-  const events = await database<
-    { id: string; event_type: string; payload: unknown; recorded_at: Date; supersedes_event_id: string | null }[]
-  >`
-    select id, event_type, payload, recorded_at, supersedes_event_id
+  const events = await database<PolicyEventRow[]>`
+    select id, event_type, to_char(effective_at, 'YYYY-MM-DD') as effective_at, payload, recorded_at, supersedes_event_id
       from policy_events
      where policy_id = ${policyId}
      order by sequence_number
@@ -36,7 +50,24 @@ export async function foldPolicyEvents(database: Queryable, policyId: string): P
   if (events.length === 0) {
     throw new Error(`policy ${policyId} has no events, so there is nothing to fold`);
   }
+  return applyPolicyEvents(events);
+}
 
+// The fold itself, pure so it can be tested on plain rows:
+//   - an event carrying terms (quoted, endorsed, and corrections that re-book terms) replaces
+//     the terms: after an endorsement the annual premium and the limits are the endorsed ones;
+//   - 'issued' records when the policy became bound;
+//   - an event named by a later correction's supersedes_event_id is skipped: the correction
+//     row stays, the superseded row stays, but the fold no longer applies it. This is how a
+//     reversal un-binds a policy without deleting anything (slice B8);
+//   - 'endorsement_requested' and 'endorsement_approved' carry no terms (their payload has no
+//     annual_premium_cents key on purpose), so they count as applied events, which moves the
+//     policy version, without changing what the policy covers;
+//   - a 'correction_rebook' that re-books an endorsement (slice B8) applies exactly like the
+//     'endorsed' event it replaces, at the CORRECTED effective date: the same terms, and its own
+//     written premium segment starting on that date, so a later cancellation gives back the
+//     corrected figure segment by segment (decision 18).
+export function applyPolicyEvents(events: PolicyEventRow[]): PolicyFold {
   const supersededEventIds = new Set(
     events.filter((event) => event.supersedes_event_id !== null).map((event) => event.supersedes_event_id as string),
   );
@@ -44,6 +75,8 @@ export async function foldPolicyEvents(database: Queryable, policyId: string): P
   const eventTypes: string[] = [];
   let terms: PolicyTerms | null = null;
   let boundAt: Date | null = null;
+  let latestEndorsementEffectiveAt: string | null = null;
+  const endorsementSegments: WrittenPremiumSegment[] = [];
   for (const event of events) {
     if (supersededEventIds.has(event.id)) {
       continue; // reversed by a correction: kept in the table, no longer applied
@@ -55,11 +88,55 @@ export async function foldPolicyEvents(database: Queryable, policyId: string): P
     if (event.event_type === "issued") {
       boundAt = event.recorded_at;
     }
+    if (event.event_type === "endorsed" || appliesAsEndorsement(event)) {
+      latestEndorsementEffectiveAt = event.effective_at;
+      // The money the endorsement actually moved, signed: what the customer paid for the extra
+      // cover, or gave back. It earns from the endorsement's own effective date, so a policy
+      // endorsed on day 100 has two pieces of premium earning over two different windows.
+      endorsementSegments.push({
+        writtenPremiumCents: deltaPremiumCents(event.payload),
+        startsOn: event.effective_at,
+        endsOn: terms!.termEnd,
+      });
+    }
   }
   if (terms === null) {
-    throw new Error(`policy ${policyId} has no event carrying its terms`);
+    throw new Error("the policy has no event carrying its terms");
   }
-  return { eventTypes, terms, boundAt };
+  // The issuance segment first: the annual premium of the FIRST applied event that carried
+  // terms (the quote, or the re-booked terms when a correction superseded it), over the term.
+  const issuance = policyTermsFromPayload(firstAppliedTerms(events, supersededEventIds));
+  return {
+    eventTypes,
+    terms,
+    boundAt,
+    appliedEventCount: eventTypes.length,
+    latestEndorsementEffectiveAt,
+    writtenPremiumSegments: [
+      { writtenPremiumCents: issuance.annualPremiumCents, startsOn: issuance.termStart, endsOn: issuance.termEnd },
+      ...endorsementSegments,
+    ],
+  };
+}
+
+// The payload of the first applied event that carries terms. An endorsement carries terms too,
+// so the order matters: the first one is the policy as it was issued.
+function firstAppliedTerms(events: PolicyEventRow[], supersededEventIds: Set<string>): unknown {
+  const first = events.find((event) => !supersededEventIds.has(event.id) && carriesTerms(event.payload));
+  if (!first) {
+    throw new Error("the policy has no event carrying its terms");
+  }
+  return first.payload;
+}
+
+// The prorated delta an 'endorsed' event moved, read strictly: a missing or malformed figure is
+// a broken event, and guessing zero would silently refund the wrong amount at cancellation.
+function deltaPremiumCents(payload: unknown): number {
+  const value = (payload as { delta_premium_cents?: unknown })?.delta_premium_cents;
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+    throw new Error("an 'endorsed' event must carry delta_premium_cents as a whole number of cents");
+  }
+  return value;
 }
 
 // Rebuilds the cache row of one policy inside the caller's transaction.
@@ -99,8 +176,11 @@ export async function refreshPolicyCurrent(
   `;
 }
 
-// The last thing the payment provider told us about this policy's checkout operation.
-// Null when the broker has not started a payment yet.
+// The last thing the payment provider told us about this policy's ISSUANCE checkout operation.
+// Null when the broker has not started a payment yet. An endorsement delta (slice B4) and the
+// difference of a correction (slice B8) are also collected by stripe_checkout operations, but
+// each has its own life and must not make a bound policy read as awaiting payment, so the
+// operations named by endorsement_collections or correction_collections are left out.
 export async function latestCheckoutStatus(
   database: Queryable,
   policyId: string,
@@ -111,6 +191,8 @@ export async function latestCheckoutStatus(
       join money_operations operation on operation.id = event.operation_id
      where operation.policy_id = ${policyId}
        and operation.kind = 'stripe_checkout'
+       and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
+       and not exists (select 1 from correction_collections fix where fix.collection_operation_id = operation.id)
      order by event.sequence_number desc
      limit 1
   `;
@@ -119,4 +201,17 @@ export async function latestCheckoutStatus(
 
 function carriesTerms(payload: unknown): boolean {
   return typeof payload === "object" && payload !== null && "annual_premium_cents" in payload;
+}
+
+// A 'correction_rebook' is the corrected replay of an earlier event, so it applies as that kind
+// of event (slice B8). The one kind this build re-books is an endorsement: the payload says so,
+// and it carries exactly the keys an 'endorsed' event carries, which is why the fold, the
+// endorsement schedule and the PDFs read it with no special case beyond this line.
+function appliesAsEndorsement(event: PolicyEventRow): boolean {
+  return (
+    event.event_type === "correction_rebook" &&
+    typeof event.payload === "object" &&
+    event.payload !== null &&
+    (event.payload as { rebooked_event_type?: unknown }).rebooked_event_type === "endorsed"
+  );
 }

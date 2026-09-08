@@ -1,7 +1,7 @@
 import postgres from "postgres";
 
-// Proves, on a real database, that the tables added by migrations 0002, 0004, 0005, 0006 and
-// 0008 are append-only, exactly the way scripts/check-ledger-guards.ts does it for the ledger
+// Proves, on a real database, that the tables added by migrations 0002, 0004, 0005, 0006, 0008
+// and 0011 are append-only, exactly the way scripts/check-ledger-guards.ts does it for the ledger
 // core.
 //
 //   as the owner   : UPDATE, DELETE and TRUNCATE are refused by triggers, even for the role
@@ -48,6 +48,21 @@ const PROTECTED_TABLES = [
   "approval_requests",
   "approval_decisions",
   "simulator_provider_records",
+  // Added by migration 0011 (slice B10): what each reconciliation run compared and what it found.
+  // Protected for the same reason as webhook_events: they record what we knew about a provider at
+  // a moment in time, and rewriting them would let a break disappear without anyone fixing it.
+  "reconciliation_runs",
+  "reconciliation_items",
+  // Added by migration 0009 (slice B4): which Stripe payment collects which endorsement's delta.
+  "endorsement_collections",
+  // Added by migration 0012 (slice B9): the broker monthly statements. Protected because they are
+  // what we told a broker they were owed: a correction after a closed month is a new revision,
+  // never an edit of the revision that was published.
+  "statement_runs",
+  "statement_lines",
+  // Added by migration 0014 (slice B8): which Stripe payment settles the difference a backdated
+  // correction created.
+  "correction_collections",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -79,8 +94,10 @@ async function expectError(
 }
 
 // One row in each protected table, wired together by their foreign keys, so that an UPDATE or
-// a DELETE has something real to try to change.
-type Fixture = { [table in ProtectedTable]: string };
+// a DELETE has something real to try to change. `journal_entries` is not in the list above (the
+// ledger core has its own check, scripts/check-ledger-guards.ts) but a statement line has to name
+// a real journal entry, so the fixture carries one.
+type Fixture = { [table in ProtectedTable]: string } & { journal_entries: string };
 
 async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> {
   const [broker] = await tx<{ id: string }[]>`
@@ -199,6 +216,107 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
   `;
   void claimPayout;
 
+  // Slice B10: one reconciliation run and one item of it. The amounts are the planted
+  // provider-only break of scripts/check-reconciliation.ts, so the fixture reads like the real
+  // thing.
+  const [reconciliationRun] = await tx<{ id: string }[]>`
+    insert into reconciliation_runs (
+      source, window_from, window_to, started_at, status,
+      provider_only_count, provider_record_count, ledger_record_count
+    ) values (
+      'stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'complete', 1, 1, 0
+    )
+    returning id
+  `;
+  const [reconciliationItem] = await tx<{ id: string }[]>`
+    insert into reconciliation_items (
+      run_id, classification, break_key, provider_ref, ledger_ref,
+      provider_amount_cents, ledger_amount_cents, difference_cents, first_seen_at, note
+    ) values (
+      ${reconciliationRun.id}, 'provider_only', 'stripe|provider_only|pi_guard_check', 'pi_guard_check', null,
+      4242, null, 4242, now(), 'guard check item, always rolled back'
+    )
+    returning id
+  `;
+
+  // An endorsement request and the payment that collects its delta (migration 0009).
+  // 44584 = 43561 of premium + 1023 of tax, the recited example (+$600 on day 100).
+  const [requestEvent] = await tx<{ id: string }[]>`
+    insert into policy_events (policy_id, event_type, effective_at, payload)
+    values (${policy.id}, 'endorsement_requested', '2028-06-09', '{"delta_premium_cents": 43561}'::jsonb)
+    returning id
+  `;
+  const [deltaOperation] = await tx<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+    values ('stripe_checkout', 'stripe', 44584, ${policy.id}, 'guard-check-endorsement:' || gen_random_uuid()::text)
+    returning id
+  `;
+  const [endorsementCollection] = await tx<{ id: string }[]>`
+    insert into endorsement_collections (
+      collection_operation_id, policy_id, request_event_id, quote_hash, amount_cents, delta_premium_cents, delta_tax_cents
+    ) values (
+      ${deltaOperation.id}, ${policy.id}, ${requestEvent.id}, 'guard-check-hash', 44584, 43561, 1023
+    )
+    returning id
+  `;
+  // Slice B9: one journal entry (the commission the statement is about), one statement run and
+  // one of its lines. The entry is balanced because the deferred trigger of migration 0001 checks
+  // it at commit, and because a fixture that could not exist would prove nothing.
+  const [journalEntry] = await tx<{ id: string }[]>`
+    insert into journal_entries
+      (entry_type, effective_at, policy_id, broker_id, source_kind, source_id, description)
+    values ('commission_earned', '2028-03-01', ${policy.id}, ${broker.id}, 'money_operation', ${operation.id},
+            'guard check broker commission')
+    returning id
+  `;
+  await tx`
+    insert into journal_lines (entry_id, account_id, debit_cents, credit_cents) values
+      (${journalEntry.id}, 'commission_expense', 18000, 0),
+      (${journalEntry.id}, 'commission_payable', 0, 18000)
+  `;
+  const [statementRun] = await tx<{ id: string }[]>`
+    insert into statement_runs (
+      broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+      premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+    ) values (
+      ${broker.id}, '2028-03-01', 1, '2028-04-01T00:00:00Z', repeat('a', 64),
+      125320, 18000, 0, 0, 18000
+    )
+    returning id
+  `;
+  const [statementLine] = await tx<{ id: string }[]>`
+    insert into statement_lines (
+      run_id, line_order, kind, policy_id, policy_number, journal_entry_id, effective_at,
+      entry_recorded_at, amount_cents, description
+    ) values (
+      ${statementRun.id}, 0, 'commission_earned', ${policy.id}, 'CGP-00000', ${journalEntry.id}, '2028-03-01',
+      '2028-03-01T10:00:00Z', 18000, 'guard check statement line'
+    )
+    returning id
+  `;
+
+  // A correction of that endorsement's effective date, and the payment that settles the
+  // difference it created (migration 0014). 5047 = 4931 of premium + 116 of tax, the recited
+  // example: entered as 2028-07-09, corrected to 2028-06-09.
+  const [rebookEvent] = await tx<{ id: string }[]>`
+    insert into policy_events (policy_id, event_type, effective_at, payload)
+    values (${policy.id}, 'correction_rebook', '2028-06-09',
+            ${tx.json({ rebooked_event_type: "endorsed", corrects_event_id: requestEvent.id, delta_premium_cents: 43561 })})
+    returning id
+  `;
+  const [differenceOperation] = await tx<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+    values ('stripe_checkout', 'stripe', 5047, ${policy.id}, 'guard-check-correction:' || gen_random_uuid()::text)
+    returning id
+  `;
+  const [correctionCollection] = await tx<{ id: string }[]>`
+    insert into correction_collections (
+      collection_operation_id, policy_id, correction_rebook_event_id, amount_cents, premium_cents, tax_cents
+    ) values (
+      ${differenceOperation.id}, ${policy.id}, ${rebookEvent.id}, 5047, 4931, 116
+    )
+    returning id
+  `;
   return {
     brokers: broker.id,
     policies: policy.id,
@@ -215,6 +333,13 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     approval_requests: approvalRequest.id,
     approval_decisions: approvalDecision.id,
     simulator_provider_records: providerRecord.id,
+    reconciliation_runs: reconciliationRun.id,
+    reconciliation_items: reconciliationItem.id,
+    endorsement_collections: endorsementCollection.id,
+    statement_runs: statementRun.id,
+    statement_lines: statementLine.id,
+    journal_entries: journalEntry.id,
+    correction_collections: correctionCollection.id,
   };
 }
 
@@ -408,14 +533,67 @@ async function main() {
     secondCancellation ?? "no error raised",
   );
 
-  // 6. Migration 0008: maker-checker is a DATABASE rule, not only application code.
+  // 7. Migration 0008: maker-checker is a DATABASE rule, not only application code.
   //    Every case below is attempted with the OWNER connection and raw SQL, which is the most
   //    privileged path there is: none of the application checks are in the way, and the
   //    decision is still refused.
   await runMakerCheckerChecks(owner);
 
-  // 7. Migration 0008: a claim event has to say a coherent thing about money.
+  // 8. Migration 0008: a claim event has to say a coherent thing about money.
   await runClaimEventShapeChecks(owner);
+
+  // 9. Migration 0011: a reconciliation run has to say a coherent thing about what it found.
+  await runReconciliationShapeChecks(owner);
+
+  // 10. Migration 0009: a delta collection whose premium and tax do not add up is refused, and
+  //     one endorsement request can be applied ('endorsed') at most once, whatever the number
+  //     of payment deliveries that try.
+  const brokenDeltaSplit = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [requestEvent] = await tx<{ id: string }[]>`
+      insert into policy_events (policy_id, event_type, effective_at, payload)
+      values (${fixture.policies}, 'endorsement_requested', '2028-06-09', '{}'::jsonb)
+      returning id
+    `;
+    const [deltaOperation] = await tx<{ id: string }[]>`
+      insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+      values ('stripe_checkout', 'stripe', 100, ${fixture.policies}, 'guard-check-delta-split:' || gen_random_uuid()::text)
+      returning id
+    `;
+    await tx`
+      insert into endorsement_collections (
+        collection_operation_id, policy_id, request_event_id, quote_hash, amount_cents, delta_premium_cents, delta_tax_cents
+      ) values (${deltaOperation.id}, ${fixture.policies}, ${requestEvent.id}, 'guard-check-hash', 100, 90, 5)
+    `;
+  });
+  report(
+    "a delta collection whose premium and tax do not add up to its amount is refused",
+    !!brokenDeltaSplit && /endorsement_collections_check/i.test(brokenDeltaSplit),
+    brokenDeltaSplit ?? "no error raised",
+  );
+
+  const secondApplication = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [requestEvent] = await tx<{ id: string }[]>`
+      insert into policy_events (policy_id, event_type, effective_at, payload)
+      values (${fixture.policies}, 'endorsement_requested', '2028-06-09', '{}'::jsonb)
+      returning id
+    `;
+    for (const attempt of [1, 2]) {
+      await tx`
+        insert into policy_events (policy_id, event_type, effective_at, payload)
+        values (${fixture.policies}, 'endorsed', '2028-06-09',
+                ${tx.json({ attempt, request_event_id: requestEvent.id, annual_premium_cents: 180000 })})
+      `;
+    }
+  });
+  report(
+    "an endorsement request cannot be applied twice",
+    !!secondApplication && /policy_events_one_endorsement_per_request/i.test(secondApplication),
+    secondApplication ?? "no error raised",
+  );
+  // 9. Migration 0012: a broker statement has to say a coherent thing about a month.
+  await runStatementShapeChecks(owner);
 
   await owner.end();
   await runtime.end();
@@ -687,6 +865,254 @@ async function runClaimEventShapeChecks(owner: postgres.Sql): Promise<void> {
     "an approval request must carry a real sha256 of its intent",
     !!badIntentHash && /approval_requests_intent_hash_check/i.test(badIntentHash),
     badIntentHash ?? "no error raised",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// A reconciliation run cannot lie about what it found (migration 0011)
+// ---------------------------------------------------------------------------
+
+// The rule the brief states outright: an incomplete or failed fetch must never be reported as a
+// clean reconciliation. The application enforces it (lib/reconciliation/run.ts stores no items on
+// a failed run); these checks prove the DATABASE enforces it too, so no future code path, script
+// or console session can write a failed run that also claims to have compared something.
+async function runReconciliationShapeChecks(owner: postgres.Sql): Promise<void> {
+  const failedRunWithCounts = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status, fetch_error, matched_count)
+      values ('stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'failed', 'Stripe timed out', 3)
+    `;
+  });
+  report(
+    "a failed reconciliation run cannot carry counts: it compared nothing",
+    !!failedRunWithCounts && /reconciliation_runs_check/i.test(failedRunWithCounts),
+    failedRunWithCounts ?? "no error raised",
+  );
+
+  const failedRunWithoutReason = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status)
+      values ('stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'failed')
+    `;
+  });
+  report(
+    "a failed reconciliation run must say why it failed",
+    !!failedRunWithoutReason && /reconciliation_runs_check/i.test(failedRunWithoutReason),
+    failedRunWithoutReason ?? "no error raised",
+  );
+
+  const completeRunWithAnError = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status, fetch_error)
+      values ('stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'complete', 'Stripe timed out')
+    `;
+  });
+  report(
+    "a complete reconciliation run cannot carry a fetch error",
+    !!completeRunWithAnError && /reconciliation_runs_check/i.test(completeRunWithAnError),
+    completeRunWithAnError ?? "no error raised",
+  );
+
+  const emptyWindow = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status)
+      values ('stripe', '2026-09-08T00:00:00Z', '2026-09-01T00:00:00Z', now(), 'complete')
+    `;
+  });
+  report(
+    "a reconciliation run cannot cover an empty window",
+    !!emptyWindow && /reconciliation_runs_check/i.test(emptyWindow),
+    emptyWindow ?? "no error raised",
+  );
+
+  const unknownSource = await expectError(owner, async (tx) => {
+    await tx`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status)
+      values ('some_other_bank', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'complete')
+    `;
+  });
+  report(
+    "a reconciliation run names one of the two known sources",
+    !!unknownSource && /reconciliation_runs_source_check/i.test(unknownSource),
+    unknownSource ?? "no error raised",
+  );
+
+  // The finishing time of a run and the recording time of its items come from the database clock,
+  // so the age of a break cannot be backdated by whoever writes the run.
+  let storedTimes: { finished_at: Date; recorded_at: Date } | null = null;
+  await expectError(owner, async (tx) => {
+    const [run] = await tx<{ id: string; finished_at: Date }[]>`
+      insert into reconciliation_runs (source, window_from, window_to, started_at, status, finished_at)
+      values ('stripe', '2026-09-01T00:00:00Z', '2026-09-08T00:00:00Z', now(), 'complete', '2000-01-01T00:00:00Z')
+      returning id, finished_at
+    `;
+    const [item] = await tx<{ recorded_at: Date }[]>`
+      insert into reconciliation_items (run_id, classification, break_key, first_seen_at, note, recorded_at, provider_ref)
+      values (${run.id}, 'provider_only', 'stripe|provider_only|pi_clock', now(), 'guard check', '2000-01-01T00:00:00Z', 'pi_clock')
+      returning recorded_at
+    `;
+    storedTimes = { finished_at: run.finished_at, recorded_at: item.recorded_at };
+  });
+  const reconciliationClock = storedTimes as { finished_at: Date; recorded_at: Date } | null;
+  report(
+    "a reconciliation run and its items are timed by the database, not by the client",
+    reconciliationClock !== null &&
+      reconciliationClock.finished_at.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
+      reconciliationClock.recorded_at.getTime() > Date.parse("2020-01-01T00:00:00Z"),
+    reconciliationClock ? `stored ${reconciliationClock.finished_at.toISOString()} instead of 2000-01-01` : "no row read",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// A broker statement cannot lie about a month (migration 0012)
+// ---------------------------------------------------------------------------
+
+// The statement rules the application enforces (lib/statements/run.ts) written as database facts,
+// so no future script, console session or route can publish a statement that says something the
+// ledger does not: a whole month, a revision that names what it replaces, and a net due that is
+// exactly what was earned less what was clawed back.
+async function runStatementShapeChecks(owner: postgres.Sql): Promise<void> {
+  // A run for "the middle of March" is not a monthly statement.
+  const middleOfTheMonth = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-03-15', 1, now(), repeat('b', 64), 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "a statement covers a whole month, named by its first day",
+    !!middleOfTheMonth && /statement_runs_statement_month_check/i.test(middleOfTheMonth),
+    middleOfTheMonth ?? "no error raised",
+  );
+
+  // The arithmetic of the statement: net due IS earned less clawed back, plus any adjustment.
+  const netDueThatDoesNotAddUp = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-04-01', 1, now(), repeat('c', 64), 125320, 18000, 13068, 0, 18000
+      )
+    `;
+  });
+  report(
+    "a statement whose net due is not what was earned less what was clawed back is refused",
+    !!netDueThatDoesNotAddUp && /statement_runs_check/i.test(netDueThatDoesNotAddUp),
+    netDueThatDoesNotAddUp ?? "no error raised",
+  );
+
+  // Revision 1 replaces nothing, and every later revision replaces exactly one earlier run.
+  const revisionTwoReplacingNothing = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, supersedes_run_id, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-05-01', 2, now(), null, repeat('d', 64), 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "a second revision must name the revision it supersedes",
+    !!revisionTwoReplacingNothing && /statement_runs_check/i.test(revisionTwoReplacingNothing),
+    revisionTwoReplacingNothing ?? "no error raised",
+  );
+
+  const revisionOneReplacingSomething = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, supersedes_run_id, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-05-01', 1, now(), ${fixture.statement_runs}, repeat('e', 64), 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "the first revision of a month supersedes nothing",
+    !!revisionOneReplacingSomething && /statement_runs_check/i.test(revisionOneReplacingSomething),
+    revisionOneReplacingSomething ?? "no error raised",
+  );
+
+  // Two runs cannot both be revision N of the same month: this is what stops two people closing
+  // the same month at the same instant and both believing they published it.
+  const twoRunsSameRevision = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-03-01', 1, now(), repeat('f', 64), 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "a broker and a month have one revision 1, forever",
+    !!twoRunsSameRevision && /statement_runs_broker_id_statement_month_revision_key/i.test(twoRunsSameRevision),
+    twoRunsSameRevision ?? "no error raised",
+  );
+
+  const contentHashThatIsNotOne = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-06-01', 1, now(), 'not-a-sha256', 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "a statement run must carry a real sha256 of its lines",
+    !!contentHashThatIsNotOne && /statement_runs_content_hash_check/i.test(contentHashThatIsNotOne),
+    contentHashThatIsNotOne ?? "no error raised",
+  );
+
+  // The moment a statement was produced comes from the database, so a run cannot be backdated to
+  // look like it was published before a correction it does not contain.
+  let storedTimes: { created_at: Date; recorded_at: Date } | null = null;
+  await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [run] = await tx<{ id: string; created_at: Date }[]>`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents,
+        created_at
+      ) values (
+        ${fixture.brokers}, '2028-07-01', 1, now(), repeat('1', 64), 0, 0, 0, 0, 0, '2000-01-01T00:00:00Z'
+      )
+      returning id, created_at
+    `;
+    const [line] = await tx<{ recorded_at: Date }[]>`
+      insert into statement_lines (
+        run_id, line_order, kind, journal_entry_id, effective_at, entry_recorded_at, amount_cents,
+        description, recorded_at
+      ) values (
+        ${run.id}, 0, 'adjustment', ${fixture.journal_entries}, '2028-07-01', now(), 1, 'clock check',
+        '2000-01-01T00:00:00Z'
+      )
+      returning recorded_at
+    `;
+    storedTimes = { created_at: run.created_at, recorded_at: line.recorded_at };
+  });
+  const statementClock = storedTimes as { created_at: Date; recorded_at: Date } | null;
+  report(
+    "a statement run and its lines are timed by the database, not by the client",
+    statementClock !== null &&
+      statementClock.created_at.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
+      statementClock.recorded_at.getTime() > Date.parse("2020-01-01T00:00:00Z"),
+    statementClock ? `stored ${statementClock.created_at.toISOString()} instead of 2000-01-01` : "no row read",
   );
 }
 

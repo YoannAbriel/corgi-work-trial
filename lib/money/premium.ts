@@ -46,6 +46,41 @@ export function earnedPremiumCents(
   return Number(floorDiv(BigInt(writtenPremiumCents) * elapsed, total));
 }
 
+// One piece of written premium and the day it starts earning.
+//
+// A policy that was never endorsed has exactly ONE segment: the annual premium, earning from the
+// term start to the term end. An endorsement adds a second one: the prorated delta it charged
+// (or gave back, and then the amount is negative) earns from ITS OWN effective date to the same
+// term end (ARCHITECTURE.md section 3). That is why the current annual premium is not the
+// written premium after an endorsement: $1,200 raised to $1,800 on day 100 wrote 120000 over the
+// whole term plus 43561 over the last 265 days, never 180000 over the whole term.
+export type WrittenPremiumSegment = {
+  writtenPremiumCents: number; // signed: negative when an endorsement gave premium back
+  startsOn: CalendarDate; // the day this piece of premium starts earning
+  endsOn: CalendarDate; // always the end of the policy term
+};
+
+// Earned premium of one segment at `asOf`, rounded DOWN in every case, including a negative
+// segment: rounding down always makes the earned figure smaller, so the unearned figure (what
+// the customer gets back) is the larger one. That is the same "insurer eats the penny" rule as
+// everywhere else, applied once per segment.
+export function earnedPremiumOfSegment(segment: WrittenPremiumSegment, asOf: CalendarDate): number {
+  const total = BigInt(termDays(segment.startsOn, segment.endsOn));
+  const elapsed = BigInt(elapsedTermDays(segment.startsOn, segment.endsOn, asOf));
+  const written = BigInt(segment.writtenPremiumCents);
+  const product = written * elapsed;
+  // BigInt division truncates towards zero, which for a negative product would round UP.
+  // floorDiv is written out here so the direction is the same on both signs.
+  const quotient = product / total;
+  const roundedDown = product % total === 0n || product >= 0n ? quotient : quotient - 1n;
+  return Number(roundedDown);
+}
+
+// Earned premium of a whole policy at `asOf`: every segment, added up.
+export function earnedPremiumAcrossSegments(segments: WrittenPremiumSegment[], asOf: CalendarDate): number {
+  return segments.reduce((earned, segment) => earned + earnedPremiumOfSegment(segment, asOf), 0);
+}
+
 // Unearned premium at `asOf`: the liability owed back on cancellation.
 // Same example: 120000 - 32786 = 87214 cents (this is the rounded-up remainder).
 export function unearnedPremiumCents(
@@ -127,18 +162,20 @@ export function commissionCents(collectedPremiumCents: number, commissionRateBps
 // broker BEFORE confirming and the amounts actually posted to the ledger both come from this
 // function and from nowhere else, so the screen cannot promise a figure the ledger will not book.
 export type CancellationBreakdownInput = {
-  writtenPremiumCents: number; // annual premium written on the policy
-  taxChargedCents: number; // state premium tax actually charged with it
+  // Every piece of premium written on the policy and the day it starts earning. A policy that
+  // was never endorsed has exactly one segment (the annual premium over the whole term); each
+  // applied endorsement adds its own (lib/policy/current.ts builds the list from the events).
+  writtenPremiumSegments: WrittenPremiumSegment[];
+  taxChargedCents: number; // state premium tax charged and not yet given back
   taxRateBps: number;
   commissionRateBps: number; // broker commission rate, for the clawback
-  termStart: CalendarDate;
-  termEnd: CalendarDate;
   cancellationEffectiveAt: CalendarDate; // the day coverage stops, not the day the form was filled
 };
 
 export type CancellationBreakdown = {
   termDays: number; // actual days of the term, 365 or 366
   earnedDays: number; // days of cover the customer keeps
+  writtenPremiumCents: number; // every segment added up: not the current annual premium
   earnedPremiumCents: number; // premium earned up to the cancellation date, rounded down
   unearnedPremiumCents: number; // written minus earned: exactly what is refunded
   refundedTaxCents: number; // tax on the unearned premium, rounded up, capped at the tax charged
@@ -154,23 +191,37 @@ export type CancellationBreakdown = {
 //
 // Worked example, the recited one (DECISIONS.md, 2026-09-08): $1,200 written on 2028-03-01,
 // California 2.35% (2820 cents charged), $25 fee, 15% commission, cancelled on 2028-06-09,
-// which is day 100 of a 365-day term.
+// which is day 100 of a 365-day term. One segment, because nothing was endorsed.
 //   earned    = floor(120000 x 100 / 365) = 32876 cents (the insurer eats the fraction)
 //   unearned  = 120000 - 32876            = 87124 cents
 //   tax back  = ceil(87124 x 235 / 10000) = 2048 cents, and 2048 < 2820 so the cap does nothing
 //   fee back  =                              0 cents
 //   refund    = 87124 + 2048              = 89172 cents ($891.72)
 //   clawback  = floor(87124 x 1500/10000) = 13068 cents (13068.6, rounded down)
+//
+// Second worked example, the same policy raised to $1,800 effective 2028-06-09 (43561 cents of
+// prorated premium charged over the last 265 days) and cancelled on 2028-09-07, day 190:
+//   issuance segment  earned floor(120000 x 190 / 365)      = 62465, unearned 57535
+//   endorsement segm. earned floor(43561 x 90 / 265)        = 14794, unearned 28767
+//   written 163561, earned 77259, unearned                  = 86302 cents
+//   tax back  = ceil(86302 x 235 / 10000)                   = 2029, under the 3843 charged
+//   refund    = 86302 + 2029                                = 88331 cents
+//   clawback  = floor(86302 x 1500 / 10000)                 = 12945 cents
+// Each segment is rounded in the customer's favour, so the total sits just above pricing the
+// whole thing on the new annual premium (180000 x 175 / 365 = 86301.37, one cent less). That is
+// the same penny rule as everywhere else, applied once per segment.
 export function cancellationBreakdown(input: CancellationBreakdownInput): CancellationBreakdown {
-  const totalTermDays = termDays(input.termStart, input.termEnd);
-  const earnedDays = elapsedTermDays(input.termStart, input.termEnd, input.cancellationEffectiveAt);
-  const earned = earnedPremiumCents(
-    input.writtenPremiumCents,
-    input.termStart,
-    input.termEnd,
-    input.cancellationEffectiveAt,
-  );
-  const unearned = input.writtenPremiumCents - earned;
+  const [issuanceSegment] = input.writtenPremiumSegments;
+  if (!issuanceSegment) {
+    throw new Error("a cancellation needs at least the issuance segment of written premium");
+  }
+  // The term is the issuance segment's window: an endorsement changes what is covered, never
+  // when the policy ends.
+  const totalTermDays = termDays(issuanceSegment.startsOn, issuanceSegment.endsOn);
+  const earnedDays = elapsedTermDays(issuanceSegment.startsOn, issuanceSegment.endsOn, input.cancellationEffectiveAt);
+  const written = input.writtenPremiumSegments.reduce((total, segment) => total + segment.writtenPremiumCents, 0);
+  const earned = earnedPremiumAcrossSegments(input.writtenPremiumSegments, input.cancellationEffectiveAt);
+  const unearned = written - earned;
 
   // Two calls on purpose: the capped function is the single implementation of the rule, and the
   // uncapped one is only used to say whether the cap changed anything (shown in the preview).
@@ -180,6 +231,7 @@ export function cancellationBreakdown(input: CancellationBreakdownInput): Cancel
   return {
     termDays: totalTermDays,
     earnedDays,
+    writtenPremiumCents: written,
     earnedPremiumCents: earned,
     unearnedPremiumCents: unearned,
     refundedTaxCents: tax,

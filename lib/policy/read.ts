@@ -58,6 +58,7 @@ export type PolicyDetail = {
   brokerId: string;
   brokerName: string;
   commissionRateBps: number;
+  customerId: string;
   customerName: string;
   customerEmail: string;
   stateCode: string;
@@ -82,6 +83,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
       broker_id: string;
       broker_name: string;
       commission_rate_bps: number;
+      customer_id: string;
       customer_name: string;
       customer_email: string;
       state_code: string;
@@ -103,6 +105,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
            broker.id            as broker_id,
            broker.name          as broker_name,
            broker.commission_rate_bps,
+           customer.id          as customer_id,
            customer.name        as customer_name,
            customer.email       as customer_email,
            policy.state_code,
@@ -132,6 +135,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
     brokerId: row.broker_id,
     brokerName: row.broker_name,
     commissionRateBps: row.commission_rate_bps,
+    customerId: row.customer_id,
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     stateCode: row.state_code,
@@ -162,13 +166,17 @@ export type CheckoutOperationView = {
   bindingRefusedReason: string | null;
 };
 
-// The policy's payment operation, if the broker has started one. There is at most one
-// stripe_checkout operation per policy: its idempotency key is derived from the policy id.
+// The policy's ISSUANCE payment operation, if the broker has started one: the latest attempt to
+// pay the policy itself. An endorsement delta (slice B4) and the difference of a correction
+// (slice B8) are also collected by stripe_checkout operations and are shown with the change they
+// belong to, so those are left out here.
 export async function checkoutOperationOfPolicy(policyId: string): Promise<CheckoutOperationView | null> {
   const [operation] = await sql<{ id: string; amount_cents: string }[]>`
     select id, amount_cents
-      from money_operations
+      from money_operations operation
      where policy_id = ${policyId} and kind = 'stripe_checkout'
+       and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
+       and not exists (select 1 from correction_collections fix where fix.collection_operation_id = operation.id)
      order by created_at desc
      limit 1
   `;
@@ -389,6 +397,9 @@ export type RefundOperationView = {
   requestedAt: Date;
   completedOn: string | null; // the UTC day the money left Stripe
   failureReason: string | null;
+  // Which kind of failure: our call to Stripe, Stripe's own lifecycle, or the approver's
+  // rejection. The page words the state and the action from it (review finding F-B7-04).
+  failureStage: "create_refund" | "refund_lifecycle" | "approval" | null;
   // Stripe reported a failure after this refund had already completed. It cannot happen on the
   // card refunds this build creates, and nothing is reversed automatically, so it is shown as
   // something an operator has to look at.
@@ -463,6 +474,14 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
       failureReason:
         state === "failed" && lastFailure
           ? String(lastFailure.payload.reason ?? lastFailure.payload.message ?? "Stripe refused the refund")
+          : null,
+      failureStage:
+        state === "failed" && lastFailure
+          ? lastFailure.payload.stage === "create_refund"
+            ? "create_refund"
+            : lastFailure.payload.stage === "approval"
+              ? "approval"
+              : "refund_lifecycle"
           : null,
       failedAfterCompletion: state === "completed" && ownEvents[ownEvents.length - 1]?.status === "failed",
       approvalRequestId: operation.approval_request_id,

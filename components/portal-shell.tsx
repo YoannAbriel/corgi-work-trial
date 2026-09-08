@@ -1,6 +1,8 @@
 import Link from "next/link";
 import {
   ClipboardCheck,
+  ReceiptText,
+  Scale,
   FileText,
   Home,
   LogIn,
@@ -14,7 +16,7 @@ import { PortalFrame } from "./portal-frame";
 import type { BreadcrumbItem } from "./portal-frame";
 
 type Section =
-  "home" | "policies" | "verification" | "claims" | "approvals" | "login";
+  "home" | "policies" | "verification" | "claims" | "approvals" | "login" | "statements" | "reconciliation";
 
 // Pages retain their server-side identity and ownership checks. This component
 // passes rendered UI and breadcrumb labels/links across the client boundary.
@@ -52,6 +54,8 @@ export function PortalShell({
           section: "approvals",
           icon: ClipboardCheck,
         },
+        { href: "/ops/reconciliation", label: "Reconciliation", section: "reconciliation", icon: Scale },
+        { href: "/ops/statements", label: "Statements", section: "statements", icon: ReceiptText },
       ]
     : user?.role === "broker"
       ? [
@@ -61,6 +65,7 @@ export function PortalShell({
             section: "policies",
             icon: FileText,
           },
+          { href: "/broker/statements", label: "Statements", section: "statements", icon: ReceiptText },
           {
             href: "/broker/kyb",
             label: "Business verification",
@@ -68,16 +73,18 @@ export function PortalShell({
             icon: ShieldCheck,
           },
         ]
+      : user?.role === "customer"
+        ? [{ href: "/customer", label: "Policies", section: "policies", icon: FileText }]
       : [
           { href: "/", label: "Overview", section: "home", icon: Home },
           { href: "/login", label: "Sign in", section: "login", icon: LogIn },
         ];
   const sectionLabel =
     links.find((link) => link.section === active)?.label ?? "Policies";
-  const root = user?.role === "broker"
-    ? { label: "Policies", href: "/broker" }
+  const root = user?.role === "broker" || user?.role === "customer"
+    ? { label: "Policies", href: user.role === "broker" ? "/broker" : "/customer" }
     : { label: "Overview", href: isStaff ? "/ops" : "/" };
-  const isRoot = active === "home" || (user?.role === "broker" && active === "policies");
+  const isRoot = active === "home" || ((user?.role === "broker" || user?.role === "customer") && active === "policies");
   const breadcrumbs = trail
     ? [root, ...trail]
     : isRoot ? [{ label: root.label }] : [root, { label: sectionLabel }];

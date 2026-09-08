@@ -1,21 +1,22 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { createApprovalRequest } from "@/lib/approvals/approvals";
-import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { refundNeedsApproval } from "@/lib/approvals/threshold";
 import { openClaimsOfPolicy } from "@/lib/claims/read";
 import { premiumEarnedToDateEntry, refundRequestedEntry } from "@/lib/ledger/cancellation-entries";
 import { postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { isCalendarDate } from "@/lib/money/dates";
 import { refundIdempotencyKey } from "@/lib/money/idempotency";
-import { cancellationBreakdown, type CancellationBreakdown } from "@/lib/money/premium";
+import { cancellationBreakdown, type CancellationBreakdown, type WrittenPremiumSegment } from "@/lib/money/premium";
 import {
   allocateRefundNewestCollectionFirst,
   RefundCannotBeAllocated,
   type CollectionToRefund,
   type RefundSlice,
 } from "@/lib/money/refund-allocation";
-import { issueRefundsAtStripe, refundIntent } from "@/lib/payments/refunds";
+import { expireOpenCheckoutSessionsOfPolicy } from "@/lib/payments/checkout";
+import { issueRefundsAtStripe, policyRefundTotals, refundIntent } from "@/lib/payments/refunds";
 import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 import type { PolicyTerms } from "./terms";
 
@@ -63,6 +64,13 @@ export type CancellationPlan = {
   commissionRateBps: number;
   effectiveAt: string;
   calculationMethod: "pro_rata";
+  // State premium tax collected on this policy and not yet given back, read from the ledger.
+  // It is the ceiling on the tax refund (review finding F-B1-07); after an endorsement it is
+  // not the same figure as the tax on the annual premium in force.
+  taxChargedCents: number;
+  // The pieces of premium the breakdown added up, so a screen can name the issuance separately
+  // from the endorsement deltas without folding the events again.
+  writtenPremiumSegments: WrittenPremiumSegment[];
   breakdown: CancellationBreakdown;
   // Premium that still has to be recognised as earned. It is the earned premium of the
   // breakdown minus whatever earlier entries already moved into earned_premium.
@@ -173,7 +181,7 @@ export async function planCancellation(
     );
   }
 
-  const { eventTypes, terms } = await foldPolicyEvents(database, request.policyId);
+  const { eventTypes, terms, writtenPremiumSegments } = await foldPolicyEvents(database, request.policyId);
   if (!eventTypes.includes("issued")) {
     throw new CancellationRefused("this policy is not bound yet: there is no premium to give back");
   }
@@ -205,13 +213,18 @@ export async function planCancellation(
     throw new CancellationRefused(`the policy ends on ${terms.termEnd}, so it cannot be cancelled after that date`);
   }
 
+  const taxChargedCents = await premiumTaxStillHeldForPolicy(database, request.policyId);
   const breakdown = cancellationBreakdown({
-    writtenPremiumCents: terms.annualPremiumCents,
-    taxChargedCents: terms.taxCents,
+    // Every piece of premium written on this policy, each earning from its own date: one segment
+    // for the issuance, one more for each endorsement (slice B4). Before any endorsement the
+    // single segment is the annual premium over the term, which is what B5 always computed.
+    writtenPremiumSegments,
+    // What the state premium tax account still holds for this policy, rather than the tax on the
+    // current annual premium: after an endorsement those two are different figures, and the cap
+    // has to be the money actually collected and not yet given back.
+    taxChargedCents,
     taxRateBps: terms.taxRateBps,
     commissionRateBps: policy.commissionRateBps,
-    termStart: terms.termStart,
-    termEnd: terms.termEnd,
     cancellationEffectiveAt: request.effectiveAt,
   });
 
@@ -226,6 +239,7 @@ export async function planCancellation(
     );
   }
 
+  const refundsSoFar = await policyRefundTotals(database, request.policyId);
   const collections = await collectionsStillRefundable(database, request.policyId);
   let slices: RefundSlice[];
   try {
@@ -250,14 +264,22 @@ export async function planCancellation(
     commissionRateBps: policy.commissionRateBps,
     effectiveAt: request.effectiveAt,
     calculationMethod: "pro_rata",
+    taxChargedCents,
+    writtenPremiumSegments,
     breakdown,
     premiumToRecogniseAsEarnedCents,
     slices,
     policyVersion: await policyVersion(database, request.policyId),
     // The threshold is read against the WHOLE refund, not against each Stripe payment it is
-    // split over: splitting a refund across two collections must not let it slip under $1,000.
+    // split over, and against everything this policy has already given back: a cancellation that
+    // follows an endorsement refund counts that refund too (review finding F-B4-04).
     refundNeedsApproval:
-      breakdown.totalRefundCents > 0 && moneyOutNeedsApproval(breakdown.totalRefundCents),
+      breakdown.totalRefundCents > 0 &&
+      refundNeedsApproval({
+        amountCents: breakdown.totalRefundCents,
+        policyRefundedCents: refundsSoFar.refundedCents,
+        policyPendingRefundCents: refundsSoFar.pendingCents,
+      }),
     openClaims,
   };
 }
@@ -274,6 +296,11 @@ export type CancellationResult = {
   // requests that are waiting for that person. Empty below the threshold.
   refundOperationIdsAwaitingApproval: string[];
   approvalRequestIds: string[];
+  // How many hosted payment pages of this policy were closed at Stripe after the cancellation,
+  // and the ones that could not be closed. Both are zero and empty on recordCancellation, which
+  // never calls a provider (review finding F-B4-05).
+  expiredCheckoutSessions: number;
+  checkoutSessionsLeftOpen: string[];
 };
 
 // The whole cancellation: recompute, write, then ask Stripe for the money.
@@ -298,7 +325,14 @@ export async function cancelPolicy(
   // Outbox: the intent is committed, so the provider call can be retried or resumed with the
   // same key. A provider failure is recorded on the operation and does not undo the cancellation.
   await issueRefundsAtStripe(sendNow);
-  return written;
+
+  // A cancelled policy must not keep a payment page open at Stripe (review finding F-B4-05).
+  // A hosted page lives 24 hours, so without this the customer could pay a premium for cover
+  // that has stopped, or a delta for a change that can no longer be applied. Both kinds of page
+  // are closed here, and a failure is reported rather than thrown: the cancellation is committed
+  // and the refund is on its way, and neither may be undone by a Stripe outage.
+  const sessions = await expireOpenCheckoutSessionsOfPolicy(request.policyId);
+  return { ...written, expiredCheckoutSessions: sessions.expired, checkoutSessionsLeftOpen: sessions.failures };
 }
 
 // Everything that touches our own database, in one transaction and without any provider call.
@@ -428,6 +462,8 @@ export async function recordCancellation(
     refundOperationIds,
     refundOperationIdsAwaitingApproval,
     approvalRequestIds,
+    expiredCheckoutSessions: 0,
+    checkoutSessionsLeftOpen: [],
   };
 }
 
@@ -443,8 +479,11 @@ function cancellationPayload(plan: CancellationPlan): Record<string, string | nu
     term_end: plan.terms.termEnd,
     term_days: plan.breakdown.termDays,
     earned_days: plan.breakdown.earnedDays,
-    written_premium_cents: plan.terms.annualPremiumCents,
-    tax_charged_cents: plan.terms.taxCents,
+    // Every piece of premium written on the policy, added up: after an endorsement this is NOT
+    // the annual premium in force, it is the issuance premium plus each prorated delta.
+    written_premium_cents: plan.breakdown.writtenPremiumCents,
+    annual_premium_in_force_cents: plan.terms.annualPremiumCents,
+    tax_charged_cents: plan.taxChargedCents,
     tax_rate_bps: plan.terms.taxRateBps,
     commission_rate_bps: plan.commissionRateBps,
     earned_premium_cents: plan.breakdown.earnedPremiumCents,
@@ -496,6 +535,20 @@ async function loadPolicy(database: Queryable, policyId: string): Promise<Policy
 }
 
 // Premium already moved into earned_premium by an earlier entry on this policy.
+// State premium tax charged on this policy and not given back yet: the credit balance of
+// premium_tax_payable over this policy's entries. A tax refund can never exceed it (review
+// finding F-B1-07). The same read as lib/policy/endorse.ts, for the same reason.
+async function premiumTaxStillHeldForPolicy(database: Queryable, policyId: string): Promise<number> {
+  const [row] = await database<{ held_cents: string }[]>`
+    select coalesce(sum(line.credit_cents) - sum(line.debit_cents), 0)::text as held_cents
+      from journal_lines line
+      join journal_entries entry on entry.id = line.entry_id
+     where entry.policy_id = ${policyId}
+       and line.account_id = 'premium_tax_payable'
+  `;
+  return Math.max(0, centsFromDatabase(row.held_cents, "premium_tax_payable balance"));
+}
+
 async function premiumAlreadyRecognisedAsEarned(database: Queryable, policyId: string): Promise<number> {
   const [row] = await database<{ earned_cents: string }[]>`
     select coalesce(sum(line.credit_cents) - sum(line.debit_cents), 0)::text as earned_cents
@@ -508,8 +561,9 @@ async function premiumAlreadyRecognisedAsEarned(database: Queryable, policyId: s
 }
 
 // The payments that can still give money back: every collected Stripe payment of this policy,
-// minus what has already been refunded on it.
-async function collectionsStillRefundable(database: Queryable, policyId: string): Promise<CollectionToRefund[]> {
+// minus what has already been refunded on it. Exported for lib/policy/endorse.ts, which refunds
+// a premium reduction through the same allocation (newest collection first).
+export async function collectionsStillRefundable(database: Queryable, policyId: string): Promise<CollectionToRefund[]> {
   const collections = await database<
     { operation_id: string; payment_intent_id: string; amount_cents: string; collected_on: string }[]
   >`
@@ -561,8 +615,8 @@ async function collectionsStillRefundable(database: Queryable, policyId: string)
 }
 
 // How many refund operations already exist for this policy and this payment, so the next one
-// gets its own idempotency key (see lib/money/idempotency.ts).
-async function countRefundOperations(
+// gets its own idempotency key (see lib/money/idempotency.ts). Shared with lib/policy/endorse.ts.
+export async function countRefundOperations(
   database: Queryable,
   policyId: string,
   paymentIntentId: string,

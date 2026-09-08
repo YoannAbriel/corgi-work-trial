@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { closeClaim, setClaimReserve, ClaimRefused } from "@/lib/claims/claims";
 import { addClaimantBankAccount, requestClaimPayment, sendClaimPayment } from "@/lib/claims/payments";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 import { parseUsdAmountToCents } from "@/lib/money/cents";
 
 // POST /api/claims/{claimId}: the four things staff operations can do to a claim.
@@ -14,6 +15,10 @@ export async function POST(request: Request, context: { params: Promise<{ claimI
   const { claimId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ claim: claimId });
+  if (malformedId) {
+    return malformedId;
   }
 
   const form = await request.formData();

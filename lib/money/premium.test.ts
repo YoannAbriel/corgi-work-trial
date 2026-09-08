@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   cancellationBreakdown,
   commissionCents,
+  earnedPremiumAcrossSegments,
   earnedPremiumCents,
+  earnedPremiumOfSegment,
   endorsementDeltaCents,
   refundedTaxCents,
   refundedTaxCentsCappedAtCharged,
@@ -73,17 +75,16 @@ test("pro-rata cancellation refund: unearned premium, its tax, never the fee", (
   // 366-day term, 3% tax charged on the whole premium (3600), cancelled on day 100.
   assert.deepEqual(
     cancellationBreakdown({
-      writtenPremiumCents: WRITTEN,
+      writtenPremiumSegments: [{ writtenPremiumCents: WRITTEN, startsOn: "2028-01-01", endsOn: "2029-01-01" }],
       taxChargedCents: 3600,
       taxRateBps: 300,
       commissionRateBps: COMMISSION_RATE_BPS,
-      termStart: "2028-01-01",
-      termEnd: "2029-01-01",
       cancellationEffectiveAt: "2028-04-10",
     }),
     {
       termDays: 366,
       earnedDays: 100,
+      writtenPremiumCents: WRITTEN,
       earnedPremiumCents: 32786,
       unearnedPremiumCents: 87214,
       refundedTaxCents: 2617,
@@ -109,17 +110,16 @@ test("the refunded tax is capped at the tax actually charged (review finding F-B
 
   // The whole breakdown of that early cancellation: nothing earned, everything back, tax capped.
   const cancelledOnTheFirstDay = cancellationBreakdown({
-    writtenPremiumCents: 100001,
+    writtenPremiumSegments: [{ writtenPremiumCents: 100001, startsOn: "2028-03-01", endsOn: "2029-03-01" }],
     taxChargedCents: 3000,
     taxRateBps: 300,
     commissionRateBps: COMMISSION_RATE_BPS,
-    termStart: "2028-03-01",
-    termEnd: "2029-03-01",
     cancellationEffectiveAt: "2028-03-01",
   });
   assert.deepEqual(cancelledOnTheFirstDay, {
     termDays: 365,
     earnedDays: 0,
+    writtenPremiumCents: 100001,
     earnedPremiumCents: 0,
     unearnedPremiumCents: 100001,
     refundedTaxCents: 3000, // capped: 3001 would exceed what was collected
@@ -132,12 +132,10 @@ test("the refunded tax is capped at the tax actually charged (review finding F-B
 
 test("a cancellation on the last day of the term refunds nothing", () => {
   const atTermEnd = cancellationBreakdown({
-    writtenPremiumCents: WRITTEN,
+    writtenPremiumSegments: [{ writtenPremiumCents: WRITTEN, startsOn: "2028-03-01", endsOn: "2029-03-01" }],
     taxChargedCents: 2820,
     taxRateBps: 235,
     commissionRateBps: COMMISSION_RATE_BPS,
-    termStart: "2028-03-01",
-    termEnd: "2029-03-01",
     cancellationEffectiveAt: "2029-03-01",
   });
   assert.equal(atTermEnd.earnedPremiumCents, WRITTEN);
@@ -156,12 +154,10 @@ test("the recited example: March 1, 2028 policy, 365 days, cancelled on day 100 
   // Written $1,200, 3% tax, cancelled on day 100 of 365. Earned 32876, unearned 87124,
   // tax refunded ceil(87124 x 3%) = 2614, fee never refunded: total $897.38.
   const atThreePercent = cancellationBreakdown({
-    writtenPremiumCents: WRITTEN,
+    writtenPremiumSegments: [{ writtenPremiumCents: WRITTEN, startsOn: "2028-03-01", endsOn: "2029-03-01" }],
     taxChargedCents: 3600,
     taxRateBps: 300,
     commissionRateBps: COMMISSION_RATE_BPS,
-    termStart: "2028-03-01",
-    termEnd: "2029-03-01",
     cancellationEffectiveAt: "2028-06-09",
   });
   assert.equal(atThreePercent.earnedPremiumCents, 32876);
@@ -188,17 +184,16 @@ test("California premium tax at 2.35% on the recited example", () => {
   // $1,200 California policy written on 2028-03-01 and cancelled on 2028-06-09 (day 100).
   assert.deepEqual(
     cancellationBreakdown({
-      writtenPremiumCents: WRITTEN,
+      writtenPremiumSegments: [{ writtenPremiumCents: WRITTEN, startsOn: "2028-03-01", endsOn: "2029-03-01" }],
       taxChargedCents: 2820,
       taxRateBps: 235,
       commissionRateBps: COMMISSION_RATE_BPS,
-      termStart: "2028-03-01",
-      termEnd: "2029-03-01",
       cancellationEffectiveAt: "2028-06-09",
     }),
     {
       termDays: 365,
       earnedDays: 100,
+      writtenPremiumCents: WRITTEN,
       earnedPremiumCents: 32876,
       unearnedPremiumCents: 87124,
       refundedTaxCents: 2048,
@@ -208,4 +203,79 @@ test("California premium tax at 2.35% on the recited example", () => {
       commissionClawbackCents: 13068, // 87124 x 15% = 13068.6, rounded down (DECISIONS.md)
     },
   );
+});
+
+test("an endorsed policy earns per segment: the issuance premium and each delta from its own date", () => {
+  // The recited policy raised to $1,800 effective 2028-06-09 (day 100 of 365). The endorsement
+  // charged 43561 cents of prorated premium, which earns over the 265 days that remain.
+  const issuance = { writtenPremiumCents: 120000, startsOn: "2028-03-01", endsOn: "2029-03-01" };
+  const raise = { writtenPremiumCents: 43561, startsOn: "2028-06-09", endsOn: "2029-03-01" };
+
+  // On the day of the endorsement the new segment has earned nothing yet.
+  assert.equal(earnedPremiumOfSegment(raise, "2028-06-09"), 0);
+  assert.equal(earnedPremiumAcrossSegments([issuance, raise], "2028-06-09"), 32876);
+
+  // Day 190 (2028-09-07): 90 of the endorsement's 265 days have run.
+  assert.equal(earnedPremiumOfSegment(issuance, "2028-09-07"), 62465); // 62465.75 -> 62465
+  assert.equal(earnedPremiumOfSegment(raise, "2028-09-07"), 14794); // 14794.30 -> 14794
+  assert.equal(earnedPremiumAcrossSegments([issuance, raise], "2028-09-07"), 77259);
+
+  // At the end of the term every segment is fully earned and nothing is owed back.
+  assert.equal(earnedPremiumAcrossSegments([issuance, raise], "2029-03-01"), 163561);
+});
+
+test("a premium reduction is a negative segment, and it is rounded down like every other one", () => {
+  // Lowering $1,800 to $600 on day 100 gave back 43562 cents of premium priced over 265 days.
+  const reduction = { writtenPremiumCents: -43562, startsOn: "2028-06-09", endsOn: "2029-03-01" };
+  // Exact at day 190: -43562 x 90 / 265 = -14794.64. Rounded DOWN is -14795, not -14794:
+  // less earned means more unearned, which is the customer's favour, as everywhere else.
+  assert.equal(earnedPremiumOfSegment(reduction, "2028-09-07"), -14795);
+  assert.equal(earnedPremiumOfSegment(reduction, "2028-06-09"), 0);
+  assert.equal(earnedPremiumOfSegment(reduction, "2029-03-01"), -43562);
+});
+
+test("cancelling an endorsed policy: the second worked example, day 190 of the raised policy", () => {
+  // $1,200 written 2028-03-01, raised to $1,800 effective 2028-06-09 (43561 charged, 1023 of tax
+  // on top of the 2820 charged at issuance), cancelled on 2028-09-07.
+  const breakdown = cancellationBreakdown({
+    writtenPremiumSegments: [
+      { writtenPremiumCents: 120000, startsOn: "2028-03-01", endsOn: "2029-03-01" },
+      { writtenPremiumCents: 43561, startsOn: "2028-06-09", endsOn: "2029-03-01" },
+    ],
+    taxChargedCents: 2820 + 1023,
+    taxRateBps: 235,
+    commissionRateBps: COMMISSION_RATE_BPS,
+    cancellationEffectiveAt: "2028-09-07",
+  });
+  assert.equal(breakdown.writtenPremiumCents, 163561); // NOT the 180000 annual premium in force
+  assert.equal(breakdown.earnedPremiumCents, 77259);
+  assert.equal(breakdown.unearnedPremiumCents, 86302);
+  assert.equal(breakdown.refundedTaxCents, 2029); // ceil(86302 x 2.35%) = 2028.10 -> 2029
+  assert.equal(breakdown.taxRefundWasCappedAtCharged, false);
+  assert.equal(breakdown.totalRefundCents, 88331);
+  assert.equal(breakdown.commissionClawbackCents, 12945); // 12945.3 rounded down
+  // Pricing the whole thing on the $1,800 annual premium over the 175 remaining days gives
+  // 86301.37: one cent less than the segments, because each segment rounds the customer's way.
+});
+
+test("cancelling a reduced policy gives back what is left of the reduced cover", () => {
+  // $1,200 lowered to $600 on day 100 (43562 refunded), then cancelled on day 190.
+  const breakdown = cancellationBreakdown({
+    writtenPremiumSegments: [
+      { writtenPremiumCents: 120000, startsOn: "2028-03-01", endsOn: "2029-03-01" },
+      { writtenPremiumCents: -43562, startsOn: "2028-06-09", endsOn: "2029-03-01" },
+    ],
+    // The tax charged at issuance minus the 1024 cents already given back with the reduction.
+    taxChargedCents: 2820 - 1024,
+    taxRateBps: 235,
+    commissionRateBps: COMMISSION_RATE_BPS,
+    cancellationEffectiveAt: "2028-09-07",
+  });
+  assert.equal(breakdown.writtenPremiumCents, 76438);
+  assert.equal(breakdown.earnedPremiumCents, 62465 - 14795);
+  assert.equal(breakdown.unearnedPremiumCents, 28768);
+  // Pricing the $600 cover over the 175 remaining days gives 28767.12: the segments give back
+  // one cent more, which is the rounding rule of this build.
+  assert.equal(breakdown.refundedTaxCents, 677); // ceil(28768 x 2.35%) = 676.05 -> 677
+  assert.equal(breakdown.totalRefundCents, 29445);
 });

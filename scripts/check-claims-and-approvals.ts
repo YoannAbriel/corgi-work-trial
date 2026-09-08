@@ -70,18 +70,24 @@ async function main() {
   // connection pool and read the Stripe key as soon as they are loaded, which needs
   // .env.local read first.
   const { recordSuccessfulPayment } = await import("@/lib/payments/collection");
-  const { openClaim, setClaimReserve, closeClaim, ClaimRefused } = await import("@/lib/claims/claims");
-  const { addClaimantBankAccount, requestClaimPayment, sendClaimPayment, settleClaimPayment, returnClaimPayment } =
-    await import("@/lib/claims/payments");
+  const { openClaim, setClaimReserve, closeClaim, todayUtc, ClaimRefused } = await import("@/lib/claims/claims");
+  const {
+    addClaimantBankAccount,
+    assertPaymentBelongsToClaim,
+    requestClaimPayment,
+    sendClaimPayment,
+    settleClaimPayment,
+    returnClaimPayment,
+  } = await import("@/lib/claims/payments");
   const { decideApprovalRequest, approvalRequest, assertIntentIsApproved, ApprovalRefused } = await import(
     "@/lib/approvals/approvals"
   );
   const { claimPaymentIntent } = await import("@/lib/claims/payments");
   const { recordCancellation } = await import("@/lib/policy/cancel");
-  const { assertRefundMaySend, createReissuedRefundOperation, loadRefundOperation, RefundSendRefused } = await import(
+  const { assertRefundMaySend, createReissuedRefundOperation, issueRefundsAtStripe, loadRefundOperation, RefundSendRefused } = await import(
     "@/lib/payments/refunds"
   );
-  const { stuckOperations, STUCK_AFTER_MINUTES } = await import("@/lib/payments/recover");
+  const { stuckOperations, recoverStuckOperation, STUCK_AFTER_MINUTES } = await import("@/lib/payments/recover");
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
     select current_database()
@@ -106,6 +112,7 @@ async function main() {
       policyId: policy.policyId,
       occurredAt: "2028-05-01",
       reportedAt: "2028-05-02",
+      openedOn: "2028-05-02", // the claim is opened on the day the loss is reported
       description: "water damage in the workshop",
       claimantName: CLAIMANT_NAME,
       actor: maker,
@@ -226,6 +233,7 @@ async function main() {
       policyId: policy.policyId,
       occurredAt: "2028-05-03",
       reportedAt: "2028-05-04",
+      openedOn: "2028-05-04", // the claim is opened on the day the loss is reported
       description: "a second loss on the same policy",
       claimantName: CLAIMANT_NAME,
       actor: maker,
@@ -435,12 +443,12 @@ async function main() {
   // ---------------------------------------------------------------------------
 
   const settlement = await settleClaimPayment(
-    { operationId: queuedOperationId, settledOn: "2028-05-12", broughtForwardBy: maker.userId },
+    { operationId: queuedOperationId, settledOn: "2028-05-12", settledBy: maker },
     runtime,
   );
   report("the rail settles the payment", settlement.outcome === "settled", settlement.outcome);
   const settledAgain = await settleClaimPayment(
-    { operationId: queuedOperationId, settledOn: "2028-05-12", broughtForwardBy: maker.userId },
+    { operationId: queuedOperationId, settledOn: "2028-05-12", settledBy: maker },
     runtime,
   );
   report("running the settlement again does nothing", settledAgain.outcome === "already_settled", settledAgain.outcome);
@@ -610,6 +618,7 @@ async function main() {
       policyId: cancelledPolicy.policyId,
       occurredAt: "2028-03-01",
       reportedAt: "2028-06-01",
+      openedOn: "2028-06-01", // the claim is opened on the day the loss is reported
       description: "loss on the first day, reported after the cancellation",
       claimantName: CLAIMANT_NAME,
       actor: maker,
@@ -627,6 +636,7 @@ async function main() {
         policyId: cancelledPolicy.policyId,
         occurredAt: "2028-04-01",
         reportedAt: "2028-06-01",
+        openedOn: "2028-06-01", // the claim is opened on the day the loss is reported
         description: "loss after cover stopped",
         claimantName: CLAIMANT_NAME,
         actor: maker,
@@ -646,6 +656,7 @@ async function main() {
         policyId: cancelledPolicy.policyId,
         occurredAt: "2028-03-01",
         reportedAt: "2028-06-01",
+        openedOn: "2028-06-01", // the claim is opened on the day the loss is reported
         description: "opened by the wrong role",
         claimantName: CLAIMANT_NAME,
         actor: { userId: people.brokerUserId, role: "broker" },
@@ -743,6 +754,243 @@ async function main() {
     "re-issuing still posts no journal entry: the liability was opened once",
     (await entryTypesOfPolicy(smallRefundPolicy.policyId)).get("refund_requested") === 1,
     describe(await entryTypesOfPolicy(smallRefundPolicy.policyId)),
+  );
+
+  // ---------------------------------------------------------------------------
+  // 11b. The threshold is per claim, not per payment (review finding F-B7-02, Yoann's decision)
+  // ---------------------------------------------------------------------------
+
+  const splitPolicy = await createPaidPolicy(recordSuccessfulPayment, people.brokerId);
+  const splitClaim = await openClaim(
+    {
+      policyId: splitPolicy.policyId,
+      occurredAt: "2028-05-03",
+      reportedAt: "2028-05-04",
+      openedOn: "2028-05-04", // the claim is opened on the day the loss is reported
+      description: "roof leak, paid in instalments",
+      claimantName: CLAIMANT_NAME,
+      actor: maker,
+    },
+    runtime,
+  );
+  await setClaimReserve({ claimId: splitClaim.claimId, newReserveCents: REDUCED_RESERVE_CENTS, note: "estimate", actor: maker }, runtime);
+  await addClaimantBankAccount(
+    {
+      claimId: splitClaim.claimId,
+      accountHolderName: CLAIMANT_NAME,
+      routingNumber: REACHABLE_ROUTING_NUMBER,
+      accountNumber: "000123456789",
+      actor: maker,
+    },
+    runtime,
+  );
+  const firstSixHundred = await requestClaimPayment({ claimId: splitClaim.claimId, amountCents: 60000, actor: maker }, runtime);
+  report(
+    "a first $600 on a claim goes without an approver",
+    firstSixHundred.approvalRequestId === null,
+    `approval request: ${firstSixHundred.approvalRequestId}`,
+  );
+  const secondSixHundred = await requestClaimPayment({ claimId: splitClaim.claimId, amountCents: 60000, actor: maker }, runtime);
+  report(
+    "a second $600 on the same claim needs an approver: the claim would reach $1,200",
+    secondSixHundred.approvalRequestId !== null,
+    `approval request: ${secondSixHundred.approvalRequestId}`,
+  );
+  const afterSplitAttempt = await refusal(() => sendClaimPayment({ operationId: secondSixHundred.operationId, actor: maker }, runtime));
+  report(
+    "the second $600 cannot be sent before a distinct approver decides",
+    /approv/i.test(afterSplitAttempt),
+    afterSplitAttempt,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 11c. Every road to Stripe passes the maker-checker gate (review finding F-B7-01)
+  // ---------------------------------------------------------------------------
+
+  // An above-threshold refund operation that carries NO approval request, the shape the old
+  // re-issue path used to create after a rejection. Fabricated on the disposable database from
+  // the queued cancellation refund's own allocation, so the amounts are real.
+  const queuedRefund = await loadRefundOperation(runtime, refundOperationId);
+  if (!queuedRefund) {
+    throw new Error("the queued cancellation refund could not be read back");
+  }
+  const [ungated] = await runtime<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key, created_by)
+    values ('stripe_refund', 'stripe', ${queuedRefund.amountCents}, ${queuedRefund.policyId},
+            ${`policy-refund:${queuedRefund.policyId}:${queuedRefund.paymentIntentId}:check-f-b7-01`}, ${maker.userId})
+    returning id
+  `;
+  await runtime`
+    insert into money_operation_events (operation_id, status, payload)
+    values (${ungated.id}, 'requested', ${runtime.json({ note: "check fixture: above the threshold, no approval request" })})
+  `;
+  await runtime`
+    insert into refund_allocations (
+      refund_operation_id, policy_id, policy_event_id, collection_operation_id, payment_intent_id,
+      amount_cents, refunded_premium_cents, refunded_tax_cents, commission_clawback_cents
+    ) values (
+      ${ungated.id}, ${queuedRefund.policyId}, ${queuedRefund.policyEventId}, ${queuedRefund.collectionOperationId},
+      ${queuedRefund.paymentIntentId}, ${queuedRefund.amountCents}, ${queuedRefund.refundedPremiumCents},
+      ${queuedRefund.refundedTaxCents}, ${queuedRefund.commissionClawbackCents}
+    )
+  `;
+  const eventsBeforeGate = await countOperationEvents(ungated.id);
+  const [gateAnswer] = await issueRefundsAtStripe([ungated.id], runtime);
+  report(
+    "issueRefundsAtStripe itself refuses an above-threshold refund that carries no approval request",
+    gateAnswer.status === "refused" && /no approval request/.test(gateAnswer.detail),
+    `${gateAnswer.status}: ${gateAnswer.detail}`,
+  );
+  report(
+    "that refusal is not a provider failure: nothing was appended to the operation",
+    (await countOperationEvents(ungated.id)) === eventsBeforeGate,
+    `${await countOperationEvents(ungated.id)} event(s), was ${eventsBeforeGate}`,
+  );
+
+  // The approver says no. A re-issue must go back to the queue, never to Stripe.
+  await runtime`
+    insert into money_operation_events (operation_id, status, payload)
+    values (${ungated.id}, 'failed', ${runtime.json({ stage: "approval", reason: "rejected by the approver" })})
+  `;
+  const rejectedShape = await loadRefundOperation(runtime, ungated.id);
+  report(
+    "a rejection is recognised as an approval-stage failure, not as a Stripe failure",
+    rejectedShape?.lastFailureStage === "approval",
+    String(rejectedShape?.lastFailureStage),
+  );
+  const reissuedAfterRejection = await createReissuedRefundOperation(
+    { policyId: queuedRefund.policyId, failedOperationId: ungated.id, actorUserId: maker.userId },
+    runtime,
+  );
+  const reissuedShape = await loadRefundOperation(runtime, reissuedAfterRejection);
+  report(
+    "re-issuing an above-threshold refund raises a NEW approval request on the new operation",
+    reissuedShape?.approvalRequestId !== null && reissuedShape?.approvalRequestId !== undefined,
+    `approval request: ${reissuedShape?.approvalRequestId}`,
+  );
+  const [reissueGateAnswer] = await issueRefundsAtStripe([reissuedAfterRejection], runtime);
+  report(
+    "and the new attempt cannot reach Stripe until that request is approved",
+    reissueGateAnswer.status === "refused",
+    `${reissueGateAnswer.status}: ${reissueGateAnswer.detail}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 11d. The LOW findings of the B7 review, closed one by one
+  // ---------------------------------------------------------------------------
+
+  // F-B7-08: the payment in the URL must belong to the claim in the URL.
+  const wrongPair = await refusal(() =>
+    assertPaymentBelongsToClaim(claim.claimId, firstSixHundred.operationId, runtime),
+  );
+  report(
+    "a payment of another claim cannot be driven from this claim's URL",
+    /belongs to another claim/.test(wrongPair),
+    wrongPair,
+  );
+  const rightPair = await refusal(() =>
+    assertPaymentBelongsToClaim(splitClaim.claimId, firstSixHundred.operationId, runtime),
+  );
+  report("the claim that owns the payment passes the same check", rightPair === "no error raised", rightPair);
+
+  // F-B7-10: settling now checks its own actor instead of trusting the route that called it.
+  const approverSettling = await refusal(() =>
+    settleClaimPayment({ operationId: queuedOperationId, settledOn: "2028-05-12", settledBy: checker }, runtime),
+  );
+  report(
+    "the approver cannot settle a payment: settleClaimPayment checks the actor itself",
+    /only staff operations/.test(approverSettling),
+    approverSettling,
+  );
+
+  // F-B7-06: a loss that has not happened yet cannot be claimed. Every policy in this check
+  // covers 2028, so opening a claim with the REAL day of the run is exactly the case the review
+  // found: a loss inside the cover, and still in the future.
+  const futureLoss = await refusal(() =>
+    openClaim(
+      {
+        policyId: policy.policyId,
+        occurredAt: "2028-05-01",
+        reportedAt: "2028-05-02",
+        openedOn: todayUtc(),
+        description: "a loss that has not happened yet",
+        claimantName: CLAIMANT_NAME,
+        actor: maker,
+      },
+      runtime,
+    ),
+  );
+  report(
+    "a claim for a loss dated in the future is refused, whatever the policy covers",
+    /has not happened yet/.test(futureLoss),
+    futureLoss,
+  );
+
+  // F-B7-05: claim payouts are inside the recovery job now. Two cases, on two claims: a payment
+  // below the threshold that never reached the rail, and one still waiting for its approver.
+  // The below-threshold one needs a claim of its own, because the split claim above is already
+  // over $1,000 and the cumulative rule (F-B7-02) rightly refuses its payments as well.
+  const recoveryPolicy = await createPaidPolicy(recordSuccessfulPayment, people.brokerId);
+  const recoveryClaim = await openClaim(
+    {
+      policyId: recoveryPolicy.policyId,
+      occurredAt: "2028-05-05",
+      reportedAt: "2028-05-06",
+      openedOn: "2028-05-06", // the claim is opened on the day the loss is reported
+      description: "a payment that never reached the rail",
+      claimantName: CLAIMANT_NAME,
+      actor: maker,
+    },
+    runtime,
+  );
+  await setClaimReserve(
+    { claimId: recoveryClaim.claimId, newReserveCents: 100000, note: "estimate", actor: maker },
+    runtime,
+  );
+  await addClaimantBankAccount(
+    {
+      claimId: recoveryClaim.claimId,
+      accountHolderName: CLAIMANT_NAME,
+      routingNumber: REACHABLE_ROUTING_NUMBER,
+      accountNumber: "000123456789",
+      actor: maker,
+    },
+    runtime,
+  );
+  // Requested and not sent, which is exactly what a crash between the two transactions leaves.
+  const neverSent = await requestClaimPayment(
+    { claimId: recoveryClaim.claimId, amountCents: 60000, actor: maker },
+    runtime,
+  );
+
+  // Age 0 minutes here, because a money operation's created_at is set by the database clock and
+  // cannot be backdated (migration 0002), so a fixture can never be five minutes old.
+  const stuckNow = await stuckOperations(runtime, 0);
+  const stuckFirstPayment = stuckNow.find((operation) => operation.operationId === neverSent.operationId);
+  const stuckSecondPayment = stuckNow.find((operation) => operation.operationId === secondSixHundred.operationId);
+  report(
+    "the recovery job's query returns claim payouts, not only the Stripe operations",
+    stuckFirstPayment?.kind === "claim_payout" && stuckSecondPayment?.kind === "claim_payout",
+    `${stuckNow.filter((operation) => operation.kind === "claim_payout").length} claim payout(s) among ` +
+      `${stuckNow.length} operation(s) whose only lifecycle event is 'requested'`,
+  );
+  const leftForTheApprover = await recoverStuckOperation(runtime, stuckSecondPayment!);
+  report(
+    "a stuck claim payment still waiting for its approver is left alone, with the reason",
+    leftForTheApprover.kind === "left_alone" && /waiting for a second person/.test(leftForTheApprover.reason),
+    leftForTheApprover.kind === "left_alone" ? leftForTheApprover.reason : leftForTheApprover.detail,
+  );
+  const resent = await recoverStuckOperation(runtime, stuckFirstPayment!);
+  report(
+    "a stuck claim payment below the threshold is sent by the job, through the screen's own function",
+    resent.kind === "recovered" && (await claimEventCount(recoveryClaim.claimId, "payment_sent")) === 1,
+    resent.kind === "recovered" ? resent.detail : resent.reason,
+  );
+  report(
+    "running the recovery again does not pay it twice",
+    (await recoverStuckOperation(runtime, stuckFirstPayment!)).kind === "recovered" &&
+      (await claimEventCount(recoveryClaim.claimId, "payment_sent")) === 1,
+    `${await claimEventCount(recoveryClaim.claimId, "payment_sent")} payment(s) sent on this claim`,
   );
 
   // ---------------------------------------------------------------------------
@@ -993,6 +1241,13 @@ async function operationStatuses(operationId: string): Promise<string[]> {
     select status from money_operation_events where operation_id = ${operationId} order by sequence_number
   `;
   return rows.map((row) => row.status);
+}
+
+async function countOperationEvents(operationId: string): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`
+    select count(*)::text as count from money_operation_events where operation_id = ${operationId}
+  `;
+  return Number(row.count);
 }
 
 main().catch(async (error) => {

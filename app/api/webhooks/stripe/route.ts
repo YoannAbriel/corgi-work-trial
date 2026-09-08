@@ -10,6 +10,16 @@ import {
   recordSuccessfulPayment,
 } from "@/lib/payments/collection";
 import {
+  correctionCollectionOfOperation,
+  recordExpiredCorrectionCheckout,
+  recordSuccessfulCorrectionPayment,
+} from "@/lib/payments/correction-collection";
+import {
+  endorsementCollectionOfOperation,
+  recordExpiredEndorsementCheckout,
+  recordSuccessfulEndorsementPayment,
+} from "@/lib/payments/endorsement-collection";
+import {
   findRefundOperationId,
   recordAcceptedRefund,
   recordCompletedRefund,
@@ -193,18 +203,55 @@ async function processStripeEvent(event: Stripe.Event): Promise<ProcessingOutcom
   }
 }
 
-// The money event: this is the one that posts journal entries and binds the policy.
+// The money event: this is the one that posts journal entries and binds the policy, or, when
+// the operation collects an endorsement delta (slice B4), applies the endorsement instead. The
+// same stripe_checkout operation shape serves both; endorsement_collections says which it is,
+// and the issuance path refuses a delta operation on its own as a second line of defence.
 async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<ProcessingOutcome> {
   const operationId = readOperationId(paymentIntent.metadata);
   if (!operationId) {
     return { status: "ignored", reason: "payment_intent carries no usable metadata.operation_id" };
   }
-  const outcome = await recordSuccessfulPayment({
+  const payment = {
     operationId,
     paymentIntentId: paymentIntent.id,
     amountReceivedCents: paymentIntent.amount_received,
     paidOn: utcCalendarDate(paymentIntent.created),
-  });
+  };
+
+  if (await endorsementCollectionOfOperation(operationId)) {
+    const outcome = await recordSuccessfulEndorsementPayment(payment);
+    if (outcome.kind === "refused") {
+      return { status: "ignored", reason: outcome.reason };
+    }
+    if (outcome.kind === "application_refused") {
+      // Handled: the money is recorded on the operation, nothing was journaled, the endorsement
+      // is not applied, and the policy page shows the reason for staff.
+      return { status: "done", reason: `paid, endorsement not applied: ${outcome.reason}` };
+    }
+    return {
+      status: "done",
+      reason: outcome.kind === "already_posted" ? "already posted by an earlier delivery of this delta payment" : "endorsement applied",
+    };
+  }
+
+  // The third kind of payment: the difference a backdated correction created (slice B8). It
+  // binds nothing and applies nothing; it settles a receivable the ledger already carries.
+  if (await correctionCollectionOfOperation(operationId)) {
+    const outcome = await recordSuccessfulCorrectionPayment(payment);
+    if (outcome.kind === "refused") {
+      return { status: "ignored", reason: outcome.reason };
+    }
+    return {
+      status: "done",
+      reason:
+        outcome.kind === "already_posted"
+          ? "already posted by an earlier delivery of this correction payment"
+          : "the correction difference is collected",
+    };
+  }
+
+  const outcome = await recordSuccessfulPayment(payment);
   if (outcome.kind === "refused") {
     return { status: "ignored", reason: outcome.reason };
   }
@@ -259,7 +306,8 @@ async function handleAccountUpdated(event: Stripe.AccountUpdatedEvent): Promise<
     status: "done",
     reason: outcome.appended
       ? `broker KYB ${outcome.previousStatus ?? "unknown"} -> ${outcome.status} (${outcome.reason})` +
-        (outcome.expiredCheckoutSessions ? `; ${outcome.expiredCheckoutSessions} open payment page(s) expired` : "")
+        (outcome.expiredCheckoutSessions ? `; ${outcome.expiredCheckoutSessions} open payment page(s) expired` : "") +
+        (outcome.expiryError ? `; open payment pages NOT expired: ${outcome.expiryError}` : "")
       : `broker KYB unchanged at ${outcome.status}: nothing appended`,
   };
 }
@@ -302,10 +350,16 @@ async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session): P
   if (!operationId) {
     return { status: "ignored", reason: "checkout session carries no usable operation id" };
   }
-  const outcome = await recordExpiredCheckoutSession({ operationId, sessionId: session.id });
+  // An endorsement delta's page expiring is recorded on the endorsement's operation (slice B4),
+  // a correction difference's on the correction's (slice B8).
+  const outcome = (await endorsementCollectionOfOperation(operationId))
+    ? await recordExpiredEndorsementCheckout({ operationId, sessionId: session.id })
+    : (await correctionCollectionOfOperation(operationId))
+      ? await recordExpiredCorrectionCheckout({ operationId, sessionId: session.id })
+      : await recordExpiredCheckoutSession({ operationId, sessionId: session.id });
   return outcome.kind === "refused"
     ? { status: "ignored", reason: outcome.reason }
-    : { status: "done", reason: "the payment page expired; the policy can be paid again with a new session" };
+    : { status: "done", reason: "the payment page expired; it can be paid again with a new session" };
 }
 
 // The life of a refund, whichever event carries it.

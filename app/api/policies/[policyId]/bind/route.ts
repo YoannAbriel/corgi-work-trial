@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 import { retryBindingAfterEligibility } from "@/lib/payments/collection";
 
 // POST /api/policies/{policyId}/bind
@@ -16,6 +17,10 @@ export async function POST(request: Request, context: { params: Promise<{ policy
   const { policyId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ policy: policyId });
+  if (malformedId) {
+    return malformedId;
   }
   if (user.role !== "staff_ops") {
     return backToPolicy(policyId, "only staff operations can bind a policy after a refused binding");

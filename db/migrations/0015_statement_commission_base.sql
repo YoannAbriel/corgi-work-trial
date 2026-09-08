@@ -1,0 +1,50 @@
+-- 0015: a statement shows the cash the customer paid AND the premium the commission was earned on.
+-- Strictly additive: it adds two columns and changes no existing value. Slice B9, decision 19
+-- (DECISIONS.md, 2026-09-08T16:53:40Z, point 2).
+--
+-- WHY. Commission is earned on collected premium, tax and fee excluded (Yoann's rule). The cash
+-- side of a premium_collected entry is 125320 in the recited example: 120000 of premium, 2820 of
+-- California premium tax and the 2500 policy fee. Commission is 18000, which is 15% of 120000 and
+-- not 15% of 125320. A statement that printed only the cash left that gap for the reader to guess,
+-- so it now prints both figures and the multiplication reads on the line:
+--
+--   cash collected      125320   what the customer paid
+--   premium collected   120000   the commission base
+--   commission earned    18000   15% of 120000
+--
+-- WHERE THE PREMIUM COMES FROM. Not from a rate table and not from a cache: it is the movement of
+-- unearned_premium posted by the SAME money operation as the cash entry (premium_written at
+-- issuance, endorsement_premium_written on an endorsement, refund_requested on a refund). The
+-- ledger already held it; the statement now reads it. See lib/statements/journal.ts.
+--
+-- THE MEANING OF statement_runs.premium_collected_cents CHANGES HERE, deliberately and once.
+-- Before this migration it held the cash. From here it holds the premium alone, which is what
+-- "premium collected" means in Yoann's commission rule, and the new cash_collected_cents holds
+-- what the customer paid. This is safe to do rather than to work around: when this migration was
+-- written the trial database held the statement tables and ZERO published runs (checked
+-- read-only), so no statement anybody has ever been shown carries the old meaning. Only the
+-- disposable database corgi_test held rows, and they are test fixtures.
+--
+-- The canonical text that is hashed changes with it, from corgi.broker-statement.v1 to v2
+-- (lib/statements/compute.ts). A document whose shape changes is a new document: a run made under
+-- v1 keeps its lines, its totals and its hash forever, and a re-run today is a new revision that
+-- is not flagged identical to it. That is the honest behaviour, and it costs nothing here because
+-- no v1 run was ever published.
+
+-- What the customer actually paid: premium, state premium tax and policy fee together, which is
+-- the cash side of the month's collection entries.
+--
+-- The default exists only so the column can be added to a table that already had rows in the
+-- disposable database; every insert made by lib/statements/run.ts supplies the value.
+--
+-- THAT DEFAULT WAS A MISTAKE, and migration 0016 says why at length: three runs already existed on
+-- the trial database when this file was applied, so they now read zero here and hold the cash in
+-- premium_collected_cents. 0016 adds the format marker that lets them be read correctly, and the
+-- rule from now on is a NULLABLE column rather than NOT NULL DEFAULT on these tables.
+alter table statement_runs add column cash_collected_cents bigint not null default 0;
+
+-- On a cash line (a collection or a refund), the premium part of it: the movement of
+-- unearned_premium posted by the same money operation, signed the same way as the cash. Null on a
+-- commission, clawback or adjustment line, where the question does not arise: those lines ARE the
+-- commission.
+alter table statement_lines add column commission_base_cents bigint;

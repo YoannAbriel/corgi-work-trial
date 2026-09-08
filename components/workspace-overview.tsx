@@ -40,6 +40,16 @@ export function WorkspaceOverview({ isApprover }: { isApprover: boolean }) {
           </span>
           <ArrowRight size={18} aria-hidden="true" />
         </Link>
+        <Link className="action-card" href="/ops/reconciliation" prefetch={false}>
+          <span className="icon-tile"><ClipboardCheck aria-hidden="true" /></span>
+          <span><strong>Reconciliation</strong><span>Compare provider records with the ledger and investigate open breaks.</span></span>
+          <ArrowRight size={18} aria-hidden="true" />
+        </Link>
+        <Link className="action-card" href="/ops/statements" prefetch={false}>
+          <span className="icon-tile"><FileText aria-hidden="true" /></span>
+          <span><strong>Broker statements</strong><span>Read monthly commission, frozen revisions and their knowledge cutoff.</span></span>
+          <ArrowRight size={18} aria-hidden="true" />
+        </Link>
       </div>
       <div className="overview-grid">
         <section className="panel">

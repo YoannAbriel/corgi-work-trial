@@ -1,13 +1,14 @@
 import type Stripe from "stripe";
 import type postgres from "postgres";
 import { sql } from "@/db/client";
-import { assertIntentIsApproved } from "@/lib/approvals/approvals";
+import { ApprovalRefused, assertIntentIsApproved, createApprovalRequest } from "@/lib/approvals/approvals";
 import { stripePaymentDestination, type MoneyOutIntent } from "@/lib/approvals/intent";
-import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { refundNeedsApproval } from "@/lib/approvals/threshold";
 import { refundCompletedEntries } from "@/lib/ledger/cancellation-entries";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { refundIdempotencyKey } from "@/lib/money/idempotency";
+import { refundStateFromEvents, type RefundState } from "./refund-state";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
 
 // Everything Stripe-facing about a refund: asking for it, recovering from a lost answer,
@@ -34,7 +35,11 @@ export type RefundOutcome =
 
 export type RefundIssueOutcome = {
   operationId: string;
-  status: "provider_accepted" | "failed";
+  // provider_accepted   Stripe has the refund;
+  // failed              our call to Stripe failed, appended to the operation's history;
+  // refused             the maker-checker gate said no: nothing was sent, nothing appended;
+  // queued_for_approval a new attempt above the threshold was raised and waits for an approver.
+  status: "provider_accepted" | "failed" | "refused" | "queued_for_approval";
   refundId: string | null;
   detail: string;
 };
@@ -66,6 +71,18 @@ async function issueOneRefundAtStripe(operationId: string, database: postgres.Sq
       refundId: operation.refundId,
       detail: "this refund was already created at Stripe",
     };
+  }
+
+  // EVERY road to Stripe passes the maker-checker gate HERE, whoever called (review finding
+  // F-B7-01: the re-issue path used to reach Stripe without it). A refusal is not a provider
+  // failure, so nothing is appended to the operation: the answer just says why.
+  try {
+    await assertRefundMaySend(database, operation);
+  } catch (error) {
+    if (error instanceof RefundSendRefused || error instanceof ApprovalRefused) {
+      return { operationId, status: "refused", refundId: null, detail: error.message };
+    }
+    throw error;
   }
 
   try {
@@ -138,6 +155,50 @@ export function refundIntent(policyId: string, amountCents: number, paymentInten
 
 export class RefundSendRefused extends Error {}
 
+// What this policy has already given back, and what is on its way, so that the approval rule can
+// be read against the POLICY and not against one refund at a time (review finding F-B4-04).
+//
+// The states come from refundStateFromEvents, the one definition of where a refund stands:
+//   completed / accepted   the money is gone or Stripe has taken the instruction;
+//   requested              nothing has been sent yet, and it still might be;
+//   failed                 the money came back to us, so it counts for nothing.
+//
+// `exceptOperationId` leaves out the refund being decided, which would otherwise count itself.
+export type PolicyRefundTotals = { refundedCents: number; pendingCents: number };
+
+export async function policyRefundTotals(
+  database: postgres.Sql | postgres.TransactionSql,
+  policyId: string,
+  exceptOperationId: string | null = null,
+): Promise<PolicyRefundTotals> {
+  const rows = await database<{ id: string; amount_cents: string; statuses: string[] }[]>`
+    select operation.id,
+           operation.amount_cents,
+           coalesce((select array_agg(event.status order by event.sequence_number)
+                       from money_operation_events event
+                      where event.operation_id = operation.id), '{}') as statuses
+      from money_operations operation
+     where operation.policy_id = ${policyId}
+       and operation.kind = 'stripe_refund'
+  `;
+
+  let refundedCents = 0;
+  let pendingCents = 0;
+  for (const row of rows) {
+    if (exceptOperationId !== null && row.id === exceptOperationId) {
+      continue;
+    }
+    const amountCents = centsFromDatabase(row.amount_cents, "amount_cents");
+    const state = refundStateFromEvents(row.statuses);
+    if (state === "completed" || state === "accepted") {
+      refundedCents += amountCents;
+    } else if (state === "requested") {
+      pendingCents += amountCents;
+    }
+  }
+  return { refundedCents, pendingCents };
+}
+
 // Whether this refund is allowed to leave for Stripe right now. Exported on its own so the
 // screens can say why a button is not there, and so the check script can prove the refusal
 // without calling Stripe.
@@ -165,9 +226,21 @@ export async function assertRefundMaySend(
     );
     return;
   }
-  if (moneyOutNeedsApproval(operation.amountCents)) {
+  // No approval request on the operation. It may still need one: the rule is read against the
+  // whole policy, so a refund that was under the threshold when it was written can be over it by
+  // the time it is sent, because another reduction went out in between (F-B4-04). This refund is
+  // left out of the pending total, since it is the one being decided.
+  const totals = await policyRefundTotals(database, operation.policyId, operation.operationId);
+  if (
+    refundNeedsApproval({
+      amountCents: operation.amountCents,
+      policyRefundedCents: totals.refundedCents,
+      policyPendingRefundCents: totals.pendingCents,
+    })
+  ) {
     throw new RefundSendRefused(
-      "this refund is above the approval threshold but carries no approval request; it cannot be sent",
+      "this refund takes what this policy has given back above the approval threshold and carries no approval request; " +
+        "it cannot be sent, and a new approval has to be asked for",
     );
   }
 }
@@ -226,6 +299,14 @@ export class RefundReissueRefused extends Error {}
 //       The money came back, that refund is dead and its key can never produce a live refund
 //       again, so a new operation with a new key is the only way forward. Even then, Stripe is
 //       asked what it actually holds for the previous operation before anything new is opened.
+//
+//   the approver said no (stage 'approval', review finding F-B7-01)
+//       Nothing was ever sent. A rejection is not a Stripe failure and must not be laundered
+//       into one: the new attempt is raised WITH a new approval request (the amount is above
+//       the threshold, that is why it was queued) and goes back to the queue, never to Stripe.
+//
+// Whatever the stage, a re-issued operation above the threshold carries its own approval
+// request, and issueRefundsAtStripe refuses anything above the threshold without one.
 export async function reissueRefund(
   input: { policyId: string; failedOperationId: string; actorUserId: string },
   database: postgres.Sql = sql,
@@ -243,8 +324,22 @@ export async function reissueRefund(
     return { operationId: input.failedOperationId, outcome };
   }
 
-  await assertPreviousRefundIsReallyDead(failed);
+  if (failed.lastFailureStage === "refund_lifecycle") {
+    await assertPreviousRefundIsReallyDead(failed);
+  }
   const operationId = await createReissuedRefundOperation(input, database);
+  const reissued = await loadRefundOperation(database, operationId);
+  if (reissued?.approvalRequestId) {
+    return {
+      operationId,
+      outcome: {
+        operationId,
+        status: "queued_for_approval",
+        refundId: null,
+        detail: "above the approval threshold: a new approval request was raised; a distinct approver decides before anything is sent",
+      },
+    };
+  }
   const [outcome] = await issueRefundsAtStripe([operationId], database);
   return { operationId, outcome };
 }
@@ -296,11 +391,35 @@ export async function createReissuedRefundOperation(
 
   let newOperationId = "";
   await database.begin(async (transaction) => {
+    // Maker-checker for the new attempt, written before the operation it gates, exactly as the
+    // cancellation does (lib/policy/cancel.ts). The previous approval, if any, was for the
+    // previous operation; money that goes out again is approved again.
+    const totalsBeforeReissue = await policyRefundTotals(transaction, failed.policyId, input.failedOperationId);
+    const approvalRequestId = refundNeedsApproval({
+      amountCents: failed.amountCents,
+      policyRefundedCents: totalsBeforeReissue.refundedCents,
+      policyPendingRefundCents: totalsBeforeReissue.pendingCents,
+    })
+      ? await createApprovalRequest(transaction, {
+          intent: refundIntent(failed.policyId, failed.amountCents, failed.paymentIntentId),
+          destinationDescription: `Stripe payment ${failed.paymentIntentId} (card refund to the customer), re-issued`,
+          requestedByUserId: input.actorUserId,
+          payload: {
+            policy_number: failed.policyNumber,
+            replaces_operation_id: input.failedOperationId,
+            previous_failure_stage: failed.lastFailureStage,
+            refunded_premium_cents: failed.refundedPremiumCents,
+            refunded_tax_cents: failed.refundedTaxCents,
+          },
+        })
+      : null;
+
     const attempt = await countRefundOperations(transaction, failed.policyId, failed.paymentIntentId);
     const [operation] = await transaction<{ id: string }[]>`
-      insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key, created_by)
+      insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key, approval_request_id, created_by)
       values ('stripe_refund', 'stripe', ${failed.amountCents}, ${failed.policyId},
-              ${refundIdempotencyKey(failed.policyId, failed.paymentIntentId, attempt + 1)}, ${input.actorUserId})
+              ${refundIdempotencyKey(failed.policyId, failed.paymentIntentId, attempt + 1)}, ${approvalRequestId},
+              ${input.actorUserId})
       returning id
     `;
     await transaction`
@@ -545,31 +664,15 @@ export type RefundOperation = {
   approvalRequestId: string | null;
   // Where the last failure came from, which decides how a re-issue is allowed to recover:
   //   'create_refund'     OUR call to Stripe failed; the refund may or may not exist there;
-  //   'refund_lifecycle'  STRIPE said the refund itself failed or was cancelled.
-  lastFailureStage: "create_refund" | "refund_lifecycle" | null;
+  //   'refund_lifecycle'  STRIPE said the refund itself failed or was cancelled;
+  //   'approval'          the APPROVER said no; nothing was ever sent (F-B7-01).
+  lastFailureStage: "create_refund" | "refund_lifecycle" | "approval" | null;
 };
 
-// Where a refund stands, read from its append-only events.
-//
-// Not "the latest event wins": the answer from our own API call and the webhook describing the
-// same refund can be stored in either order, and a 'provider_accepted' appended a moment after
-// 'succeeded' must not make a completed refund look pending. Precedence instead, from the most
-// final state backwards. A failed refund that is re-issued becomes a NEW operation, so no
-// operation ever has to go back from 'succeeded' to anything else.
-export type RefundState = "requested" | "accepted" | "completed" | "failed";
-
-export function refundStateFromEvents(statuses: string[]): RefundState {
-  if (statuses.includes("succeeded")) {
-    return "completed";
-  }
-  if (statuses.includes("failed")) {
-    return "failed";
-  }
-  if (statuses.includes("provider_accepted")) {
-    return "accepted";
-  }
-  return "requested";
-}
+// The refund state rule moved to lib/payments/refund-state.ts, a file with no imports, so that
+// the reconciliation job can read it without loading this module's database pool and Stripe
+// client. Re-exported here because every existing caller imports it from this file.
+export { refundStateFromEvents, type RefundState } from "./refund-state";
 
 // Exported so the send action and the recovery job can read an operation without duplicating
 // the join between the operation, its allocation, its policy and its lifecycle.
@@ -630,9 +733,11 @@ export async function loadRefundOperation(
   const lastFailureStage =
     lastFailure?.payload?.stage === "create_refund"
       ? ("create_refund" as const)
-      : lastFailure
-        ? ("refund_lifecycle" as const)
-        : null;
+      : lastFailure?.payload?.stage === "approval"
+        ? ("approval" as const)
+        : lastFailure
+          ? ("refund_lifecycle" as const)
+          : null;
 
   return {
     operationId: row.id,

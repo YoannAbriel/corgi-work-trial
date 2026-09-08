@@ -1,8 +1,9 @@
 import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
+import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CancellationRefused, planCancellation } from "@/lib/policy/cancel";
 
@@ -29,6 +30,7 @@ export default async function CancelPolicyPage({
   }
 
   const [{ policyId }, query] = await Promise.all([params, searchParams]);
+  if (!isUuid(policyId)) notFound(); // a malformed id is an unknown policy, not a 500 (F-B7-07)
   const effectiveAt = (query.effectiveAt ?? "").trim();
   if (!effectiveAt) {
     redirect(`/policies/${policyId}?error=${encodeURIComponent("pick a cancellation date first")}`);
@@ -81,6 +83,15 @@ export default async function CancelPolicyPage({
         <tbody>
           <tr>
             <th>
+              Premium written on this policy
+              {breakdown.writtenPremiumCents !== terms.annualPremiumCents
+                ? `, the ${formatCentsAsUsd(plan.writtenPremiumSegments[0].writtenPremiumCents)} of the issuance plus every endorsement delta`
+                : ""}
+            </th>
+            <td className="amount">{formatCentsAsUsd(breakdown.writtenPremiumCents)}</td>
+          </tr>
+          <tr>
+            <th>
               Premium earned, {breakdown.earnedDays} of {breakdown.termDays} days covered
             </th>
             <td className="amount">{formatCentsAsUsd(breakdown.earnedPremiumCents)}</td>
@@ -108,8 +119,8 @@ export default async function CancelPolicyPage({
         </div>
       {breakdown.taxRefundWasCappedAtCharged ? (
         <p className="note">
-          The tax refund is capped at the {formatCentsAsUsd(terms.taxCents)} of premium tax actually charged on this
-          policy: rounding up the refund would otherwise give back a cent that was never collected.
+          The tax refund is capped at the {formatCentsAsUsd(plan.taxChargedCents)} of premium tax this policy still
+          holds: rounding up the refund would otherwise give back a cent that was never collected.
         </p>
       ) : null}
 
