@@ -18,6 +18,7 @@
     "check:endorsement-replay": "tsx scripts/check-endorsement-replay.ts",
     "check:claims-and-approvals": "tsx scripts/check-claims-and-approvals.ts",
     "check:reconciliation": "tsx scripts/check-reconciliation.ts",
+    "check:statements": "tsx scripts/check-statements.ts",
     "seed": "tsx scripts/seed.ts",
     "rebuild:policy-current": "tsx scripts/rebuild-policy-current.ts",
     "test": "node --import tsx --test lib/**/*.test.ts",

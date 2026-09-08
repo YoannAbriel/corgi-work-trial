@@ -50,7 +50,8 @@ export default async function BrokerPage() {
       )}
 
       <p>
-        <Link href="/broker/policies/new">New policy</Link> — <Link href="/broker/kyb">Business verification</Link>
+        <Link href="/broker/policies/new">New policy</Link> — <Link href="/broker/kyb">Business verification</Link> —{" "}
+        <Link href="/broker/statements">Statements</Link>
       </p>
 
       {policies.length === 0 ? (

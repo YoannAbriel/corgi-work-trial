@@ -41,6 +41,11 @@ export default async function OpsHomePage() {
           the ledger says, the open breaks and their age, and a &ldquo;Run now&rdquo; button.
         </li>
         <li>
+          <Link href="/ops/statements">Broker statements</Link>: a broker&apos;s commission for one month, read from the
+          journal and frozen, with the knowledge cutoff that makes a closed month reproduce and the revisions a later
+          correction creates.
+        </li>
+        <li>
           <Link href="/broker">Policies</Link>: the broker journey, readable by staff, with the staff actions on each
           policy page (bind after a refused binding, cancel with a preview).
         </li>
