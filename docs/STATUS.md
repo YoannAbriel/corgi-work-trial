@@ -28,7 +28,15 @@ Design review: DESIGN FAIL recorded in docs/reviews/architecture.md (21 findings
 
 B0 remaining: the Stripe webhook endpoint on the deployed URL, delivered with slice B1a (protected tables, webhook inbox, route, endpoint registration, replay test) before the pro-rata functions (B1b).
 
-Next acceptance criterion: B1a protected tables and webhook inbox, then B1b ledger posting and pro-rata math. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
+## 2026-09-08T09:12:00+00:00 | B1a done: ledger core, webhook inbox, Stripe endpoint live
+
+Commit 3c9ef3a deployed (health check reports it). Migration 0001 applied on Neon: chart of accounts, append-only journal with deferred balance trigger and server-set recorded_at, immutable webhook_events plus mutable webhook_processing, role app_runtime with SELECT and INSERT only on money tables (password set by script, never committed). The app now connects as app_runtime in production and locally.
+
+Checks executed: `npm run check:ledger-guards` 10/10 PASS on the trial database, every check rolled back (owner UPDATE and DELETE refused by trigger; unbalanced entry and entry without lines refused at commit; recorded_at server-set; app_runtime lacks UPDATE, DELETE, TRUNCATE; app_runtime can insert; global debits = credits). Stripe webhook endpoint we_1UDKzYK6R3v50tIybe5BIytW registered on the production URL (test mode, 9 event types). Against production: invalid signature 400; live-mode event 400; same event delivered twice sequentially and twice concurrently: two events stored for four deliveries, second deliveries answered as duplicate; a real Stripe delivery (evt_3UDL2qK6R3v50tIy0VZVRxVz for test payment pi_3UDL2qK6R3v50tIy0hthuI6E) received by the deployed app, stored once, marked ignored with the reason "no handler yet". Processing lease expires after five minutes so a killed function cannot leave an event stuck (to be demonstrated in B2).
+
+Ledger practice check against Modern Treasury, Square Books and Stripe Ledger write-ups recorded in ARCHITECTURE.md section 1; created_by added to journal headers. Probe objects left in the Stripe sandbox carry metadata corgi_probe. B0 is complete. Independent review of B1a is grouped with the B1b/B2 money-path review. Walkthrough status: NOT REVIEWED WITH YOANN.
+
+Next acceptance criterion: B1b pure pro-rata functions with worked examples and tests, then B2 issuance and Stripe Checkout with journal posting. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
 
