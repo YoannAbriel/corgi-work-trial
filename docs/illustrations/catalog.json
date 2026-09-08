@@ -3098,8 +3098,8 @@
       "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
     },
     "file": "public/illustrations/library/067-corgi-search.webp",
-    "sha256": "1d9427e688376cf58353207c90d6a2c4ea118b7640883544448139847d38bfe2",
-    "bytes": 45054,
+    "sha256": "98f2e7f8af001863eae413cb4800f9a8703946b0aa2a6986b519d73310e6fb4d",
+    "bytes": 40640,
     "generation": {
       "attempt": 1,
       "seed": 1027217,
@@ -3116,17 +3116,7 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": {
-      "attempt": 1,
-      "jobId": "f4c01ebf-8e8c-449a-932a-e14cf3d4ee32",
-      "status": "complete",
-      "file": ".local/illustration-jobs/candidates/067-corgi-search-v1-alpha.png",
-      "output": {
-        "filename": "067-corgi-search-v1_00001_.png",
-        "subfolder": "corgi-library-alpha",
-        "type": "output"
-      }
-    }
+    "backgroundRemoval": null
   },
   {
     "id": "068-corgi-sleeping",

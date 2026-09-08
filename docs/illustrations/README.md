@@ -5,7 +5,7 @@ This directory documents 150 named, original illustrations generated on Yoann's 
 ## Library structure
 
 - `collection-plan.json`: the 150 subjects, names, families, UI uses, dimensions, prompts, seeds and model settings.
-- `reviews.json`: the accepted or rejected decision for every generated attempt retained in the production record.
+- `reviews.json`: the current accepted decision for each of the 150 plan items, plus the rejected pilot trace record.
 - `catalog.json`: the delivery index for the 150 accepted WebP files, including provenance, dimensions, byte count and SHA-256 hash.
 - `PROGRESS.md`: generation, retry and QA evidence.
 - `public/illustrations/library/<id>.webp`: the final assets.
@@ -24,7 +24,7 @@ The size mix is 60 square `1024 x 1024`, 40 landscape `1152 x 768`, 40 portrait 
 
 ## Using the assets
 
-Use `object-fit: contain` for cutouts so ears, paws and object edges stay visible. The 97 transparent cutouts can sit on the application's pale surfaces. The 33 opaque cutout fallbacks should be placed on white or warm off-white surfaces; they deliberately preserve pale companion objects that an automatic mask removed. The 20 panoramas are opaque and suit wide crops where their quiet sky and horizon remain visible.
+Use `object-fit: contain` for cutouts so ears, paws and object edges stay visible. The 96 transparent cutouts can sit on the application's pale surfaces. The 34 opaque cutout fallbacks should be placed on white or warm off-white surfaces; they deliberately preserve pale companion objects that an automatic mask removed. The 20 panoramas are opaque and suit wide crops where their quiet sky and horizon remain visible.
 
 Illustrations are decorative support. Keep empty-state titles, explanations and actions as real HTML. Use an empty alternative text when nearby copy already communicates the state; use concise descriptive alternative text only when the image adds information needed to understand the page.
 

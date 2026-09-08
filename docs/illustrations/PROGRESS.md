@@ -27,20 +27,20 @@ The discarded `131-meadow-path-pilot` remains in `reviews.json` as a rejected tr
 
 All 150 accepted files were opened through Pillow and checked against their planned dimensions, catalog byte counts and SHA-256 hashes. All final hashes are distinct.
 
-The 130 non-panorama images were also processed through the Spark background-removal workflow. Each proposed transparent export was composited on a mid-tone background for visual review. BiRefNet preserved the complete subject in 97 cases; those final WebPs retain RGBA transparency with zero-opacity corners and a contained nonempty alpha bounding box.
+The 130 non-panorama images were also processed through the Spark background-removal workflow. Each proposed transparent export was composited on a mid-tone background for visual review. BiRefNet preserved the complete subject in 96 cases; those final WebPs retain RGBA transparency with zero-opacity corners and a contained nonempty alpha bounding box.
 
-Thirty-three pale or fine-detail compositions use the complete opaque original because background removal erased a meaningful object or could not separate the subject from white. Examples include pale paper, books, a cloud, a shield, a phone and a map. This is an intentional quality fallback, recorded as `unusable` in the ignored local alpha state and as `backgroundRemoval: null` in the catalog. The 20 panoramas are intentionally opaque.
+Thirty-four pale or fine-detail compositions use the complete opaque original because background removal erased a meaningful object or could not separate the subject from white. Examples include pale paper, books, a cloud, a shield, a phone, a map and the handle of a magnifying glass. This is an intentional quality fallback, recorded as `unusable` in the ignored local alpha state and as `backgroundRemoval: null` in the catalog. The 20 panoramas are intentionally opaque.
 
 Final visual QA covered:
 
 - all raw candidates at original resolution during selection;
 - all 150 accepted exports on the standard contact sheets;
-- all 97 retained transparent exports on a mid-tone background;
-- all 33 opaque cutout fallbacks as complete compositions;
+- all 96 retained transparent exports on a mid-tone background;
+- all 34 opaque cutout fallbacks as complete compositions;
 - all 20 panoramas in one final comparison sheet.
 
 The machine-readable final audit is kept locally at `.local/illustration-jobs/final-audit.json`; raw generations and QA sheets stay ignored because they are production evidence and working material, not application assets.
 
 ## Verification checkpoint
 
-The final audit currently reports: 150 planned, 150 cataloged, 150 files, 150 accepted current attempts, 150 unique IDs, names and hashes, 97 transparent cutouts, 33 opaque cutout fallbacks and 20 panoramas. The independent feature review is the remaining completion gate before the final commit.
+The final audit currently reports: 150 planned, 150 cataloged, 150 files, 150 accepted current attempts, 150 unique IDs, names and hashes, 96 transparent cutouts, 34 opaque cutout fallbacks and 20 panoramas. The independent feature review is the remaining completion gate before the final commit.
