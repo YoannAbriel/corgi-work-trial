@@ -1,6 +1,6 @@
 import postgres from "postgres";
 
-// Seed from zero: one broker, one customer, four demo users, one state premium tax rate and
+// Seed from zero: three brokers, one customer, six demo users, one state premium tax rate and
 // one broker KYB status. Run with: npm run seed   (add -- --database=test for the test database)
 //
 // It runs as the OWNER connection because the runtime role cannot insert everything it needs,
@@ -84,6 +84,19 @@ async function main() {
       values ('Redwood Commercial Brokers', 1500)
       returning id
     `;
+    // Two more brokers so the deployed app can show every KYB state at once: one submitted
+    // with Stripe's failing tax-id fixture (failed), one kept unsubmitted for a live pending
+    // demonstration (review finding F-B3-03). Same commission rate, same demo password.
+    const [secondBroker] = await transaction<{ id: string }[]>`
+      insert into brokers (name, commission_rate_bps)
+      values ('Harbor Point Insurance Services', 1500)
+      returning id
+    `;
+    const [thirdBroker] = await transaction<{ id: string }[]>`
+      insert into brokers (name, commission_rate_bps)
+      values ('Sierra Crest Brokerage', 1500)
+      returning id
+    `;
 
     const [customer] = await transaction<{ id: string }[]>`
       insert into customers (name, email)
@@ -94,6 +107,8 @@ async function main() {
     await transaction`
       insert into users (email, display_name, role, broker_id, customer_id) values
         ('broker@example.com',   'Dana Ruiz, broker',        'broker',         ${broker.id}, null),
+        ('broker2@example.com',  'Priya Nair, broker',       'broker',         ${secondBroker.id}, null),
+        ('broker3@example.com',  'Marco Silva, broker',      'broker',         ${thirdBroker.id}, null),
         ('customer@example.com', 'Bay Area Fabrication LLC', 'customer',       null,         ${customer.id}),
         ('ops@example.com',      'Sam Patel, operations',    'staff_ops',      null,         null),
         ('approver@example.com', 'Alex Kim, approver',       'staff_approver', null,         null)
@@ -119,7 +134,7 @@ async function main() {
 
     console.log(`broker              Redwood Commercial Brokers (15.00% commission) ${broker.id}`);
     console.log(`customer            Bay Area Fabrication LLC ${customer.id}`);
-    console.log("users               broker@example.com, customer@example.com, ops@example.com, approver@example.com");
+    console.log("users               broker@example.com, broker2@example.com, broker3@example.com, customer@example.com, ops@example.com, approver@example.com");
     console.log("                    password: the value of DEMO_PASSWORD (not printed)");
     console.log(`state tax rate      CA 235 bps from ${CALIFORNIA_PREMIUM_TAX.effectiveFrom}`);
     console.log("broker KYB          approved by provider 'seed' (development placeholder, not provider evidence)");
