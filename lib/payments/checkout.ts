@@ -189,9 +189,13 @@ async function latestCheckoutOperation(
   database: postgres.Sql,
   policyId: string,
 ): Promise<CheckoutAttempt | null> {
+  // Only the ISSUANCE payments: an endorsement delta is also collected by a stripe_checkout
+  // operation (lib/payments/endorsement-collection.ts) and must never be mistaken for an
+  // attempt to pay the policy itself.
   const operations = await database<{ id: string; idempotency_key: string }[]>`
-    select id, idempotency_key from money_operations
+    select id, idempotency_key from money_operations operation
      where policy_id = ${policyId} and kind = 'stripe_checkout'
+       and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
      order by created_at desc
   `;
   if (operations.length === 0) {

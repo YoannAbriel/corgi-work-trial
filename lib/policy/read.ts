@@ -58,6 +58,7 @@ export type PolicyDetail = {
   brokerId: string;
   brokerName: string;
   commissionRateBps: number;
+  customerId: string;
   customerName: string;
   customerEmail: string;
   stateCode: string;
@@ -82,6 +83,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
       broker_id: string;
       broker_name: string;
       commission_rate_bps: number;
+      customer_id: string;
       customer_name: string;
       customer_email: string;
       state_code: string;
@@ -103,6 +105,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
            broker.id            as broker_id,
            broker.name          as broker_name,
            broker.commission_rate_bps,
+           customer.id          as customer_id,
            customer.name        as customer_name,
            customer.email       as customer_email,
            policy.state_code,
@@ -132,6 +135,7 @@ export async function policyDetail(policyId: string): Promise<PolicyDetail | nul
     brokerId: row.broker_id,
     brokerName: row.broker_name,
     commissionRateBps: row.commission_rate_bps,
+    customerId: row.customer_id,
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     stateCode: row.state_code,
@@ -162,13 +166,15 @@ export type CheckoutOperationView = {
   bindingRefusedReason: string | null;
 };
 
-// The policy's payment operation, if the broker has started one. There is at most one
-// stripe_checkout operation per policy: its idempotency key is derived from the policy id.
+// The policy's ISSUANCE payment operation, if the broker has started one: the latest attempt to
+// pay the policy itself. An endorsement delta is also collected by a stripe_checkout operation
+// (slice B4) and is shown with its endorsement, so those are left out here.
 export async function checkoutOperationOfPolicy(policyId: string): Promise<CheckoutOperationView | null> {
   const [operation] = await sql<{ id: string; amount_cents: string }[]>`
     select id, amount_cents
-      from money_operations
+      from money_operations operation
      where policy_id = ${policyId} and kind = 'stripe_checkout'
+       and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
      order by created_at desc
      limit 1
   `;

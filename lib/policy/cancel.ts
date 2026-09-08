@@ -8,7 +8,7 @@ import { postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { isCalendarDate } from "@/lib/money/dates";
 import { refundIdempotencyKey } from "@/lib/money/idempotency";
-import { cancellationBreakdown, type CancellationBreakdown } from "@/lib/money/premium";
+import { cancellationBreakdown, type CancellationBreakdown, type WrittenPremiumSegment } from "@/lib/money/premium";
 import {
   allocateRefundNewestCollectionFirst,
   RefundCannotBeAllocated,
@@ -63,6 +63,13 @@ export type CancellationPlan = {
   commissionRateBps: number;
   effectiveAt: string;
   calculationMethod: "pro_rata";
+  // State premium tax collected on this policy and not yet given back, read from the ledger.
+  // It is the ceiling on the tax refund (review finding F-B1-07); after an endorsement it is
+  // not the same figure as the tax on the annual premium in force.
+  taxChargedCents: number;
+  // The pieces of premium the breakdown added up, so a screen can name the issuance separately
+  // from the endorsement deltas without folding the events again.
+  writtenPremiumSegments: WrittenPremiumSegment[];
   breakdown: CancellationBreakdown;
   // Premium that still has to be recognised as earned. It is the earned premium of the
   // breakdown minus whatever earlier entries already moved into earned_premium.
@@ -173,7 +180,7 @@ export async function planCancellation(
     );
   }
 
-  const { eventTypes, terms } = await foldPolicyEvents(database, request.policyId);
+  const { eventTypes, terms, writtenPremiumSegments } = await foldPolicyEvents(database, request.policyId);
   if (!eventTypes.includes("issued")) {
     throw new CancellationRefused("this policy is not bound yet: there is no premium to give back");
   }
@@ -205,13 +212,18 @@ export async function planCancellation(
     throw new CancellationRefused(`the policy ends on ${terms.termEnd}, so it cannot be cancelled after that date`);
   }
 
+  const taxChargedCents = await premiumTaxStillHeldForPolicy(database, request.policyId);
   const breakdown = cancellationBreakdown({
-    writtenPremiumCents: terms.annualPremiumCents,
-    taxChargedCents: terms.taxCents,
+    // Every piece of premium written on this policy, each earning from its own date: one segment
+    // for the issuance, one more for each endorsement (slice B4). Before any endorsement the
+    // single segment is the annual premium over the term, which is what B5 always computed.
+    writtenPremiumSegments,
+    // What the state premium tax account still holds for this policy, rather than the tax on the
+    // current annual premium: after an endorsement those two are different figures, and the cap
+    // has to be the money actually collected and not yet given back.
+    taxChargedCents,
     taxRateBps: terms.taxRateBps,
     commissionRateBps: policy.commissionRateBps,
-    termStart: terms.termStart,
-    termEnd: terms.termEnd,
     cancellationEffectiveAt: request.effectiveAt,
   });
 
@@ -250,6 +262,8 @@ export async function planCancellation(
     commissionRateBps: policy.commissionRateBps,
     effectiveAt: request.effectiveAt,
     calculationMethod: "pro_rata",
+    taxChargedCents,
+    writtenPremiumSegments,
     breakdown,
     premiumToRecogniseAsEarnedCents,
     slices,
@@ -443,8 +457,11 @@ function cancellationPayload(plan: CancellationPlan): Record<string, string | nu
     term_end: plan.terms.termEnd,
     term_days: plan.breakdown.termDays,
     earned_days: plan.breakdown.earnedDays,
-    written_premium_cents: plan.terms.annualPremiumCents,
-    tax_charged_cents: plan.terms.taxCents,
+    // Every piece of premium written on the policy, added up: after an endorsement this is NOT
+    // the annual premium in force, it is the issuance premium plus each prorated delta.
+    written_premium_cents: plan.breakdown.writtenPremiumCents,
+    annual_premium_in_force_cents: plan.terms.annualPremiumCents,
+    tax_charged_cents: plan.taxChargedCents,
     tax_rate_bps: plan.terms.taxRateBps,
     commission_rate_bps: plan.commissionRateBps,
     earned_premium_cents: plan.breakdown.earnedPremiumCents,
@@ -496,6 +513,20 @@ async function loadPolicy(database: Queryable, policyId: string): Promise<Policy
 }
 
 // Premium already moved into earned_premium by an earlier entry on this policy.
+// State premium tax charged on this policy and not given back yet: the credit balance of
+// premium_tax_payable over this policy's entries. A tax refund can never exceed it (review
+// finding F-B1-07). The same read as lib/policy/endorse.ts, for the same reason.
+async function premiumTaxStillHeldForPolicy(database: Queryable, policyId: string): Promise<number> {
+  const [row] = await database<{ held_cents: string }[]>`
+    select coalesce(sum(line.credit_cents) - sum(line.debit_cents), 0)::text as held_cents
+      from journal_lines line
+      join journal_entries entry on entry.id = line.entry_id
+     where entry.policy_id = ${policyId}
+       and line.account_id = 'premium_tax_payable'
+  `;
+  return Math.max(0, centsFromDatabase(row.held_cents, "premium_tax_payable balance"));
+}
+
 async function premiumAlreadyRecognisedAsEarned(database: Queryable, policyId: string): Promise<number> {
   const [row] = await database<{ earned_cents: string }[]>`
     select coalesce(sum(line.credit_cents) - sum(line.debit_cents), 0)::text as earned_cents
@@ -508,8 +539,9 @@ async function premiumAlreadyRecognisedAsEarned(database: Queryable, policyId: s
 }
 
 // The payments that can still give money back: every collected Stripe payment of this policy,
-// minus what has already been refunded on it.
-async function collectionsStillRefundable(database: Queryable, policyId: string): Promise<CollectionToRefund[]> {
+// minus what has already been refunded on it. Exported for lib/policy/endorse.ts, which refunds
+// a premium reduction through the same allocation (newest collection first).
+export async function collectionsStillRefundable(database: Queryable, policyId: string): Promise<CollectionToRefund[]> {
   const collections = await database<
     { operation_id: string; payment_intent_id: string; amount_cents: string; collected_on: string }[]
   >`
@@ -561,8 +593,8 @@ async function collectionsStillRefundable(database: Queryable, policyId: string)
 }
 
 // How many refund operations already exist for this policy and this payment, so the next one
-// gets its own idempotency key (see lib/money/idempotency.ts).
-async function countRefundOperations(
+// gets its own idempotency key (see lib/money/idempotency.ts). Shared with lib/policy/endorse.ts.
+export async function countRefundOperations(
   database: Queryable,
   policyId: string,
   paymentIntentId: string,
