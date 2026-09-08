@@ -19,7 +19,9 @@
     "check:claims-and-approvals": "tsx scripts/check-claims-and-approvals.ts",
     "check:reconciliation": "tsx scripts/check-reconciliation.ts",
     "check:statements": "tsx scripts/check-statements.ts",
+    "check:mcp": "tsx scripts/check-mcp.ts",
     "seed": "tsx scripts/seed.ts",
+    "create-mcp-key": "tsx scripts/create-mcp-key.ts",
     "rebuild:policy-current": "tsx scripts/rebuild-policy-current.ts",
     "test": "node --import tsx --test lib/**/*.test.ts",
     "void:fabricated-binding": "tsx scripts/void-fabricated-binding.ts"

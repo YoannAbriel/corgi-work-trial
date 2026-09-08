@@ -46,6 +46,10 @@ export default async function OpsHomePage() {
           correction creates.
         </li>
         <li>
+          <Link href="/ops/mcp-keys">MCP API keys</Link>: the keys that open the agent endpoint, one per user, with what
+          each one has called and a revoke action. The list of operations never delegated to an agent is on that page.
+        </li>
+        <li>
           <Link href="/broker">Policies</Link>: the broker journey, readable by staff, with the staff actions on each
           policy page (bind after a refused binding, cancel with a preview).
         </li>
