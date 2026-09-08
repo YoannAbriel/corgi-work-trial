@@ -1371,3 +1371,220 @@ details.sandbox-reference dd {
 div.note {
   margin: 12px 0;
 }
+
+/* ------------------------------------------------------------------------
+   Detail screens: identity band, two columns, facts grid (rebuild of
+   2026-09-08 with Yoann, YOA-633). Used by components/detail-layout.tsx.
+   ------------------------------------------------------------------------ */
+.detail-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.detail-identity {
+  min-width: 0;
+}
+.detail-heading h1 {
+  margin-bottom: 6px;
+}
+.detail-heading .lead {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chips .badge {
+  margin: 0;
+}
+.badge-neutral {
+  color: #44454b;
+  background: #f1f1f3;
+  border: 1px solid #e1e1e4;
+}
+.detail-actions {
+  margin: 6px 0 0;
+  justify-content: flex-end;
+}
+.detail-actions form.inline-form {
+  display: inline-flex;
+}
+.detail-actions button,
+.detail-actions .button-link {
+  margin-top: 0;
+}
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 22px;
+  align-items: start;
+}
+.detail-main,
+.detail-aside {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+.detail-panel {
+  padding: 22px 24px 24px;
+}
+.detail-panel h2 {
+  margin-bottom: 14px;
+}
+.detail-panel h3 {
+  font-size: 15px;
+  letter-spacing: 0;
+  margin: 18px 0 6px;
+}
+.detail-panel h4 {
+  font-size: 13px;
+  margin: 14px 0 6px;
+  color: var(--ink-2);
+}
+.detail-panel .table-scroll {
+  margin: 0;
+}
+.detail-panel .table-scroll + .note,
+.detail-panel .table-scroll + details,
+.detail-panel .table-scroll + form,
+.detail-panel .table-scroll + h3 {
+  margin-top: 14px;
+}
+.detail-panel .table-scroll:has(table.amounts),
+.detail-panel table.amounts {
+  max-width: none;
+}
+.detail-panel > .note:first-of-type {
+  margin-top: 0;
+}
+.detail-panel form.card {
+  max-width: none;
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.detail-panel form.card + form.card {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #ededee;
+}
+.detail-panel form.card label:first-child {
+  margin-top: 0;
+}
+.detail-panel details.disclosure {
+  margin: 12px 0 0;
+}
+.detail-panel details.disclosure + details.disclosure {
+  margin-top: 8px;
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 14px;
+  margin: 0;
+}
+.fact {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafafa;
+  min-width: 0;
+}
+.fact dt {
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.4;
+}
+.fact dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.fact-total {
+  background: #fff1e8;
+  border-color: #f4cdb5;
+}
+.facts.compact .fact {
+  padding: 8px 10px;
+}
+.facts.compact .fact dd {
+  font-size: 15px;
+}
+.aside-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.aside-list > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ededee;
+}
+.aside-list > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.aside-list dt {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.aside-list dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.aside-list dd .badge {
+  margin: 0;
+}
+.aside-list dd details.sandbox-reference {
+  display: inline-block;
+  vertical-align: middle;
+}
+.panel-empty {
+  color: var(--ink-2);
+  font-size: 13px;
+  margin: 0;
+}
+.detail-panel .notices {
+  display: grid;
+  gap: 8px;
+}
+.notices {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+.notices > p,
+.notices > div {
+  margin: 0;
+}
+@media (max-width: 1100px) {
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 800px) {
+  .detail-heading {
+    flex-direction: column;
+  }
+  .detail-actions {
+    justify-content: flex-start;
+  }
+}

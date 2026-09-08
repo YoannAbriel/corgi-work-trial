@@ -6,6 +6,9 @@ import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd, parseUsdAmountToCents } from "@/lib/money/cents";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
 import { EndorsementRefused, planEndorsement } from "@/lib/policy/endorse";
+import { endorsementsOfPolicy } from "@/lib/policy/endorsement-read";
+import { policyDetail } from "@/lib/policy/read";
+import { MoneyAmountInput } from "@/components/money-amount-input";
 import { FormulaLinesTable } from "../formula-lines";
 import { isUuid } from "@/lib/http/path-ids";
 
@@ -38,6 +41,13 @@ export default async function EndorsePolicyPage({
   }
   const [{ policyId }, query] = await Promise.all([params, searchParams]);
   if (!isUuid(policyId)) notFound(); // a malformed id is an unknown page, not a 500 (F-B7-07)
+
+  // Opened from the "Endorse" button with nothing typed yet: show the form. Since the layout
+  // rebuild of 2026-09-08 the form lives here, not on the policy page. Same field names as
+  // before; the preview below and the confirmation route check every rule again.
+  if (query.newAnnualPremium === undefined && query.effectiveAt === undefined) {
+    return <EndorsementForm policyId={policyId} user={user} />;
+  }
 
   let plan;
   try {
@@ -153,6 +163,84 @@ export default async function EndorsePolicyPage({
               ? `Apply the endorsement and refund ${formatCentsAsUsd(-figures.deltaTotalCents)}`
               : "Apply the endorsement"}
         </button>
+      </form>
+    </PortalShell>
+  );
+}
+
+// The form that opens the preview. The owning broker or staff operations, on a bound policy with
+// no endorsement already in progress; the server refuses everybody else at the preview and at the
+// confirmation whatever this page shows.
+async function EndorsementForm({
+  policyId,
+  user,
+}: {
+  policyId: string;
+  user: NonNullable<Awaited<ReturnType<typeof currentUser>>>;
+}) {
+  const [policy, endorsements] = await Promise.all([policyDetail(policyId), endorsementsOfPolicy(policyId)]);
+  if (!policy) {
+    notFound();
+  }
+  const isOwningBroker = user.role === "broker" && user.brokerId === policy.brokerId;
+  const canChange = (isOwningBroker || user.role === "staff_ops") && policy.status === "bound";
+  if (!canChange) {
+    redirect(`/policies/${policyId}?error=${encodeURIComponent("only the owning broker or staff operations can endorse a bound policy")}`);
+  }
+  const inProgress = endorsements.some(
+    (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
+  );
+  if (inProgress) {
+    redirect(`/policies/${policyId}?error=${encodeURIComponent("an endorsement is already in progress on this policy")}`);
+  }
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` }, { label: "Endorse" }]}>
+      <h1>Endorse policy {policy.policyNumber}</h1>
+      <p className="lead">
+        Change the annual premium or the limits from a date inside the term ({policy.effectiveAt} to {policy.termEnd}).
+        The next screen shows the exact money it moves, line by line, before anything is recorded. The money is always
+        priced from the effective date: a backdated endorsement charges more days, never the day it was typed.
+      </p>
+      <form method="get" action={`/policies/${policy.policyId}/endorse`} className="card">
+        <label htmlFor="newAnnualPremium">New annual premium (USD)</label>
+        <MoneyAmountInput
+          id="newAnnualPremium"
+          name="newAnnualPremium"
+          required
+          defaultValue={(policy.annualPremiumCents / 100).toFixed(2)}
+        />
+        <label htmlFor="newPerOccurrenceLimit">New per-occurrence limit (USD)</label>
+        <MoneyAmountInput
+          id="newPerOccurrenceLimit"
+          name="newPerOccurrenceLimit"
+          required
+          defaultValue={(policy.perOccurrenceLimitCents / 100).toFixed(2)}
+        />
+        <label htmlFor="newAggregateLimit">New aggregate limit (USD)</label>
+        <MoneyAmountInput
+          id="newAggregateLimit"
+          name="newAggregateLimit"
+          required
+          defaultValue={(policy.aggregateLimitCents / 100).toFixed(2)}
+        />
+        <label htmlFor="endorsementEffectiveAt">Effective date</label>
+        <input
+          id="endorsementEffectiveAt"
+          name="effectiveAt"
+          type="date"
+          required
+          defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}
+          min={policy.effectiveAt}
+          max={policy.termEnd}
+        />
+        <label htmlFor="reason">Reason (optional)</label>
+        <input id="reason" name="reason" maxLength={200} />
+        <button type="submit">Preview the endorsement</button>
+        <Link href={`/policies/${policyId}`} className="button-link secondary">
+          Back to the policy
+        </Link>
       </form>
     </PortalShell>
   );

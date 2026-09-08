@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Disclosure } from "@/components/disclosures";
+import { Empty, Panel } from "@/components/detail-layout";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { correctionsOfPolicy, policyAsItStoodOn, policyTimeline } from "@/lib/policy/correction-read";
 import { FormulaLinesTable } from "./formula-lines";
@@ -72,13 +74,14 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
   }
 
   return (
-    <>
-      <h2>Corrections, explained</h2>
-      <p className="note">
-        A correction never changes a row. It appends a dated correction event that supersedes the wrong one, reversal
-        entries that mirror the originals on the same effective date, and a re-booked endorsement on the corrected date.
-        Every figure below is the one stored on those events and posted to the journal; none of it is recomputed here.
-      </p>
+    <Panel title="Corrections">
+      <Disclosure>
+        <p>
+          A correction never changes a row. It appends a dated correction event that supersedes the wrong one, reversal
+          entries that mirror the originals on the same effective date, and a re-booked endorsement on the corrected date.
+          Every figure below is the one stored on those events and posted to the journal; none of it is recomputed here.
+        </p>
+      </Disclosure>
       {corrections.map((correction) => (
         <div key={correction.rebookEventId}>
           <h3>
@@ -185,7 +188,7 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
           ) : null}
         </div>
       ))}
-    </>
+    </Panel>
   );
 }
 
@@ -199,16 +202,8 @@ export async function PolicyTimeline({ policyId }: { policyId: string }) {
     return null;
   }
   return (
-    <>
-      <h2>Timeline: what happened, and when we wrote it down</h2>
-      <p className="note">
-        Two different clocks, never merged. <strong>Effective</strong> is the business date the fact applies from: it is
-        what prices the money, and it can be in the past or in the future. <strong>Recorded</strong> is the instant the
-        row was written, set by the database and never by a client: it is what answers &quot;what did we know that
-        day&quot;. A backdated correction has an old effective date and a recording time of today, which is exactly what
-        makes a closed month reproducible.
-      </p>
-      <div className="table-scroll" role="region" aria-label="Policy details table 2" tabIndex={0}>
+    <Panel title="Timeline">
+      <div className="table-scroll" role="region" aria-label="Policy timeline" tabIndex={0}>
 <table>
         <thead>
           <tr>
@@ -241,7 +236,17 @@ export async function PolicyTimeline({ policyId }: { policyId: string }) {
         </tbody>
       </table>
 </div>
-    </>
+      <Disclosure title="Two clocks, never merged">
+        <p>
+          <strong>Effective</strong> is the business date the fact applies from: it is what prices the money, and it can
+          be in the past or in the future. <strong>Recorded</strong> is the instant the row was written, set by the
+          database and never by a client: it is what answers &quot;what did we know that day&quot;. A backdated
+          correction has an old effective date and a recording time of today, which is exactly what makes a closed month
+          reproducible. A struck-through row was superseded by a correction: it stays in the table, the fold no longer
+          applies it.
+        </p>
+      </Disclosure>
+    </Panel>
   );
 }
 
@@ -267,13 +272,7 @@ export async function PolicyAsOf({
   const defaultDate = requested || (today > termStart ? today : termStart);
 
   return (
-    <>
-      <h2>The policy as it stood on a date</h2>
-      <p className="note">
-        The same rebuild the PDFs use, shown here as a page: only the events effective on or before the date you pick
-        count, and an event a correction superseded is dropped. Between two endorsements this is the premium and the
-        limits that were really in force that day.
-      </p>
+    <Panel title="As it stood on a date">
       <form method="get" className="card">
         <label htmlFor="asOf">As it stood on</label>
         <input id="asOf" name="asOf" type="date" required defaultValue={defaultDate} min={termStart} />
@@ -281,7 +280,7 @@ export async function PolicyAsOf({
       </form>
 
       {result === null ? (
-        <p className="note">Pick a date to rebuild the policy as it was then.</p>
+        <Empty>Pick a date: the page rebuilds the policy from the events effective on or before it, superseded events dropped. Between two endorsements this is the premium and the limits really in force that day.</Empty>
       ) : "error" in result ? (
         <p className="error">Nothing to show on {result.asOf}: {result.error}</p>
       ) : (
@@ -376,6 +375,6 @@ export async function PolicyAsOf({
           </p>
         </>
       )}
-    </>
+    </Panel>
   );
 }

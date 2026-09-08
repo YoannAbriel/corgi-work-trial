@@ -68,16 +68,28 @@ export function MoneyAmountInput({
   );
 }
 
-// Groups the whole-dollar digits in threes and keeps at most two decimals. Everything that is
-// not a digit or a decimal point is dropped, so a pasted "$1,200.50" becomes "1,200.50".
+// Groups the whole-dollar digits in threes. Only the mask's own characters are removed: the
+// dollar sign, spaces and the commas it inserted. Anything else stays exactly as typed, so the
+// field never turns a string the server refuses into one it accepts (review finding F-UI-12:
+// "1 200,50" used to become "120,050"). A decimal comma, a second point, a minus sign, a letter
+// or a third decimal all reach the server untouched, and the server's parser is the one that
+// says no.
 function groupThousands(typed: string): string {
-  const digitsAndPoint = typed.replace(/[^\d.]/g, "");
-  const [wholePart, ...rest] = digitsAndPoint.split(".");
-  const grouped = wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  if (rest.length === 0) {
-    return grouped;
+  const bare = typed.replace(/[$\s]/g, "");
+  if (bare === "") {
+    return "";
   }
-  return `${grouped}.${rest.join("").slice(0, 2)}`;
+  if (!/^[\d,]*(\.\d*)?$/.test(bare)) {
+    return typed;
+  }
+  // "1200,50": a comma followed by one or two digits at the end, with no point, is a decimal
+  // comma, not a thousands separator. Left alone on purpose.
+  if (/,\d{1,2}$/.test(bare) && !bare.includes(".")) {
+    return typed;
+  }
+  const [wholePart, decimals] = bare.replace(/,/g, "").split(".");
+  const grouped = wholePart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decimals === undefined ? grouped : `${grouped}.${decimals}`;
 }
 
 // What the field says, printed the way the application prints money. Null while the text is not
@@ -88,7 +100,8 @@ function echoOf(text: string): string | null {
   if (!match) {
     return null;
   }
-  const wholeDollars = match[1].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  // Leading zeros are not part of an amount: "007" echoes as $7.00 (F-UI-19).
+  const wholeDollars = match[1].replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   const cents = (match[2] ?? "").padEnd(2, "0");
   return `${wholeDollars}.${cents}`;
 }

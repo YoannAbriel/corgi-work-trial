@@ -7,6 +7,8 @@ import { currentUser } from "@/lib/auth/current-user";
 import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CancellationRefused, planCancellation } from "@/lib/policy/cancel";
+import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
+import { policyDetail } from "@/lib/policy/read";
 
 // The preview, and the point of this slice: the broker sees exactly what the cancellation will
 // do to the money BEFORE anything happens, computed by the same pure functions that will post
@@ -34,7 +36,9 @@ export default async function CancelPolicyPage({
   if (!isUuid(policyId)) notFound(); // a malformed id is an unknown policy, not a 500 (F-B7-07)
   const effectiveAt = (query.effectiveAt ?? "").trim();
   if (!effectiveAt) {
-    redirect(`/policies/${policyId}?error=${encodeURIComponent("pick a cancellation date first")}`);
+    // Opened from the "Cancel the policy" button with no date yet: show the form. Since the
+    // layout rebuild of 2026-09-08 the form lives here, not on the policy page.
+    return <CancellationForm policyId={policyId} user={user} />;
   }
 
   let plan;
@@ -227,6 +231,68 @@ export default async function CancelPolicyPage({
           Cancel the policy as of {plan.effectiveAt}
           {breakdown.totalRefundCents > 0 ? ` and request a ${formatCentsAsUsd(breakdown.totalRefundCents)} refund` : ""}
         </button>
+      </form>
+    </PortalShell>
+  );
+}
+
+// The form that opens the preview. The owning broker or staff operations, on a bound policy; the
+// server refuses everybody else at the preview and at the confirmation whatever this page shows.
+async function CancellationForm({
+  policyId,
+  user,
+}: {
+  policyId: string;
+  user: NonNullable<Awaited<ReturnType<typeof currentUser>>>;
+}) {
+  const [policy, schedule] = await Promise.all([policyDetail(policyId), endorsementScheduleOfPolicy(policyId)]);
+  if (!policy) {
+    notFound();
+  }
+  const isOwningBroker = user.role === "broker" && user.brokerId === policy.brokerId;
+  const canChange = (isOwningBroker || user.role === "staff_ops") && policy.status === "bound";
+  if (!canChange) {
+    redirect(`/policies/${policyId}?error=${encodeURIComponent("only the owning broker or staff operations can cancel a bound policy")}`);
+  }
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <PortalShell active="policies" user={user} trail={[
+      ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+      { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
+      { label: "Cancel" },
+    ]}>
+      <h1>Cancel policy {policy.policyNumber}</h1>
+      <p className="lead">
+        Pick the day cover stops. The next screen shows exactly what would be refunded and clawed back before anything
+        is written. A past date is allowed: an insurer often learns late that cover stopped, and the money is always
+        computed from the day cover really stopped.
+        {schedule.length > 0
+          ? " This policy has been endorsed, so the refund is computed segment by segment: the issuance premium earns over the whole term and each endorsement earns its prorated amount from its own effective date."
+          : ""}
+      </p>
+      <form method="get" action={`/policies/${policy.policyId}/cancel`} className="card">
+        <label htmlFor="effectiveAt">Cancellation effective date</label>
+        <input
+          id="effectiveAt"
+          name="effectiveAt"
+          type="date"
+          required
+          defaultValue={today > policy.effectiveAt ? today : policy.effectiveAt}
+          min={policy.effectiveAt}
+          max={policy.termEnd}
+        />
+        <label htmlFor="calculationMethod">Calculation method</label>
+        {/* Short-rate cancellation is representable, not computed: the method is stored on
+            the event and the short_rate_penalty_income account exists, but this build only
+            calculates pro-rata and the server refuses any other value. */}
+        <select id="calculationMethod" name="calculationMethod" defaultValue="pro_rata">
+          <option value="pro_rata">Pro-rata</option>
+        </select>
+        <button type="submit">Preview the cancellation</button>
+        <Link href={`/policies/${policyId}`} className="button-link secondary">
+          Back to the policy
+        </Link>
       </form>
     </PortalShell>
   );
