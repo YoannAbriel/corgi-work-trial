@@ -1,6 +1,6 @@
 # T+24h checkpoint email (draft, not sent by the assistant)
 
-Status: DRAFT prepared at 2026-09-08T11:25:00+00:00, KYB evidence added 2026-09-08T12:58:00+00:00. Deadline: September 9, 2026, 07:50 Europe/Zurich. Yoann sends it on the existing candidate thread; the thread header is the authoritative timestamp. Fill the two bracketed items before sending. The demo password is the value of DEMO_PASSWORD in the deployment secret store; paste it into the email, never into this file.
+Status: DRAFT prepared at 2026-09-08T11:25:00+00:00, KYB evidence added 12:58Z, evening deliveries added 17:50Z. Deadline: September 9, 2026, 07:50 Europe/Zurich. Yoann sends it on the existing candidate thread; the thread header is the authoritative timestamp. Fill the two bracketed items before sending. The demo password is the value of DEMO_PASSWORD in the deployment secret store; paste it into the email, never into this file.
 
 Sent at: (to fill in)
 
@@ -26,9 +26,16 @@ Live slots: premium collection on Stripe (LIVE SANDBOX); broker KYB on Stripe Co
 
 Repository (private, access granted at submission): https://github.com/YoannAbriel/corgi-work-trial. Decision log, plan and review records are in docs/.
 
-Also deployed this afternoon: claims with reserves (incurred = paid + reserve, checked against the journal after every step), payouts on a labeled local simulator, maker-checker above $1,000 with a hashed intent and a distinct approver (enforced in code and by a database trigger), and the reconciliation job with its breaks screen (Stripe and the rail pulled by API, a planted mismatch found, a failed fetch never reported clean).
+Also deployed today, all on the same URL:
+- Claims: reserves set and adjusted as events, incurred = paid + reserve checked against the journal after every step, payouts on a labeled local simulator with delayed settlement and returns; a claim (CLM-00212) is open on the bound policy.
+- Maker-checker: money out above $1,000 (cumulative per claim, and per policy for refunds) needs a distinct human approver against a hashed intent; the initiator and any agent are refused in code and by a database trigger.
+- Endorsements: mid-term change priced over the remaining days from the effective date, impact preview and explained amounts from one pure function, customer approval above $500, delta collected through Stripe or refunded at once; declarations page and endorsement schedule as PDFs "as it stood on" any date.
+- Backdated correction: a wrong effective date is fixed by reversal entries plus a re-book; original rows untouched; effective and recorded dates shown side by side; the difference settled through the same rails.
+- Broker monthly statement: computed from journal lines only, ties to the ledger to the cent, immutable runs with a content hash and a knowledge cutoff; a correction after the close is a dated new revision, never an edit; a month still running is labeled provisional.
+- Reconciliation: Stripe and the simulated rail pulled by API and diffed against the ledger; breaks with their age, resolved only by a later run that covers their date; clearing balances listed; a failed fetch never reads clean; daily cron plus a staff "Run now".
+- Independent review of each slice with a findings register (docs/reviews/FINDINGS.md); the two HIGH findings found tonight (a maker-checker bypass on a rejected refund, a statement column redefined over existing rows) are fixed and re-reviewed.
 
-Next 24 hours: endorsement with pro-rated delta and impact preview, backdated correction by reversal and re-book, monthly broker statement, MCP surface, hardening.
+Next 24 hours: MCP surface (three read tools, one approval-queued write, one reconciliation trigger), hardening and screen states, full walkthrough rehearsal, then the freeze package (video, evidence pack, cut list, week-two plan).
 
 Best regards,
 Yoann Abriel
