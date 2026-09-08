@@ -157,3 +157,71 @@ Residual limitations: production role identity not inspected by this reviewer; c
 ## 12. Addendum: commit 8bb9063 pushed while this record was being written
 
 At 2026-09-08T09:38:00Z `main` moved to `8bb9063` ("docs: California 2.35 percent premium tax decided, with official sources; test it"). Diff against the reviewed `2b15397`: `docs/DECISIONS.md` (+8, the 09:29:25Z decision naming California at 235 basis points with the constitutional source) and `lib/money/premium.test.ts` (+12, one test). No other in-scope file changed, so every finding and verdict above stands for `8bb9063` as well. The new test was re-run and its figures recomputed by hand: `npm test` 16/16 pass; 120000 x 235 / 10000 = 2820 floored; 87124 x 235 / 10000 = 2047.41, ceiled 2048; total 87124 + 2048 = 89172, matching the test and the decision entry. The rate itself is Yoann's decision from a cited official source; this review checks the arithmetic, not the tax law, and the interpretation recorded in DECISIONS.md (insurer-owed tax shown as a separate customer line) stays labeled as an interpretation. F-B1-07 applies to this rate too: written 100001 at 2.35 percent would charge 2350 and refund 2351 on a day-0 cancellation.
+
+## 13. Re-review after the fix commit
+
+- Timestamp: 2026-09-08T09:40:00Z. Revision: HEAD `8f253a76fe260a72c7791fa6225956fdeccb09a8` (branch `main`, tree clean); fix commit `a94f091` ("fix: seal journal entries at commit, truncate guards, fail-closed runtime connection"); the two commits after it (`5b25f3c`, `8f253a7`) touch only `docs/`. Production `/api/health`: 200, revision `8f253a7`.
+- Files examined: `db/migrations/0003_seal_journal_entries_and_truncate_guards.sql` line by line, `db/client.ts` diff, `scripts/check-ledger-seal.ts` line by line, `package.json` diff, `docs/reviews/FINDINGS.md`, `.env.example`. `.env.local` not read; the project scripts and one reviewer probe script loaded it and printed only role names, trigger names, constraint definitions, migration file names and counts.
+
+### Checks executed
+
+- `npm run typecheck`: exit 0.
+- `npm test`: 16 tests, 16 pass, 0 fail.
+- `npm run check:ledger-guards` on the trial database: 10/10 PASS, exit 0, every check rolled back, committed journal still 0 debits = 0 credits.
+- `npm run check:ledger-seal` on `corgi_test`: 4/4 PASS, exit 0. Excerpt:
+  ```
+  PASS  committed entry refuses new lines in a later transaction  (journal entry ... is sealed: lines can only be added in t; lines still 2)
+  PASS  owner cannot TRUNCATE journal_lines  (financial records are append-only: TRUNCATE on journal_lines is not allowed)
+  PASS  live-mode webhook event is refused by the database  (new row for relation "webhook_events" violates check constraint "webhook_events_are_test_m)
+  PASS  header and lines in one transaction still post  (committed)
+  ```
+- Reviewer probes (scratchpad script, not committed). Trial database, catalog reads and rolled-back transactions only; `corgi_test` for attempts on a committed entry. Excerpt:
+  ```
+  schema_migrations (trial): 0001..., 0002_policies_and_money_operations.sql, 0003_seal..., 0004_truncate_guards_for_policy_and_money_tables.sql
+  trigger journal_lines.journal_lines_only_in_creating_transaction: BEFORE INSERT ROW
+  trigger accounts/journal_entries/journal_lines/webhook_events ..._never_truncated: BEFORE TRUNCATE STATEMENT
+  trigger webhook_events.webhook_events_received_at_is_server_set: BEFORE INSERT ROW
+  check webhook_events_are_test_mode_only: CHECK ((livemode = false))
+  header, 1.2 s pause, lines in one transaction: accepted
+  posting with time zone Asia/Tokyo set locally: accepted
+  line for a missing header: journal entry ... does not exist
+  app_runtime ALTER TABLE ... DISABLE TRIGGER: must be owner of table journal_lines
+  app_runtime SET session_replication_role = replica: permission denied to set parameter
+  owner SET session_replication_role = replica: permission denied to set parameter
+  trial owner connection: role neondb_owner, superuser=off
+  webhook_events with client received_at 2000-01-01: stored 2026-09-08T09:37:11.297Z (rolled back)
+  corgi_test: append as app_runtime: ... is sealed; append as owner: ... is sealed; append after SET LOCAL knobs: ... is sealed
+  max_prepared_transactions: 0; lines on the sealed entry before/after probes: 2/2
+  owner TRUNCATE webhook_events on corgi_test: cannot truncate a table referenced in a foreign key constraint
+  ```
+
+### Inspection of migration 0003 for bypasses
+
+The seal compares the header's `recorded_at` with `now()`. In Postgres `now()` is `transaction_timestamp()`: fixed at transaction start, identical for every statement of the transaction, unaffected by `statement_timestamp()`, `clock_timestamp()`, `pg_sleep`, savepoints, `SET LOCAL time zone` (timestamptz equality is absolute) or any user-settable parameter; no GUC changes what `now()` returns, and neither role can set `session_replication_role` (a superuser-only parameter, and the Neon owner `neondb_owner` is not a superuser). The 0001 trigger sets the header's `recorded_at` from the same `now()`, so equality holds only inside the creating transaction; a later transaction has a strictly later start time. Two transactions starting in the same microsecond on different connections is the only theoretical collision, and it could only add lines to an entry booked in that same microsecond. A missing header is refused by the seal before the foreign key. `max_prepared_transactions = 0`, so two-phase commit cannot hold a transaction open across sessions. The TRUNCATE triggers are statement-level and fire for cascaded truncations as well; a plain `TRUNCATE webhook_events` fails earlier on the foreign key from `webhook_processing`, and `TRUNCATE ... CASCADE` hits the trigger. What remains is inherent to table ownership: the owner can `DROP TRIGGER` or `ALTER TABLE ... DISABLE TRIGGER`; the application never connects as owner (now fail-closed), migrations are committed and reviewed, and no DDL of that kind exists in the repository. Infrastructure-level restores (Neon branch or point-in-time restore) are outside the database guards and remain a disclosed limitation.
+
+The seal check script refuses any URL whose database name is not `corgi_test`, so it cannot target the trial ledger; it commits `seal_check` entries there on every run, which is the purpose of a disposable database. The two checks that would be destructive if a guard were missing (TRUNCATE, live-mode insert) also run only there.
+
+### Findings status
+
+| ID | Status | Basis |
+|---|---|---|
+| F-B1-01 | RESOLVED at `a94f091` | Seal trigger present on the trial database and `corgi_test`; committed-entry negative test 4/4 PASS; append refused as runtime and as owner; lines 2/2 |
+| F-B1-02 | RESOLVED at `a94f091` | `db/client.ts` throws without `DATABASE_URL_APP` (build phase excepted); production health 200 at `8f253a7` proves the variable is set there |
+| F-B1-03 | RESOLVED at `a94f091` | BEFORE TRUNCATE statement triggers on the four protected tables; owner TRUNCATE refused on `corgi_test` |
+| F-B1-04 | RESOLVED | `received_at` overwritten by the database clock (probe) |
+| F-B1-05 | RESOLVED | CHECK `livemode = false` present; live-mode insert refused |
+| F-B1-14 | RESOLVED | Disposable `corgi_test` database exists and is the only target of committing checks |
+| F-B1-06 | OPEN (B2) | Startup Stripe account `livemode` check still to be added before the first outbound call; FINDINGS.md says the same under F-08 |
+| F-B1-07, F-B1-08, F-B1-09, F-B1-11, F-B1-12, F-B1-13 | OPEN, tracked in B5, B4, B7, B2, B2, B6 | Unchanged; FINDINGS.md tracks them under the grouped line F-B1-L |
+| F-B1-10 | OPEN, not in FINDINGS.md | Table-wide UPDATE grant on `webhook_processing`; cheap column-level grant, add to the register |
+| F-B1-15 | OPEN, one line now misleading | `.env.example` line 8 still says to leave `DATABASE_URL_APP` equal to `DATABASE_URL` until migration 0001 has run; with the fail-closed client that advice would make the app connect as the owner. Replace it, and add `DATABASE_URL_TEST` and `DATABASE_URL_TEST_APP` placeholders for `check:ledger-seal`. README gaps remain for B6 |
+
+FINDINGS.md statuses agree with this table for F-B1-01, F-B1-02, F-B1-03 and the grouped LOW line; F-B1-10 is missing from it.
+
+### Observation outside this scope
+
+Both databases record migrations `0002_policies_and_money_operations.sql` and `0004_truncate_guards_for_policy_and_money_tables.sql`, neither of which is on `main` at `8f253a7` (the working tree holds 0001 and 0003 only). They belong to slice B2 and were not reviewed here. The trial schema is therefore ahead of the repository; the B2 review must cover them, and no push or handoff should describe the database as reproducible from `main` until they are committed.
+
+### New verdict
+
+**PASS** for slice B1 (B1a + B1b) at `8f253a7`, fix code at `a94f091`. The HIGH and both MEDIUM findings are corrected and independently re-verified with committed-row negative tests on a disposable database and rolled-back probes on the trial database; the remaining items are LOW, tracked to named slices, plus the one-line `.env.example` correction above. Walkthrough status unchanged: NOT REVIEWED WITH YOANN. This remains a scoped engineering assessment, not a legal certification and not a statement that the six delivery gates pass.

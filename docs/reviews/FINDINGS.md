@@ -18,7 +18,8 @@ One line per finding from the independent reviews (design and implementation). F
 | F-12 | MED | Refund allocation across several payments undefined | Newest collection first, one Stripe refund per PaymentIntent | FIXED in design; code in B5 |
 | F-13 | MED | Stripe fees not journaled | Excluded explicitly by reconciliation and disclosed | DISCLOSED (README in B6) |
 | F-17 | MED | Commission clawback rounding undecided | Floor or ceil | OPEN (Yoann, B5) |
-| F-B1-01 | HIGH | app_runtime could append balanced lines to a committed entry (history changed without UPDATE) | Trigger: lines only in the transaction that created the header; test on corgi_test | FIXED 0003 (a94f091) |
+| F-B1-01 | HIGH | app_runtime could append balanced lines to a committed entry (history changed without UPDATE) | Trigger: lines only in the transaction that created the header; test on corgi_test | FIXED 0003 (a94f091), re-review PASS 8f253a7 |
 | F-B1-02 | MED | db/client.ts fell back to the owner connection when DATABASE_URL_APP was unset | Fail closed: DATABASE_URL_APP required | FIXED a94f091 |
-| F-B1-03 | MED | Owner could TRUNCATE protected tables | BEFORE TRUNCATE triggers | FIXED 0003 |
+| F-B1-03 | MED | Owner could TRUNCATE protected tables | BEFORE TRUNCATE triggers | FIXED 0003 (a94f091), re-review PASS 8f253a7 |
+| F-B1-10 | LOW | UPDATE grant on webhook_processing is table-wide (status, attempts, last_error, updated_at are all the app may change, but a column-level grant would document it) | Column-level grant in a later migration | OPEN (cheap, with the B2 migration review) |
 | F-B1-L | LOW | received_at client-settable; no DB livemode check; refunded tax may exceed tax charged by one cent on early cancellation; claims_paid account missing; two synthetic replay-test events in the production inbox; README gaps | received_at and livemode fixed in 0003; tax cap in B5; account in B7; replay events disclosed in README; README in B6 | Partly FIXED; rest tracked in the slices named |

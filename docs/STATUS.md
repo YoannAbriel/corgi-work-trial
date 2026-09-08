@@ -48,6 +48,10 @@ Independent B1 review (docs/reviews/b1-ledger-core.md): FAIL on F-B1-01, app_run
 
 Decisions since the last entry: recited example March 1, 2028 (365 days); California premium tax 2.35 percent from official sources (DECISIONS.md). B2 is being built by a delegate in an isolated worktree (branch worktree-agent-*, no push, no deploy); it will be reviewed and merged by the coordinator.
 
+## 2026-09-08T09:39:11+00:00 | B1 independent review PASS (re-review at 8f253a7)
+
+Reviewer confirmed the seal, TRUNCATE and livemode guards and tried bypasses (owner, session settings, pause between header and lines, timezone, trigger disable): all refused or without effect. Residue disclosed, not a finding: the owner can still drop a trigger, and database restores sit outside the guards. .env.example corrected (no owner fallback wording; test database placeholders). B1 is DONE technically; walkthrough NOT REVIEWED WITH YOANN. Note: the shared database already holds migrations 0002 and 0004 applied from the B2 worktree; the repository is behind the schema until B2 merges.
+
 Next acceptance criterion: B2 issuance with Stripe Checkout, journal posting on payment_intent.succeeded, replay twice is one. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
