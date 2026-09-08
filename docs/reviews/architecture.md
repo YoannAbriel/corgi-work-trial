@@ -125,3 +125,61 @@ Executed: full reads listed in section 1; `git rev-parse HEAD`, `git status`, `s
 Slice impact: B0 and B1 may proceed now, taking F-04, F-06 (chart additions), F-09, F-14, F-15 and F-16 into account; B2 waits for F-01, F-02, F-08, F-11; B4 for F-05; B5 for F-02, F-12, F-17; B7 for F-06, F-10, F-21; B8 and B9 for F-07; B10 for F-03, F-13; B11 for F-10. This is a scoped engineering assessment of a design, not a legal certification, and a later DESIGN PASS will not mean anything is implemented or compliant.
 
 Needs Yoann's decision: F-04 (example date or figures), F-07 (statement revision representation), F-17 (commission rounding), F-05 negative delta handling (refund now or customer credit), and the modeled state and tax rate from an official source.
+
+## 10. Re-review of the revised design (2026-09-08T10:06:00Z)
+
+- Revision: HEAD `32a521b1f3731b4cd94a871faa0c6548f968ddf1`, working tree clean. `docs/ARCHITECTURE.md` SHA-256 `e7acaee177a83f76c23fbb3c9a9535eb2d4779709da217a9266429b821fdc7b1` (revised 08:50Z and 10:05Z).
+- Read for this re-review: the revised `docs/ARCHITECTURE.md` in full; `docs/DECISIONS.md` entries 08:28Z to 10:02Z; `docs/reviews/b1-ledger-core.md` (verdict, matrix, findings F-B1-01 to F-B1-15, re-review section); `db/migrations/0001_ledger_core_and_webhook_inbox.sql` and `0003_seal_journal_entries_and_truncate_guards.sql`; `app/api/webhooks/stripe/route.ts`; `lib/stripe.ts`; `lib/money/dates.ts`, `lib/money/premium.ts`, `lib/money/premium.test.ts`; `.env.example` by keyword. `.env.local` not opened. No provider documentation fetched; items marked "verify at B2/B3/B5" stay unverified here.
+- Checks executed: recited example recomputed with Python integers (tax floor(120000 x 235 / 10000) = 2820; charge 125320; day 100 of 365: earned 32876, unearned 87124; tax refund ceil(87124 x 235 / 10000) = 2048; total 89172; commission 18000; clawback floor(87124 x 15%) = 13068), all equal to the design, DECISIONS.md and the tests; March 1, 2028 plus 100 days is June 9, 2028 as stated; `gitleaks git --redact` over 28 commits, no leaks. Not executed: the B1 guard and seal scripts (executed and recorded by the B1 reviewer at 8f253a7; not re-run here).
+
+### Disposition of the initial findings
+
+| Finding | Disposition | Where |
+|---|---|---|
+| F-01 webhook retry, lease, replay | Resolved. Event committed first with a `pending` row, duplicate continues to the lease, single UPDATE lease, 500 while not done, failed and ignored events view with audited replay | section 5; route implements it (see R-03) |
+| F-02 entries keyed on the webhook event | Resolved. `source_kind = money_operation`, one posting status per entry type, unique violation treated as success | section 2 (see R-01 for the refund-failed sentence and R-08 for the PaymentIntent link) |
+| F-03 payout rail not reconciled | Resolved. `simulator_provider_records` written only by the simulator, diffed by the same job, protected table; Stripe payouts included | sections 4 and 7 |
+| F-04 example day count | Resolved. Recited example March 1, 2028, 365 days, figures correct; 366-day table labeled illustrative and internally consistent | section 3, DECISIONS 09:20Z and 09:29Z, tests |
+| F-05 earning window, negative delta | Resolved. Segments with their own window; negative delta refunded at once through Stripe (Yoann, 09:57Z) | section 3 (see R-06) |
+| F-06 claim accounts | Resolved. `incurred_loss_expense`, `cash_claims_rail`, worked claim example, incurred = paid + reserve holds on the example | section 2 (see R-04) |
+| F-07 closed-month revisions | Resolved. `knowledge_cutoff` on `statement_runs`, revision 2 references revision 1 (Yoann, 10:02Z) | section 3 |
+| F-08 sandbox guards | Resolved in design (prefix plus `GET /v1/account` at every entry point, DB check `livemode = false` in 0003). Implementation of the account call is still due in B2 (B1 review F-B1-06) | section 4 |
+| F-09 seed and test databases | Resolved. Seed refuses a non-empty protected table, fresh database per test run, no cascade, TRUNCATE trigger in 0003 | section 1 |
+| F-10 approver check location | Resolved. Trigger on `approval_decisions` (not requester, role, human principal, first decision), approve route cookie-only | section 6 |
+| F-11 Stripe recovery per kind | Resolved as design; the `client_reference_id` listing and the key retention window are to verify at B2 | section 4 |
+| F-12 refund allocation | Resolved. Newest collection first, one operation per PaymentIntent, allocation stored | section 4 |
+| F-13 Stripe fees | Accepted with disclosure. Fees excluded by the reconciliation classifier with a reason, README states gross cash at Stripe | sections 4 and 7 |
+| F-14 protected list | Resolved. 16 tables listed including `accounts`, reconciliation tables and simulator records; 0001 protects the four that exist | section 1 |
+| F-15 server-set `recorded_at` | Resolved by trigger in 0001 (see R-05 on the wording) | section 1 |
+| F-16 journal integrity | Resolved. Unique `reverses_entry_id`, no-lines check, both in 0001; entries sealed at commit by 0003 | section 2 |
+| F-17 clawback rounding | Resolved. Rounded down (Yoann, 09:57Z); table text no longer contradicts itself | section 3 |
+| F-18 cancel with open claim | Resolved. Written rule | section 3 |
+| F-19 readability | Resolved. TypeScript `postJournalEntry`, no composite SQL types | section 2 |
+| F-20 unknown events, one secret | Resolved. Stored and marked `ignored` with reason; one secret per environment | section 5 |
+| F-21 per-claim lock | Resolved. Payment refused inside a transaction locking the claim row | section 2 |
+
+### New findings on the revised text
+
+**R-01 (MEDIUM) `refund.failed` must not reverse the customer's refund liability.** Section 2 says `refund_failed` "reverses `refund_requested` and reopens the receivable". After a failed Stripe refund the customer is still owed the money and the policy is still cancelled; reversing `refund_requested` would restore `unearned_premium` and `premium_tax_payable` on a cancelled policy and make the ledger say nothing is owed. Correction: on `refund.failed` post no journal entry; record `failed` on the operation; `refund_payable` stays open and shows up in the non-zero clearing list of section 1 with its age; staff re-issue a new `stripe_refund` operation for the same liability. Verify at B5 whether Stripe can fail a refund after reporting `succeeded`; only in that case reverse `refund_completed` (cash came back), never `refund_requested`. To be corrected in the document before B5 starts and checked in the B5 feature review.
+
+**R-02 (LOW) KYB paragraph reads as both decided and conditional.** Section 4 opens with the decision (Stripe Connect Accounts v2, test mode) and closes with "If the last resort is Stripe Connect business verification", and the sandbox-marker example cites a Persona key prefix. Rewrite as settled, keep the disclosure sentence unconditional. Add for B3: Accounts v2 events may be delivered as v2 thin events through an event destination, which need the SDK's thin-event parsing and a fetch of the related object rather than `constructEvent`; verify on docs.stripe.com at B3. The inbox key (`provider`, `provider_event_id`) still applies.
+
+**R-03 (LOW) Section 5 lease wording versus the implemented route.** The route also re-leases a `processing` row older than five minutes (a function that died mid-way); the design does not mention it. Document the expiry and why it is safe (a Vercel function cannot run five minutes). The route today marks `done` in a separate statement after processing; section 5 requires posting and completion in one transaction, so B2 must move the status update into the posting transaction (B1 review F-B1-12).
+
+**R-04 (LOW) Chart table versus migration and example.** Section 2 still lists `claims_paid`, which migration 0001 does not seed and the claim example does not use (B1 review F-B1-09): remove it or define its use. The claim example leaves `cash_claims_rail` with a credit balance (net paid out) because no funding or capital account exists; either state that reading or add an `opening_capital` account with a seed funding entry.
+
+**R-05 (LOW) Section 1 overstates the `recorded_at` control.** It promises a column grant that excludes `recorded_at`; 0001 grants table-wide INSERT and relies on the BEFORE INSERT trigger, which is sufficient. Align the wording with what exists.
+
+**R-06 (LOW) Negative endorsement delta details.** State that the immediate refund also returns the tax on the returned premium (ceiled, consistent with "tax follows the premium" and the California base "less return premiums" recorded at 09:29Z), that it follows the newest-collection-first allocation, and how a negative segment rounds inside the earned sum (round the reduction up in absolute value so the insurer eats the fraction). Cap the refunded tax at the tax charged for the policy (B1 review F-B1-07).
+
+**R-07 (LOW) Stale comments and placeholders outside the design.** `lib/money/premium.test.ts` still says the clawback rounding is open; add the 13068 assertion in B5. `.env.example` still describes Sumsub and Middesk as the KYB provider (B1 review F-B1-15); B6.
+
+**R-08 (LOW) Link between `payment_intent.succeeded` and the operation.** Collection posts on `payment_intent.succeeded`, but the operation id is carried by the Checkout Session (`client_reference_id`). Set `payment_intent_data.metadata.operation_id` at session creation so the PaymentIntent event resolves the operation directly; otherwise the handler must call `checkout.sessions.list({ payment_intent })`. Say which in section 4. Whether the sessions list endpoint filters by `client_reference_id` is to verify at B2; if it does not, recovery is the same-key re-issue plus metadata.
+
+### AF-01 to AF-06 at this revision
+
+AF-01: production `/api/health` reported by the B1 reviewer at 2b15397; not re-checked here, NOT RUN. AF-02: design labels every simulator and discloses that both live slots run on Stripe; README inventory still due in B6, NOT RUN. AF-03: triggers, role, seal and TRUNCATE guards implemented in 0001 and 0003 with negative checks recorded PASS by the B1 review at 8f253a7; design PASS. AF-04: `sk_test_` prefix, route refusal and DB check `livemode = false`; outbound account check due in B2; key values not inspected. AF-05: gitleaks history scan at 32a521b, 28 commits, no leaks; pre-commit hook active. AF-06: walkthrough status NOT REVIEWED WITH YOANN.
+
+### Verdict
+
+**DESIGN PASS** for `docs/ARCHITECTURE.md` at SHA-256 `e7acaee1...dc7b1`, permitting implementation of B1 to B12, with one scoped exclusion: the `refund_failed` sentence in section 2 (R-01) is not approved as written and must be corrected before B5 starts; the B5 feature review must confirm it. The LOW items R-02 to R-08 are documentation alignments and B2, B3, B5 and B6 implementation notes; none blocks implementation. This verdict does not mean anything beyond slice B1 is implemented or compliant, and it is not a legal certification. Residual limitations: Stripe idempotency retention, the sessions list filter, the refund status transitions and the Accounts v2 event delivery shape remain to be verified against docs.stripe.com at B2, B3 and B5; the California tax rule is applied as this build's rule with its official sources recorded, not as a legal claim.
