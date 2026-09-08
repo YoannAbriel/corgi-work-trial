@@ -332,10 +332,18 @@ async function recordPaymentWithoutBinding(
 
 // Appends the 'succeeded' status of an operation, and only the first time.
 //
-// The guard is inside the statement rather than a read followed by a write, so two deliveries
-// of the same payment cannot both decide that the status is missing. It matters on the refused
-// path: there the posting transaction's unique index is not what stops a replay, since nothing
-// is posted, so this statement is the whole protection against a second identical status row.
+// Two things stop a second row, and the second one is what makes it a fact:
+//
+//   * `where not exists` handles the ordinary case, a delivery arriving after another one
+//     finished: it reads the history in the same statement rather than in an earlier query.
+//   * `on conflict ... do nothing` handles the race that guard cannot see, two deliveries of the
+//     same payment in flight at the same moment: neither of them sees the other's uncommitted
+//     row, so both pass the sub-select and the partial unique index of migration 0013 refuses
+//     the loser. Doing nothing is the right answer, because the row it wanted is already there
+//     (review finding F-B2-19).
+//
+// It matters on the refused path (rule 14): there nothing is posted, so the journal's unique key
+// is not what stops a replay, and this statement is the whole protection.
 async function appendSucceededEventOnce(
   transaction: postgres.TransactionSql,
   payment: SuccessfulPayment,
@@ -348,6 +356,7 @@ async function appendSucceededEventOnce(
        select 1 from money_operation_events
         where operation_id = ${payment.operationId} and status = 'succeeded'
      )
+    on conflict (operation_id) where status = 'succeeded' do nothing
   `;
 }
 

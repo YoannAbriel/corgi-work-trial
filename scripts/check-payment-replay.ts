@@ -149,6 +149,22 @@ async function main() {
   `;
   report("one success event was appended, not two", successes[0].count === "1", `${successes[0].count} succeeded event(s)`);
 
+  // F-B2-19: and that is now a fact of the database, not a race the application usually wins.
+  // Two deliveries in flight at the same moment cannot see each other's uncommitted row, so the
+  // partial unique index of migration 0013 is what refuses the second one. Written straight to
+  // the table with the runtime role, which is what a losing concurrent delivery would attempt.
+  const secondSuccess = await runtime`
+    insert into money_operation_events (operation_id, status, provider_ref, payload)
+    values (${operationId}, 'succeeded', ${payment.paymentIntentId}, '{}'::jsonb)
+  `
+    .then(() => "the insert went through")
+    .catch((error: { code?: string; constraint_name?: string }) => `${error.code} ${error.constraint_name ?? ""}`.trim());
+  report(
+    "the database itself refuses a second success row for the same operation",
+    secondSuccess.startsWith("23505"),
+    secondSuccess,
+  );
+
   // A payment whose amount is not the amount we asked for is refused instead of posted.
   const wrongAmount = await recordSuccessfulPayment({ ...payment, amountReceivedCents: 999 }, runtime);
   report(
