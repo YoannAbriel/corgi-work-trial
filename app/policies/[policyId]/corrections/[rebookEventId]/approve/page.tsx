@@ -4,7 +4,6 @@ import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
 import { correctionsOfPolicy } from "@/lib/policy/correction-read";
 import { FormulaLinesTable } from "../../../formula-lines";
 
@@ -86,7 +85,7 @@ export default async function ApproveCorrectionPage({
       <FormulaLinesTable lines={correction.lines} />
 
       <p className="note">
-        Your approval is needed because the difference is above {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}.
+        Why your approval is needed: {correction.approvalSentences.customer ?? "the difference is above the approval threshold"}.
         Approving records your acceptance; your broker then opens the Stripe payment page. Nothing is charged by this
         button.
       </p>

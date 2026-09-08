@@ -149,8 +149,12 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
               </p>
               {!correction.collection.paidOn && correction.collection.customerApprovalRequired && !correction.collection.customerApprovedAt ? (
                 <p className="note">
-                  Above $500, so the customer has to approve it from their own screen before it can be collected.
+                  The customer has to approve it from their own screen before it can be collected:{" "}
+                  {correction.approvalSentences.customer ?? "it is above the customer approval threshold"}.
                 </p>
+              ) : null}
+              {!correction.collection.paidOn && !correction.collection.customerApprovalRequired && correction.approvalSentences.customer ? (
+                <p className="note">Customer approval: {correction.approvalSentences.customer}.</p>
               ) : null}
               {!correction.collection.paidOn &&
               canPay &&
@@ -172,8 +176,8 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
           {correction.money.settlement === "refund" ? (
             <p className="note">
               The corrected date charges fewer days, so {formatCentsAsUsd(-correction.money.differenceTotalCents)} goes
-              back to the customer through Stripe. It is listed under Refunds above, with its state and, above $1,000,
-              the approver it is waiting for.
+              back to the customer through Stripe. It is listed under Refunds above, with its state and the approver it
+              is waiting for. Second approver: {correction.approvalSentences.refund ?? "read from the refund itself"}.
             </p>
           ) : null}
           {correction.money.settlement === "none" ? (

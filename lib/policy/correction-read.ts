@@ -4,8 +4,13 @@ import { documentEventsFromRows, type PolicyEventRowForDocuments } from "@/lib/d
 import { foldPolicyEvents as foldForDocuments } from "@/lib/documents/policy-as-of";
 import type { PolicySnapshot } from "@/lib/documents/policy-snapshot";
 import { centsFromDatabase, formatCentsAsUsd } from "@/lib/money/cents";
-import { correctionFormulaLines, type EndorsementDateCorrection } from "@/lib/money/correction";
-import { CUSTOMER_APPROVAL_THRESHOLD_CENTS, type FormulaLine } from "@/lib/money/endorsement";
+import {
+  correctionApprovalSentences,
+  correctionFormulaLines,
+  type CorrectionApprovalSentences,
+  type EndorsementDateCorrection,
+} from "@/lib/money/correction";
+import type { FormulaLine } from "@/lib/money/endorsement";
 import { isCalendarDate } from "@/lib/money/dates";
 import { figuresFromPayload } from "./endorsement-requests";
 import type { MoneyOperationStatus } from "./status";
@@ -56,6 +61,9 @@ export type CorrectionView = {
   description: string; // what the endorsement itself changed
   money: EndorsementDateCorrection;
   lines: FormulaLine[];
+  // The verdict on each threshold with the total behind it, rebuilt from the figures the
+  // correction stored: the same sentence the preview showed before it was executed.
+  approvalSentences: CorrectionApprovalSentences;
   entries: CorrectionEntryView[];
   collection: CorrectionCollectionView | null; // the difference to collect, when there is one
 };
@@ -107,8 +115,17 @@ export async function correctionsOfPolicy(policyId: string, database: Queryable 
       differenceTotalCents: signedCents(row.rebook_payload, "difference_total_cents"),
       differenceCommissionCents: signedCents(row.rebook_payload, "difference_commission_cents"),
       settlement: settlementOf(row.rebook_payload),
-      customerApprovalRequired: signedCents(row.rebook_payload, "difference_total_cents") > CUSTOMER_APPROVAL_THRESHOLD_CENTS,
-      refundNeedsApproval: false, // read from the refund operation itself on the policy page
+      // THE VERDICTS ARE READ FROM THE EVENT, NEVER RECOMPUTED (review finding F-B8-02). The
+      // correction decided them once, against the totals it stored beside them; asking the
+      // question again here with today's totals is how a screen ends up saying "no approval
+      // needed" two lines above the approval it is waiting for.
+      customerApprovalRequired: row.rebook_payload.difference_customer_approval_required === true,
+      refundNeedsApproval: row.rebook_payload.difference_refund_needs_approval === true,
+      totals: {
+        policyRefundedCents: signedCents(row.rebook_payload, "policy_refunded_cents"),
+        policyPendingRefundCents: signedCents(row.rebook_payload, "policy_pending_refund_cents"),
+        customerUnapprovedRequestedCents: signedCents(row.rebook_payload, "customer_unapproved_requested_cents"),
+      },
     };
     corrections.push({
       reversalEventId: row.reversal_id,
@@ -121,6 +138,7 @@ export async function correctionsOfPolicy(policyId: string, database: Queryable 
       description: String(row.rebook_payload.description ?? ""),
       money,
       lines: correctionFormulaLines(money),
+      approvalSentences: correctionApprovalSentences(money),
       entries: await entriesOfCorrection(database, row.reversal_id, row.rebook_id),
       collection: await collectionOfCorrection(database, row.rebook_id),
     });
@@ -189,10 +207,15 @@ async function entriesOfCorrection(
 
 // The difference this correction created and asked the customer for, and where it stands.
 async function collectionOfCorrection(database: Queryable, rebookEventId: string): Promise<CorrectionCollectionView | null> {
-  const [link] = await database<{ operation_id: string; amount_cents: string }[]>`
-    select link.collection_operation_id as operation_id, link.amount_cents
+  const [link] = await database<{ operation_id: string; amount_cents: string; approval_required: boolean }[]>`
+    select link.collection_operation_id as operation_id,
+           link.amount_cents,
+           -- Read from the re-book event, not recomputed from the amount: the correction decided
+           -- it once, cumulatively, and the approval event below has to agree with it.
+           coalesce((rebook.payload ->> 'difference_customer_approval_required')::boolean, false) as approval_required
       from correction_collections link
       join money_operations operation on operation.id = link.collection_operation_id
+      join policy_events rebook on rebook.id = link.correction_rebook_event_id
      where link.correction_rebook_event_id = ${rebookEventId}
      order by operation.created_at desc
      limit 1
@@ -217,7 +240,7 @@ async function collectionOfCorrection(database: Queryable, rebookEventId: string
     checkoutUrl: accepted ? String(accepted.payload.checkout_url) : null,
     paidOn: succeeded && typeof succeeded.payload.paid_on === "string" ? succeeded.payload.paid_on : null,
     isDead: events.some((event) => event.status === "failed" && event.payload.reason === "expired"),
-    customerApprovalRequired: amountCents > CUSTOMER_APPROVAL_THRESHOLD_CENTS,
+    customerApprovalRequired: link.approval_required,
     customerApprovedAt: approval?.recorded_at ?? null,
   };
 }

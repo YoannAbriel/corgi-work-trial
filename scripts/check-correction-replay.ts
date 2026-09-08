@@ -473,6 +473,167 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
+  // 4b. The two thresholds are cumulative over the POLICY (review finding F-B8-02)
+  // ---------------------------------------------------------------------------
+  //
+  // Neither question is about this correction alone. A difference of $191.80 given back is well
+  // under the $1,000 that needs a second person, and it still has to be queued when the policy has
+  // already sent $900.68 back: otherwise three corrections in a row move $1,800 with nobody
+  // approving anything. The same trick works on the customer's side, so both are proved here.
+
+  // The money-out side: a reduction that refunds 90068 and is still on its way, then a raise, then
+  // a correction that gives back 19180. 19180 alone would go straight to Stripe; 90068 + 19180 is
+  // above $1,000, so it waits for an approver instead.
+  const cumulative = await createPaidPolicy(recordSuccessfulPayment);
+  const cumulativeBroker: Actor = { userId: cumulative.brokerUserId, role: "broker", brokerId: cumulative.brokerId, customerId: null };
+  const reduction = {
+    policyId: cumulative.policyId,
+    effectiveAt: TERM_START,
+    newAnnualPremiumCents: 32000,
+    newPerOccurrenceLimitCents: PER_OCCURRENCE,
+    newAggregateLimitCents: AGGREGATE,
+    reason: "cover reduced from the start of the term",
+    actor: cumulativeBroker,
+  };
+  const reductionPlan = await planEndorsement(reduction, runtime);
+  const reductionResult = await recordEndorsementRequest(
+    { ...reduction, expectedQuoteHash: reductionPlan.figures.quoteHash },
+    runtime,
+  );
+  report(
+    "a first reduction gives back 90068, under the $1,000 line, so nobody has to approve it",
+    reductionPlan.figures.deltaTotalCents === -90068 &&
+      reductionPlan.refundNeedsApproval === false &&
+      reductionResult.refundOperationIdsAwaitingApproval.length === 0,
+    `${-reductionPlan.figures.deltaTotalCents} back, needs approval ${reductionPlan.refundNeedsApproval}`,
+  );
+
+  const raiseAfterReduction = {
+    ...reduction,
+    effectiveAt: DAY_100,
+    newAnnualPremiumCents: 92000,
+    reason: "cover raised again",
+  };
+  const raisePlan = await planEndorsement(raiseAfterReduction, runtime);
+  const raiseRequested = await recordEndorsementRequest(
+    { ...raiseAfterReduction, expectedQuoteHash: raisePlan.figures.quoteHash },
+    runtime,
+  );
+  const raiseQuote = (await readEndorsementRequest(runtime, cumulative.policyId, raiseRequested.requestEventId))!;
+  const raiseAttempt = await createEndorsementCheckoutOperation(
+    { quote: raiseQuote, userId: cumulative.brokerUserId, attempt: 1 },
+    runtime,
+  );
+  await recordSuccessfulEndorsementPayment(
+    {
+      operationId: raiseAttempt.operationId,
+      paymentIntentId: `pi_cumulative_${raiseAttempt.operationId.slice(0, 8)}`,
+      amountReceivedCents: raisePlan.figures.deltaTotalCents,
+      paidOn: DAY_100,
+    },
+    runtime,
+  );
+  // This policy has TWO applied endorsements, the reduction and the raise; the latest one is the
+  // only one that can be corrected.
+  const [raisedEvent] = await owner<{ id: string }[]>`
+    select id from policy_events
+     where policy_id = ${cumulative.policyId} and event_type = 'endorsed'
+     order by sequence_number desc limit 1
+  `;
+
+  const cumulativeOperator = { userId: cumulative.staffUserId, role: "staff_ops" as const };
+  const queuedPlan = await planEndorsementDateCorrection(
+    {
+      policyId: cumulative.policyId,
+      correctedEventId: raisedEvent.id,
+      correctedEffectiveAt: "2028-10-01",
+      reason: "the raise started on October 1, not June 9",
+      actor: cumulativeOperator,
+    },
+    runtime,
+  );
+  report(
+    "the correction gives back 19180, which alone is far under the $1,000 line",
+    queuedPlan.money.differenceTotalCents === -19180 && -queuedPlan.money.differenceTotalCents < 100000,
+    `${-queuedPlan.money.differenceTotalCents} back`,
+  );
+  report(
+    "and it STILL NEEDS AN APPROVER, because the policy already has 90068 on its way back",
+    queuedPlan.money.refundNeedsApproval === true &&
+      queuedPlan.money.totals.policyPendingRefundCents === 90068 &&
+      queuedPlan.money.totals.policyRefundedCents === 0,
+    `pending ${queuedPlan.money.totals.policyPendingRefundCents}, already refunded ${queuedPlan.money.totals.policyRefundedCents}`,
+  );
+  report(
+    "the screen sentence names the total behind the verdict, never just the verdict",
+    /takes what this policy has given back past \$1,000\.00/.test(queuedPlan.approvalSentences.refund ?? "") &&
+      /\$900\.68 still on its way/.test(queuedPlan.approvalSentences.refund ?? ""),
+    queuedPlan.approvalSentences.refund ?? "no sentence",
+  );
+
+  const queuedCorrection = await recordEndorsementDateCorrection(
+    {
+      policyId: cumulative.policyId,
+      correctedEventId: raisedEvent.id,
+      correctedEffectiveAt: "2028-10-01",
+      reason: "the raise started on October 1, not June 9",
+      actor: cumulativeOperator,
+    },
+    runtime,
+  );
+  report(
+    "so it is QUEUED with an approval request and nothing is sent to Stripe",
+    queuedCorrection.refundOperationIdsAwaitingApproval.length === 1 &&
+      queuedCorrection.approvalRequestIds.length === 1 &&
+      (await countOperationEvents(queuedCorrection.refundOperationIds[0], "provider_accepted")) === 0,
+    `${queuedCorrection.approvalRequestIds.length} approval request(s), ${await countOperationEvents(queuedCorrection.refundOperationIds[0], "provider_accepted")} sent`,
+  );
+  report(
+    "the verdict and the totals behind it are written on the correction event, not recomputed later",
+    (await correctionsOfPolicy(cumulative.policyId, runtime))[0]?.money.refundNeedsApproval === true &&
+      (await correctionsOfPolicy(cumulative.policyId, runtime))[0]?.money.totals.policyPendingRefundCents === 90068,
+    `read back: needs approval ${(await correctionsOfPolicy(cumulative.policyId, runtime))[0]?.money.refundNeedsApproval}`,
+  );
+
+  // The customer's side: a raise of 48762 that the customer has not answered, then a correction
+  // that collects 5047. Each is under $500; together they are above it, so the customer decides.
+  const waiting = await endorsedPolicy(DAY_130);
+  const waitingBroker: Actor = { userId: waiting.brokerUserId, role: "broker", brokerId: waiting.brokerId, customerId: null };
+  const secondRaise = {
+    policyId: waiting.policyId,
+    effectiveAt: DAY_130,
+    newAnnualPremiumCents: 254000,
+    newPerOccurrenceLimitCents: RAISED_PER_OCCURRENCE,
+    newAggregateLimitCents: RAISED_AGGREGATE,
+    reason: "a second raise, still waiting for the customer",
+    actor: waitingBroker,
+  };
+  const secondRaisePlan = await planEndorsement(secondRaise, runtime);
+  await recordEndorsementRequest({ ...secondRaise, expectedQuoteHash: secondRaisePlan.figures.quoteHash }, runtime);
+  const askedPlan = await planEndorsementDateCorrection(
+    {
+      policyId: waiting.policyId,
+      correctedEventId: waiting.endorsedEventId,
+      correctedEffectiveAt: DAY_100,
+      reason: "the first endorsement started on June 9",
+      actor: { userId: waiting.staffUserId, role: "staff_ops" },
+    },
+    runtime,
+  );
+  report(
+    "a difference of 5047 to collect is far under $500 on its own",
+    askedPlan.money.differenceTotalCents === 5047 && askedPlan.money.differenceTotalCents < 50000,
+    `${askedPlan.money.differenceTotalCents} to collect`,
+  );
+  report(
+    "and it STILL NEEDS THE CUSTOMER, because 48762 of quotes are already waiting for them",
+    askedPlan.money.customerApprovalRequired === true &&
+      askedPlan.money.totals.customerUnapprovedRequestedCents === 48762 &&
+      /still waiting for this customer/.test(askedPlan.approvalSentences.customer ?? ""),
+    `waiting ${askedPlan.money.totals.customerUnapprovedRequestedCents}: ${askedPlan.approvalSentences.customer ?? "no sentence"}`,
+  );
+
+  // ---------------------------------------------------------------------------
   // 5. Refusals
   // ---------------------------------------------------------------------------
 

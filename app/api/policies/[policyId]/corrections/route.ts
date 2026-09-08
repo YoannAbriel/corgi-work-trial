@@ -36,13 +36,25 @@ export async function POST(request: Request, context: { params: Promise<{ policy
       expectedPolicyVersion,
       actor: { userId: user.id, role: user.role },
     });
+    // What Stripe, or the gate in front of it, actually answered. It is never dropped: telling an
+    // operator "requested" about a refund the gate refused would leave them watching an operation
+    // that cannot move (review finding F-B8-02).
+    const refused = result.sendOutcomes.some((sendOutcome) => sendOutcome.status === "refused");
+    const queued =
+      result.refundOperationIdsAwaitingApproval.length > 0 ||
+      result.sendOutcomes.some((sendOutcome) => sendOutcome.status === "queued_for_approval");
+    const failed = result.sendOutcomes.some((sendOutcome) => sendOutcome.status === "failed");
     const outcome = result.plan.money.settlement === "collect"
       ? "collect"
-      : result.refundOperationIdsAwaitingApproval.length > 0
-        ? "refund-held"
-        : result.refundOperationIds.length > 0
-          ? "refund-requested"
-          : "done";
+      : refused
+        ? "refund-refused"
+        : queued
+          ? "refund-held"
+          : failed
+            ? "refund-failed"
+            : result.refundOperationIds.length > 0
+              ? "refund-requested"
+              : "done";
     return redirectTo(`/policies/${policyId}?correction=${outcome}`);
   } catch (error) {
     if (error instanceof CorrectionRefused) {
