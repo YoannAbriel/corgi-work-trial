@@ -1,10 +1,10 @@
 # Current status
 
-Recorded at 2026-09-08T06:41:47+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
+Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
 
 Startup reads: original kit CLAUDE.md, AGENTS.md, WORKFLOW-48H.md and REVIEWER.md; released general and three track briefs supplied in the conversation, extracted in BRIEF-REFERENCE.md. Automatic-fail and readability rules were independently reviewed and corrected. Missing: separately supplied kickoff sandbox rules, chosen stack/providers, actual provider access and product acceptance evidence.
 
-Local documentation is the working status source for this update; the Linear project overview has been updated with the released-brief rules, track-unselected status, readable-code policy and review corrections. Tickets YOA-593 (scope), YOA-595 (approval/MCP), YOA-599 (webhooks), YOA-600 (ledger) and YOA-601 (reconciliation) now carry the relevant released-brief overrides, with their existing unchecked scenarios preserved; there is no automatic synchronization. Its 162 checks are not completed tests.
+Local documentation is the working status source for this update; the Linear project overview now identifies Track 1, the pending stack discussion and the next-session handoff. Earlier general-rule and readability review corrections remain in force. Tickets YOA-593 (scope), YOA-595 (approval/MCP), YOA-599 (webhooks), YOA-600 (ledger) and YOA-601 (reconciliation) now carry the relevant released-brief overrides, with their existing unchecked scenarios preserved; there is no automatic synchronization. Its 162 checks are not completed tests.
 
 Three independent Sol instruction reviews completed: brief coverage, financial/security rules, practical workflow/readability. Material findings were corrected and re-reviewed with scoped design PASS verdicts; see reviews/instructions-2026-09-08.md for initial findings, coordinator dispositions and minor post-review wording fixes. Product AF-01 through AF-06 verification: NOT RUN. Documentation changes do not establish passing product controls.
 
