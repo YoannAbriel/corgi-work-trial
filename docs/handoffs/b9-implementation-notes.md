@@ -148,12 +148,20 @@ Two selection rules, and the second one is what makes net due true:
 Everything else in the journal (writing premium, billing tax, earning premium, claim money) is not
 a movement of what the broker is owed and is deliberately absent.
 
-One case is worth saying out loud because it looks like an omission: money parked in the suspense
-account for a broker who lost eligibility (`unapplied_cash_received`, rule 14) is NOT on the
-statement of the month it arrived in. No policy was bound and no commission was earned on it. When
-staff bind the policy later, the `premium_collected` entry that applies the parked cash appears on
-the statement of the month of that application, and the commission with it. The cash is therefore
-counted exactly once, in the month it becomes premium.
+One case is worth saying out loud, and the first version of this note got it wrong (review finding
+F-B9-03). Money parked in the suspense account for a broker who lost eligibility
+(`unapplied_cash_received`, rule 14) is not on the statement of the month it arrived in: no policy
+was bound and no commission was earned on it. When staff bind the policy later, the
+`premium_collected` entry that applies the parked cash is dated **the day the money arrived**, not
+the day of the binding (`postCollectionAndBind` uses `payment.paidOn`), so it lands on the
+statement of the month the CASH arrived in, whatever month staff bind in.
+
+Recite it with the reviewer's own probe: a payment succeeds on 2028-03-31 while the broker is not
+eligible, so March is empty; the broker becomes eligible and staff bind today; the March statement
+then has a revision 2 carrying 125320 of cash, 120000 of premium and 18000 of commission, it ties
+to the ledger, and April, the month the binding was recorded in, is empty. That is the model doing
+exactly what decision 19 asks: the month is the business month, and learning something later makes
+a new revision of that month rather than a line in this one. The cash is counted exactly once.
 
 Reversals need no special arithmetic: a reversal entry carries the mirror image of the original
 lines (`lib/ledger/reverse.ts`), so its movement is already the opposite sign, and the line kind is
@@ -226,6 +234,40 @@ implemented on this branch.
   has to name a real journal entry, and the fixture type gained a `journal_entries` key for it.
   Every existing check is unaffected; the fixture is always rolled back.
 
+## 7b. The independent review, and what it changed
+
+`docs/reviews/b9-statements.md` reviewed the slice twice and both verdicts were FAIL. What the
+delegate fixed here, after the second one:
+
+- **F-B9-09 (HIGH).** Migration 0015 restated three statements that already existed on the trial
+  database. Fixed by migration 0016 and the format branch described in section 7. The lesson is in
+  the migration itself: on an append-only table a row must be able to say which meaning its own
+  columns hold, and a NOT NULL DEFAULT is how you restate history without an UPDATE.
+- **F-B9-02 (MEDIUM).** The page and the PDF promised unconditional reproduction. Both now say
+  exactly what holds: the same broker, month and cutoff read the same journal entries and produce
+  the same hash, and the one case that does not reproduce is named. A note for the coordinator:
+  the entry's recording time IS part of the hashed text (`lib/statements/compute.ts`, the line
+  rows), which is safe because a journal row can never change and its recording time is stamped by
+  the database, so it is deterministic. The sentence on the document was written to be true of the
+  code as it is, not of an assumption about it.
+- **F-B9-03 (MEDIUM).** Section 5 named the wrong month for parked cash. Corrected, with the
+  reviewer's own probe as the way to recite it.
+- **F-B9-04 (LOW)** and **F-B9-07 (LOW)**: the form's broker id is validated and the refusal names
+  the right roles. **F-B9-06 (LOW)**: the duplicated uuid guard on the statement page is gone.
+  **F-B9-10 (LOW)**: migration 0015 no longer opens with the wrong number.
+
+Left for the coordinator or a later pass: **F-B9-05** (the page answers 200 with a message to a
+non-owner while the PDF answers 404; both refuse and neither leaks a figure, but they should agree,
+and which way is a product call), **F-B9-08** (the PDF overprints a long description, assigned to
+the interface pass), and **F-B9-11** (the endorsement case has a unit test and the reviewer's probe
+but no end-to-end proof in `scripts/check-statements.ts`).
+
+The reviewer also recorded a latent risk that is worth carrying into B8: the commission-base
+subquery groups on `(source_kind, source_id)`, and for a reversal that key is the correction event.
+`voidFabricatedBinding` reverses one money operation per correction event, so the base is correct
+today. A correction that ever reversed entries from two operations under one event would pool their
+premium. Nothing to change now; B8 has to know.
+
 ## 8. Known limitation, stated rather than discovered at a debrief
 
 A cutoff taken while money is being posted can miss an entry whose transaction had not committed
@@ -268,6 +310,33 @@ $ npm run build                                 exit 0
 $ npm test                                      333 tests, 332 pass, 1 skipped
 $ npm run check:statements                      34 of 34 PASS, exit 0
 ```
+
+After the second merge of main and the review fixes:
+
+```
+$ git merge main                                clean, no conflict
+$ npm run migrate -- --database=test            applied 0016_statement_format_version.sql
+$ npm run typecheck                             exit 0
+$ npm run build                                 exit 0
+$ npm test                                      341 tests, 340 pass, 1 skipped
+$ npm run check:statements                      38 of 38 PASS, exit 0
+```
+
+The four proof lines the format marker adds:
+
+```
+PASS  A RUN STORED IN THE OLDER FORMAT READS AS THE CASH IT HOLDS, not as a premium and a zero cash
+      (version 1, cash 125320, premium null)
+PASS  the next revision of that month is written in the current format and is flagged as a format change
+PASS  the older revision is untouched: it still says what it said, in the format it was written in
+PASS  the list screens read the same two formats side by side
+```
+
+Rendered over HTTP on the dev server against the disposable database, then the server stopped: the
+v1 run prints "Statement format v1", "$1,253.20" as cash and "not stored on this revision" for the
+premium; its PDF prints the same and never the v2 labels; the v2 revision of that month prints "The
+statement format changed"; the list carries "format changed, not comparable by hash"; and
+`brokerId=not-a-uuid` answers 303 with a sentence instead of 500.
 
 The guards were NOT run again after the merge, on the coordinator's instruction: the disposable
 database is contended by several agents and the TRUNCATE probes deadlock there, so the coordinator
