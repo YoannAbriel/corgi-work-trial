@@ -1,6 +1,9 @@
 import type Stripe from "stripe";
 import type postgres from "postgres";
 import { sql } from "@/db/client";
+import { assertIntentIsApproved } from "@/lib/approvals/approvals";
+import { stripePaymentDestination, type MoneyOutIntent } from "@/lib/approvals/intent";
+import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
 import { refundCompletedEntries } from "@/lib/ledger/cancellation-entries";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
@@ -113,6 +116,90 @@ export async function recoverPendingRefund(operation: RefundOperation): Promise<
   const existing = await stripe.refunds.list({ payment_intent: operation.paymentIntentId, limit: 100 });
   const ours = existing.data.find((refund) => refund.metadata?.operation_id === operation.operationId);
   return ours ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Sending a refund that is waiting: after an approval, or after a crash
+// ---------------------------------------------------------------------------
+
+// The intent an approver approves for a cancellation refund, and the one this module rebuilds
+// from the operation before calling Stripe. Every part of it is immutable (the operation's
+// amount, the allocation's PaymentIntent), so a mismatch means the approval names a different
+// refund, not that this one changed under it.
+export function refundIntent(policyId: string, amountCents: number, paymentIntentId: string): MoneyOutIntent {
+  return {
+    kind: "refund",
+    subjectKind: "policy",
+    subjectId: policyId,
+    amountCents,
+    destination: stripePaymentDestination(paymentIntentId),
+  };
+}
+
+export class RefundSendRefused extends Error {}
+
+// Whether this refund is allowed to leave for Stripe right now. Exported on its own so the
+// screens can say why a button is not there, and so the check script can prove the refusal
+// without calling Stripe.
+//
+// Two gates, and the second one is what makes maker-checker impossible to skip:
+//   - an operation that carries an approval request needs an approved decision whose intent
+//     still matches this refund;
+//   - an operation ABOVE the threshold that carries no request at all is refused outright, so
+//     that any code path which forgets the queue fails closed instead of paying.
+export async function assertRefundMaySend(
+  database: postgres.Sql,
+  operation: RefundOperation,
+): Promise<void> {
+  if (operation.refundId) {
+    throw new RefundSendRefused("this refund has already been created at Stripe");
+  }
+  if (operation.state === "completed") {
+    throw new RefundSendRefused("this refund has already been paid to the customer");
+  }
+  if (operation.approvalRequestId) {
+    await assertIntentIsApproved(
+      database,
+      operation.approvalRequestId,
+      refundIntent(operation.policyId, operation.amountCents, operation.paymentIntentId),
+    );
+    return;
+  }
+  if (moneyOutNeedsApproval(operation.amountCents)) {
+    throw new RefundSendRefused(
+      "this refund is above the approval threshold but carries no approval request; it cannot be sent",
+    );
+  }
+}
+
+// The staff action behind one button, used for two situations that need exactly the same thing:
+//
+//   "send this approved refund"  the cancellation queued it because it is above $1,000, an
+//                                approver has said yes, and the money can go;
+//   "send it to Stripe again"    the cancellation committed and the process died before
+//                                refunds.create was reached, so the operation is stuck in
+//                                'requested' with no refund id (review finding F-B5-03).
+//
+// Both call issueRefundsAtStripe, which lists the PaymentIntent's refunds first and reuses the
+// operation's own idempotency key, so a refund Stripe already created is adopted rather than
+// created a second time.
+export async function sendRequestedRefund(
+  input: { policyId: string; operationId: string; actorUserId: string },
+  database: postgres.Sql = sql,
+): Promise<RefundIssueOutcome> {
+  const operation = await loadRefundOperation(database, input.operationId);
+  // The operation id comes from a URL, so it is checked against the policy in that same URL.
+  if (!operation || operation.policyId !== input.policyId) {
+    throw new RefundSendRefused("this refund operation does not belong to this policy");
+  }
+  if (operation.state === "failed") {
+    throw new RefundSendRefused(
+      "this refund failed; use the re-issue action, which decides whether the same attempt can be retried or a new one is needed",
+    );
+  }
+  await assertRefundMaySend(database, operation);
+  const [outcome] = await issueRefundsAtStripe([input.operationId], database);
+  return outcome;
 }
 
 // Staff action after a FAILED refund: the bank sent the money back, the customer is still owed
@@ -398,6 +485,9 @@ export type RefundOperation = {
   commissionClawbackCents: number;
   state: RefundState;
   refundId: string | null; // the Stripe refund id, once it exists
+  // Set when the cancellation queued this refund for maker-checker (above $1,000). Null below
+  // the threshold, and null on every operation created before slice B7.
+  approvalRequestId: string | null;
 };
 
 // Where a refund stands, read from its append-only events.
@@ -422,7 +512,9 @@ export function refundStateFromEvents(statuses: string[]): RefundState {
   return "requested";
 }
 
-async function loadRefundOperation(
+// Exported so the send action and the recovery job can read an operation without duplicating
+// the join between the operation, its allocation, its policy and its lifecycle.
+export async function loadRefundOperation(
   database: postgres.Sql,
   operationId: string,
 ): Promise<RefundOperation | null> {
@@ -440,11 +532,13 @@ async function loadRefundOperation(
       refunded_premium_cents: string;
       refunded_tax_cents: string;
       commission_clawback_cents: string;
+      approval_request_id: string | null;
     }[]
   >`
     select operation.id,
            operation.amount_cents,
            operation.idempotency_key,
+           operation.approval_request_id,
            policy.id            as policy_id,
            policy.policy_number as policy_number,
            broker.id            as broker_id,
@@ -489,6 +583,7 @@ async function loadRefundOperation(
     commissionClawbackCents: centsFromDatabase(row.commission_clawback_cents, "commission_clawback_cents"),
     state: refundStateFromEvents(events.map((event) => event.status)),
     refundId,
+    approvalRequestId: row.approval_request_id,
   };
 }
 
