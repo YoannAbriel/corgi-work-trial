@@ -278,7 +278,7 @@ async function CancellationForm({
           name="effectiveAt"
           type="date"
           required
-          defaultValue={today > policy.effectiveAt ? today : policy.effectiveAt}
+          defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}
           min={policy.effectiveAt}
           max={policy.termEnd}
         />

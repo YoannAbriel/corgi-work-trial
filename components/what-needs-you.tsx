@@ -4,9 +4,10 @@ import { sql } from "@/db/client";
 import { countApprovalRequestsWaitingForDecision } from "@/lib/approvals/read";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import { countClaimsWithPaymentsStillToMove } from "@/lib/claims/read";
-import { countEndorsementsAwaitingCustomerApproval } from "@/lib/policy/endorsement-read";
 import { countEndorsementsPaidButNotApplied, countPoliciesPaidButNotBound } from "@/lib/policy/read";
 import { countOpenBreaks } from "@/lib/reconciliation/read";
+import { correctionsOfPolicy } from "@/lib/policy/correction-read";
+import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
 
 // What is waiting for the signed-in person, counted on the server.
 //
@@ -105,36 +106,107 @@ async function staffTasks(role: "staff_ops" | "staff_approver"): Promise<Workspa
   return tasks.filter((task) => task.count > 0);
 }
 
+// What a broker has to do, policy by policy, with the same readers the policy page uses (so the
+// count never disagrees with the screen it points at): a policy still to pay, an endorsement the
+// customer has approved and whose delta the broker pays, a correction difference to collect, and
+// an endorsement quote still waiting for the customer (information, since the broker waits).
 async function brokerTasks(brokerId: string): Promise<WorkspaceTask[]> {
-  const waiting = await countEndorsementsAwaitingCustomerApproval({ brokerId });
-  if (waiting === 0) {
-    return [];
+  const policies = await sql<{ id: string; status: string }[]>`
+    select policy.id, current_policy.status
+      from policies policy
+      join policy_current current_policy on current_policy.policy_id = policy.id
+     where policy.broker_id = ${brokerId}
+  `;
+  const toPay = policies.filter((policy) =>
+    policy.status === "draft" || policy.status === "awaiting_payment" || policy.status === "payment_failed",
+  ).length;
+  let waitingForCustomer = 0;
+  let deltasToPay = 0;
+  let differencesToCollect = 0;
+  for (const policy of policies) {
+    const live = await liveEndorsementRequest(sql, policy.id);
+    if (live?.standing.state === "awaiting_approval") waitingForCustomer += 1;
+    // Approved by the customer and not applied yet: the broker pays the delta. A delta paid while
+    // the broker was not eligible is staff work (counted on the staff side), not the broker's.
+    if (live?.standing.state === "approved") deltasToPay += 1;
+    for (const correction of await correctionsOfPolicy(policy.id)) {
+      const collection = correction.collection;
+      if (
+        correction.money.settlement === "collect" &&
+        collection &&
+        collection.paidOn === null &&
+        (!collection.customerApprovalRequired || collection.customerApprovedAt !== null)
+      ) {
+        differencesToCollect += 1;
+      }
+    }
   }
-  return [
+  const tasks: WorkspaceTask[] = [
     {
       section: "policies",
-      count: waiting,
-      label: `${plural(waiting, "endorsement")} waiting for the customer`,
+      count: toPay,
+      label: `${plural(toPay, "policy", "policies")} to pay`,
+      detail: "Quoted and not bound yet: the policy is bound when Stripe confirms the payment.",
+      href: "/broker",
+    },
+    {
+      section: "policies",
+      count: deltasToPay,
+      label: `${plural(deltasToPay, "endorsement delta")} to pay`,
+      detail: "The customer approved the quote; the endorsement takes effect when you pay the delta from the policy page.",
+      href: "/broker",
+    },
+    {
+      section: "policies",
+      count: differencesToCollect,
+      label: `${plural(differencesToCollect, "correction difference")} to collect`,
+      detail: "A corrected effective date charges more days of cover; collect the difference from the policy page.",
+      href: "/broker",
+    },
+    {
+      section: "policies",
+      count: waitingForCustomer,
+      label: `${plural(waitingForCustomer, "endorsement")} waiting for the customer`,
       detail: "The delta cannot be collected until the customer approves the quote from their own screen.",
       href: "/broker",
     },
   ];
+  return tasks.filter((task) => task.count > 0);
 }
 
+// What a customer has to do: approve an endorsement quote above the threshold, or a correction
+// difference above it. Same readers as the customer's own list.
 async function customerTasks(customerId: string): Promise<WorkspaceTask[]> {
-  const waiting = await countEndorsementsAwaitingCustomerApproval({ customerId });
-  if (waiting === 0) {
-    return [];
+  const policies = await sql<{ id: string }[]>`select id from policies where customer_id = ${customerId}`;
+  let endorsements = 0;
+  let corrections = 0;
+  for (const policy of policies) {
+    const live = await liveEndorsementRequest(sql, policy.id);
+    if (live?.standing.state === "awaiting_approval") endorsements += 1;
+    for (const correction of await correctionsOfPolicy(policy.id)) {
+      const collection = correction.collection;
+      if (collection && collection.customerApprovalRequired && collection.customerApprovedAt === null && collection.paidOn === null) {
+        corrections += 1;
+      }
+    }
   }
-  return [
+  const tasks: WorkspaceTask[] = [
     {
       section: "policies",
-      count: waiting,
-      label: `${plural(waiting, "endorsement")} waiting for your approval`,
+      count: endorsements,
+      label: `${plural(endorsements, "endorsement")} waiting for your approval`,
       detail: "Your broker cannot collect the difference until you accept the quote.",
       href: "/customer",
     },
+    {
+      section: "policies",
+      count: corrections,
+      label: `${plural(corrections, "correction")} waiting for your approval`,
+      detail: "A corrected effective date charges more days of cover; the difference is collected once you accept it.",
+      href: "/customer",
+    },
   ];
+  return tasks.filter((task) => task.count > 0);
 }
 
 // "1 claim", "3 claims". English plurals only, and the irregular one is passed in when needed.
