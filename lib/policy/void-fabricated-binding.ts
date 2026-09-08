@@ -2,6 +2,7 @@ import type postgres from "postgres";
 import Stripe from "stripe";
 import { sql } from "@/db/client";
 import { reverseJournalEntry } from "@/lib/ledger/reverse";
+import { CHECKOUT_EXPIRED_REASON } from "@/lib/payments/collection";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
 import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 
@@ -16,6 +17,12 @@ import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 // Safety rule, checked at Stripe before anything is written: the payment intent recorded on
 // the operation must NOT exist there. A binding backed by a real payment is never voided by
 // this path; it is cancelled with a real refund (lib/policy/cancel.ts).
+//
+// Second rule (review finding F-B2-13): the hosted Checkout Session of that operation may still
+// be open at Stripe. If someone paid it later, real money would arrive for an operation whose
+// entries are already reversed and nothing could be journaled. So the void expires that session
+// at Stripe first, and records the attempt as dead (reason "expired") so that the next Pay
+// click opens a new operation with a new idempotency key instead of handing back a dead page.
 
 export class VoidRefused extends Error {}
 
@@ -82,6 +89,17 @@ export async function voidFabricatedBinding(
     throw new VoidRefused("no journal entries are keyed on that operation");
   }
 
+  // Close the hosted page before writing anything: a session that is still open could be paid.
+  const [accepted] = await database<{ provider_ref: string | null }[]>`
+    select provider_ref from money_operation_events
+     where operation_id = ${operation.id} and status = 'provider_accepted' and provider_ref like 'cs_%'
+     order by sequence_number limit 1
+  `;
+  const sessionId = accepted?.provider_ref ?? null;
+  if (sessionId) {
+    await expireCheckoutSessionIfOpen(sessionId);
+  }
+
   return database.begin(async (transaction) => {
     const effectiveAt = issued.effective_at.toISOString().slice(0, 10);
     const [correction] = await transaction<{ id: string }[]>`
@@ -109,11 +127,19 @@ export async function voidFabricatedBinding(
       );
     }
 
-    // The operation's story continues: its "success" is now known to be false.
+    // The operation's story continues: its "success" is now known to be false, and its hosted
+    // page is dead. The reason is the one lib/payments/checkout.ts reads as "cannot be paid
+    // again", so the next Pay click starts a new operation with a new key.
     await transaction`
       insert into money_operation_events (operation_id, status, provider_ref, payload)
       values (${operation.id}, 'failed', ${operation.provider_ref},
-              ${transaction.json({ stage: "correction", reason: request.reason, correction_event_id: correction.id })})
+              ${transaction.json({
+                stage: "correction",
+                reason: CHECKOUT_EXPIRED_REASON,
+                correction_reason: request.reason,
+                correction_event_id: correction.id,
+                checkout_session_id: sessionId,
+              })})
     `;
 
     await refreshPolicyCurrent(transaction, request.policyId);
@@ -125,6 +151,27 @@ export async function voidFabricatedBinding(
       fabricatedPaymentIntentId: operation.provider_ref!,
     };
   });
+}
+
+// Expires the hosted page at Stripe so nobody can pay a voided operation. A session that Stripe
+// does not know (fabricated in a test database) or that is already expired is fine; a session
+// that is complete means money moved, and the void must stop.
+async function expireCheckoutSessionIfOpen(sessionId: string): Promise<void> {
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId);
+  } catch (error) {
+    if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === "resource_missing") {
+      return; // nothing to expire
+    }
+    throw error;
+  }
+  if (session.status === "complete") {
+    throw new VoidRefused(`checkout session ${sessionId} is complete at Stripe: money moved, this binding cannot be voided`);
+  }
+  if (session.status === "open") {
+    await stripe.checkout.sessions.expire(sessionId);
+  }
 }
 
 // True when Stripe knows this payment intent. A "resource_missing" answer means it does not.
