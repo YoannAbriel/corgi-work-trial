@@ -1,0 +1,33 @@
+import { currentUser } from "@/lib/auth/current-user";
+import { CheckoutRefused, startCheckout } from "@/lib/payments/checkout";
+
+// POST /api/policies/{policyId}/checkout, called by the "Pay with Stripe" button.
+// Authorisation and eligibility are checked here and again inside startCheckout: a direct
+// call to this URL goes through exactly the same gates as the button.
+export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
+  const user = await currentUser();
+  if (!user) {
+    return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const { policyId } = await context.params;
+
+  if (user.role !== "broker" || !user.brokerId) {
+    return redirectTo(`/policies/${policyId}?error=${encodeURIComponent("Only the owning broker can pay a policy")}`);
+  }
+
+  try {
+    const checkoutUrl = await startCheckout({ policyId, brokerId: user.brokerId, userId: user.id });
+    return redirectTo(checkoutUrl);
+  } catch (error) {
+    if (error instanceof CheckoutRefused) {
+      // A refusal the broker can act on: wrong owner, already bound, KYB not approved, or a
+      // provider error that was recorded on the operation.
+      return redirectTo(`/policies/${policyId}?error=${encodeURIComponent(error.message)}`);
+    }
+    throw error;
+  }
+}
+
+function redirectTo(url: string): Response {
+  return new Response(null, { status: 303, headers: { location: url } });
+}
