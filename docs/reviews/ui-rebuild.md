@@ -552,3 +552,191 @@ on the passing items is not one either.
 | F-UI-24 | LOW | The cancellation date defaults to today with max at the term end, so on a bound policy whose term has ended the field opens on a value it refuses to submit (same class as F-B8-09, pre-existing at c5bcf2a) | Apply the endorse form's clamp | OPEN |
 | F-UI-25 | LOW | The journal entry blocks have no narrow-screen rule: at 375 px two fixed 128 px amount columns leave about 27 px for the account name; not verified visually, no browser tool | Narrow the amount columns under 580 px and allow the account name to break | OPEN |
 | F-UI-26 | LOW | The policy page builds its twelve notices as one eighty-line inline expression, dense for an AF-06 line-by-line defence | Lift it into a policyNotices function beside the existing notice helpers | OPEN |
+
+---
+
+# Re-review: `fea572c`, the money field formats only on blur (F-UI-22, F-UI-24, F-UI-25)
+
+Reviewer: same independent sub-agent, same worktree.
+Timestamp: 2026-09-08T20:29:39Z.
+Re-reviewed revision: `fea572c` (`fea572ce5e711a707e2b306307a162cbd0715b5f`), fetched from
+`origin/main` and merged into this worktree branch. The deployed application reports the same
+revision at `/api/health` (`databaseTime` 2026-09-08T20:28:39Z), so every production measurement
+below is on the corrected code.
+
+The sections above are preserved unchanged, including the FAIL verdict for `e341f83`. This section
+records what changed, what I checked on the new code, and the new verdict.
+
+**New verdict: PASS** for the re-reviewed scope. **Candidate walkthrough status: still NOT REVIEWED
+WITH YOANN.**
+
+## What the fix commit contains
+
+`git show --stat fea572c` is three files, 42 insertions and 63 deletions, all presentation:
+
+| File | Change |
+|---|---|
+| `components/money-amount-input.tsx` | `groupThousands` replaced by `groupWhenPlain`, called on blur instead of on every keystroke; `echoOf` tightened; `countDigits` and `positionAfterDigits` deleted |
+| `app/policies/[policyId]/cancel/page.tsx` | one line, the date default clamped |
+| `app/globals.css` | one `@media (max-width: 580px)` block for the journal columns |
+
+Nothing under `db`, `scripts`, `app/api`, `lib` or `vercel.json`. The isolation established in
+section 1 still holds, and AF-03 is still untouched.
+
+## F-UI-22: RESOLVED
+
+**The shape of the fix.** `onChange` now stores the keystroke verbatim
+(`onChange={(event) => setText(event.currentTarget.value)}`) and `onBlur` calls `groupWhenPlain`
+once. `groupWhenPlain` transforms only text that is plainly a dollar amount after stripping `$` and
+whitespace (`/^(\d+)(?:\.(\d{0,2}))?$/`); anything else, including anything containing a comma, is
+returned exactly as it was. This removes the cause named in F-UI-22: the function no longer sees its
+own output as input, so a decimal comma is never mistaken for a thousands comma.
+
+**Traced through the new code, character by character, for the two decimal-comma cases:**
+
+```
+typing "1200,50":
+  keystroke 1 -> "1"        keystroke 5 -> "1200,"
+  keystroke 2 -> "12"       keystroke 6 -> "1200,5"
+  keystroke 3 -> "120"      keystroke 7 -> "1200,50"
+  keystroke 4 -> "1200"     blur        -> "1200,50"   echo: none   server: REFUSED
+
+typing "1 200,50":
+  keystroke 1 -> "1"        keystroke 5 -> "1 200"
+  keystroke 2 -> "1 "       keystroke 6 -> "1 200,"
+  keystroke 3 -> "1 2"      keystroke 7 -> "1 200,5"
+  keystroke 4 -> "1 20"     keystroke 8 -> "1 200,50"
+  blur -> "1 200,50"   echo: none   server: REFUSED
+```
+
+The space is no longer eaten at keystroke 2, the comma is no longer dropped at keystroke 5, and the
+final text reaches the server exactly as typed, where `parseUsdAmountToCents` refuses it. That is
+what F-UI-12 asked for and what F-UI-22 said was missing.
+
+**The eight strings the coordinator named, typed one character at a time then blurred, against a
+verbatim copy of the real `parseUsdAmountToCents`:**
+
+| Typed | Field after blur | Echo | Server | Same answer as the raw text? |
+|---|---|---|---|---|
+| `1200,50` | `1200,50` | none | REFUSED | yes |
+| `1 200,50` | `1 200,50` | none | REFUSED | yes |
+| `1,200.00` | `1,200.00` | `1,200.00` | 120000 cents | yes |
+| `1200` | **`1,200`** | `1,200.00` | 120000 cents | yes |
+| `12.345` | `12.345` | none | REFUSED | yes |
+| `1.2.3` | `1.2.3` | none | REFUSED | yes |
+| `-5` | `-5` | none | REFUSED | yes |
+| `1e3` | `1e3` | none | REFUSED | yes |
+
+The blur grouping is confirmed working on the two cases that should format (`1200` becomes `1,200`;
+`1,200.00` is already grouped and is left alone because it contains a comma), and confirmed inert on
+the six that must be left alone. Further cases: `1200.50` becomes `1,200.50` (120050 cents),
+`1200.5` becomes `1,200.5` (120050 cents), `2,000,000` unchanged (200000000 cents), `0.05` unchanged
+(5 cents), `007` becomes `7` (700 cents, the F-UI-19 rule now applied to the field itself rather
+than only the echo), `.50`, `12.`, `abc` and the empty string all unchanged and refused.
+
+**The invariant, checked exhaustively rather than by example.** What actually matters is that the
+mask must never change the amount the server computes, and must never turn a refusal into an
+acceptance. I swept every string of length 1 to 4 over the alphabet `0123456789.,-$ e`, comparing
+`parseUsdAmountToCents(text)` with `parseUsdAmountToCents(groupWhenPlain(text))`:
+
+- **69,904 strings checked, 0 where the mask changed the server's answer.**
+
+The same sweep over the echo, comparing `echoOf(text)` with what the server would compute:
+
+- **0 disagreements.** The echo now shows an amount exactly when the server would accept one, and
+  always the same amount. That is a genuine improvement over `e341f83`, where the echo could print
+  `$120,050.00` for a string the person meant as $1,200.50.
+
+Beyond the sweep, the property holds for any length by construction: `groupWhenPlain` only acts on
+text matching `^\$?\s*\d+(\.\d{0,2})?\s*$`, and its two operations are stripping leading zeros and
+inserting commas at thousands boundaries. The server strips `$`, whitespace and commas before
+parsing, and `Number("0012") === Number("12")`, so neither operation can move the parsed value.
+
+**Trade-off, deliberate and worth naming for Yoann rather than hiding:** thousands separators no
+longer appear while typing, only when the field loses focus and on the server-rendered default. On
+production the endorse form is served with `value="1,200.00"`, `value="1,000,000.00"` and
+`value="2,000,000.00"`, so the grouped presentation Yoann asked for is still what he sees on
+arrival. Giving up live grouping is the price of not letting a mask rewrite a half-typed amount, and
+it is the right side of that trade for a money field.
+
+**Readability, AF-06.** The component drops from 128 to 92 lines. The caret-restoration machinery
+(`queueMicrotask`, `setSelectionRange`, `countDigits`, `positionAfterDigits`) is gone entirely,
+because a field that does not rewrite while you type has no caret to put back. One transformation,
+one regular expression, one call site. This is easier to defend line by line than what it replaced.
+
+## F-UI-24: RESOLVED
+
+`app/policies/[policyId]/cancel/page.tsx:281` now reads
+`defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}`,
+character for character the clamp the endorse form already used. On a bound policy whose term has
+ended, the default is now `termEnd`, which satisfies the field's own `max`. Measured on production
+on the bound policy CGP-01707: the field is served as
+`min="2026-09-08" max="2027-09-08" value="2026-09-08"`, inside its own bounds. That policy's term
+has not ended, so the clamp branch is exercised by reading rather than by measurement; the
+expression is identical to the one already in service on the endorse form.
+
+## F-UI-25: RESOLVED in code, still not verified visually
+
+`app/globals.css:1775-1789` adds, under `max-width: 580px`: `.entry-columns` to
+`minmax(0, 1fr) 92px 92px`, `col.amount-column` to 92px, cell padding to `6px 8px`, font size 12px,
+and the credit-side indent to 20px. Redoing the arithmetic of section 7 with these values: 375 minus
+44 minus 48 leaves about 283 pixels; two 92 pixel columns take 184, leaving about 99 pixels for the
+account name column, minus 16 pixels of padding, so roughly 83 pixels of text. That is a workable
+two or three words per line instead of the previous 27 pixel column, and the amount cells keep
+enough room for a grouped figure at 12px.
+
+**Still not verified visually: no browser tool was available in this session, at either revision.**
+The finding is resolved in the sense that the rule the finding asked for exists and its arithmetic
+works out; it is not resolved in the sense of somebody having looked at it at 375 pixels. That check
+remains open for whoever has a browser.
+
+## F-UI-23 and F-UI-26: still open, not blocking
+
+Neither was addressed by this commit and neither was asked to be. F-UI-23 is a disclosure item
+about the second reconcile form (the route's staff-or-cron gate is unchanged and it remains not a
+bypass). F-UI-26 is a cosmetic AF-06 suggestion about the policy page's inline `notices` expression.
+Under `REVIEWER.md`, cosmetic findings alone do not block.
+
+## No regression: what I re-checked on `fea572c`
+
+| Check | Method | Result |
+|---|---|---|
+| Business logic still untouched | `git show --stat fea572c` | 3 presentation files, nothing under db, scripts, app/api, lib, vercel.json |
+| Form contracts | own extractor over `app/` and `components/` at `e341f83` and `fea572c` | 170 entries both sides; the only difference is the intended F-UI-24 clamp expression |
+| Money field attributes as served | production, endorse form on CGP-01707 | `name`, `required`, `inputMode="decimal"`, `aria-describedby` all preserved; defaults grouped |
+| Guards, five identities x four routes on a bound policy | 20 production requests | identical to the table in section 3 |
+| Path-id guards on the three form pages | 6 production requests | 404 on malformed and on unknown ids |
+| Journal and ledger | production, policy CGP-01274 | 24 lines re-parsed, all four ledger figures still recompute exactly |
+| Agent-raised marker | production, CLM-00212 as ops | still exactly one warn chip on the `8148a717` payment |
+| Typecheck | `npm run typecheck` on the merged tree | clean |
+| Secret scan | `gitleaks 8.30.1` on the changed component | no leaks found |
+
+## New verdict
+
+**PASS** for `fea572c`, scoped to the screen rebuild reviewed above plus this fix.
+
+The one blocking finding is genuinely fixed, and fixed at the cause rather than patched at the
+symptom: the mask no longer runs on its own output, so the class of defect that produced F-UI-12 and
+then F-UI-22 cannot recur in the same way. I did not take the fix on trust; I traced the two named
+strings keystroke by keystroke, ran all eight named strings and eleven more through a verbatim copy
+of the server parser, and swept 69,904 strings for any case where the mask changes what the server
+computes or the echo promises something the server would refuse. Zero in both sweeps.
+
+Two LOW findings remain open by choice (F-UI-23 disclosure, F-UI-26 readability) and one is resolved
+in code but unverified visually (F-UI-25). None blocks.
+
+Residual limitations, unchanged: nothing here was verified visually at any viewport; the
+non-owning-broker refusal is verified by reading and by an equivalent role because no such policy
+exists on the production database; no test suite was run; and this review says nothing about whether
+Yoann can explain this code, which remains **NOT REVIEWED WITH YOANN**. A technical PASS is not a
+legal certification.
+
+## Register lines for the coordinator, updated
+
+| ID | Sev | Finding (one line) | Fix | Status |
+|---|---|---|---|---|
+| F-UI-22 | MEDIUM | The money mask ran per keystroke on its own output, so typing "1200,50" yielded "120,050", accepted by the server as $120,050.00 | The field stores keystrokes verbatim and groups only on blur, only when the text is a plain amount with no comma | FIXED fea572c (re-review: 8 named strings traced, 69,904-string sweep, 0 divergences) |
+| F-UI-23 | LOW | /ops/reconciliation gained a second, field-less form posting to /api/jobs/reconcile, absent from the previous form inventory (not a bypass: the route requires staff or the cron bearer) | Disclose it so the form baseline stays trustworthy | OPEN |
+| F-UI-24 | LOW | The cancellation date defaulted to today with max at the term end, so on a bound policy past its term the field opened on a value it refused to submit | Clamp inside [effectiveAt, termEnd], as the endorse form already did | FIXED fea572c |
+| F-UI-25 | LOW | The journal entry blocks had no narrow-screen rule: at 375 px two fixed 128 px amount columns left about 27 px for the account name | Amount columns to 92 px and tighter cells under 580 px; about 83 px of text now | FIXED fea572c in code, still not verified visually (no browser tool) |
+| F-UI-26 | LOW | The policy page builds its twelve notices as one eighty-line inline expression, dense for an AF-06 line-by-line defence | Lift it into a policyNotices function beside the existing notice helpers | OPEN |
