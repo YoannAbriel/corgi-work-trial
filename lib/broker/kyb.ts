@@ -66,7 +66,9 @@ export async function brokerKybState(brokerId: string, database: postgres.Sql = 
   // recorded. A submission made afterwards belongs to a later verification and must not be
   // used to judge this one.
   const submission = await latestSubmissionRecordedBy(brokerId, latestEvent.recordedAt, database);
-  const reported = reportedKybStatus(latestEvent, submission?.recordedAt ?? null);
+  // The settling window is counted from the submission to this reading, so it ends by itself
+  // (review finding F-B3-04). This is the only place the clock is read; the rule stays pure.
+  const reported = reportedKybStatus(latestEvent, submission?.recordedAt ?? null, new Date());
 
   return {
     status: reported.status,
