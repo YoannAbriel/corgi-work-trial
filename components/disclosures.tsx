@@ -15,13 +15,17 @@ import { ChevronRight, Info } from "lucide-react";
 // reader and the facts, such as "run a reconciliation now".
 export function Disclosure({
   title = "How to read this",
+  open = false,
   children,
 }: {
   title?: string;
+  // Open on arrival. Yoann's rule of 2026-09-08 (F-YA-05): a primary action such as "endorse this
+  // policy" is never hidden behind a closed fold; only secondary reading matter starts closed.
+  open?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <details className="disclosure">
+    <details className="disclosure" open={open || undefined}>
       <summary>
         <ChevronRight size={15} aria-hidden="true" className="disclosure-chevron" />
         {title}

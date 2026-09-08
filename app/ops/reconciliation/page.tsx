@@ -116,7 +116,7 @@ export default async function ReconciliationPage({
         </p>
       ))}
 
-      <Disclosure title="Run a reconciliation now">
+      <Disclosure title="Run a reconciliation now" open>
         <p>
           Both sources, one after the other. The window defaults to the last {DEFAULT_WINDOW_DAYS} days, which is long
           enough that a webhook delayed by a day is still inside the next run&apos;s window. Running an overlapping

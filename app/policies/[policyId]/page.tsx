@@ -216,7 +216,7 @@ export default async function PolicyPage({
         </div>
 
       <h2>Documents as of a date</h2>
-      <Disclosure title="Open a document as of a date">
+      <Disclosure title="Open a document as of a date" open>
         <p>
           Real PDFs rebuilt from the policy events effective on or before the date you pick: between two endorsements
           the declarations page shows the premium and limits in force on that day. Superseded events are skipped.
@@ -329,7 +329,7 @@ export default async function PolicyPage({
       {canChange && !liveEndorsement ? (
         <>
           <h2>Endorse this policy</h2>
-          <Disclosure title="Change the premium or the limits">
+          <Disclosure title="Change the premium or the limits" open>
             <p>
               Change the annual premium or the limits from a date inside the term. The next screen shows the exact
               money it moves, line by line, before anything is recorded. The money is always priced from the effective
@@ -529,7 +529,7 @@ export default async function PolicyPage({
       {canChange ? (
         <>
           <h2>Cancel this policy</h2>
-          <Disclosure title="Pick the day cover stops">
+          <Disclosure title="Pick the day cover stops" open>
             <p>
               The next screen shows exactly what would be refunded and clawed back before anything is written. A past
               date is allowed: an insurer often learns late that cover stopped, and the money is always computed from
@@ -802,7 +802,7 @@ export default async function PolicyPage({
           on the server from the policy's events, so a voided or unpaid policy is refused there
           whatever the page shows. */}
       {user.role === "staff_ops" && (policy.status === "bound" || policy.status === "cancelled") ? (
-        <Disclosure title="Open a claim on this policy">
+        <Disclosure title="Open a claim on this policy" open>
         <form method="post" action={`/api/policies/${policy.policyId}/claims`} className="card">
           <label htmlFor="claimantName">Claimant name</label>
           {/* The bank ownership check compares the account holder with this name, so it is the

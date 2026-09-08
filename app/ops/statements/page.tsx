@@ -68,7 +68,7 @@ export default async function OpsStatementsPage({
       {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.ran ? <p className="note">{query.ran}</p> : null}
 
-      <Disclosure title="Run a statement">
+      <Disclosure title="Run a statement" open>
         <p>
           Leave the knowledge cutoff empty for a fresh close, which reads everything the ledger knows right
           now. Fill it with the cutoff of an earlier revision to reproduce that revision: the run is stored
