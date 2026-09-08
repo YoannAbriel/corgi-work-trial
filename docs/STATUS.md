@@ -18,9 +18,17 @@ Done: Next.js 16 app hand-written at the repository root (no create-next-app boi
 
 Checks actually run: `npm run typecheck` PASS; `npm run build` PASS; `npm run migrate` against Neon PASS (schema_migrations created, no migration yet); `curl https://corgi-work-trial-iota.vercel.app/api/health` from the dev machine returned HTTP 200 with database ok and revision 1e40dc7 (AF-01 evidence for this revision only; the app has no product behaviour yet). Stripe key verified as test mode (`sk_test_` prefix, account US, test balance call); no key value was printed. Assistant choices, minor: npm instead of pnpm (corepack broken locally), no Tailwind, no ORM.
 
-Pending in B0: Sumsub trial account and app token (Yoann, in progress), Stripe webhook endpoint (after B2 route exists), history secret scan result below, README setup section. Not started: everything from B1.
+Pending in B0: broker KYB provider access (Sumsub trial verified by signed API call at 2026-09-08T08:28:41+00:00 but KYB is Enterprise-only there, so Middesk signup is being attempted next; see DECISIONS.md), Stripe webhook endpoint (after B2 route exists), history secret scan result below, README setup section. Not started: everything from B1.
 
-Next acceptance criterion: B1 ledger core and pro-rata math. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
+## 2026-09-08T08:59:18+00:00 | KYB decision, Stripe proofs, design review
+
+Broker KYB: Stripe Connect Accounts v2 business verification in test mode, decided by Yoann (DECISIONS.md, 08:55Z entry). Verified on the sandbox: three test company accounts created (acct_1UDKmAK6R3nWBqMW verified fixture, acct_1UDKmDK6R39jqMi4 failed fixture showing `verification_failed_tax_id_match`, acct_1UDKmIK6R3fxfHN9 pending fixture), all `livemode: false`, v2 events emitted. Premium collection: test payment pi_3UDKq0K6R3v50tIy1mwQmeWT ($12.61, succeeded) and partial refund re_3UDKq0K6R3v50tIy11aPmuHK ($8.98, succeeded) through the Refunds API; balance transactions show a 67 cent Stripe fee, to be classified explicitly by reconciliation. These are feasibility probes, not product evidence; the probe objects stay in the sandbox with metadata `corgi_probe`. One synthetic probe applicant also exists in the Sumsub sandbox.
+
+Design review: DESIGN FAIL recorded in docs/reviews/architecture.md (21 findings). docs/ARCHITECTURE.md revised at 08:50Z for the material findings; five items stay OPEN for Yoann (worked-example date, negative endorsement delta, closed-month revision rule, commission clawback rounding, modeled state and tax rate). Re-review requested after the open items are decided. Reviewer verdict allows B0 and B1 to proceed.
+
+B0 remaining: the Stripe webhook endpoint on the deployed URL, delivered with slice B1a (protected tables, webhook inbox, route, endpoint registration, replay test) before the pro-rata functions (B1b).
+
+Next acceptance criterion: B1a protected tables and webhook inbox, then B1b ledger posting and pro-rata math. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
 
