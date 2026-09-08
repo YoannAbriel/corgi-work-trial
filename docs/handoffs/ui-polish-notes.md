@@ -101,7 +101,24 @@ component.
 | `npm test` | 404 tests, 403 pass, 1 skipped (the opt-in live Stripe test), 0 failures |
 | `npm run build` | PASS, compiled successfully, every route still server-rendered on demand |
 | Source form contract, `e7d7856` against HEAD | identical, 155 lines each |
-| HTTP renders, dev server on port 3900 against the disposable `corgi_test` database, as anonymous, ops, approver, broker and customer | see the table below |
+| HTTP renders, dev server on port 3900 against the disposable `corgi_test` database | 25 pages, all 200, as anonymous, ops, approver, broker and customer |
+
+The 25 renders: `/login` and `/` anonymous; `/ops`, `/ops/claims`, one claim, `/ops/approvals`,
+`/ops/reconciliation`, `/ops/statements`, `/ops/mcp-keys`, one policy, the endorsement preview, the
+cancellation preview, `/ops/brokers` and `/ops/policies` as ops; `/ops`, `/ops/approvals`,
+`/ops/claims`, one claim, `/ops/reconciliation`, `/ops/statements` as the approver; `/broker`,
+`/broker/statements`, `/broker/kyb`, `/broker/policies/new` as the broker; `/customer` as the
+customer. The endorsement preview was called with `newAnnualPremium=1,500.00` and both limits with
+separators, which is what the money fields now submit: 200, priced normally.
+
+Guards rechecked over HTTP on the same server: anonymous `/ops` answers 307 to `/login`, anonymous
+`/policies/{id}` answers 307, a broker on `/ops/approvals` answers 307, and `/ops/claims/not-a-uuid`
+answers 404.
+
+Two screens are slow on that database and were slow before this work: `/ops/brokers` took 120 s and
+`/ops/policies` 149 s, because `brokersWithKybState` runs three queries per broker (275 of them
+there) and the policy index then reads each broker's policies in turn. Both are `lib` reads outside
+this scope. On the trial database, with a handful of brokers, they are ordinary.
 
 No check script was run against `corgi_test`, and nothing was written to any database: the dev
 server only read, and signing in is a `select` on `users`. The server was stopped at the end.
@@ -112,10 +129,12 @@ server only read, and signing in is a `select` on `users`. The server was stoppe
 - `/ops/mcp-keys` (B11, merged from main) was left exactly as its builder wrote it.
 - The provider reference stays visible in the reconciliation break table, deliberately: it is the
   identity of the row. Everything else there is behind the affordance.
-- `/ops/policies` reads every broker and then that broker's policies one at a time. On the
-  disposable check database (275 brokers, 679 policies) that render takes minutes. It is
-  pre-existing and untouched, in `lib`, and out of this scope; worth a look before submission.
+- The N+1 reads behind `/ops/brokers` and `/ops/policies` are untouched: they are in `lib` and out
+  of this scope. Worth a look before submission.
 - The counts run on every page of the workspace. On the check database, which holds hundreds of
-  runs, the four small counts total about 350 ms and the open-break count dominates. On the trial
-  database the volumes are two orders of magnitude smaller.
+  runs, the four small counts total about 350 ms measured directly, and the open-break count
+  dominates the rest. On the trial database the volumes are two orders of magnitude smaller.
+- I did not render the pages in a browser at 375 pixels: no browser tool was available in this
+  worktree. The new pieces are inside the existing responsive rules, and the two that could widen a
+  row (the sandbox panel and the "what needs you" row) have their own rule under 580 pixels.
 - No independent review of this work yet, no deployment, no push.
