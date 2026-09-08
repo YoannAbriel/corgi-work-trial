@@ -31,7 +31,7 @@ const styles = {
   value: { flexGrow: 1 },
   amountColumn: { width: 100, textAlign: "right" },
   descriptionColumn: { flexGrow: 1, paddingRight: 8 },
-  dateColumn: { width: 92 },
+  dateColumn: { width: 105 },
   recordedColumn: { width: 150 },
   tableHeader: {
     flexDirection: "row",
@@ -48,6 +48,7 @@ const styles = {
     fontFamily: "Helvetica-Bold",
   },
   addressLine: { marginBottom: 1 },
+  coverageDescription: { fontSize: 9, color: "#444444", marginTop: 1 },
   emptyState: { paddingVertical: 8, color: "#444444" },
   footer: {
     position: "absolute",
@@ -111,7 +112,7 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
 
         <Text style={styles.sectionTitle}>Coverage</Text>
         <View style={styles.tableHeader}>
-          <Text style={styles.descriptionColumn}>Coverage</Text>
+          <Text style={styles.descriptionColumn}>Coverage line</Text>
           <Text style={styles.amountColumn}>Limit</Text>
         </View>
         {snapshot.coverageLines.length === 0 ? (
@@ -121,7 +122,9 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
             <View key={coverageLine.name} style={styles.rowWithRule}>
               <View style={styles.descriptionColumn}>
                 <Text>{coverageLine.name}</Text>
-                {coverageLine.description ? <Text style={styles.documentSubtitle}>{coverageLine.description}</Text> : null}
+                {coverageLine.description ? (
+                  <Text style={styles.coverageDescription}>{coverageLine.description}</Text>
+                ) : null}
               </View>
               <Text style={styles.amountColumn}>{formatCents(coverageLine.limitCents)}</Text>
             </View>
