@@ -1,4 +1,5 @@
 import type postgres from "postgres";
+import Stripe from "stripe";
 import { sql } from "@/db/client";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState } from "@/lib/broker/kyb";
@@ -261,4 +262,47 @@ async function recordProviderFailure(
     `;
     await refreshPolicyCurrent(transaction, policyId);
   });
+}
+
+// Closes the open payment pages of a broker who has just lost eligibility (technical addition
+// to rule 14, DECISIONS.md). A hosted Checkout Session lives 24 hours; a customer could pay one
+// that was legitimately opened while the broker was approved, and that money would then have
+// to be parked in the suspense account. Expiring the pages shrinks that window to seconds.
+// The bookkeeping is not done here: Stripe answers with checkout.session.expired, and the
+// webhook records the attempt as dead exactly as for any other expiry.
+//
+// Returns how many pages were asked to expire. A page that is no longer open (paid, or already
+// expired) makes Stripe refuse the call; that refusal is expected and skipped.
+export async function expireOpenCheckoutSessionsOfBroker(
+  brokerId: string,
+  database: postgres.Sql = sql,
+): Promise<number> {
+  const openSessions = await database<{ operation_id: string; session_id: string }[]>`
+    select operation.id as operation_id, latest.provider_ref as session_id
+      from money_operations operation
+      join policies policy on policy.id = operation.policy_id
+      join lateral (
+        select status, provider_ref from money_operation_events
+         where operation_id = operation.id
+         order by sequence_number desc
+         limit 1
+      ) latest on true
+     where policy.broker_id = ${brokerId}
+       and operation.kind = 'stripe_checkout'
+       and latest.status = 'provider_accepted'
+       and latest.provider_ref like 'cs_%'
+  `;
+  let expired = 0;
+  for (const open of openSessions) {
+    try {
+      await stripe.checkout.sessions.expire(open.session_id);
+      expired += 1;
+    } catch (error) {
+      if (error instanceof Stripe.errors.StripeInvalidRequestError) {
+        continue; // not open any more: paid or already expired, nothing to close
+      }
+      throw error;
+    }
+  }
+  return expired;
 }

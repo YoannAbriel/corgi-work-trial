@@ -3,7 +3,14 @@
 // lib/policy/current.ts writes the result into the policy_current cache; nothing posts money
 // from it.
 
-export type PolicyStatus = "draft" | "awaiting_payment" | "payment_failed" | "bound" | "cancelled" | "voided";
+export type PolicyStatus =
+  | "draft"
+  | "awaiting_payment"
+  | "payment_failed"
+  | "paid_not_bound" // money received, policy not bound: the broker was not eligible at that moment
+  | "bound"
+  | "cancelled"
+  | "voided";
 
 export type MoneyOperationStatus =
   | "requested"
@@ -38,7 +45,9 @@ export function policyWasVoided(policyEventTypes: string[]): boolean {
 //   voided, whatever its payment operation says afterwards (the void marks the attempt dead, so
 //   the payment status alone would read as 'payment_failed' and hide the correction); a policy
 //   with an 'issued' event is bound, whatever happened afterwards to the payment operation;
-//   without issuance, the payment tells the story: failed, in flight, or never started.
+//   without issuance, the payment tells the story: succeeded but not bound (the broker was not
+//   eligible when the money arrived, so the cash sits in the suspense account until staff bind
+//   or refund it), failed, in flight, or never started.
 export function derivePolicyStatus(input: PolicyStatusInput): PolicyStatus {
   if (input.policyEventTypes.includes("cancelled")) {
     return "cancelled";
@@ -48,6 +57,9 @@ export function derivePolicyStatus(input: PolicyStatusInput): PolicyStatus {
   }
   if (input.policyEventTypes.includes("issued")) {
     return "bound";
+  }
+  if (input.latestPaymentStatus === "succeeded") {
+    return "paid_not_bound";
   }
   if (input.latestPaymentStatus === "failed") {
     return "payment_failed";

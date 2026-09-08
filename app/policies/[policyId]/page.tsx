@@ -62,8 +62,15 @@ export default async function PolicyPage({
   // is about the broker behind it; the server asks both again when the button is pressed and
   // again when Stripe confirms the payment, so hiding or disabling a button is never the
   // control, only the explanation.
+  // A policy whose money arrived but whose binding was refused (paid_not_bound) is not
+  // payable either: its cash sits in the suspense account and staff apply it, so offering the
+  // broker a second payment would collect the premium twice (review finding F-B3-07).
   const policyCanBePaid =
-    isOwningBroker && policy.status !== "bound" && policy.status !== "cancelled" && policy.status !== "voided";
+    isOwningBroker &&
+    policy.status !== "bound" &&
+    policy.status !== "cancelled" &&
+    policy.status !== "voided" &&
+    policy.status !== "paid_not_bound";
   const brokerMayBind = bindingIsAllowed(kyb.status);
   // Cancelling is the owning broker's or staff operations' decision. The same check runs again
   // on the server when the preview is computed and when the cancellation is confirmed, so
@@ -185,8 +192,9 @@ export default async function PolicyPage({
         <>
           <p className="error">
             Paid, binding refused: {operation.bindingRefusedReason}. The customer&apos;s money arrived at Stripe and is
-            recorded on the operation above, but nothing was journaled and the policy is NOT bound. Until this is
-            resolved, Stripe holds cash that the ledger does not show, and reconciliation reports it as a break.
+            journaled in the suspense account unapplied_customer_cash (cash at Stripe up, liability to the customer
+            up, entry unapplied_cash_received below), but the policy is NOT bound. Binding it applies that cash to
+            premium, tax and fee; a broker who fails for good means the money goes back to the customer.
           </p>
           {user.role === "staff_ops" ? (
             <form method="post" action={`/api/policies/${policy.policyId}/bind`} className="inline-form">

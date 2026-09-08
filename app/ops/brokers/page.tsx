@@ -26,6 +26,10 @@ export default async function OpsBrokersPage({
   return (
     <main>
       <h1>Brokers and their verification</h1>
+      <p className="note">
+        Verification runs on Stripe Connect business verification in test mode, which is not a dedicated KYB vendor;
+        every status below comes from Stripe&apos;s own answers, never from a form.
+      </p>
       <p className="lead">
         Signed in as {user.displayName} ({user.role}). A broker can bind a policy only while the status below is
         approved; every status is a row that was appended when it was observed, never edited.
@@ -79,7 +83,7 @@ export default async function OpsBrokersPage({
                   {broker.state.provider}
                   <br />
                   <span className="note">{broker.state.providerAccountId ?? "no connected account"}</span>
-                  {broker.state.isProviderEvidence ? null : (
+                  {broker.state.isProviderEvidence || !broker.state.providerAccountId ? null : (
                     <>
                       <br />
                       <span className="note">{KYB_NOT_LIVE_LABEL}: seeded placeholder, not provider evidence.</span>

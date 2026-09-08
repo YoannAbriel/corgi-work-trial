@@ -11,8 +11,9 @@ import type { VerifiableAccount } from "@/lib/kyb/eligibility";
 //   2. a read taken inside the settling window never approves a broker;
 //   3. an approval recorded inside the settling window is reported as pending, so binding
 //      stays refused for at least two minutes after the broker submits;
-//   4. a payment that arrives while the broker is not approved is recorded and does NOT bind
-//      the policy, and staff can bind it later once the broker is eligible.
+//   4. a payment that arrives while the broker is not approved does NOT bind the policy: the
+//      cash is parked in the suspense account (rule 14), and staff bind later, which applies
+//      the parked cash to the policy without booking it a second time.
 //
 // It runs the production functions on the payloads Stripe actually returned, captured in
 // lib/kyb/fixtures by the live test (lib/kyb/stripe-connect.live.test.ts). It never calls
@@ -268,9 +269,13 @@ async function main() {
     refused.kind === "binding_refused" ? refused.reason : `outcome: ${refused.kind}`,
   );
   report(
-    "nothing was journaled: the policy is not bound and no entry was posted",
-    (await countEntriesOfPolicy(policyId)) === 0 && (await policyStatus(policyId)) !== "bound",
-    `${await countEntriesOfPolicy(policyId)} entries, status ${await policyStatus(policyId)}`,
+    "the cash is parked: one unapplied_cash_received entry, cash_stripe up by the charge, policy paid_not_bound",
+    (await countEntriesOfPolicy(policyId)) === 1 &&
+      (await entryTypesOfPolicy(policyId)).join(",") === "unapplied_cash_received" &&
+      (await balanceOfPolicyAccount(policyId, "cash_stripe")) === TOTAL_CHARGE_CENTS &&
+      (await balanceOfPolicyAccount(policyId, "unapplied_customer_cash")) === -TOTAL_CHARGE_CENTS &&
+      (await policyStatus(policyId)) === "paid_not_bound",
+    `${await countEntriesOfPolicy(policyId)} entries (${(await entryTypesOfPolicy(policyId)).join(",")}), cash_stripe ${await balanceOfPolicyAccount(policyId, "cash_stripe")}, unapplied ${await balanceOfPolicyAccount(policyId, "unapplied_customer_cash")}, status ${await policyStatus(policyId)}`,
   );
   report(
     "the money is recorded as arrived, with the refusal on the operation",
@@ -280,9 +285,11 @@ async function main() {
 
   const refusedTwice = await recordSuccessfulPayment(payment, runtime);
   report(
-    "a second delivery of the same payment does not append a second success",
-    refusedTwice.kind === "binding_refused" && (await countSucceededEvents(operationId)) === 1,
-    `${await countSucceededEvents(operationId)} succeeded event(s)`,
+    "a second delivery of the same payment does not append a second success nor park the cash twice",
+    refusedTwice.kind === "binding_refused" &&
+      (await countSucceededEvents(operationId)) === 1 &&
+      (await countEntriesOfPolicy(policyId)) === 1,
+    `${await countSucceededEvents(operationId)} succeeded event(s), ${await countEntriesOfPolicy(policyId)} entries`,
   );
 
   const staffUserId = await createOperationsUser();
@@ -313,9 +320,16 @@ async function main() {
   const bound = await retryBindingAfterEligibility({ policyId, actorUserId: staffUserId }, runtime);
   report("staff bind the policy once the broker is eligible", bound.kind === "posted", `outcome: ${bound.kind}`);
   report(
-    "the four issuance entries are posted, once each",
-    (await countEntriesOfPolicy(policyId)) === 4 && (await policyStatus(policyId)) === "bound",
+    "the four issuance entries are posted once each, on top of the parking entry",
+    (await countEntriesOfPolicy(policyId)) === 5 && (await policyStatus(policyId)) === "bound",
     `${await countEntriesOfPolicy(policyId)} entries, status ${await policyStatus(policyId)}`,
+  );
+  report(
+    "binding applied the parked cash: unapplied_customer_cash back to zero, cash_stripe shows the money once",
+    (await balanceOfPolicyAccount(policyId, "unapplied_customer_cash")) === 0 &&
+      (await balanceOfPolicyAccount(policyId, "cash_stripe")) === TOTAL_CHARGE_CENTS &&
+      (await debitAccountOfEntry(policyId, "premium_collected")) === "unapplied_customer_cash",
+    `unapplied ${await balanceOfPolicyAccount(policyId, "unapplied_customer_cash")}, cash_stripe ${await balanceOfPolicyAccount(policyId, "cash_stripe")}, premium_collected debits ${await debitAccountOfEntry(policyId, "premium_collected")}`,
   );
   report(
     "the money was recorded once, whatever the number of deliveries and retries",
@@ -326,7 +340,7 @@ async function main() {
   const boundAgain = await retryBindingAfterEligibility({ policyId, actorUserId: staffUserId }, runtime);
   report(
     "binding again posts nothing a second time",
-    boundAgain.kind === "already_posted" && (await countEntriesOfPolicy(policyId)) === 4,
+    boundAgain.kind === "already_posted" && (await countEntriesOfPolicy(policyId)) === 5,
     `outcome: ${boundAgain.kind}, ${await countEntriesOfPolicy(policyId)} entries`,
   );
 
@@ -431,6 +445,36 @@ async function countEntriesOfPolicy(policyId: string): Promise<number> {
     select count(*)::text as count from journal_entries where policy_id = ${policyId}
   `;
   return Number(row.count);
+}
+
+async function entryTypesOfPolicy(policyId: string): Promise<string[]> {
+  const rows = await owner<{ entry_type: string }[]>`
+    select entry_type from journal_entries where policy_id = ${policyId} order by recorded_at, entry_type
+  `;
+  return rows.map((row) => row.entry_type);
+}
+
+// Debits minus credits of one account over the entries of one policy.
+async function balanceOfPolicyAccount(policyId: string, accountId: string): Promise<number> {
+  const [row] = await owner<{ balance: string }[]>`
+    select (coalesce(sum(line.debit_cents), 0) - coalesce(sum(line.credit_cents), 0))::text as balance
+      from journal_lines line
+      join journal_entries entry on entry.id = line.entry_id
+     where entry.policy_id = ${policyId} and line.account_id = ${accountId}
+  `;
+  return Number(row.balance);
+}
+
+// The account debited on one entry of the policy (the entry has exactly one debit line).
+async function debitAccountOfEntry(policyId: string, entryType: string): Promise<string | null> {
+  const [row] = await owner<{ account_id: string }[]>`
+    select line.account_id
+      from journal_lines line
+      join journal_entries entry on entry.id = line.entry_id
+     where entry.policy_id = ${policyId} and entry.entry_type = ${entryType} and line.debit_cents > 0
+     limit 1
+  `;
+  return row ? row.account_id : null;
 }
 
 async function countSucceededEvents(operationId: string): Promise<number> {

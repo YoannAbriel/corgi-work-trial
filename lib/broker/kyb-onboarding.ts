@@ -2,8 +2,9 @@ import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { mapAccountToEligibility, requirementErrorCodes, type VerifiableAccount } from "@/lib/kyb/eligibility";
 import { readBrokerVerification, startBrokerVerification, type UsBusinessAddress } from "@/lib/kyb/stripe-connect";
+import { expireOpenCheckoutSessionsOfBroker } from "@/lib/payments/checkout";
 import { assertStripeSandbox } from "@/lib/stripe";
-import { STRIPE_CONNECT_PROVIDER, type KybStatus } from "./eligibility";
+import { STRIPE_CONNECT_PROVIDER, bindingIsAllowed, type KybStatus } from "./eligibility";
 import {
   appendBrokerKybEvent,
   appendBrokerKybEventIfChanged,
@@ -202,6 +203,9 @@ export type KybUpdateOutcome = {
   requirementErrorCodes: string[];
   appended: boolean;
   previousStatus: KybStatus | null;
+  // How many of the broker's open payment pages were closed because the new status forbids
+  // binding (see expireOpenCheckoutSessionsOfBroker). Only set by the Stripe refresh.
+  expiredCheckoutSessions?: number;
 };
 
 // Maps a freshly read account and records the result if, and only if, the status changed.
@@ -264,7 +268,7 @@ export async function refreshBrokerKybFromStripe(
 ): Promise<KybUpdateOutcome> {
   await assertStripeSandbox();
   const account = await readBrokerVerification(request.providerAccountId);
-  return applyKybAccountUpdate(
+  const outcome = await applyKybAccountUpdate(
     {
       brokerId: request.brokerId,
       account,
@@ -274,6 +278,13 @@ export async function refreshBrokerKybFromStripe(
     },
     database,
   );
+  // The broker can no longer bind: close the payment pages still open on their policies, so
+  // that a customer does not pay for a policy that cannot be bound (rule 14, technical
+  // addition). Done after the status is committed, and only on a real change.
+  if (outcome.appended && !bindingIsAllowed(outcome.status)) {
+    outcome.expiredCheckoutSessions = await expireOpenCheckoutSessionsOfBroker(request.brokerId, database);
+  }
+  return outcome;
 }
 
 // ---------------------------------------------------------------------------------------
