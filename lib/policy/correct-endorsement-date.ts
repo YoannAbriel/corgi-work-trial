@@ -22,6 +22,7 @@ import { expireOpenEndorsementCheckouts } from "./endorse";
 import { endorsementRequestPayload, figuresFromPayload } from "./endorsement-requests";
 import { policyWasVoided } from "./status";
 import { policyTermsFromPayload } from "./terms";
+import type { UserRole } from "@/lib/auth/current-user";
 
 // Correcting the effective date of an endorsement that is already in force.
 //
@@ -60,7 +61,10 @@ export class CorrectionRefused extends Error {}
 
 export type CorrectionActor = {
   userId: string;
-  role: "broker" | "customer" | "staff_ops" | "staff_approver";
+  // Every role the application knows, including 'agent' (slice B11). The check below is an
+  // allowlist (staff_ops only), so a role added later is refused by default rather than by
+  // being absent from this type.
+  role: UserRole;
 };
 
 export type CorrectEndorsementDateInput = {

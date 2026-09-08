@@ -85,6 +85,12 @@ export type ApprovalRequestView = {
   decisionReason: string | null;
   // The exact text whose sha256 is intentHash, so an approver can read what they approve.
   canonicalIntent: string;
+  // How the request reached the queue. Null for the ordinary case, a person on a screen; set by
+  // the MCP endpoint of slice B11, which fills it with the API key's public prefix and whether
+  // the key is held by an agent. An approver has to be able to see that a machine asked for
+  // this money before they decide (general non-negotiable 6).
+  raisedThrough: string | null;
+  raisedByAgent: boolean;
 };
 
 type ApprovalRequestRow = {
@@ -98,7 +104,7 @@ type ApprovalRequestRow = {
   requested_by: string;
   requested_by_name: string;
   requested_at: Date;
-  payload: { intent_text?: string };
+  payload: { intent_text?: string; raised_through?: string | null; raised_by_agent?: boolean };
   decision: "approved" | "rejected" | null;
   decided_by_name: string | null;
   decided_at: Date | null;
@@ -122,6 +128,8 @@ function toView(row: ApprovalRequestRow): ApprovalRequestView {
     decidedAt: row.decided_at,
     decisionReason: row.decision_reason,
     canonicalIntent: row.payload?.intent_text ?? "",
+    raisedThrough: row.payload?.raised_through ?? null,
+    raisedByAgent: row.payload?.raised_by_agent === true,
   };
 }
 

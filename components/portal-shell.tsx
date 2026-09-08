@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ClipboardCheck,
+  KeyRound,
   ReceiptText,
   Scale,
   FileText,
@@ -17,7 +18,15 @@ import type { BreadcrumbItem } from "./portal-frame";
 import { workspaceTasks, type WorkspaceTask } from "./what-needs-you";
 
 type Section =
-  "home" | "policies" | "verification" | "claims" | "approvals" | "login" | "statements" | "reconciliation";
+  | "home"
+  | "policies"
+  | "verification"
+  | "claims"
+  | "approvals"
+  | "login"
+  | "statements"
+  | "reconciliation"
+  | "mcp-keys";
 
 // Pages retain their server-side identity and ownership checks. This component
 // passes rendered UI and breadcrumb labels/links across the client boundary.
@@ -70,6 +79,7 @@ export async function PortalShell({
         },
         { href: "/ops/reconciliation", label: "Reconciliation", section: "reconciliation", icon: Scale },
         { href: "/ops/statements", label: "Statements", section: "statements", icon: ReceiptText },
+        { href: "/ops/mcp-keys", label: "MCP keys", section: "mcp-keys", icon: KeyRound },
       ]
     : user?.role === "broker"
       ? [

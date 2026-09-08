@@ -3,6 +3,7 @@ import {
   ArrowRight,
   ClipboardCheck,
   FileText,
+  KeyRound,
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
@@ -57,6 +58,11 @@ export function WorkspaceOverview({
         <Link className="action-card" href="/ops/statements" prefetch={false}>
           <span className="icon-tile"><FileText aria-hidden="true" /></span>
           <span><strong>Broker statements</strong><span>Read monthly commission, frozen revisions and their knowledge cutoff.</span></span>
+          <ArrowRight size={18} aria-hidden="true" />
+        </Link>
+        <Link className="action-card" href="/ops/mcp-keys" prefetch={false}>
+          <span className="icon-tile"><KeyRound aria-hidden="true" /></span>
+          <span><strong>MCP keys</strong><span>Issue and revoke agent API keys, and read what is never delegated to an agent.</span></span>
           <ArrowRight size={18} aria-hidden="true" />
         </Link>
       </div>

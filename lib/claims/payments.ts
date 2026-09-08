@@ -164,10 +164,24 @@ export async function addClaimantBankAccount(
 // Asking to pay
 // ---------------------------------------------------------------------------
 
+// WHERE THE REQUEST CAME FROM. Absent means a person on the claim screen, which is the only
+// way this build had until slice B11. The MCP endpoint fills it in, and an approver reads it on
+// /ops/approvals before deciding: "raised by an agent" is a fact about the request that has to
+// survive on the immutable row, not a detail of the transport.
+//
+// It grants nothing. The actor's role is still what decides whether the request may be made at
+// all, and an agent can never approve (migration 0008's trigger demands staff_approver).
+export type RequestChannel = {
+  channel: "mcp";
+  principalKind: "human" | "agent";
+  keyPrefix: string; // the public half of the API key, never the secret
+};
+
 export type RequestClaimPaymentInput = {
   claimId: string;
   amountCents: number;
   actor: ClaimActor;
+  requestedThrough?: RequestChannel;
 };
 
 export type RequestedClaimPayment = {
@@ -243,6 +257,12 @@ export async function requestClaimPayment(
             policy_number: snapshot.policyNumber,
             reserve_cents: snapshot.position.reserveCents,
             paid_cents: snapshot.position.paidCents,
+            // Read back by lib/approvals/approvals.ts and shown on the approvals screen.
+            raised_by_agent: input.requestedThrough?.principalKind === "agent",
+            raised_through:
+              input.requestedThrough === undefined
+                ? null
+                : `MCP API key ${input.requestedThrough.keyPrefix} (${input.requestedThrough.principalKind})`,
           },
         })
       : null;
@@ -267,7 +287,11 @@ export async function requestClaimPayment(
     await transaction`
       insert into claim_events (claim_id, event_type, amount_cents, money_operation_id, payload, created_by)
       values (${snapshot.claimId}, 'payment_requested', ${input.amountCents}, ${operation.id},
-              ${transaction.json({ destination_token: bankAccount.accountToken, needs_approval: needsApproval })},
+              ${transaction.json({
+                destination_token: bankAccount.accountToken,
+                needs_approval: needsApproval,
+                requested_through: input.requestedThrough ?? null,
+              })},
               ${input.actor.userId})
     `;
 

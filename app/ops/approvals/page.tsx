@@ -127,6 +127,21 @@ function RequestTable({
                 {request.requestedByName}
                 <br />
                 <span className="note">{request.requestedAt.toISOString().slice(0, 19)} UTC</span>
+                {request.raisedThrough ? (
+                  <>
+                    <br />
+                    {/* Slice B11: the request came through the MCP endpoint. An approver has to see
+                        that a machine asked before deciding, so this is never folded away behind a
+                        disclosure; the agent itself can never decide, here or in the database. */}
+                    {request.raisedByAgent ? (
+                      <span className="badge badge-warn">raised by an AGENT</span>
+                    ) : null}
+                    <span className="note">
+                      {request.raisedThrough}. The person named above holds that key; an agent
+                      principal can never approve a money-out.
+                    </span>
+                  </>
+                ) : null}
               </td>
               <td>{request.destination}</td>
               <td>
