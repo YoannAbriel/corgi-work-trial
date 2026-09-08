@@ -236,7 +236,9 @@ export async function reissueRefund(
   }
 
   if (failed.lastFailureStage === "create_refund") {
-    await assertStripeSandbox();
+    // The same operation, the same key. issueRefundsAtStripe checks the sandbox itself and
+    // lists the PaymentIntent's refunds before creating anything, so a refund Stripe already
+    // made for this operation is adopted rather than made a second time.
     const [outcome] = await issueRefundsAtStripe([input.failedOperationId], database);
     return { operationId: input.failedOperationId, outcome };
   }

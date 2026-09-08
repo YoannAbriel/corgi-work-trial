@@ -53,20 +53,20 @@ typecheck`, `npm run build`, `npm test`, `npm run check:money-guards` on both da
 
 ## 2. Reading path, in order
 
-1. `db/migrations/0008_claims_and_approvals.sql` — the six new tables and the one rule that is a
+1. `db/migrations/0008_claims_and_approvals.sql`: the six new tables and the one rule that is a
    database trigger rather than code.
-2. `lib/claims/money-position.ts` — what a claim's reserve, paid and incurred mean, and the
+2. `lib/claims/money-position.ts`: what a claim's reserve, paid and incurred mean, and the
    identity the whole slice rests on.
-3. `lib/ledger/claim-entries.ts` — the six entries, with the worked example on top.
-4. `lib/claims/limits.ts` — the three ceilings a payment has to clear.
-5. `lib/claims/claims.ts` — opening a claim, moving the reserve, and the lock every money
+3. `lib/ledger/claim-entries.ts`: the six entries, with the worked example on top.
+4. `lib/claims/limits.ts`: the three ceilings a payment has to clear.
+5. `lib/claims/claims.ts`: opening a claim, moving the reserve, and the lock every money
    decision takes first.
-6. `lib/claims/payments.ts` — the bank account, asking to pay, and the three rail stages.
-7. `lib/approvals/threshold.ts`, `intent.ts`, `approvals.ts` — the second human above $1,000.
-8. `lib/rails/simulator.ts` and `lib/rails/bank-verification-simulator.ts` — the two LOCAL
+6. `lib/claims/payments.ts`: the bank account, asking to pay, and the three rail stages.
+7. `lib/approvals/threshold.ts`, `intent.ts`, `approvals.ts`: the second human above $1,000.
+8. `lib/rails/simulator.ts` and `lib/rails/bank-verification-simulator.ts`: the two LOCAL
    SIMULATORs.
 9. `lib/policy/cancel.ts` (the added block in `recordCancellation` and `cancelPolicy`) and
-   `lib/payments/refunds.ts` (`assertRefundMaySend`, `sendRequestedRefund`, `reissueRefund`) —
+   `lib/payments/refunds.ts` (`assertRefundMaySend`, `sendRequestedRefund`, `reissueRefund`):
    the same gate on the refund path.
 10. `app/ops/claims/[claimId]/page.tsx`, then `app/ops/approvals/page.tsx`.
 
