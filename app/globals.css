@@ -1350,3 +1350,18 @@ details.sandbox-reference dd {
     padding: 28px 22px 32px;
   }
 }
+
+/* On a narrow screen the sandbox panel takes the width it is given: inside an amounts table it
+   would otherwise widen the table and force a sideways scroll for two lines of text. */
+@media (max-width: 580px) {
+  details.sandbox-reference > div {
+    min-width: 0;
+  }
+  .needs-you {
+    padding: 20px;
+  }
+  .needs-you-list a {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+}
