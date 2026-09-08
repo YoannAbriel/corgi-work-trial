@@ -264,7 +264,7 @@ $ curl -s -X POST $MCP -H "Authorization: Bearer $MCP_KEY" -H "Content-Type: app
 
 On `/ops/approvals` that request now reads, above the two buttons:
 
-> **How it was raised** — **Raised by an AGENT.** MCP API key cmk_4ccf5179 (agent). The person
+> **How it was raised**: **Raised by an AGENT.** MCP API key cmk_4ccf5179 (agent). The person
 > named above holds that key; an agent principal can never approve a money-out.
 
 Verified in the same session: the journal entry count is identical before and after, and the
