@@ -42,6 +42,12 @@ Ledger practice check against Modern Treasury, Square Books and Stripe Ledger wr
 
 B1 status: implementation complete (B1a + B1b), tests PASS; independent review requested next; walkthrough NOT REVIEWED WITH YOANN. Open for Yoann: which example date to recite (both are tested), commission clawback rounding (B5), negative endorsement delta handling (B4), closed-month revision rule (B9), modeled state and tax rate source (B2).
 
+## 2026-09-08T09:34:54+00:00 | B1 review FAIL fixed (a94f091), re-review requested; B2 in progress by delegate
+
+Independent B1 review (docs/reviews/b1-ledger-core.md): FAIL on F-B1-01, app_runtime could append balanced lines to a committed entry. Fixed by migration 0003 (entries sealed at commit: lines only in the creating transaction; TRUNCATE triggers; received_at server-set; CHECK livemode = false) and a fail-closed db/client.ts. Proven by `npm run check:ledger-seal` 4/4 on the disposable database corgi_test (same Neon project, created for tests that must commit rows); trial database guards still 10/10. Register of all findings: docs/reviews/FINDINGS.md. Re-review requested. Two synthetic replay-test events remain in the production inbox, marked ignored; to be disclosed in README.
+
+Decisions since the last entry: recited example March 1, 2028 (365 days); California premium tax 2.35 percent from official sources (DECISIONS.md). B2 is being built by a delegate in an isolated worktree (branch worktree-agent-*, no push, no deploy); it will be reviewed and merged by the coordinator.
+
 Next acceptance criterion: B2 issuance with Stripe Checkout, journal posting on payment_intent.succeeded, replay twice is one. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
