@@ -1,5 +1,6 @@
 import { sql } from "@/db/client";
 import { centsFromDatabase } from "@/lib/money/cents";
+import { refundStateFromEvents, type RefundState } from "@/lib/payments/refunds";
 import type { MoneyOperationStatus, PolicyStatus } from "./status";
 
 // Every read the pages need. Amounts come back from Postgres as strings (bigint columns) and
@@ -266,4 +267,139 @@ export async function journalEntriesOfPolicy(policyId: string): Promise<JournalE
     });
   }
   return entries;
+}
+
+// ---------------------------------------------------------------------------
+// Cancellation and refunds (slice B5)
+// ---------------------------------------------------------------------------
+
+// The cancellation as it was decided: every figure comes from the immutable policy event, not
+// from a fresh calculation, so the page keeps explaining what was actually booked even if a
+// rate or a rule changes later.
+export type CancellationView = {
+  effectiveAt: string;
+  recordedAt: Date;
+  calculationMethod: string;
+  termDays: number;
+  earnedDays: number;
+  writtenPremiumCents: number;
+  earnedPremiumCents: number;
+  unearnedPremiumCents: number;
+  refundedTaxCents: number;
+  taxRefundWasCappedAtCharged: boolean;
+  refundedFeeCents: number;
+  totalRefundCents: number;
+  commissionClawbackCents: number;
+  commissionRateBps: number;
+  taxRateBps: number;
+};
+
+export async function cancellationOfPolicy(policyId: string): Promise<CancellationView | null> {
+  const [row] = await sql<{ effective_at: string; recorded_at: Date; payload: Record<string, unknown> }[]>`
+    select to_char(effective_at, 'YYYY-MM-DD') as effective_at, recorded_at, payload
+      from policy_events
+     where policy_id = ${policyId} and event_type = 'cancelled'
+  `;
+  if (!row) {
+    return null;
+  }
+  const amountCents = (field: string) => centsFromDatabase(row.payload[field], field);
+  const wholeNumber = (field: string) => Number(row.payload[field] ?? 0);
+  return {
+    effectiveAt: row.effective_at,
+    recordedAt: row.recorded_at,
+    calculationMethod: String(row.payload.calculation_method ?? "pro_rata"),
+    termDays: wholeNumber("term_days"),
+    earnedDays: wholeNumber("earned_days"),
+    writtenPremiumCents: amountCents("written_premium_cents"),
+    earnedPremiumCents: amountCents("earned_premium_cents"),
+    unearnedPremiumCents: amountCents("unearned_premium_cents"),
+    refundedTaxCents: amountCents("refunded_tax_cents"),
+    taxRefundWasCappedAtCharged: row.payload.tax_refund_was_capped_at_charged === true,
+    refundedFeeCents: amountCents("refunded_fee_cents"),
+    totalRefundCents: amountCents("total_refund_cents"),
+    commissionClawbackCents: amountCents("commission_clawback_cents"),
+    commissionRateBps: wholeNumber("commission_rate_bps"),
+    taxRateBps: wholeNumber("tax_rate_bps"),
+  };
+}
+
+// A refund the customer is owed, and where it stands. Requested and completed are kept apart
+// everywhere: a refund we have asked Stripe for is not money the customer has received.
+export type RefundOperationView = {
+  operationId: string;
+  amountCents: number;
+  refundedPremiumCents: number;
+  refundedTaxCents: number;
+  commissionClawbackCents: number;
+  paymentIntentId: string;
+  state: RefundState;
+  refundId: string | null; // the Stripe refund id, once Stripe has accepted it
+  requestedAt: Date;
+  completedOn: string | null; // the UTC day the money left Stripe
+  failureReason: string | null;
+};
+
+export async function refundOperationsOfPolicy(policyId: string): Promise<RefundOperationView[]> {
+  const operations = await sql<
+    {
+      operation_id: string;
+      amount_cents: string;
+      refunded_premium_cents: string;
+      refunded_tax_cents: string;
+      commission_clawback_cents: string;
+      payment_intent_id: string;
+      requested_at: Date;
+    }[]
+  >`
+    select operation.id as operation_id,
+           operation.amount_cents,
+           allocation.refunded_premium_cents,
+           allocation.refunded_tax_cents,
+           allocation.commission_clawback_cents,
+           allocation.payment_intent_id,
+           operation.created_at as requested_at
+      from money_operations operation
+      join refund_allocations allocation on allocation.refund_operation_id = operation.id
+     where operation.policy_id = ${policyId} and operation.kind = 'stripe_refund'
+     order by operation.created_at
+  `;
+  if (operations.length === 0) {
+    return [];
+  }
+
+  const events = await sql<
+    { operation_id: string; status: string; provider_ref: string | null; payload: Record<string, unknown> }[]
+  >`
+    select event.operation_id, event.status, event.provider_ref, event.payload
+      from money_operation_events event
+      join money_operations operation on operation.id = event.operation_id
+     where operation.policy_id = ${policyId} and operation.kind = 'stripe_refund'
+     order by event.sequence_number
+  `;
+
+  return operations.map((operation) => {
+    const ownEvents = events.filter((event) => event.operation_id === operation.operation_id);
+    const state = refundStateFromEvents(ownEvents.map((event) => event.status));
+    const succeeded = ownEvents.find((event) => event.status === "succeeded");
+    const lastFailure = [...ownEvents].reverse().find((event) => event.status === "failed");
+    return {
+      operationId: operation.operation_id,
+      amountCents: centsFromDatabase(operation.amount_cents, "amount_cents"),
+      refundedPremiumCents: centsFromDatabase(operation.refunded_premium_cents, "refunded_premium_cents"),
+      refundedTaxCents: centsFromDatabase(operation.refunded_tax_cents, "refunded_tax_cents"),
+      commissionClawbackCents: centsFromDatabase(operation.commission_clawback_cents, "commission_clawback_cents"),
+      paymentIntentId: operation.payment_intent_id,
+      state,
+      refundId: ownEvents.find((event) => event.provider_ref !== null)?.provider_ref ?? null,
+      requestedAt: operation.requested_at,
+      completedOn: succeeded ? String(succeeded.payload.refunded_on ?? "") || null : null,
+      // Shown only while the refund has not completed: a failure followed by a successful
+      // re-issue is history, not something to alarm the broker with.
+      failureReason:
+        state === "failed" && lastFailure
+          ? String(lastFailure.payload.reason ?? lastFailure.payload.message ?? "Stripe refused the refund")
+          : null,
+    };
+  });
 }
