@@ -211,13 +211,56 @@ export async function sendRequestedRefund(
 // entry and must be cleared exactly once, by whichever attempt finally completes.
 export class RefundReissueRefused extends Error {}
 
+// WHICH RECOVERY A FAILURE DESERVES (review finding F-B5-02). The two failures look the same on
+// the operation and must not be recovered the same way:
+//
+//   our call to Stripe failed (stage 'create_refund')
+//       We do not know whether Stripe created the refund: a timeout after acceptance looks
+//       exactly like a refusal. Opening a NEW operation would give it a NEW idempotency key, and
+//       the recovery listing only matches its own operation id, so Stripe could end up creating
+//       a SECOND refund and the customer would be paid twice. The only safe move is to retry the
+//       SAME operation with the SAME key, after listing the PaymentIntent's refunds and adopting
+//       one that already carries this operation id.
+//
+//   Stripe said the refund failed (stage 'refund_lifecycle')
+//       The money came back, that refund is dead and its key can never produce a live refund
+//       again, so a new operation with a new key is the only way forward. Even then, Stripe is
+//       asked what it actually holds for the previous operation before anything new is opened.
 export async function reissueRefund(
   input: { policyId: string; failedOperationId: string; actorUserId: string },
   database: postgres.Sql = sql,
 ): Promise<{ operationId: string; outcome: RefundIssueOutcome }> {
+  const failed = await loadRefundOperation(database, input.failedOperationId);
+  if (!failed || failed.policyId !== input.policyId) {
+    throw new RefundReissueRefused("this refund operation does not belong to this policy");
+  }
+
+  if (failed.lastFailureStage === "create_refund") {
+    await assertStripeSandbox();
+    const [outcome] = await issueRefundsAtStripe([input.failedOperationId], database);
+    return { operationId: input.failedOperationId, outcome };
+  }
+
+  await assertPreviousRefundIsReallyDead(failed);
   const operationId = await createReissuedRefundOperation(input, database);
   const [outcome] = await issueRefundsAtStripe([operationId], database);
   return { operationId, outcome };
+}
+
+// Asks Stripe, not our database, what became of the previous attempt. Our records can be behind
+// (a webhook not yet delivered, a status that changed a second ago), and opening a second refund
+// while the first one is alive would pay the customer twice.
+async function assertPreviousRefundIsReallyDead(failed: RefundOperation): Promise<void> {
+  await assertStripeSandbox();
+  const atStripe = await stripe.refunds.list({ payment_intent: failed.paymentIntentId, limit: 100 });
+  const previous = atStripe.data.filter((refund) => refund.metadata?.operation_id === failed.operationId);
+  const stillAlive = previous.filter((refund) => refund.status !== "failed" && refund.status !== "canceled");
+  if (stillAlive.length > 0) {
+    throw new RefundReissueRefused(
+      `Stripe still holds refund ${stillAlive[0].id} for this attempt with status "${stillAlive[0].status}", ` +
+        "so a second refund would pay the customer twice; wait for that one to fail or complete",
+    );
+  }
 }
 
 // The database half of a re-issue, on its own so that scripts/check-refund-replay.ts can prove
@@ -236,6 +279,16 @@ export async function createReissuedRefundOperation(
   if (failed.state !== "failed") {
     throw new RefundReissueRefused(
       `only a failed refund can be re-issued; this one is "${failed.state}". Sending another refund for the same liability would pay the customer twice`,
+    );
+  }
+  // Defence in depth for review finding F-B5-02: a failure of OUR call to Stripe leaves the
+  // outcome unknown, so it is recovered by retrying the same operation under the same key
+  // (reissueRefund above), never by opening a new one. Refused here as well as there, because
+  // this function is exported and called directly by the check script.
+  if (failed.lastFailureStage === "create_refund") {
+    throw new RefundReissueRefused(
+      "this attempt failed while we were calling Stripe, so Stripe may have created the refund anyway; " +
+        "it has to be retried under the same idempotency key, not re-issued as a new refund",
     );
   }
 
@@ -488,6 +541,10 @@ export type RefundOperation = {
   // Set when the cancellation queued this refund for maker-checker (above $1,000). Null below
   // the threshold, and null on every operation created before slice B7.
   approvalRequestId: string | null;
+  // Where the last failure came from, which decides how a re-issue is allowed to recover:
+  //   'create_refund'     OUR call to Stripe failed; the refund may or may not exist there;
+  //   'refund_lifecycle'  STRIPE said the refund itself failed or was cancelled.
+  lastFailureStage: "create_refund" | "refund_lifecycle" | null;
 };
 
 // Where a refund stands, read from its append-only events.
@@ -559,14 +616,21 @@ export async function loadRefundOperation(
     return null;
   }
 
-  const events = await database<{ status: string; provider_ref: string | null }[]>`
-    select status, provider_ref from money_operation_events
+  const events = await database<{ status: string; provider_ref: string | null; payload: { stage?: string } }[]>`
+    select status, provider_ref, payload from money_operation_events
      where operation_id = ${operationId}
      order by sequence_number
   `;
   // On a refund operation, provider_ref only ever holds the Stripe refund id: the PaymentIntent
   // being given back lives in refund_allocations, not in the lifecycle events.
   const refundId = events.find((event) => event.provider_ref !== null)?.provider_ref ?? null;
+  const lastFailure = [...events].reverse().find((event) => event.status === "failed");
+  const lastFailureStage =
+    lastFailure?.payload?.stage === "create_refund"
+      ? ("create_refund" as const)
+      : lastFailure
+        ? ("refund_lifecycle" as const)
+        : null;
 
   return {
     operationId: row.id,
@@ -584,6 +648,7 @@ export async function loadRefundOperation(
     state: refundStateFromEvents(events.map((event) => event.status)),
     refundId,
     approvalRequestId: row.approval_request_id,
+    lastFailureStage,
   };
 }
 
