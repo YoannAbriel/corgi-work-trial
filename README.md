@@ -2,7 +2,7 @@
 
 A commercial liability policy from sale to cancellation, with every dollar collected and refunded in the application's own append-only double-entry ledger. Built in the 48-hour window from September 8, 2026, 07:50 Europe/Zurich. Sandbox providers and synthetic data only; no live keys, no real money, no real people.
 
-Deployed URL: https://corgi-work-trial-iota.vercel.app (health: `/api/health` reports the database and the built revision). Demo credentials are handed over in the submission email; roles: `broker@example.com` (broker), `customer@example.com` (customer), `ops@example.com` (staff operations, maker), `approver@example.com` (staff approver, checker). All share the demo password from the deployment secret store.
+Deployed URL: https://corgi-work-trial-iota.vercel.app (health: `/api/health` reports the database and the built revision). Demo credentials are handed over in the submission email; roles: `broker@example.com` (broker, KYB approved), `broker2@example.com` (broker, KYB failed on Stripe's tax-id fixture), `broker3@example.com` (broker, never submitted, for a live pending demonstration), `customer@example.com` (customer), `ops@example.com` (staff operations, maker), `approver@example.com` (staff approver, checker). All share the demo password from the deployment secret store.
 
 Decision log: [docs/DECISIONS.md](docs/DECISIONS.md). Status and evidence: [docs/STATUS.md](docs/STATUS.md). Plan and coverage of every official requirement: [docs/PLAN.md](docs/PLAN.md). Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Independent reviews and the findings register: [docs/reviews/](docs/reviews/). Compliance and control matrix: [docs/COMPLIANCE-MATRIX.md](docs/COMPLIANCE-MATRIX.md). Attack plan sent at T+2h: [docs/ATTACK-PLAN.md](docs/ATTACK-PLAN.md). Engineering rules of this repository: [AGENTS.md](AGENTS.md), [AUTOMATIC-FAILS.md](AUTOMATIC-FAILS.md), [READABLE-CODE.md](READABLE-CODE.md).
 
@@ -34,7 +34,7 @@ npm run seed                          # seed from zero: refuses if any table it 
 npm run dev                           # http://localhost:3000, log in with a demo user and DEMO_PASSWORD
 ```
 
-Webhooks: register `https://<your deployment>/api/webhooks/stripe` in the Stripe sandbox for `payment_intent.succeeded`, `payment_intent.payment_failed`, `checkout.session.completed`, `checkout.session.expired`, `refund.created`, `refund.updated`, `refund.failed`, `charge.refunded`, `account.updated`; put its signing secret in `STRIPE_WEBHOOK_SECRET`. Locally, `stripe listen --forward-to localhost:3000/api/webhooks/stripe` prints the secret to use instead.
+Webhooks: register `https://<your deployment>/api/webhooks/stripe` in the Stripe sandbox for `payment_intent.succeeded`, `payment_intent.payment_failed`, `checkout.session.completed`, `checkout.session.expired`, `refund.created`, `refund.updated`, `refund.failed`, `charge.refunded`, `account.updated`; put its signing secret in `STRIPE_WEBHOOK_SECRET`. Locally, `stripe listen --forward-to localhost:3000/api/webhooks/stripe` prints the secret to use instead. Connected-account events need a second endpoint on the same URL created with `connect=true` (listening to `account.updated`); it has its own signing secret, `STRIPE_CONNECT_WEBHOOK_SECRET`, and the route verifies each delivery against either secret.
 
 Checks that exist and what they prove (every database check rolls back or runs on the disposable database `corgi_test`, never on the trial ledger):
 
@@ -46,6 +46,7 @@ npm run migrate -- --database=test                   # migrate corgi_test (creat
 npm run check:ledger-seal                            # entries sealed at commit; live-mode events refused by the database
 npm run check:payment-replay                         # same payment delivered twice posts once; wrong amount refused; expired session gets a new attempt
 npm run check:refund-replay                          # refund posted once; refund.failed posts nothing; clawback once
+npm run check:kyb-replay                             # KYB status appended only on change; settling window; binding refused unless approved
 npm run void:fabricated-binding -- --policy=CGP-xxxxx --reason="..."   # operations correction: reversal entries plus a dated event (asks Stripe first)
 npm run rebuild:policy-current                       # rebuilds the policy_current cache from events, proving it is a cache
 ```
