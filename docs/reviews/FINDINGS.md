@@ -10,7 +10,7 @@ One line per finding from the independent reviews (design and implementation). F
 | F-04 | MED | Worked example counted 366 days for a March 1 term (365) | Recited example redone with 365 days | DECIDED 29312ca |
 | F-05 | MED | Earning window per written segment and negative endorsement delta undefined | Segments earn from their effective date; negative delta: refund now or credit | Segments FIXED in design; negative delta DECIDED: immediate Stripe refund (DECISIONS.md) |
 | F-06 | MED | Chart of accounts could not book claims | Accounts added with a worked claim example | FIXED in design; code in B7 |
-| F-07 | MED | Closed-month rerun vs corrected month undefined | Statement runs carry a knowledge cutoff; corrections create a new revision | Proposal written; OPEN (Yoann, B9) |
+| F-07 | MED | Closed-month rerun vs corrected month undefined | Statement runs carry a knowledge cutoff; corrections create a new revision | DECIDED: knowledge cutoff plus revisions (DECISIONS.md), code in B9 |
 | F-08 | MED | Sandbox checks only on Stripe webhooks | Key prefix check in lib/stripe.ts; livemode CHECK in the database; startup account check still to add before B2's first outbound call | Partly FIXED 8bb9063 and 0003; startup check OPEN (B2) |
 | F-09 | MED | Seed and test databases not addressed | Seed refuses a non-empty database; disposable corgi_test database for committing tests | corgi_test FIXED; seed in B2 |
 | F-10 | MED | Human-approver check location unspecified | Trigger on approval_decisions plus session-only approve route | FIXED in design; code in B7 |

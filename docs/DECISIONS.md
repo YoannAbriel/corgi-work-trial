@@ -82,3 +82,7 @@ A premium decrease mid-term (for example $1,800 to $1,200 on day 100: 43562 cent
 ## 2026-09-08T09:57:02+00:00 | Explicit user decision | Commission clawback rounded down
 
 Clawback = commission rate x refunded premium, rounded down (87124 x 15% = 13068.6 -> 13068 cents). One rounding rule for the whole system: the insurer absorbs every fraction; neither customer nor broker loses a cent. Closes review finding F-17.
+
+## 2026-09-08T10:02:00+00:00 | Explicit user decision | Closed-month statements: knowledge cutoff and revisions
+
+Each statement run stores the effective month and a knowledge cutoff (the recorded_at upper bound it read). Rerunning a closed month with its cutoff reproduces revision 1 forever. A correction recorded after the cutoff produces revision 2, dated, showing the corrected figure and referencing revision 1 as superseded. Nothing is rewritten. Closes review finding F-07; implemented in B9.
