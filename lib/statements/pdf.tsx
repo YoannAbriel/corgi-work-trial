@@ -31,10 +31,11 @@ const styles = {
   label: { width: 150, color: "#444444" },
   value: { flexGrow: 1 },
   monospace: { flexGrow: 1, fontFamily: "Courier", fontSize: 9 },
-  amountColumn: { width: 95, textAlign: "right" },
-  kindColumn: { width: 105 },
-  policyColumn: { width: 80 },
-  dateColumn: { width: 95 },
+  amountColumn: { width: 88, textAlign: "right" },
+  kindColumn: { width: 100 },
+  policyColumn: { width: 76 },
+  dateColumn: { width: 92 },
+  provisional: { fontSize: 10, marginBottom: 12 },
   descriptionColumn: { flexGrow: 1, paddingRight: 8 },
   tableHeader: {
     flexDirection: "row",
@@ -88,22 +89,31 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
     >
       <Page size="LETTER" style={styles.page}>
         <Text style={styles.documentTitle}>Broker Commission Statement</Text>
+        {/* One interpolated string rather than several children: react-pdf draws each child as
+            its own run, and a subtitle split into five pieces is harder to read back out of the
+            file than it is to write. */}
         <Text style={styles.documentSubtitle}>
-          {run.brokerName}, {run.statementMonth}, revision {run.revision}
+          {`${run.brokerName}, ${run.statementMonth}, revision ${run.revision}`}
         </Text>
+
+        {run.monthWasStillRunning ? (
+          <Text style={styles.provisional}>
+            {`MONTH IN PROGRESS, PROVISIONAL. This statement was produced before ${run.statementMonth} was over, so more money can still be booked into that month. It will not change: the run made once the month has ended is the next revision, and the definitive one.`}
+          </Text>
+        ) : null}
 
         <View style={styles.row}>
           <Text style={styles.label}>Statement month</Text>
           <Text style={styles.value}>
-            {formatCalendarDate(`${run.statementMonth}-01`)} to the last day of that month (business dates)
+            {`${formatCalendarDate(`${run.statementMonth}-01`)} to the last day of that month (business dates)`}
           </Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.label}>Revision</Text>
           <Text style={styles.value}>
-            {run.revision}
-            {run.supersedesRunId ? ", superseding the previous revision of the same month" : ", the first run of this month"}
-            {run.identicalToPrevious ? " (identical to the revision it supersedes)" : ""}
+            {`${run.revision}${
+              run.supersedesRunId ? ", superseding the previous revision of the same month" : ", the first run of this month"
+            }${run.identicalToPrevious ? " (identical to the revision it supersedes)" : ""}`}
           </Text>
         </View>
         <View style={styles.row}>
@@ -117,8 +127,7 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
         <View style={styles.row}>
           <Text style={styles.label}>Produced</Text>
           <Text style={styles.value}>
-            {formatUtcTimestamp(run.createdAt.toISOString())}
-            {run.runByName ? ` by ${run.runByName}` : ""}
+            {`${formatUtcTimestamp(run.createdAt.toISOString())}${run.runByName ? ` by ${run.runByName}` : ""}`}
           </Text>
         </View>
 
@@ -129,6 +138,7 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
           <Text style={styles.policyColumn}>Policy</Text>
           <Text style={styles.descriptionColumn}>Description</Text>
           <Text style={styles.amountColumn}>Amount</Text>
+          <Text style={styles.amountColumn}>Premium in it</Text>
         </View>
         {lines.length === 0 ? (
           <Text style={styles.emptyState}>
@@ -142,17 +152,24 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
               <Text style={styles.policyColumn}>{line.policyNumber ?? "-"}</Text>
               <Text style={styles.descriptionColumn}>{line.description}</Text>
               <Text style={styles.amountColumn}>{formatCents(line.amountCents)}</Text>
+              <Text style={styles.amountColumn}>
+                {line.commissionBaseCents === null ? "-" : formatCents(line.commissionBaseCents)}
+              </Text>
             </View>
           ))
         )}
 
         <Text style={styles.sectionTitle}>Totals</Text>
         <View style={styles.rowWithRule}>
-          <Text style={styles.descriptionColumn}>Premium, tax and fee collected from customers</Text>
+          <Text style={styles.descriptionColumn}>Cash collected from customers (premium, tax and fee)</Text>
+          <Text style={styles.amountColumn}>{formatCents(run.cashCollectedCents)}</Text>
+        </View>
+        <View style={styles.rowWithRule}>
+          <Text style={styles.descriptionColumn}>Premium collected, which is the commission base</Text>
           <Text style={styles.amountColumn}>{formatCents(run.premiumCollectedCents)}</Text>
         </View>
         <View style={styles.rowWithRule}>
-          <Text style={styles.descriptionColumn}>Commission earned on collected premium</Text>
+          <Text style={styles.descriptionColumn}>Commission earned on that premium</Text>
           <Text style={styles.amountColumn}>{formatCents(run.commissionEarnedCents)}</Text>
         </View>
         <View style={styles.rowWithRule}>
@@ -172,9 +189,11 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
 
         <View style={styles.footer} fixed>
           <Text>
-            Premium collected is the cash the customers paid, which includes the state premium tax and the
-            policy fee. Commission is earned on the premium alone, so it is not that figure times the
-            commission rate.
+            The two collected figures are the same money read twice: the cash is what the customers paid,
+            premium plus state premium tax plus policy fee, and the premium is the part of it commission is
+            earned on. Commission is that premium times the broker&apos;s rate, rounded down, and never touches
+            tax or fee. Refunds are not netted into either figure; they are on their own lines, next to the
+            clawback each one produced.
           </Text>
           <Text>
             Net due is the movement of this broker&apos;s commission payable account in the ledger for this
