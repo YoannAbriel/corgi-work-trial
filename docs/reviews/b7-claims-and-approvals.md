@@ -256,3 +256,98 @@ The three places I would expect a panel to point at are those three. If a fourth
 Residual limitations of this review: the maker-checker bypass was proven up to the last step before Stripe rather than through it, deliberately; the concurrency evidence is two connections from one process; `paid_not_bound` was verified by code path only, because the trial database holds no such policy; `corgi_test` carries two migrations that `main` does not, so the checks there ran against a superset of the schema; and the claim I created on the trial database carries future dates, because no policy there is in force today.
 
 Findings for the coordinator's register: F-B7-01 HIGH, F-B7-02 and F-B7-03 MEDIUM, F-B7-04 to F-B7-12 LOW. Walkthrough status: **NOT REVIEWED WITH YOANN**.
+
+---
+
+## 12. Re-review at `65b06be`, after the fixes
+
+- Requested by the coordinator for F-B7-01, F-B7-02, F-B7-04 and F-B7-11, with F-B7-03 said to be closed by the B10 merge.
+- Reviewer: the same independent reviewer, same rules. Read-only on the code, read-only on Stripe, nothing committed, this file is still the only one written.
+- Timestamp: 2026-09-08T16:05:00Z.
+- Revision reviewed: `65b06be`, read at `d7d173d` (the two later commits are documentation only). Deployed and verified at `6e8805e`, which has `65b06be` as an ancestor; `/api/health` reported it throughout. Working tree clean apart from this file.
+- **Verdict for the B7 scope after the fixes: PASS.** The HIGH finding is closed, both MEDIUMs are closed, and the two LOWs in this batch are closed. One new LOW is recorded below. Prior findings and the FAIL verdict of sections 1 to 11 stay as they were: this section appends to that history rather than replacing it.
+- Walkthrough status: still **NOT REVIEWED WITH YOANN**.
+
+### 12.1 Diffs read
+
+`lib/payments/refunds.ts`, `lib/approvals/threshold.ts`, `lib/claims/payments.ts`, `lib/policy/read.ts`, `app/policies/[policyId]/page.tsx`, `app/api/policies/[policyId]/refunds/[operationId]/reissue/route.ts`, `lib/broker/kyb-onboarding.ts`, `app/api/webhooks/stripe/route.ts`, and the 127 added lines of `scripts/check-claims-and-approvals.ts` (sections 11b and 11c). Also read, because the B10 merge moved code inside my scope: `lib/claims/settle-due-payouts.ts` (extracted from the settle job), the rewritten `app/api/jobs/settle-simulated-payouts/route.ts`, `app/api/jobs/daily/route.ts` and `vercel.json`. Nothing else of B10 was reviewed; it is not my scope.
+
+### 12.2 F-B7-01, closed
+
+The fix is the one I asked for and it is placed where it cannot be forgotten: `issueOneRefundAtStripe` now calls `assertRefundMaySend` before it does anything, so every caller passes the gate rather than each caller remembering to. A refusal returns `status: "refused"` and appends nothing, which is right: a gate saying no is not a provider failure and must not pollute the operation's history. Around it, three supporting changes that I checked individually: `lastFailureStage` gains `"approval"`, so a rejection is no longer read as a Stripe failure; `assertPreviousRefundIsReallyDead` is called only for a genuine `refund_lifecycle` failure, so a rejection no longer triggers a pointless Stripe listing; and `createReissuedRefundOperation` raises a fresh approval request whenever the amount is above the threshold, inside the same transaction as the operation it gates, exactly as the cancellation does.
+
+I re-ran my own probe from section 4 against the fixed code, on `corgi_test`, and it now ends the other way:
+
+```
+3. after the REJECTION: state = failed | lastFailureStage = approval | approvalRequestId = set
+4. reissueRefund on the REJECTED refund returned status: queued_for_approval
+   new operation: 9d266bcd-... | amount: 371545 | approvalRequestId: SET
+                | refundId: none (nothing at Stripe)
+5. the new attempt is still gated: this money-out is above the approval threshold and is still
+   waiting for a second person to approve it
+6. calling issueRefundsAtStripe directly on it: refused | ...still waiting for a second person
+   lifecycle of the new operation after that call: requested
+```
+
+Line 6 is the part that matters most: I called the Stripe-facing function directly, the way a future code path might, and it refused and appended nothing. The delegate's own new lines agree ("issueRefundsAtStripe itself refuses an above-threshold refund that carries no approval request", "that refusal is not a provider failure: nothing was appended to the operation", "a rejection is recognised as an approval-stage failure, not as a Stripe failure").
+
+Behaviour change worth knowing: a re-issue attempt on a completed refund is now refused earlier and without asking Stripe, because the listing is reserved for lifecycle failures. Confirmed on the deployed application: `staff_ops` gets "only a failed refund can be re-issued; this one is completed", where before the same click made a Stripe call to find out. That is cheaper and no weaker.
+
+### 12.3 F-B7-02, closed
+
+`claimPayoutNeedsApproval` counts what the claim has already sent and not had returned, plus what is requested and still waiting, plus this payment, and compares the total with the threshold. It is used at request time and again at send time, so neither entry point is more permissive. The rule is written as Yoann's decision with its reason, and the comment says plainly why the refund path needs no equivalent (a cancellation refunds one total, computed once). Unit tests cover the boundary.
+
+My split probe from section 4, re-run against the fixed code on `corgi_test`:
+
+```
+  60000 cents -> approval request: NONE; send: sent
+  60000 cents -> approval request: created; send: not attempted
+CLM-01067 events: reserve_set 500000 | payment_requested 60000 | payment_sent 60000
+                  | payment_requested 60000
+payment_sent total: 60000 cents | approval requests for this claim: 1
+```
+
+Before the fix the same probe put $1,200 out of one claim with zero approvals; now the second $600 waits for a checker. Proven live as well, on the deployed application: a further $10 requested on CLM-00212, which has already paid $1,200, was answered `payment=awaiting-approval`.
+
+### 12.4 F-B7-04, closed
+
+`refundOperationsOfPolicy` now carries `failureStage`, and the policy page words both the state and the action from it: a rejected refund reads "rejected by the approver, nothing sent" instead of "requested, not completed", the button says "Raise a new approval request for this refund" instead of "Re-issue this refund", and the banner after the action distinguishes `queued_for_approval` and `refused` from a Stripe answer. Read in the diff; not observed on a screen, because no rejected refund exists on the trial database and creating one would mean cancelling a real policy.
+
+### 12.5 F-B7-11, closed
+
+The expiry is now wrapped in a try/catch that records `expiryError` on the outcome instead of throwing, and the webhook route reports it in the processing reason. A committed KYB transition therefore stays a successful delivery, and the operator is told in words that the payment pages were not closed. The comment states the fallback correctly: a page left open is caught by rule 14 at payment time anyway.
+
+### 12.6 F-B7-03, closed, with one honest reduction
+
+I agree it is closed. `vercel.json` now declares a daily cron on `/api/jobs/daily`, and that endpoint runs all three pieces of recurring work in a defensible order: recovery, then settlement, then reconciliation, with the reason for the order written above it. It accepts GET as well as POST, which is what Vercel Cron sends, and I confirmed the GET path is authorised the same way (no header 401, wrong bearer 401). The settle work was extracted to `lib/claims/settle-due-payouts.ts` so the standalone endpoint and the daily job run the same code; I read the extraction line by line and it is faithful, including the idempotency argument, and the standalone endpoint still answers correctly (`dueCount 0` with nothing due).
+
+The reduction: the Run now button on `/ops/reconciliation` posts to `/api/jobs/reconcile` only. Settlement and recovery have no button, so between two cron runs they can only be driven with the cron secret from a terminal. At a demo, a due settlement still has to be brought forward with the LOCAL SIMULATOR control on the claim screen. That is a smaller thing than the finding I raised and I am not reopening it; it is worth one line in the README so nobody expects a button that is not there.
+
+### 12.7 New finding
+
+| ID | Sev | Finding (one line) |
+|---|---|---|
+| F-B7-13 | LOW | A claim payment that was legitimately below the threshold when it was requested can no longer be sent while a second request is waiting on the same claim, and the only way to release it is to have that second request rejected |
+
+A consequence of the cumulative rule, and it fails closed, which is the right direction. Reproduced on `corgi_test`: request $600 (no approval, correctly), request another $600 (approval raised, correctly), then send the first one, which is refused with "this payment would take the claim above the approval threshold but carries no approval request". The order I used in section 12.3, sending the first before requesting the second, has no such problem. The recovery exists (reject the waiting request and the first becomes sendable again) but it is not obvious from the screen. Either say so in the refusal message, or let the send raise its own approval request instead of refusing. Not a money defect: nothing goes out unapproved either way.
+
+### 12.8 Checks executed in this re-review
+
+- `npm run typecheck`: exit 0. `npm test`: 276 tests, 275 pass, 0 fail, 1 skipped.
+- `npm run check:claims-and-approvals` (`corgi_test`): **63 PASS, 0 FAIL, exit 0** (55 before). The eight added lines are exactly the two findings, including "a first $600 on a claim goes without an approver", "a second $600 on the same claim needs an approver: the claim would reach $1,200", "issueRefundsAtStripe itself refuses an above-threshold refund that carries no approval request", "that refusal is not a provider failure: nothing was appended to the operation", and "re-issuing an above-threshold refund raises a NEW approval request on the new operation". Closing line: debits 185829202 equal credits 185829202.
+- `npm run check:refund-replay` (`corgi_test`): **27 PASS, 0 FAIL, exit 0**, unchanged, so the gate added inside `issueOneRefundAtStripe` breaks none of the B5 refund behaviour: the re-issued refund still completes and still clears the liability exactly once.
+- My own two adversarial probes from the first review, re-run unchanged in shape against the fixed code, plus a third for the ordering case of F-B7-13. Neither wrote to Stripe.
+- `npm run check:money-guards -- --database=test`: **126 PASS, 2 FAIL, exit 1**, twice. Both failures are `owner cannot TRUNCATE claims` and `owner cannot TRUNCATE approval_requests`, both reporting `deadlock detected`. I did not treat that as a product failure and I did not treat it as a pass either. `pg_stat_activity` on `corgi_test` showed four and then seven other sessions, one of them blocked on `truncate "policies" cascade` and two idle in transaction holding locks: another agent is running checks on the shared disposable database at the same time, which is exactly the contention the B7 delegate described for the trial database. I waited for a quiet window, did not get one, and stopped rather than keep hammering it. I then proved the two guards in isolation instead, on a throwaway database created and dropped for the purpose: `truncate claims cascade` and `truncate approval_requests cascade` are both refused by their trigger, as are the four other new tables. Taken together with the 12 owner UPDATE and DELETE passes, the 4 clean TRUNCATE passes and the 18 `app_runtime` passes in the same run, AF-03 coverage on the six B7 tables is complete. The fix commit touches no migration and no trigger, so no regression was possible here in any case.
+- Deployed application at `6e8805e`: the reissue route on a completed refund, the further $10 on CLM-00212 (queued, as the fix requires), the rejection of that request by the approver, and the authorisation of the daily endpoint on GET.
+
+### 12.9 What this re-review added to the trial database
+
+One `payment_requested` claim event of $10 on CLM-00212 and its `claim_payout` money operation, one approval request `b6519f0c-7d96-4e80-b30a-0d51498dcd18` raised by `ops@example.com`, and its rejection by `approver@example.com` with the reason "Independent re-review probe: raised only to prove the per-claim threshold; not needed". I raised it to prove the per-claim threshold on the deployed application and rejected it to leave the claim where it was.
+
+Nothing moved: the rejection posted no journal entry, the claim still holds three entries, the pending total on the claim is back to zero, the global journal is unchanged at 51 lines with debits 3277535 equal to credits 3277535, and CLM-00212 is still open with a $3,800 reserve and $1,200 paid. The audit trail of the probe stays visible, which is the point of an append-only ledger. On `corgi_test`, three more probe fixtures.
+
+### 12.10 What is still not verified
+
+The rejected-refund wording and the new button label were read in the diff, not seen on a screen: no rejected refund exists on the trial database and making one would mean cancelling a real policy. The `expiryError` path was read, not triggered, because forcing a Stripe error on the expiry call would mean breaking a broker's eligibility against the real sandbox. The daily cron has not yet fired at 06:00 UTC, so it is a declaration in `vercel.json` and a working endpoint rather than an observed scheduled run. The two TRUNCATE guards were proven in isolation rather than in the shared guard run, for the reason given above. A `paid_not_bound` policy is still unverified live, unchanged from section 6.
+
+**Verdict, B7 scope at `65b06be`: PASS.** F-B7-01, F-B7-02, F-B7-03, F-B7-04 and F-B7-11 are closed; F-B7-05 to F-B7-10 and F-B7-12 remain open as recorded, all LOW; F-B7-13 is new and LOW. **Rule 14 stays PASS**, now with F-B7-11 closed. Walkthrough status: **NOT REVIEWED WITH YOANN**.

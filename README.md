@@ -49,6 +49,7 @@ npm run check:refund-replay                          # refund posted once; refun
 npm run check:kyb-replay                             # KYB status appended only on change; settling window; binding refused unless approved
 npm run check:claims-and-approvals                   # incurred = paid + reserve after every step; limits; maker-checker refusals; rejected refund re-issue returns to the queue
 npm run check:reconciliation                         # every classification once; a planted PaymentIntent of $42.42 (created in the sandbox on each run) is found; a failed fetch never reads clean
+# Jobs: the daily cron (06:00 UTC, /api/jobs/daily) runs recovery, simulated settlement and reconciliation; the staff Run now form covers reconciliation only, so between cron runs recovery and settlement are triggered with the CRON_SECRET bearer, or the claim screen's LOCAL SIMULATOR settle button for one payout.
 npm run void:fabricated-binding -- --policy=CGP-xxxxx --reason="..."   # operations correction: reversal entries plus a dated event (asks Stripe first)
 npm run rebuild:policy-current                       # rebuilds the policy_current cache from events, proving it is a cache
 ```
