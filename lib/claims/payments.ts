@@ -386,11 +386,16 @@ export type SendClaimPaymentResult = {
 // The only place a claim payment leaves for the rail. Everything is re-read and re-checked here
 // and not taken from the request that created the operation: an approval given yesterday must
 // not pay a claim whose destination account, reserve or limits have moved since.
+//
+// The actor is a staff operator, or SCHEDULED_JOB when the recovery job finishes a payment that
+// a person asked for and an approver approved but that never reached the rail (finding F-B7-05).
+// The job gains nothing by being here: every check below is re-run for it too.
 export async function sendClaimPayment(
-  input: { operationId: string; actor: ClaimActor },
+  input: { operationId: string; actor: ClaimActorOrJob },
   database: postgres.Sql = sql,
 ): Promise<SendClaimPaymentResult> {
-  assertClaimsOperator(input.actor);
+  assertClaimsOperatorOrJob(input.actor);
+  const sentBy = actorUserId(input.actor);
 
   return database.begin(async (transaction) => {
     const operation = await claimPayoutOperation(transaction, input.operationId);
@@ -486,7 +491,7 @@ export async function sendClaimPayment(
       amountCents: current.amountCents,
       operationId: current.operationId,
       payload: { transfer_ref: transfer.transferRef, expected_settlement_date: transfer.settlementDate },
-      createdBy: input.actor.userId,
+      createdBy: sentBy,
     });
     await transaction`
       insert into money_operation_events (operation_id, status, provider_ref, payload)
@@ -495,7 +500,7 @@ export async function sendClaimPayment(
     `;
 
     const entry = claimPaymentSentEntry(
-      entryContext(snapshot, claimEventId, sentOn, input.actor.userId),
+      entryContext(snapshot, claimEventId, sentOn, sentBy),
       current.amountCents,
     );
     await postJournalEntry(transaction, entry.header, entry.lines);
