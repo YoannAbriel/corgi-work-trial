@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { SandboxReferences } from "@/components/disclosures";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 import { KYB_NOT_LIVE_LABEL } from "@/lib/broker/eligibility";
@@ -84,7 +85,14 @@ export default async function OpsBrokersPage({
                 <td>
                   {broker.state.provider}
                   <br />
-                  <span className="note">{broker.state.providerAccountId ?? "no connected account"}</span>
+                  <span className="note">
+                    {broker.state.providerAccountId ? "connected account" : "no connected account"}
+                  </span>
+                  <SandboxReferences
+                    references={[
+                      { label: "Stripe connected account", value: broker.state.providerAccountId },
+                    ]}
+                  />
                   {broker.state.isProviderEvidence || !broker.state.providerAccountId ? null : (
                     <>
                       <br />

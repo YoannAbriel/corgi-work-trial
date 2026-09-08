@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PortalShell } from "@/components/portal-shell";
+import { Disclosure } from "@/components/disclosures";
 import { currentUser } from "@/lib/auth/current-user";
 import { brokersWithKybState } from "@/lib/broker/kyb";
 import { policiesOfBroker } from "@/lib/policy/read";
@@ -35,6 +36,21 @@ export default async function StaffPoliciesPage() {
     <PortalShell user={user} active="policies">
       <h1>Your <em>policies.</em></h1>
       <p className="lead">Review coverage, policy status and the broker responsible for each account.</p>
+
+      <Disclosure>
+        <p>
+          One row per policy, newest broker first. <strong>Total charge</strong> is the annual
+          premium plus the state premium tax and the flat policy fee, as they stand today; what was
+          actually collected and refunded is on the policy page, in its journal.
+        </p>
+        <p>
+          A policy marked <strong>paid not bound</strong> is the one that needs a person: the
+          customer&apos;s money arrived while the broker was not eligible to bind, so it sits in the
+          suspense account until staff operations bind the policy or send it back. Open the policy
+          to do either.
+        </p>
+      </Disclosure>
+
       {policies.length === 0 ? (
         <section className="empty-state">
           <h2>No policies yet.</h2>
@@ -49,7 +65,14 @@ export default async function StaffPoliciesPage() {
               <tr key={policy.policyId}>
                 <td><Link href={`/policies/${policy.policyId}`}>{policy.policyNumber}</Link></td>
                 <td>{policy.customerName}</td><td>{policy.brokerName}</td><td>{policy.stateCode}</td>
-                <td>{policy.effectiveAt}</td><td>{policy.status}</td>
+                <td>{policy.effectiveAt}</td>
+                <td>
+                  {/* The status is the one derived from the policy's events; the colour only
+                      separates "in force" from "somebody has to look at this". */}
+                  <span className={`badge ${policy.status === "bound" ? "badge-ok" : "badge-warn"}`}>
+                    {policy.status.replace(/_/g, " ")}
+                  </span>
+                </td>
                 <td className="amount">{formatCentsAsUsd(policy.totalChargeCents)}</td>
               </tr>
             ))}</tbody>

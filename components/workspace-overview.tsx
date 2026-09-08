@@ -7,8 +7,15 @@ import {
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
+import { WhatNeedsYou, type WorkspaceTask } from "./what-needs-you";
 
-export function WorkspaceOverview({ isApprover }: { isApprover: boolean }) {
+export function WorkspaceOverview({
+  isApprover,
+  tasks,
+}: {
+  isApprover: boolean;
+  tasks: WorkspaceTask[];
+}) {
   return (
     <>
       <div className="page-heading">
@@ -20,6 +27,8 @@ export function WorkspaceOverview({ isApprover }: { isApprover: boolean }) {
           person.
         </p>
       </div>
+      {/* What is waiting comes first: the map of the screens is below it. */}
+      <WhatNeedsYou tasks={tasks} />
       <div className="action-grid">
         <Link className="action-card" href="/ops/brokers" prefetch={false}>
           <span className="icon-tile">

@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { SandboxReferences } from "@/components/disclosures";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 import { KYB_NOT_LIVE_LABEL } from "@/lib/broker/eligibility";
@@ -87,7 +88,12 @@ export default async function BrokerKybPage({
               </tr>
               <tr>
                 <th>Connected account</th>
-                <td>{kyb.providerAccountId ?? "not created yet"}</td>
+                <td>
+                  {kyb.providerAccountId ? "created at Stripe" : "not created yet"}
+                  <SandboxReferences
+                    references={[{ label: "Stripe connected account", value: kyb.providerAccountId }]}
+                  />
+                </td>
               </tr>
               <tr>
                 <th>Submitted (UTC)</th>

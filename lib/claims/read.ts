@@ -229,3 +229,28 @@ export async function claimHeader(
     ? { claimId: row.id, claimNumber: row.claim_number, policyId: row.policy_id, brokerId: row.broker_id }
     : null;
 }
+
+// How many claims have a payment somebody still has to move, for the sidebar badge.
+//
+// "Still to move" is the same condition `pendingPaymentCents` uses in lib/claims/claims.ts to
+// hold a requested payment against the ceilings: a claim_payout operation with no 'payment_sent'
+// claim event and no 'failed' lifecycle event. Asked for and not gone: it is waiting for an
+// approver, or for the operator to send it on the rail. Claims, not payments, are counted,
+// because the badge points at a screen that lists claims.
+export async function countClaimsWithPaymentsStillToMove(database: Queryable): Promise<number> {
+  const [row] = await database<{ waiting: number }[]>`
+    select count(distinct operation.claim_id)::int as waiting
+      from money_operations operation
+     where operation.kind = 'claim_payout'
+       and operation.claim_id is not null
+       and not exists (
+             select 1 from claim_events event
+              where event.money_operation_id = operation.id and event.event_type = 'payment_sent'
+           )
+       and not exists (
+             select 1 from money_operation_events lifecycle
+              where lifecycle.operation_id = operation.id and lifecycle.status = 'failed'
+           )
+  `;
+  return row.waiting;
+}

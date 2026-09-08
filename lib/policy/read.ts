@@ -492,3 +492,40 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
     };
   });
 }
+
+// ---------------------------------------------------------------------------
+// Counts for the sidebar badges and the "what needs you" block
+// ---------------------------------------------------------------------------
+
+// Policies whose money arrived at Stripe while the broker was not eligible to bind. The cash sits
+// in the unapplied_customer_cash suspense account until staff operations bind the policy or send
+// the money back, so every one of these is work waiting for a person.
+// Read from the policy_current cache, which is the same derived status the policy list shows.
+export async function countPoliciesPaidButNotBound(): Promise<number> {
+  const [row] = await sql<{ waiting: number }[]>`
+    select count(*)::int as waiting from policy_current where status = 'paid_not_bound'
+  `;
+  return row.waiting;
+}
+
+// Endorsements the customer has paid for and that are NOT in force, because the broker was not
+// eligible when the money arrived (the 'succeeded' event of the collection carries the reason).
+// The policy page offers staff operations an "Apply now" button for each of them.
+// An endorsement that was applied afterwards has an 'endorsed' event naming its request, so it
+// stops being counted without anything being rewritten.
+export async function countEndorsementsPaidButNotApplied(): Promise<number> {
+  const [row] = await sql<{ waiting: number }[]>`
+    select count(distinct link.request_event_id)::int as waiting
+      from endorsement_collections link
+      join money_operation_events paid
+        on paid.operation_id = link.collection_operation_id
+       and paid.status = 'succeeded'
+       and paid.payload ->> 'application_refused_reason' is not null
+     where not exists (
+             select 1 from policy_events applied
+              where applied.event_type = 'endorsed'
+                and applied.payload ->> 'request_event_id' = link.request_event_id::text
+           )
+  `;
+  return row.waiting;
+}

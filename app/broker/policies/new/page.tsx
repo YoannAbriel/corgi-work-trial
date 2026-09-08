@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { MoneyAmountInput } from "@/components/money-amount-input";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
@@ -63,13 +64,13 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
         <input id="effectiveAt" name="effectiveAt" type="date" required />
 
         <label htmlFor="annualPremium">Annual premium (USD)</label>
-        <input id="annualPremium" name="annualPremium" required placeholder="1200.00" inputMode="decimal" />
+        <MoneyAmountInput id="annualPremium" name="annualPremium" required placeholder="1,200.00" />
 
         <label htmlFor="perOccurrenceLimit">Per-occurrence limit (USD)</label>
-        <input id="perOccurrenceLimit" name="perOccurrenceLimit" required placeholder="1000000" inputMode="decimal" />
+        <MoneyAmountInput id="perOccurrenceLimit" name="perOccurrenceLimit" required placeholder="1,000,000" />
 
         <label htmlFor="aggregateLimit">Aggregate limit (USD)</label>
-        <input id="aggregateLimit" name="aggregateLimit" required placeholder="2000000" inputMode="decimal" />
+        <MoneyAmountInput id="aggregateLimit" name="aggregateLimit" required placeholder="2,000,000" />
 
         <button type="submit">Create draft</button>
       </form>
