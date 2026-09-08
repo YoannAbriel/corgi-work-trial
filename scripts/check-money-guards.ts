@@ -53,6 +53,11 @@ const PROTECTED_TABLES = [
   // a moment in time, and rewriting them would let a break disappear without anyone fixing it.
   "reconciliation_runs",
   "reconciliation_items",
+  // Added by migration 0012 (slice B9): the broker monthly statements. Protected because they are
+  // what we told a broker they were owed: a correction after a closed month is a new revision,
+  // never an edit of the revision that was published.
+  "statement_runs",
+  "statement_lines",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -84,8 +89,10 @@ async function expectError(
 }
 
 // One row in each protected table, wired together by their foreign keys, so that an UPDATE or
-// a DELETE has something real to try to change.
-type Fixture = { [table in ProtectedTable]: string };
+// a DELETE has something real to try to change. `journal_entries` is not in the list above (the
+// ledger core has its own check, scripts/check-ledger-guards.ts) but a statement line has to name
+// a real journal entry, so the fixture carries one.
+type Fixture = { [table in ProtectedTable]: string } & { journal_entries: string };
 
 async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> {
   const [broker] = await tx<{ id: string }[]>`
@@ -227,6 +234,42 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     returning id
   `;
 
+  // Slice B9: one journal entry (the commission the statement is about), one statement run and
+  // one of its lines. The entry is balanced because the deferred trigger of migration 0001 checks
+  // it at commit, and because a fixture that could not exist would prove nothing.
+  const [journalEntry] = await tx<{ id: string }[]>`
+    insert into journal_entries
+      (entry_type, effective_at, policy_id, broker_id, source_kind, source_id, description)
+    values ('commission_earned', '2028-03-01', ${policy.id}, ${broker.id}, 'money_operation', ${operation.id},
+            'guard check broker commission')
+    returning id
+  `;
+  await tx`
+    insert into journal_lines (entry_id, account_id, debit_cents, credit_cents) values
+      (${journalEntry.id}, 'commission_expense', 18000, 0),
+      (${journalEntry.id}, 'commission_payable', 0, 18000)
+  `;
+  const [statementRun] = await tx<{ id: string }[]>`
+    insert into statement_runs (
+      broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+      premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+    ) values (
+      ${broker.id}, '2028-03-01', 1, '2028-04-01T00:00:00Z', repeat('a', 64),
+      125320, 18000, 0, 0, 18000
+    )
+    returning id
+  `;
+  const [statementLine] = await tx<{ id: string }[]>`
+    insert into statement_lines (
+      run_id, line_order, kind, policy_id, policy_number, journal_entry_id, effective_at,
+      entry_recorded_at, amount_cents, description
+    ) values (
+      ${statementRun.id}, 0, 'commission_earned', ${policy.id}, 'CGP-00000', ${journalEntry.id}, '2028-03-01',
+      '2028-03-01T10:00:00Z', 18000, 'guard check statement line'
+    )
+    returning id
+  `;
+
   return {
     brokers: broker.id,
     policies: policy.id,
@@ -245,6 +288,9 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     simulator_provider_records: providerRecord.id,
     reconciliation_runs: reconciliationRun.id,
     reconciliation_items: reconciliationItem.id,
+    statement_runs: statementRun.id,
+    statement_lines: statementLine.id,
+    journal_entries: journalEntry.id,
   };
 }
 
@@ -449,6 +495,9 @@ async function main() {
 
   // 8. Migration 0011: a reconciliation run has to say a coherent thing about what it found.
   await runReconciliationShapeChecks(owner);
+
+  // 9. Migration 0012: a broker statement has to say a coherent thing about a month.
+  await runStatementShapeChecks(owner);
 
   await owner.end();
   await runtime.end();
@@ -815,6 +864,159 @@ async function runReconciliationShapeChecks(owner: postgres.Sql): Promise<void> 
       reconciliationClock.finished_at.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
       reconciliationClock.recorded_at.getTime() > Date.parse("2020-01-01T00:00:00Z"),
     reconciliationClock ? `stored ${reconciliationClock.finished_at.toISOString()} instead of 2000-01-01` : "no row read",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// A broker statement cannot lie about a month (migration 0012)
+// ---------------------------------------------------------------------------
+
+// The statement rules the application enforces (lib/statements/run.ts) written as database facts,
+// so no future script, console session or route can publish a statement that says something the
+// ledger does not: a whole month, a revision that names what it replaces, and a net due that is
+// exactly what was earned less what was clawed back.
+async function runStatementShapeChecks(owner: postgres.Sql): Promise<void> {
+  // A run for "the middle of March" is not a monthly statement.
+  const middleOfTheMonth = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-03-15', 1, now(), repeat('b', 64), 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "a statement covers a whole month, named by its first day",
+    !!middleOfTheMonth && /statement_runs_statement_month_check/i.test(middleOfTheMonth),
+    middleOfTheMonth ?? "no error raised",
+  );
+
+  // The arithmetic of the statement: net due IS earned less clawed back, plus any adjustment.
+  const netDueThatDoesNotAddUp = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-04-01', 1, now(), repeat('c', 64), 125320, 18000, 13068, 0, 18000
+      )
+    `;
+  });
+  report(
+    "a statement whose net due is not what was earned less what was clawed back is refused",
+    !!netDueThatDoesNotAddUp && /statement_runs_check/i.test(netDueThatDoesNotAddUp),
+    netDueThatDoesNotAddUp ?? "no error raised",
+  );
+
+  // Revision 1 replaces nothing, and every later revision replaces exactly one earlier run.
+  const revisionTwoReplacingNothing = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, supersedes_run_id, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-05-01', 2, now(), null, repeat('d', 64), 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "a second revision must name the revision it supersedes",
+    !!revisionTwoReplacingNothing && /statement_runs_check/i.test(revisionTwoReplacingNothing),
+    revisionTwoReplacingNothing ?? "no error raised",
+  );
+
+  const revisionOneReplacingSomething = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, supersedes_run_id, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-05-01', 1, now(), ${fixture.statement_runs}, repeat('e', 64), 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "the first revision of a month supersedes nothing",
+    !!revisionOneReplacingSomething && /statement_runs_check/i.test(revisionOneReplacingSomething),
+    revisionOneReplacingSomething ?? "no error raised",
+  );
+
+  // Two runs cannot both be revision N of the same month: this is what stops two people closing
+  // the same month at the same instant and both believing they published it.
+  const twoRunsSameRevision = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-03-01', 1, now(), repeat('f', 64), 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "a broker and a month have one revision 1, forever",
+    !!twoRunsSameRevision && /statement_runs_broker_id_statement_month_revision_key/i.test(twoRunsSameRevision),
+    twoRunsSameRevision ?? "no error raised",
+  );
+
+  const contentHashThatIsNotOne = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents
+      ) values (
+        ${fixture.brokers}, '2028-06-01', 1, now(), 'not-a-sha256', 0, 0, 0, 0, 0
+      )
+    `;
+  });
+  report(
+    "a statement run must carry a real sha256 of its lines",
+    !!contentHashThatIsNotOne && /statement_runs_content_hash_check/i.test(contentHashThatIsNotOne),
+    contentHashThatIsNotOne ?? "no error raised",
+  );
+
+  // The moment a statement was produced comes from the database, so a run cannot be backdated to
+  // look like it was published before a correction it does not contain.
+  let storedTimes: { created_at: Date; recorded_at: Date } | null = null;
+  await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [run] = await tx<{ id: string; created_at: Date }[]>`
+      insert into statement_runs (
+        broker_id, statement_month, revision, knowledge_cutoff, content_hash,
+        premium_collected_cents, commission_earned_cents, clawback_cents, adjustment_cents, net_due_cents,
+        created_at
+      ) values (
+        ${fixture.brokers}, '2028-07-01', 1, now(), repeat('1', 64), 0, 0, 0, 0, 0, '2000-01-01T00:00:00Z'
+      )
+      returning id, created_at
+    `;
+    const [line] = await tx<{ recorded_at: Date }[]>`
+      insert into statement_lines (
+        run_id, line_order, kind, journal_entry_id, effective_at, entry_recorded_at, amount_cents,
+        description, recorded_at
+      ) values (
+        ${run.id}, 0, 'adjustment', ${fixture.journal_entries}, '2028-07-01', now(), 1, 'clock check',
+        '2000-01-01T00:00:00Z'
+      )
+      returning recorded_at
+    `;
+    storedTimes = { created_at: run.created_at, recorded_at: line.recorded_at };
+  });
+  const statementClock = storedTimes as { created_at: Date; recorded_at: Date } | null;
+  report(
+    "a statement run and its lines are timed by the database, not by the client",
+    statementClock !== null &&
+      statementClock.created_at.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
+      statementClock.recorded_at.getTime() > Date.parse("2020-01-01T00:00:00Z"),
+    statementClock ? `stored ${statementClock.created_at.toISOString()} instead of 2000-01-01` : "no row read",
   );
 }
 
