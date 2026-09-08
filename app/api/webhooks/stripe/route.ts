@@ -11,6 +11,7 @@ import {
   recordCompletedRefund,
   recordFailedRefund,
 } from "@/lib/payments/refunds";
+import { replyForRefusedLease, type WebhookProcessingStatus } from "@/lib/payments/webhook-inbox";
 import { stripe, stripeWebhookSigningSecret } from "@/lib/stripe";
 
 // POST /api/webhooks/stripe
@@ -47,8 +48,13 @@ export async function POST(request: Request) {
   const webhookEventId = await storeEventOnce(event, rawBody);
   const lease = await takeProcessingLease(webhookEventId);
   if (!lease) {
-    // Already done, already ignored, or another delivery is processing it right now.
-    return Response.json({ received: true, duplicate: true });
+    // Already handled, or still in the hands of another delivery. Those two cases get different
+    // answers: see lib/payments/webhook-inbox.ts for why a 200 here would lose money events.
+    const reply = replyForRefusedLease(await processingStatus(webhookEventId));
+    return Response.json(
+      { received: !reply.retryWanted, duplicate: !reply.retryWanted, reason: reply.reason },
+      { status: reply.httpStatus },
+    );
   }
 
   try {
@@ -106,6 +112,14 @@ async function storeEventOnce(event: Stripe.Event, rawBody: string): Promise<str
 // A row stuck in 'processing' for more than five minutes (the function died mid-way) can be
 // leased again, so no event stays stuck forever; a healthy processing run takes seconds.
 const LEASE_EXPIRY = "5 minutes";
+
+// Where the event stands in the inbox, read after a refused lease to decide what to answer.
+async function processingStatus(webhookEventId: string): Promise<WebhookProcessingStatus | null> {
+  const [row] = await sql<{ status: WebhookProcessingStatus }[]>`
+    select status from webhook_processing where webhook_event_id = ${webhookEventId}
+  `;
+  return row ? row.status : null;
+}
 
 async function takeProcessingLease(webhookEventId: string): Promise<boolean> {
   const leased = await sql`
