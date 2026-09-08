@@ -40,6 +40,7 @@ One line per finding from the independent reviews (design and implementation). F
 | F-B3-07 | LOW | A paid-but-refused policy reads awaiting_payment in lists and the broker is offered to continue the payment | Status label, with the suspense-account work | OPEN |
 | F-B3-08 | LOW | The "not a dedicated KYB vendor" disclosure is in README but not on the screens | One line on /broker/kyb and /ops/brokers, with the suspense-account work | OPEN |
 | F-B3-09 | LOW | The trial database holds two migrations numbered 0007 (the B7 branch applied its file at 12:38Z) | B7 file renamed 0008; schema_migrations record corrected by the coordinator at merge | OPEN (B7 merge) |
+| F-B3-10 | LOW | A broker with no submission at all shows the label "KYB: not yet live: seeded placeholder" on /ops/brokers (seen on broker3 at 13:04Z); the wording belongs to the seeded placeholder row, not to an absent one | Label "never submitted" only, with the suspense-account screen work | OPEN |
 | F-B1-01 | HIGH | app_runtime could append balanced lines to a committed entry (history changed without UPDATE) | Trigger: lines only in the transaction that created the header; test on corgi_test | FIXED 0003 (a94f091), re-review PASS 8f253a7 |
 | F-B1-02 | MED | db/client.ts fell back to the owner connection when DATABASE_URL_APP was unset | Fail closed: DATABASE_URL_APP required | FIXED a94f091 |
 | F-B1-03 | MED | Owner could TRUNCATE protected tables | BEFORE TRUNCATE triggers | FIXED 0003 (a94f091), re-review PASS 8f253a7 |
