@@ -94,7 +94,8 @@ async function main() {
   const { addClaimantBankAccount, requestClaimPayment, sendClaimPayment, settleClaimPayment } = await import(
     "@/lib/claims/payments"
   );
-  const { runReconciliation } = await import("@/lib/reconciliation/run");
+  const { runReconciliation, runSources, windowCoveringOpenBreaks } = await import("@/lib/reconciliation/run");
+  const { nonZeroClearingBalances } = await import("@/lib/reconciliation/clearing-balances");
   const { stripeSource } = await import("@/lib/reconciliation/stripe-source");
   const { claimsRailSourceOn } = await import("@/lib/reconciliation/claims-rail-source");
   const { stripeRecordsFromListing } = await import("@/lib/reconciliation/stripe-records");
@@ -103,6 +104,7 @@ async function main() {
   const { assertStripeSandbox, stripe } = await import("@/lib/stripe");
   type StripeWindowListing = import("@/lib/reconciliation/stripe-records").StripeWindowListing;
   type ReconciliationSource = import("@/lib/reconciliation/source").ReconciliationSource;
+  type ReconciliationSourceName = import("@/lib/reconciliation/breaks").ReconciliationSourceName;
   type ReconciliationWindow = import("@/lib/reconciliation/window").ReconciliationWindow;
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
@@ -295,6 +297,46 @@ async function main() {
     staleItems.get(`op:${refundOperationId}`)?.classification === "stale",
     describeItem(staleItems.get(`op:${refundOperationId}`)),
   );
+  // A break that gets worse: the same refund, now listed as succeeded by Stripe with nothing
+  // booked on our side. Different classification, same money (review finding F-B10-02).
+  const reclassifiedListing: StripeWindowListing = {
+    ...fixtureListing,
+    refunds: [
+      {
+        ...captured.refunds[0],
+        id: "re_check_now_at_stripe",
+        created: createdSeconds,
+        amount: refundCents,
+        metadata: { operation_id: refundOperationId, policy_id: p1.policyId },
+      },
+    ],
+  };
+  const reclassifiedRun = await runReconciliation(
+    {
+      source: fixtureStripeSource(reclassifiedListing),
+      window,
+      runByUserId: maker.userId,
+      now: laterThanTheStripeThreshold,
+    },
+    runtime,
+  );
+  const reclassifiedItems = await itemsOfRun(reclassifiedRun.runId);
+  const staleRefundItem = staleItems.get(`op:${refundOperationId}`);
+  const reclassifiedRefundItem = reclassifiedItems.get("re_check_now_at_stripe");
+  report(
+    "a break that changes classification keeps its key and its age, instead of starting again",
+    reclassifiedRefundItem?.classification === "provider_only" &&
+      reclassifiedRefundItem.break_key === staleRefundItem?.break_key &&
+      reclassifiedRefundItem.first_seen_at.getTime() === staleRefundItem.first_seen_at.getTime(),
+    `${staleRefundItem?.classification} then ${reclassifiedRefundItem?.classification}, key ${reclassifiedRefundItem?.break_key}, first seen ${reclassifiedRefundItem?.first_seen_at.toISOString()}`,
+  );
+  const afterReclassification = await resolvedBreaks(runtime, 100);
+  report(
+    "the worse break is not filed as resolved just because its classification moved",
+    !afterReclassification.some((row) => row.breakKey === staleRefundItem?.break_key),
+    `${afterReclassification.length} resolved breaks on file`,
+  );
+
   report(
     "every classification the brief names has now been produced by a real run",
     ["matched", "local_only", "provider_only", "amount_mismatch", "stale"].every((classification) =>
@@ -405,7 +447,44 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
-  // 5. A break that is fixed stops being reported, and shows as resolved
+  // 5. A break nobody looked at again stays open (review finding F-B10-01)
+  // ---------------------------------------------------------------------------
+
+  // A later run of the same source, complete, that simply does not cover the record. Before the
+  // fix this emptied the open list and filed everything under "breaks that went away", although
+  // nothing had been examined, let alone repaired. The daily cron used a fixed seven-day window,
+  // so every break self-resolved on its eighth day.
+  const windowThatCoversNothing: ReconciliationWindow = {
+    from: new Date(now.getTime() + 30 * 60 * 1000),
+    to: new Date(now.getTime() + 60 * 60 * 1000),
+  };
+  const blindRun = await runReconciliation(
+    { source: claimsRailSourceOn(runtime), window: windowThatCoversNothing, runByUserId: null, now: laterThanTheRailThreshold },
+    runtime,
+  );
+  const openAfterTheBlindRun = await openBreaks(runtime);
+  const resolvedAfterTheBlindRun = await resolvedBreaks(runtime, 100);
+  report(
+    "a later complete run that compared nothing resolves nothing: the break is still open",
+    blindRun.status === "complete" &&
+      openAfterTheBlindRun.some((row) => row.breakKey === staleBreakKey) &&
+      !resolvedAfterTheBlindRun.some((row) => row.breakKey === staleBreakKey),
+    `the run compared ${blindRun.providerRecordCount} provider records; ${openAfterTheBlindRun.length} breaks still open`,
+  );
+  report(
+    "the planted payout mismatch is not resolved by a run that did not look at it either",
+    openAfterTheBlindRun.some((row) => row.providerRef === plantedTransferRef),
+    `${openAfterTheBlindRun.filter((row) => row.source === "claims_rail").length} open rail breaks`,
+  );
+  const scheduled = await windowCoveringOpenBreaks(new Date(), runtime);
+  report(
+    "the scheduled window opens backwards far enough to cover the oldest open break",
+    scheduled.oldestOpenBreakAt !== null && scheduled.window.from <= scheduled.oldestOpenBreakAt,
+    `oldest open break at ${scheduled.oldestOpenBreakAt?.toISOString()}, window from ${scheduled.window.from.toISOString()}, reaches it: ${scheduled.reachesTheOldestOpenBreak}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 6. A break that is fixed and looked at again stops being reported
   // ---------------------------------------------------------------------------
 
   // The fix is the real thing, not an edit: the settlement job books the settlement, exactly as
@@ -437,7 +516,32 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
-  // 6. The real Stripe sandbox: a planted payment with no metadata
+  // 7. Clearing balances: the net that no window can hide (review finding F-B10-03)
+  // ---------------------------------------------------------------------------
+
+  // Money that arrives for a broker who is not eligible is journaled at once into the suspense
+  // account and the policy is not bound (rule 14). Nothing at Stripe is wrong about it, so no
+  // reconciliation break exists; what says it is unfinished is the clearing balance.
+  const parked = await createParkedPayment(recordSuccessfulPayment);
+  const clearing = await nonZeroClearingBalances(runtime);
+  const parkedBalance = clearing.find(
+    (row) => row.accountId === "unapplied_customer_cash" && row.policyId === parked.policyId,
+  );
+  report(
+    "a parked payment shows on the clearing balances list, with the money still open",
+    parkedBalance !== undefined && parkedBalance.openCents === parked.totalChargeCents,
+    parkedBalance
+      ? `${parkedBalance.accountName}: ${parkedBalance.openCents} cents since ${parkedBalance.oldestEntryAt.toISOString()}`
+      : "the parked payment is on no clearing balance",
+  );
+  report(
+    "the clearing list is read from the journal alone, so it is the same whatever any run compared",
+    clearing.every((row) => row.openCents !== 0) && clearing.some((row) => row.accountId === "refund_payable"),
+    `${clearing.length} non-zero clearing balances, accounts: ${[...new Set(clearing.map((row) => row.accountId))].sort().join(", ")}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 8. The real Stripe sandbox: a planted payment with no metadata
   // ---------------------------------------------------------------------------
 
   // AF-04: a test-mode key, a Stripe published test payment method, no real money and no real
@@ -470,7 +574,7 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
-  // 7. A failed fetch is never a clean reconciliation
+  // 9. A failed fetch is never a clean reconciliation
   // ---------------------------------------------------------------------------
 
   const openBeforeTheFailure = await openBreaks(runtime);
@@ -527,6 +631,66 @@ async function main() {
     `${failedLedgerRun.status}: ${failedLedgerRun.fetchError}`,
   );
 
+  // ---------------------------------------------------------------------------
+  // 10. A failure AFTER the fetch is still a failed run (review finding F-B10-04)
+  // ---------------------------------------------------------------------------
+
+  // A provider whose records carry a date that is not a date: the fetch and the comparison both
+  // succeed, and the item insert is what fails. Before the fix this left no row at all, not even a
+  // failed one, and stopped the second source.
+  const brokenStore: ReconciliationSource = {
+    ...stripeSource,
+    fetch: async () => ({
+      records: [
+        {
+          providerRef: "pi_with_a_broken_date",
+          direction: "in",
+          status: "succeeded",
+          statusWord: "succeeded",
+          amountCents: 1000,
+          createdAt: "not a date at all",
+          operationId: null,
+          policyId: null,
+          feeCents: null,
+          label: "payment",
+        },
+      ],
+      note: "the provider answered normally",
+    }),
+    readLedger: async () => [],
+  };
+  const brokenStoreRun = await runReconciliation({ source: brokenStore, window, runByUserId: maker.userId, now }, runtime);
+  report(
+    "a failure while STORING the comparison still stores a failed run with its reason",
+    brokenStoreRun.runId !== null &&
+      brokenStoreRun.status === "failed" &&
+      (brokenStoreRun.fetchError ?? "").includes("could not be stored"),
+    `${brokenStoreRun.status}: ${brokenStoreRun.fetchError}`,
+  );
+  report(
+    "that failed run carries no items either",
+    (await itemsOfRun(brokenStoreRun.runId)).size === 0,
+    `${(await itemsOfRun(brokenStoreRun.runId)).size} items`,
+  );
+
+  // A source whose name the database refuses, so even the failed run cannot be written. The loop
+  // must still run the source after it.
+  const unstorable: ReconciliationSource = {
+    ...stripeSource,
+    name: "a_source_the_database_does_not_know" as ReconciliationSourceName,
+    fetch: async () => ({ records: [], note: "" }),
+    readLedger: async () => [],
+  };
+  const bothSources = await runSources([unstorable, claimsRailSourceOn(runtime)], { window, runByUserId: null, now }, runtime);
+  report(
+    "a source that cannot be recorded at all does not stop the next one",
+    bothSources.length === 2 &&
+      bothSources[0].runId === null &&
+      bothSources[0].status === "failed" &&
+      bothSources[1].status === "complete",
+    `${bothSources[0].source}: ${bothSources[0].status} (${bothSources[0].fetchError?.slice(0, 60)}), then ${bothSources[1].source}: ${bothSources[1].status}`,
+  );
+
   console.log(
     `\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}. Planted and left open on purpose: rail transfer ${plantedTransferRef} and Stripe PaymentIntent ${plantedIntent.id}.`,
   );
@@ -547,16 +711,21 @@ type StoredItem = {
   provider_amount_cents: string | null;
   ledger_amount_cents: string | null;
   difference_cents: string | null;
+  record_at: Date | null;
   first_seen_at: Date;
   note: string;
 };
 
 // The items of one run, keyed the way a reader would look one up: by the provider reference when
-// there is one, and by "op:<operation id>" when the break exists only in the ledger.
-async function itemsOfRun(runId: string): Promise<Map<string, StoredItem>> {
+// there is one, and by "op:<operation id>" when the break exists only in the ledger. A null run id
+// means the run left no trace at all, so it has no items.
+async function itemsOfRun(runId: string | null): Promise<Map<string, StoredItem>> {
+  if (runId === null) {
+    return new Map();
+  }
   const rows = await owner<StoredItem[]>`
     select classification, break_key, provider_ref, ledger_ref, provider_amount_cents::text,
-           ledger_amount_cents::text, difference_cents::text, first_seen_at, note
+           ledger_amount_cents::text, difference_cents::text, record_at, first_seen_at, note
       from reconciliation_items where run_id = ${runId}
   `;
   return new Map(rows.map((row) => [row.provider_ref ?? `op:${row.ledger_ref}`, row]));
@@ -616,6 +785,72 @@ async function createPeople(): Promise<{ brokerId: string; makerId: string }> {
     `;
     return { brokerId: broker.id, makerId: maker.id };
   });
+}
+
+// A payment that arrives for a broker who is NOT eligible: the money is journaled at once into the
+// suspense account and the policy is not bound (rule 14, DECISIONS.md). Nothing at Stripe is wrong
+// about it, so it is not a reconciliation break; what says it is unfinished is its clearing
+// balance, which is the list review finding F-B10-03 asked for.
+async function createParkedPayment(
+  recordSuccessfulPayment: typeof import("@/lib/payments/collection").recordSuccessfulPayment,
+): Promise<{ policyId: string; totalChargeCents: number }> {
+  const totalChargeCents = RECITED_PREMIUM_CENTS + RECITED_TAX_CENTS + FEE_CENTS;
+  const { policyId, operationId } = await owner.begin(async (transaction) => {
+    const [broker] = await transaction<{ id: string }[]>`
+      insert into brokers (name, commission_rate_bps) values ('Reconciliation check broker, not eligible', 1500)
+      returning id
+    `;
+    // The broker's verification failed, so binding is refused at collection time.
+    await transaction`
+      insert into broker_kyb_events (broker_id, provider, status) values (${broker.id}, 'seed', 'failed')
+    `;
+    const [customer] = await transaction<{ id: string }[]>`
+      insert into customers (name, email)
+      values (${CLAIMANT_NAME}, ${`reconciliation-check-${crypto.randomUUID()}@example.invalid`})
+      returning id
+    `;
+    const [policy] = await transaction<{ id: string }[]>`
+      insert into policies (broker_id, customer_id, state_code) values (${broker.id}, ${customer.id}, 'CA') returning id
+    `;
+    await transaction`
+      insert into policy_events (policy_id, event_type, effective_at, payload)
+      values (${policy.id}, 'quoted', ${TERM_START}, ${transaction.json({
+        state_code: "CA",
+        term_start: TERM_START,
+        term_end: TERM_END,
+        annual_premium_cents: RECITED_PREMIUM_CENTS,
+        tax_rate_bps: 235,
+        tax_cents: RECITED_TAX_CENTS,
+        fee_cents: FEE_CENTS,
+        total_charge_cents: totalChargeCents,
+        per_occurrence_limit_cents: PER_OCCURRENCE_LIMIT_CENTS,
+        aggregate_limit_cents: AGGREGATE_LIMIT_CENTS,
+      })})
+    `;
+    const [operation] = await transaction<{ id: string }[]>`
+      insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+      values ('stripe_checkout', 'stripe', ${totalChargeCents}, ${policy.id}, ${`policy-checkout:${policy.id}`})
+      returning id
+    `;
+    await transaction`
+      insert into money_operation_events (operation_id, status) values (${operation.id}, 'requested')
+    `;
+    return { policyId: policy.id, operationId: operation.id };
+  });
+
+  const collected = await recordSuccessfulPayment(
+    {
+      operationId,
+      paymentIntentId: `pi_reconciliation_parked_${operationId.slice(0, 8)}`,
+      amountReceivedCents: totalChargeCents,
+      paidOn: TERM_START,
+    },
+    runtime,
+  );
+  if (collected.kind !== "binding_refused") {
+    throw new Error(`the parked payment should have been refused binding, got: ${JSON.stringify(collected)}`);
+  }
+  return { policyId, totalChargeCents };
 }
 
 // A bound, paid policy, built exactly as slice B2 builds one.
