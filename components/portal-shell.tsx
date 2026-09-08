@@ -33,6 +33,7 @@ export function PortalShell({
   const links = isStaff
     ? [
         { href: "/ops", label: "Overview", section: "home", icon: Home },
+        { href: "/ops/policies", label: "Policies", section: "policies", icon: FileText },
         {
           href: "/ops/brokers",
           label: "Brokers & verification",
@@ -122,8 +123,8 @@ export function PortalShell({
             <UserRound size={19} aria-hidden="true" />
           </span>
           <span>
-            <strong>{user?.displayName ?? "Trial workspace"}</strong>
-            <span>{user ? roleLabel : "Synthetic data only"}</span>
+            <strong>{user?.displayName ?? "Corgi workspace"}</strong>
+            <span>{user ? roleLabel : "Policy administration"}</span>
           </span>
         </div>
         {user ? (

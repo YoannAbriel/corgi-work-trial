@@ -36,7 +36,7 @@ export default async function OpsClaimsPage() {
           that was bound.
         </p>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label="Claims" tabIndex={0}>
         <table>
           <thead>
             <tr>

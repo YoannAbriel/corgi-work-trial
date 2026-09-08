@@ -47,11 +47,11 @@ export default async function ApprovalsPage({
         decision log. It is not a regulatory figure.
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
-      {query.decided ? <p className="note">Recorded: the request was {query.decided}.</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
+      {query.decided ? <p className="note" role="status">Recorded: the request was {query.decided}.</p> : null}
 
       {requests.length === 0 ? (
-        <p className="note">Nothing is waiting. A money-out below the threshold never appears here.</p>
+        <p className="note" role="status">Nothing is waiting. A money-out below the threshold never appears here.</p>
       ) : (
         requests.map((request) => {
           const isOwnRequest = request.requestedByUserId === user.id;
@@ -63,8 +63,8 @@ export default async function ApprovalsPage({
               <h2>
                 {formatCentsAsUsd(request.amountCents)}, {request.kind.replace("_", " ")}
               </h2>
-              <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
-        <table className="amounts">
+              <div className="table-scroll" role="region" aria-label="Approval request details" tabIndex={0}>
+        <table className="approval-details">
                 <tbody>
                   <tr>
                     <th>Asked by</th>
@@ -132,7 +132,7 @@ export default async function ApprovalsPage({
                   <button type="submit" name="decision" value="approved">
                     Approve {formatCentsAsUsd(request.amountCents)}
                   </button>
-                  <button type="submit" name="decision" value="rejected">
+                  <button type="submit" name="decision" value="rejected" className="secondary destructive">
                     Reject
                   </button>
                 </form>

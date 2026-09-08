@@ -30,8 +30,8 @@ export default function HomePage() {
             <ShieldCheck aria-hidden="true" />
           </span>
           <span>
-            <strong>A sandbox, built for the trial</strong>
-            <span>Synthetic data. Test payments. No real money.</span>
+            <strong>Coverage with context</strong>
+            <span>Policy details, claims and history in one place.</span>
           </span>
         </section>
       </div>
@@ -45,7 +45,6 @@ export default function HomePage() {
             <br />
             Every policy, followed through.
           </p>
-          <span className="note">Track 1 work trial build</span>
         </div>
         <img
           src="/illustrations/corgi-engraving.webp"
@@ -54,10 +53,6 @@ export default function HomePage() {
           alt=""
         />
       </section>
-      <p className="note">
-        Payments run on Stripe in test mode: no real card, no real money. Health
-        check: <a href="/api/health">/api/health</a>
-      </p>
     </PortalShell>
   );
 }

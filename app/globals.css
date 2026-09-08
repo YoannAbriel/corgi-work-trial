@@ -154,6 +154,10 @@ img {
   display: flex;
   flex-direction: column;
   z-index: 2;
+  overflow-y: auto;
+}
+.sidebar > * {
+  flex-shrink: 0;
 }
 .brand {
   display: flex;
@@ -328,8 +332,7 @@ img {
   font-size: 11px;
   white-space: nowrap;
 }
-button.sidebar-toggle,
-a.back-link {
+button.sidebar-toggle {
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -343,12 +346,8 @@ a.back-link {
   border-radius: 6px;
   box-shadow: none;
 }
-button.sidebar-toggle:hover,
-a.back-link:hover {
+button.sidebar-toggle:hover {
   background: #e8e8eb;
-}
-a.back-link {
-  margin: 0 6px 0 0;
 }
 main {
   width: 100%;
@@ -545,12 +544,14 @@ button:hover,
   background: #4a4a4a;
   color: white;
 }
+button.secondary,
 .button-link.secondary {
   background: white;
   color: var(--ink);
   border: 1px solid #e1e1e1;
   box-shadow: 0 4px 0 #e1e1e1;
 }
+button.secondary:hover,
 .button-link.secondary:hover {
   background: #f9fafb;
   color: var(--ink);
@@ -575,6 +576,7 @@ button:active:not(:disabled):not(.sidebar-toggle):not(.quiet-button),
   background: #ff9d66;
   box-shadow: 0 1px 0 #cc4a00;
 }
+button.secondary:active,
 .button-link.secondary:active {
   background: #f3f4f6;
   box-shadow: 0 1px 0 #e1e1e1;
@@ -922,8 +924,7 @@ code {
   .topbar {
     padding: 8px 20px;
   }
-  button.sidebar-toggle,
-  a.back-link {
+  button.sidebar-toggle {
     width: 44px;
     min-height: 44px;
   }
@@ -1024,4 +1025,31 @@ code {
     scroll-behavior: auto !important;
     transition: none !important;
   }
+}
+
+button.destructive { color: #a32c25; }
+button.destructive:hover { color: #84231d; background: #fff1ef; }
+form.card > button + button { margin-top: 8px; }
+form.card input[type="checkbox"] { width: 18px; min-height: 18px; }
+
+.workspace-feedback { max-width: 640px; margin: 12vh auto; padding: 32px; background: white; border: 1px solid var(--line); border-radius: var(--radius); }
+.workspace-feedback .page-actions > button { margin-top: 0; }
+.loading-placeholder { height: 22px; margin-top: 18px; border-radius: 6px; background: #ececef; }
+.loading-placeholder:last-child { width: 65%; }
+@media (max-width: 800px) { .workspace-feedback { width: calc(100% - 32px); } }
+.environment-badge { position: relative; z-index: 3; }
+.environment-badge summary { display: flex; align-items: center; gap: 5px; min-height: 32px; cursor: pointer; list-style: none; }
+.environment-badge summary::-webkit-details-marker { display: none; }
+.environment-detail { position: absolute; right: 0; top: 30px; width: 240px; padding: 14px; background: white; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px #19191912; color: var(--ink-2); font-size: 12px; white-space: normal; }
+.demo-feedback { position: fixed; bottom: 24px; right: 24px; max-width: min(380px, calc(100% - 48px)); padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: white; box-shadow: 0 8px 28px #1919191c; z-index: 10; font-size: 14px; }
+
+/* Keep decision context readable instead of squeezing intent text into a narrow column. */
+table.approval-details th { width: 32%; }
+table.approval-details td { min-width: 0; }
+.table-scroll .badge { white-space: nowrap; }
+@media (max-width: 600px) {
+  table.approval-details { min-width: 0; }
+  table.approval-details th, table.approval-details td { display: block; width: 100%; }
+  table.approval-details th { padding-bottom: 4px; border-bottom: 0; }
+  table.approval-details td { padding-top: 4px; }
 }

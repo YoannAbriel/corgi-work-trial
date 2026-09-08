@@ -20,7 +20,7 @@ export default async function BrokerPage() {
         <h1>
           Your <em>policies.</em>
         </h1>
-        <p className="error">
+        <p className="error" role="alert">
           This page is the broker journey. Your account has the role &quot;
           {user.role}&quot;.
         </p>
@@ -90,7 +90,7 @@ export default async function BrokerPage() {
         <div
           className="table-scroll"
           role="region"
-          aria-label="Scrollable data table"
+          aria-label="Policies"
           tabIndex={0}
         >
           <table>

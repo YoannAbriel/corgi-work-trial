@@ -11,7 +11,7 @@ export default async function LoginPage({
 }) {
   const user = await currentUser();
   if (user) {
-    redirect("/broker");
+    redirect(user.role === "staff_ops" || user.role === "staff_approver" ? "/ops" : "/broker");
   }
   const { error } = await searchParams;
 
@@ -62,7 +62,7 @@ export default async function LoginPage({
               customer@example.com, ops@example.com, approver@example.com. They
               all use the demo password shared with the reviewers. The broker
               signs in for policies and business verification; the operations
-              and approver accounts see the brokers screen at /ops/brokers.
+              and approver accounts open the operations workspace.
             </p>
           </details>
         </div>

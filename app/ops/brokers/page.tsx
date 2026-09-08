@@ -36,13 +36,13 @@ export default async function OpsBrokersPage({
         approved; every status is a row that was appended when it was observed, never edited.
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
-      {query.rechecked ? <p className="note">Read again at Stripe: {query.rechecked}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
+      {query.rechecked ? <p className="note" role="status">Read again at Stripe: {query.rechecked}</p> : null}
 
       {brokers.length === 0 ? (
-        <p className="note">No broker exists yet.</p>
+        <p className="note" role="status">No broker exists yet.</p>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label="Broker verification" tabIndex={0}>
         <table>
           <thead>
             <tr>

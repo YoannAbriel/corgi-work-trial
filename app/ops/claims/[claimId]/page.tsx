@@ -85,14 +85,14 @@ export default async function ClaimPage({
         {claim.position.isClosed ? "closed" : "open"}
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
-      {query.opened ? <p className="note">The claim is open. Set a reserve before paying anything.</p> : null}
-      {query.bank ? <p className="note">Bank ownership check (LOCAL SIMULATOR): {query.bank}.</p> : null}
-      {query.payment ? <p className="note">Payment: {query.payment.replace(/[-_]/g, " ")}.</p> : null}
-      {query.closed ? <p className="note">The claim is closed.</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
+      {query.opened ? <p className="note" role="status">The claim is open. Set a reserve before paying anything.</p> : null}
+      {query.bank ? <p className="note" role="status">Bank ownership check (LOCAL SIMULATOR): {query.bank}.</p> : null}
+      {query.payment ? <p className="note" role="status">Payment: {query.payment.replace(/[-_]/g, " ")}.</p> : null}
+      {query.closed ? <p className="note" role="status">The claim is closed.</p> : null}
 
       <h2>What this claim has cost</h2>
-      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+      <div className="table-scroll" role="region" aria-label="Claim position" tabIndex={0}>
         <table className="amounts">
         <tbody>
           <tr>
@@ -116,7 +116,7 @@ export default async function ClaimPage({
         </div>
 
       <h2>What is left to pay before a limit stops us</h2>
-      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+      <div className="table-scroll" role="region" aria-label="Remaining claim limits" tabIndex={0}>
         <table className="amounts">
         <tbody>
           <tr>
@@ -143,7 +143,7 @@ export default async function ClaimPage({
       {reserves.length === 0 ? (
         <p className="note">No reserve has been set yet. Nothing can be paid until one is.</p>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label="Reserve history" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -204,7 +204,7 @@ export default async function ClaimPage({
           <p className={`badge ${bankAccount.verificationStatus === "verified" ? "badge-ok" : "badge-warn"}`}>
             {bankAccount.verificationStatus}
           </p>
-          <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+          <div className="table-scroll" role="region" aria-label="Claimant bank account" tabIndex={0}>
         <table className="amounts">
             <tbody>
               <tr>
@@ -239,9 +239,9 @@ export default async function ClaimPage({
           <label htmlFor="accountHolderName">Account holder name</label>
           <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
           <label htmlFor="routingNumber">Routing number (nine digits)</label>
-          <input id="routingNumber" name="routingNumber" inputMode="numeric" placeholder="110000000" required />
+          <input id="routingNumber" name="routingNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="110000000" required />
           <label htmlFor="accountNumber">Account number</label>
-          <input id="accountNumber" name="accountNumber" inputMode="numeric" placeholder="000123456789" required />
+          <input id="accountNumber" name="accountNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="000123456789" required />
           <button type="submit">Check ownership and record the account</button>
         </form>
       ) : null}
@@ -250,7 +250,7 @@ export default async function ClaimPage({
       {payments.length === 0 ? (
         <p className="note">Nothing has been paid on this claim.</p>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label="Claim payments" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -345,7 +345,7 @@ export default async function ClaimPage({
       {entries.length === 0 ? (
         <p className="note">Nothing posted yet: the first entry appears when a reserve is set.</p>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label="Claim journal" tabIndex={0}>
         <table className="ledger">
           <thead>
             <tr>

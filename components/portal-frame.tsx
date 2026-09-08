@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronRight, PanelLeft, ShieldCheck } from "lucide-react";
+import { ChevronRight, PanelLeft, ShieldCheck } from "lucide-react";
 
 export type BreadcrumbItem = { label: string; href?: string };
 
@@ -18,7 +18,6 @@ export function PortalFrame({
   children: React.ReactNode;
 }) {
   const [navigationOpen, setNavigationOpen] = useState(true);
-  const parent = breadcrumbs[breadcrumbs.length - 2];
 
   return (
     <div className={`portal${navigationOpen ? "" : " navigation-collapsed"}`}>
@@ -45,17 +44,6 @@ export function PortalFrame({
             >
               <PanelLeft size={17} aria-hidden="true" />
             </button>
-            {parent?.href ? (
-              <Link
-                href={parent.href}
-                prefetch={false}
-                className="back-link"
-                aria-label={`Back to ${parent.label}`}
-                title={`Back to ${parent.label}`}
-              >
-                <ArrowLeft size={17} aria-hidden="true" />
-              </Link>
-            ) : null}
             <nav aria-label="Breadcrumb" className="breadcrumb">
               <ol>
                 {breadcrumbs.map((item, index) => (
@@ -71,13 +59,14 @@ export function PortalFrame({
               </ol>
             </nav>
           </div>
-          <span className="environment-badge">
-            <ShieldCheck size={13} aria-hidden="true" /> Sandbox
-          </span>
+          <details className="environment-badge">
+            <summary><ShieldCheck size={13} aria-hidden="true" /> Sandbox</summary>
+            <p className="environment-detail">Sandbox providers and test data. No real money.</p>
+          </details>
         </header>
         {children}
         <footer className="portal-footer">
-          Sandbox providers and synthetic data only. No real money.
+          Corgi · Policy administration
         </footer>
       </div>
     </div>

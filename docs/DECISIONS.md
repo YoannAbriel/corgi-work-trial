@@ -122,3 +122,7 @@ Yoann requested matching the actual font, white text, color details and button b
 ## 2026-09-08T15:59:44+00:00 | User navigation correction | Explicit parent hierarchy
 
 Yoann reported that Policies breadcrumbs did not follow subpages and asked for back arrows/navigation fixes. Assistant choice: explicit server-rendered page trails and named parent-return links, which also work on direct entry; no browser-history guesses or new navigation state. Remove the staff link to a broker-only policy list, preserving server authorization. Local visual-preview routes use synthetic adapters and disabled actions; they do not introduce app role switching or financial endpoints.
+
+## 2026-09-08T16:43:46.681082+00:00 | UI-04: normal sandbox presentation
+
+Yoann explicitly replaces the intrusive visual-preview banner and role strip with normal product navigation and a discreet Sandbox indicator. Return navigation moves to the sidebar; staff Policies is restored using existing guarded reads. Local demo forms retain native markup and GET navigation; an isolated server refuses all write methods and gives honest no-execution feedback. No financial action is simulated as completed by clicking. Sidebar overflow is independently scrollable in short windows. Presentation-only copy reflects zero-refund and approval-waiting plans; backend decisions remain unchanged. No integration with Claude/main or deployment is included.

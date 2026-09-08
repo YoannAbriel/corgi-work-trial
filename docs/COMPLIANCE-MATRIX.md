@@ -39,3 +39,11 @@ Created at 2026-09-08T09:25:00+00:00. One row per requirement or control actuall
 | ID | Source / type / applicability | Control and owner | Evidence | Status |
 |---|---|---|---|---|
 | UI-03 | User breadcrumb/back navigation request; AGENTS operations and AF safeguards; B13 presentation subset (engineering safeguard/trial requirement, effective this trial) | Application team provides explicit authorized parent destinations and current-page labels; no auth/form/money changes | Seven-file manifest, UI-03 handoff, build/typecheck and CUA parent/child/mobile checks; ui-03 independent review | PASS for the seven-file navigation manifest in independent ui-03 review; preview findings UI02-P01/P02 resolved. No new financial rail, custody, jurisdiction or provider responsibility. UI-02 font/contrast limitations retained. |
+
+## UI-04 presentation continuation — 2026-09-08T16:43:46.681082+00:00
+
+| Requirement | Source/type | Applicability/control | Evidence | Status |
+|---|---|---|---|---|
+| UI-04/B13 | User screen-audit request; engineering safeguard, checked2026-09-08 | All existing isolated-branch screens; sidebar/breadcrumbs, forms, feedback, scroll and guarded staff policy index | handoffs/ui-04.md; reviews/ui-04.md; source manifest | Independent final review pending |
+| AF-02/04 | AUTOMATIC-FAILS.md §§AF-02/04; trial requirement, checked2026-09-08 | Local disconnected synthetic demo identified in Sandbox details; server405 for all non-read methods; no provider/DB loaded |16 rejected HTTP checks; explicit adapter review | Scoped controls checked; no live integration claim |
+| Access isolation | AGENTS.md Operations/security; engineering safeguard, checked2026-09-08 | Staff guard precedes staff policy reads; existing money/API guards untouched | Independent stub checks anonymous/broker/customer readcount0; staff roles allowed | Source guard checks PASS; deployed auth not rerun |

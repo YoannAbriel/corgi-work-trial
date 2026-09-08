@@ -48,14 +48,12 @@ export default async function CancelPolicyPage({
       // date. Nothing was written, so there is nothing to undo.
       return (
         <PortalShell active="policies" user={user} trail={[
+          ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
           { label: "Policy", href: `/policies/${policyId}` },
           { label: "Cancellation preview" },
         ]}>
-          <p className="note">
-            <Link href={`/policies/${policyId}`}>Back to the policy</Link>
-          </p>
-          <h1>Cancellation preview</h1>
-          <p className="error">{error.message}</p>
+              <h1>Cancellation preview</h1>
+          <p className="error" role="alert">{error.message}</p>
         </PortalShell>
       );
     }
@@ -66,12 +64,10 @@ export default async function CancelPolicyPage({
 
   return (
     <PortalShell active="policies" user={user} trail={[
+          ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
       { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
       { label: "Cancellation preview" },
     ]}>
-      <p className="note">
-        <Link href={`/policies/${policyId}`}>Back to the policy</Link>
-      </p>
 
       <h1>Cancel policy {plan.policyNumber}</h1>
       <p className="lead">
@@ -80,7 +76,7 @@ export default async function CancelPolicyPage({
       </p>
 
       <h2>What the customer gets back</h2>
-      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+      <div className="table-scroll" role="region" aria-label="Customer refund" tabIndex={0}>
         <table className="amounts">
         <tbody>
           <tr>
@@ -123,7 +119,7 @@ export default async function CancelPolicyPage({
         <>
           <h2>This policy has an open claim</h2>
           <p className="note">{plan.openClaims.explanation}</p>
-          <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+          <div className="table-scroll" role="region" aria-label="Open claim position" tabIndex={0}>
         <table className="amounts">
             <tbody>
               <tr>
@@ -141,7 +137,7 @@ export default async function CancelPolicyPage({
       ) : null}
 
       <h2>What the broker gives back</h2>
-      <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+      <div className="table-scroll" role="region" aria-label="Commission clawback" tabIndex={0}>
         <table className="amounts">
         <tbody>
           <tr>
@@ -158,7 +154,7 @@ export default async function CancelPolicyPage({
       {plan.slices.length === 0 ? (
         <p className="note">Nothing is owed back on this date, so no refund will be sent to Stripe.</p>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Scrollable data table" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label="Refund allocation" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -184,8 +180,11 @@ export default async function CancelPolicyPage({
 
       <h2>Confirm</h2>
       <p className="note">
-        Confirming writes the cancellation, the journal entries and the refund request in one transaction, then asks
-        Stripe for the money. The refund only counts as completed when Stripe&apos;s webhook says it left.
+        {breakdown.totalRefundCents === 0
+          ? "Confirming records the cancellation and its journal entries. No refund is due on this date."
+          : plan.refundNeedsApproval
+            ? "Confirming records the cancellation, its journal entries and the refund request. The refund waits for approval before it is sent."
+            : "Confirming records the cancellation, its journal entries and the refund request, then asks Stripe for the money. The refund is complete only after the provider confirms it."}
       </p>
       {/* Slice B7: maker-checker. Above the threshold the cancellation still happens, and so do
           its journal entries; what waits is the money leaving. */}
@@ -208,7 +207,8 @@ export default async function CancelPolicyPage({
             confirmation if the policy changed in the meantime. */}
         <input type="hidden" name="policyVersion" value={plan.policyVersion} />
         <button type="submit">
-          Cancel the policy as of {plan.effectiveAt} and refund {formatCentsAsUsd(breakdown.totalRefundCents)}
+          Cancel the policy as of {plan.effectiveAt}
+          {breakdown.totalRefundCents > 0 ? ` and request a ${formatCentsAsUsd(breakdown.totalRefundCents)} refund` : ""}
         </button>
       </form>
     </PortalShell>

@@ -204,3 +204,35 @@ Typecheck, final build, source/form preservation, desktop/mobile parent navigati
 Next executable integration step: coordinate these presentation commits with Claude's latest page contents and retain each page's explicit trail when merging; rerun integrated build/review before deployment. No main merge, push or Vercel deployment. Local preview starts at http://127.0.0.1:4177/ops/; financial/identity actions remain disabled.
 
 UI-03 committed locally as `9a04c37d27cb67d4165adae5878c4c42a391010e`. Final staged scan and pre-commit hook passed with no leaks (~31.24 KB); working tree was clean after the implementation commit. This documentation-only follow-up records the SHA; reviewed source and local preview are unchanged.
+
+## 2026-09-08T16:09:10+00:00 | UI-04 full screen audit startup
+
+User supplied the broken cancellation-form screenshot and requests an exhaustive review of every UI screen, normal navigation with synthetic data, no intrusive preview banner/role link strip, sidebar-oriented back navigation and restored Policies access. Branch codex/corgi-interface at20f3084, clean before changes. Actual rereads this continuation: AGENTS, AUTOMATIC-FAILS, READABLE-CODE, WORKFLOW, REVIEWER, current STATUS, affected source and local harness; official brief/README/PLAN/DECISIONS/COMPLIANCE remain read in this continuing session. Web-interface skill reloaded and current rules fetched. No mandatory kit absent; approximately37hours remain.
+
+Confirmed defect: fixture renderer converted form.card to section.card, bypassing application CSS. Replace this approach: preserve real DOM, allow read-only GET navigation/forms, reject every POST at the isolated preview server and show honest local feedback. User explicitly removes the banner requirement; keep only discreet Sandbox demo context with details. No simulation will be represented as a live integration. Back link moves to sidebar; breadcrumbs remain separate. Read-only staff policy index reuses existing guarded read helpers (independent preliminary DESIGN PASS); no financial/provider/backend mutations.
+
+UI-04 checks planned: route-by-route desktop and mobile screenshots, form and navigation interactions, default/empty/error/long-content states where applicable, true app source/type/build checks and independent exhaustive-scope review. Prior reviews are historical and did not cover every rendered screen. No main merge, push or deployment. Candidate walkthrough still NOT REVIEWED WITH YOANN.
+
+## 2026-09-08T16:20:25.689858+00:00 | UI-04 continuation receipt
+
+After context recovery, reread AGENTS.md, AUTOMATIC-FAILS.md, READABLE-CODE.md, WORKFLOW-48H.md, REVIEWER.md and current STATUS. No mandatory kit missing. Branch codex/corgi-interface at20f3084; approximately37hours to freeze. Next: verify preserved native forms and every local screen at desktop/mobile widths, then independent review and staged scan. No provider, database, main or deployment changes.
+
+## 2026-09-08T16:43:46.681082+00:00 | UI-04 implementation and review evidence
+
+Application source frozen in18-file UI-04 manifest against20f3084. Build/typecheck PASS; no lint script. HTTP18routes/aliases and12linked destinations200;16non-read requests405. All nominal screens inspected desktop/mobile plus18initial state fixtures and recovery variants. Actual six-page mobile End-scroll reaches footer;1000x400 sidebar overflow fixed. Independent source guard/form checks PASS; final visual review pending capture refresh. Chrome temporarily blocks automation because an extension popup is open; user asked to dismiss it, no approval requested or assumed. Earlier captures are distinguished from final source; no exhaustive final-image claim yet. Handoff details in docs/handoffs/ui-04.md.
+
+AF-01 deployment NOT RUN; AF-02/03 source/demo boundary only, no financialruntime rerun; AF-04 scoped synthetic/local actions; AF-05 final staged scan pending; AF-06 NOT REVIEWED WITH YOANN. Next: finish fresh captures/scroll checks once Chrome unblocks, independent final review, explicit stage/scan/localcommit. No main merge/push/deployment.
+
+## 2026-09-08T16:50:22.815266+00:00 | UI-04 checkpoint awaiting Chrome
+
+Branch codex/corgi-interface, HEAD20f3084; UI-04 changes explicitly staged, not committed. Independent report docs/reviews/ui-04.md is BLOCKED only on final affected-view refresh/reinspection and remaining Chrome navigation/scroll checks. F01–F09 resolved;18/18 source hashes, form contracts, staff access guards, current typecheck/build and staged scan independently checked. Final build log .local/ui04-build.txt exit0 (20/20 pages). Source and helper manifests identify the current revision. Actual Next unauthenticated probes with dummy config show home/login200, styled404 and11streamed login redirects; initial missing-Stripe-config failure and corrected probe expectations are disclosed in handoff. No provider requests.
+
+Chrome reports an extension UI is open; user was asked to dismiss it. Temporary viewport override reset successfully. No permission is inferred from elapsed time. Local preview remains served on127.0.0.1:4177 with latest form/scroll/navigation fixes. The isolated branch does not change main/Vercel or Claude’s work. UI-04 and integrated B13 remain incomplete until the evidence gate closes. Next executable step: after the popup closes, refresh affected final screenshots, independent click/scroll recheck, append review verdict, repeat explicit staged scan and commit locally. No push/deployment.
+
+AF-01 NOT RUN; AF-02/03 scoped source boundaries only, runtime money tests not rerun; AF-04 scoped local/synthetic PASS; AF-05 staged scan PASS31.98KB at16:47UTC and independently16:48UTC, repeat after this final record/review staging; AF-06 NOT REVIEWED WITH YOANN.
+
+## 2026-09-08T16:55:33.520818+00:00 | UI-04 Back control removal receipt
+
+Continuing on codex/corgi-interface at20f3084. Reread AGENTS.md, AUTOMATIC-FAILS.md, READABLE-CODE.md, WORKFLOW-48H.md, REVIEWER.md and current STATUS; no mandatory kit missing. Prior brief and scope records remain read in this session. User now requests removal of the separate Back control, superseding the sidebar placement preference. Next check: remove the shared control and unused CSS, preserve breadcrumbs, typecheck and verify served pages. Broader UI-04 visual review remains pending; no deployment or financial changes.
+
+Back control and its unused CSS removed from the shared shell. Preview restarted on4177. Typecheck PASS; HTTP200 and preserved breadcrumbs verified on staff Policies, policy detail and cancellation, with no sidebar Back control. Source manifest updated for the two changed files. This cosmetic follow-up does not close the previously recorded UI-04 visual review gap; prior build evidence predates this deletion. No commit/push/deployment.

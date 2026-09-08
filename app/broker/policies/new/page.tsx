@@ -41,14 +41,14 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
       )}
       {kyb.isProviderEvidence ? null : <p className="note">{KYB_NOT_LIVE_LABEL}: the KYB status is a seeded placeholder.</p>}
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="error" role="alert">{error}</p> : null}
 
       <form method="post" action="/api/policies" className="card">
         <label htmlFor="customerName">Customer name</label>
-        <input id="customerName" name="customerName" required maxLength={120} />
+        <input id="customerName" name="customerName" autoComplete="organization" required maxLength={120} />
 
         <label htmlFor="customerEmail">Customer email</label>
-        <input id="customerEmail" name="customerEmail" type="email" required maxLength={200} />
+        <input id="customerEmail" name="customerEmail" autoComplete="email" spellCheck={false} type="email" required maxLength={200} />
 
         <label htmlFor="stateCode">State</label>
         <select id="stateCode" name="stateCode" required>
