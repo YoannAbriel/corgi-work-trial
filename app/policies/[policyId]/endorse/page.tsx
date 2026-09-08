@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
@@ -54,13 +55,10 @@ export default async function EndorsePolicyPage({
       // A refusal is part of the preview: the broker sees why and changes the input. Nothing was
       // written, so there is nothing to undo.
       return (
-        <main>
-          <p className="note">
-            <Link href={`/policies/${policyId}`}>Back to the policy</Link>
-          </p>
+        <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: "Policy", href: `/policies/${policyId}` }, { label: "Endorsement preview" }]}>
           <h1>Endorsement preview</h1>
-          <p className="error">{error.message}</p>
-        </main>
+          <p className="error" role="alert">{error.message}</p>
+        </PortalShell>
       );
     }
     throw error;
@@ -75,10 +73,7 @@ export default async function EndorsePolicyPage({
         : "No money moves";
 
   return (
-    <main>
-      <p className="note">
-        <Link href={`/policies/${policyId}`}>Back to the policy</Link>
-      </p>
+    <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: "Policy", href: `/policies/${policyId}` }, { label: "Endorsement preview" }]}>
 
       <h1>Endorse policy {plan.policyNumber}</h1>
       <p className="lead">
@@ -87,7 +82,8 @@ export default async function EndorsePolicyPage({
       </p>
 
       <h2>What changes</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
+<table className="amounts">
         <tbody>
           <tr>
             <th>Annual premium</th>
@@ -107,6 +103,7 @@ export default async function EndorsePolicyPage({
           ) : null}
         </tbody>
       </table>
+</div>
 
       <h2>Impact, line by line</h2>
       <p className="note">{direction}. Each line shows the integer-cent formula that produced it.</p>
@@ -157,7 +154,7 @@ export default async function EndorsePolicyPage({
               : "Apply the endorsement"}
         </button>
       </form>
-    </main>
+    </PortalShell>
   );
 }
 

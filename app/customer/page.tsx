@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -55,12 +56,12 @@ export default async function CustomerPage({
   }
 
   return (
-    <main>
+    <PortalShell user={user} active="policies">
       <h1>Your policies</h1>
       <p className="lead">
         Signed in as {user.displayName} ({user.email}).
       </p>
-      {query.error ? <p className="error">{query.error}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.approved === "1" ? <p className="note">Thank you, the endorsement is approved. Your broker collects the delta.</p> : null}
       {query.approved === "already" ? <p className="note">This endorsement was already approved.</p> : null}
       {query.correctionApproved === "1" ? (
@@ -73,7 +74,8 @@ export default async function CustomerPage({
       {rows.length === 0 ? (
         <p className="note">No policy is attached to your account yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
+<table>
           <thead>
             <tr>
               <th>Policy</th>
@@ -130,11 +132,8 @@ export default async function CustomerPage({
             ))}
           </tbody>
         </table>
+</div>
       )}
-
-      <form method="post" action="/api/session/logout" className="inline-form">
-        <button type="submit">Sign out</button>
-      </form>
-    </main>
+    </PortalShell>
   );
 }

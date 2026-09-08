@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -39,10 +40,7 @@ export default async function OpsStatementsPage({
   ]);
 
   return (
-    <main>
-      <p className="note">
-        <Link href="/ops">Operations</Link>
-      </p>
+    <PortalShell user={user} active="statements">
 
       <h1>Broker statements</h1>
       <p className="lead">
@@ -58,7 +56,7 @@ export default async function OpsStatementsPage({
         again stores a new revision that names the one it replaces.
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.ran ? <p className="note">{query.ran}</p> : null}
 
       <section className="card-block">
@@ -94,13 +92,14 @@ export default async function OpsStatementsPage({
       ) : (
         <RunTable runs={runs} />
       )}
-    </main>
+    </PortalShell>
   );
 }
 
 function RunTable({ runs }: { runs: StatementRunRow[] }) {
   return (
-    <table>
+    <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
+<table>
       <thead>
         <tr>
           <th>Month</th>
@@ -166,6 +165,7 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
         ))}
       </tbody>
     </table>
+</div>
   );
 }
 

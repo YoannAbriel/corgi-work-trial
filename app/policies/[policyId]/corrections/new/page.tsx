@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
@@ -46,13 +47,10 @@ export default async function CorrectEndorsementDatePage({
       // A refusal is part of the preview: the operator sees why and changes the input. Nothing
       // was written, so there is nothing to undo.
       return (
-        <main>
-          <p className="note">
-            <Link href={`/policies/${policyId}`}>Back to the policy</Link>
-          </p>
+        <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: "Policy", href: `/policies/${policyId}` }, { label: "Correction preview" }]}>
           <h1>Correct the effective date</h1>
-          <p className="error">{error.message}</p>
-        </main>
+          <p className="error" role="alert">{error.message}</p>
+        </PortalShell>
       );
     }
     throw error;
@@ -67,10 +65,7 @@ export default async function CorrectEndorsementDatePage({
         : "No money moves: the corrected date prices the same amount";
 
   return (
-    <main>
-      <p className="note">
-        <Link href={`/policies/${policyId}`}>Back to the policy</Link>
-      </p>
+    <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: "Policy", href: `/policies/${policyId}` }, { label: "Correction preview" }]}>
 
       <h1>Correct an endorsement date on policy {plan.policyNumber}</h1>
       <p className="lead">
@@ -80,7 +75,8 @@ export default async function CorrectEndorsementDatePage({
       </p>
 
       <h2>What changes</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
+<table className="amounts">
         <tbody>
           <tr>
             <th>Endorsement</th>
@@ -110,6 +106,7 @@ export default async function CorrectEndorsementDatePage({
           </tr>
         </tbody>
       </table>
+</div>
 
       <h2>Impact, line by line</h2>
       <p className="note">{direction}. Each line shows the integer-cent formula that produced it.</p>
@@ -121,7 +118,8 @@ export default async function CorrectEndorsementDatePage({
         that money, and reversing them would make the ledger claim it left. The originals below stay in the journal for
         ever; a mirrored entry is appended beside each of them, on the same effective date, recorded now.
       </p>
-      <table>
+      <div className="table-scroll" role="region" aria-label="Policies table 2" tabIndex={0}>
+<table>
         <thead>
           <tr>
             <th>Entry</th>
@@ -141,6 +139,7 @@ export default async function CorrectEndorsementDatePage({
           ))}
         </tbody>
       </table>
+</div>
 
       <h2>What happens on confirm</h2>
       <p className="note">
@@ -176,6 +175,6 @@ export default async function CorrectEndorsementDatePage({
               : ""}
         </button>
       </form>
-    </main>
+    </PortalShell>
   );
 }

@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -112,10 +113,10 @@ export default async function PolicyPage({
   const openClaimReserveCents = openClaims.reduce((total, claim) => total + claim.position.reserveCents, 0);
 
   return (
-    <main>
-      <p className="note">
-        <Link href="/broker">Back to the policy list</Link>
-      </p>
+    <PortalShell active="policies" user={user} trail={[
+      ...(isOwningBroker ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+      { label: `Policy ${policy.policyNumber}` },
+    ]}>
 
       <h1>Policy {policy.policyNumber}</h1>
       <p className="lead">
@@ -129,16 +130,16 @@ export default async function PolicyPage({
         <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
       )}
 
-      {query.error ? <p className="error">{query.error}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.payment === "returned" ? (
-        <p className="note">
+        <p className="note" role="status">
           You came back from the Stripe hosted page. The policy is bound when Stripe&apos;s webhook confirms the
           payment, not when the browser returns: refresh in a moment if the status is still awaiting payment.
         </p>
       ) : null}
-      {query.payment === "cancelled" ? <p className="note">The payment page was left without paying.</p> : null}
+      {query.payment === "cancelled" ? <p className="note" role="status">The payment page was left without paying.</p> : null}
       {query.cancelled ? (
-        <p className="note">
+        <p className="note" role="status">
           The policy is cancelled and {query.cancelled} refund request(s) were sent to Stripe. A refund counts as
           completed only when Stripe&apos;s webhook confirms the money left; refresh in a moment.
         </p>
@@ -154,10 +155,10 @@ export default async function PolicyPage({
       ) : null}
       {query.refundSent ? <p className="note">The refund was sent to Stripe: {query.refundSent}.</p> : null}
       {query.bound === "1" ? (
-        <p className="note">The policy is now bound and the four issuance entries are in the journal below.</p>
+        <p className="note" role="status">The policy is now bound and the four issuance entries are in the journal below.</p>
       ) : null}
       {query.bound === "already" ? (
-        <p className="note">This policy was already bound; nothing was posted a second time.</p>
+        <p className="note" role="status">This policy was already bound; nothing was posted a second time.</p>
       ) : null}
       {query.endorsement ? <p className="note">{endorsementNotice(query.endorsement)}</p> : null}
       {query.correction ? <p className="note">{correctionNotice(query.correction)}</p> : null}
@@ -167,6 +168,7 @@ export default async function PolicyPage({
         The premium and limits in force today. What was actually collected and refunded is in the endorsement schedule
         and the journal below, never here.
       </p>
+      <div className="table-scroll" role="region" aria-label="Annual terms in force" tabIndex={0}>
       <table className="amounts">
         <tbody>
           <tr>
@@ -189,9 +191,11 @@ export default async function PolicyPage({
           </tr>
         </tbody>
       </table>
+        </div>
 
       <h2>Coverage</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Coverage limits" tabIndex={0}>
+        <table className="amounts">
         <tbody>
           <tr>
             <th>Per-occurrence limit</th>
@@ -207,6 +211,7 @@ export default async function PolicyPage({
           </tr>
         </tbody>
       </table>
+        </div>
 
       <h2>Documents as of a date</h2>
       <p className="note">
@@ -238,7 +243,7 @@ export default async function PolicyPage({
         <>
           {/* The issuance and its four entries are still in the database; the fold no longer
               applies them, and the reversal entries are visible in the journal below. */}
-          <p className="error">
+          <p className="error" role="alert">
             Voided by a correction on {voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC:{" "}
             {voidCorrection.reason}
           </p>
@@ -253,7 +258,7 @@ export default async function PolicyPage({
 
       {operation?.bindingRefusedReason ? (
         <>
-          <p className="error">
+          <p className="error" role="alert">
             Paid, binding refused: {operation.bindingRefusedReason}. The customer&apos;s money arrived at Stripe and is
             journaled in the suspense account unapplied_customer_cash (cash at Stripe up, liability to the customer
             up, entry unapplied_cash_received below), but the policy is NOT bound. Binding it applies that cash to
@@ -375,7 +380,8 @@ export default async function PolicyPage({
         <p className="note">No endorsement is in force on this policy.</p>
       ) : (
         <>
-          <table>
+          <div className="table-scroll" role="region" aria-label="Policy details table 1" tabIndex={0}>
+<table>
             <thead>
               <tr>
                 <th>Effective</th>
@@ -417,6 +423,7 @@ export default async function PolicyPage({
               ))}
             </tbody>
           </table>
+</div>
           <p className="note">
             * The prorated delta is the money that actually moved: the annual premium difference priced over the days
             remaining from the effective date to the end of the term, plus the state premium tax on it, rounded in the
@@ -502,7 +509,7 @@ export default async function PolicyPage({
                 the event and the short_rate_penalty_income account exists, but this build only
                 calculates pro-rata and the server refuses any other value. */}
             <select id="calculationMethod" name="calculationMethod" defaultValue="pro_rata">
-              <option value="pro_rata">Pro-rata (the only method this build computes)</option>
+              <option value="pro_rata">Pro-rata</option>
             </select>
             <button type="submit">Preview the cancellation</button>
           </form>
@@ -517,7 +524,8 @@ export default async function PolicyPage({
             method {cancellation.calculationMethod}. Every figure below is the one stored on the cancellation event and
             posted to the journal; none of it is recomputed for display.
           </p>
-          <table className="amounts">
+          <div className="table-scroll" role="region" aria-label="Cancellation amounts" tabIndex={0}>
+        <table className="amounts">
             <tbody>
               <tr>
                 <th>Written premium</th>
@@ -556,6 +564,7 @@ export default async function PolicyPage({
               </tr>
             </tbody>
           </table>
+        </div>
           {cancellation.taxRefundWasCappedAtCharged ? (
             <p className="note">
               The tax refund was capped at the premium tax actually charged on this policy: rounding it up would have
@@ -579,7 +588,8 @@ export default async function PolicyPage({
       {refunds.length > 0 ? (
         <>
           <h2>Refunds</h2>
-          <table>
+          <div className="table-scroll" role="region" aria-label="Refund history" tabIndex={0}>
+        <table>
             <thead>
               <tr>
                 <th>State</th>
@@ -670,7 +680,7 @@ export default async function PolicyPage({
                       </span>
                     ) : null}
                     {refund.failedAfterCompletion ? (
-                      <p className="error">
+                      <p className="error" role="alert">
                         Stripe reported a failure after this refund had completed. Nothing was reversed
                         automatically: an operator has to decide whether the cash came back and post a reversal.
                       </p>
@@ -680,6 +690,7 @@ export default async function PolicyPage({
               ))}
             </tbody>
           </table>
+        </div>
         </>
       ) : null}
 
@@ -693,6 +704,7 @@ export default async function PolicyPage({
       {claims.length === 0 ? (
         <p className="note">No claim on this policy.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Policy claims" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -726,6 +738,7 @@ export default async function PolicyPage({
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       {/* A claim needs cover to have existed, so the form is offered on a bound policy and on a
@@ -769,6 +782,7 @@ export default async function PolicyPage({
           Nothing has been posted yet. The four issuance entries are written when Stripe confirms the payment.
         </p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Policy journal" tabIndex={0}>
         <table className="ledger">
           <thead>
             <tr>
@@ -799,8 +813,9 @@ export default async function PolicyPage({
             )}
           </tbody>
         </table>
+        </div>
       )}
-    </main>
+    </PortalShell>
   );
 }
 

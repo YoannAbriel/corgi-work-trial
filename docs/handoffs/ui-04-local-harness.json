@@ -1,0 +1,9 @@
+{
+  "mode": "LOCAL SIMULATOR",
+  "files": {
+    ".local/build-navigable-preview.tsx": "16903702bac54cc1448ad4bc6ec935866f43c4b416395121a9b91db7d96bfc41",
+    ".local/serve-ui-preview.tsx": "6213de2db3c6eff92b162a235d6076fde781db2a09dda637e0c329e0a657ecb2",
+    ".local/ui-preview/demo.js": "38ebc10c6a1a464e4385613c4b74ba319f0d9a05586f3d3ebd4050c33c57a829"
+  },
+  "capturedAt": "2026-09-08T16:47:30.975295+00:00"
+}

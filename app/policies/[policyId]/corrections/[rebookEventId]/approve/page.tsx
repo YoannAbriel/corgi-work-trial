@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -43,21 +44,15 @@ export default async function ApproveCorrectionPage({
 
   if (correction.collection.paidOn) {
     return (
-      <main>
-        <p className="note">
-          <Link href="/customer">Back to your policies</Link>
-        </p>
+      <PortalShell user={user} active="policies" trail={[{ label: "Correction approval" }]}>
         <h1>Nothing to approve</h1>
         <p className="note">This difference was already paid on {correction.collection.paidOn}.</p>
-      </main>
+      </PortalShell>
     );
   }
 
   return (
-    <main>
-      <p className="note">
-        <Link href="/customer">Back to your policies</Link>
-      </p>
+    <PortalShell user={user} active="policies" trail={[{ label: "Correction approval" }]}>
 
       <h1>Policy {policy.policy_number}: a correction to approve</h1>
       <p className="lead">
@@ -68,7 +63,8 @@ export default async function ApproveCorrectionPage({
       <p className="note">Reason recorded by our operations team: {correction.reason}.</p>
 
       <h2>What it costs</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
+<table className="amounts">
         <tbody>
           <tr>
             <th>Charged when the change was recorded</th>
@@ -84,6 +80,7 @@ export default async function ApproveCorrectionPage({
           </tr>
         </tbody>
       </table>
+</div>
 
       <h2>Every figure, and how it was computed</h2>
       <FormulaLinesTable lines={correction.lines} />
@@ -103,6 +100,6 @@ export default async function ApproveCorrectionPage({
           <button type="submit">Approve paying {formatCentsAsUsd(correction.collection.amountCents)}</button>
         </form>
       )}
-    </main>
+    </PortalShell>
   );
 }

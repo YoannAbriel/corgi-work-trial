@@ -129,3 +129,28 @@ Each endorsement is a written premium segment with its own effective date and it
 1. A statement month groups entries by their effective date. A correction recorded on June 20 with effect on March 1 becomes revision 2 of the March statement, dated June 20, referencing revision 1 and showing the difference; it is never a line of June. "Mars reste mars."
 2. The statement shows both the cash collected (premium, tax and fee: 125320 cents in the recited example) and the premium collected that is the commission base (120000), so that 120000 x 15% = 18000 reads on the line; commission is never computed on tax or fee.
 3. A month that is not over may be run. The run is immutable like any other (hash, revision, cutoff) and is labeled "month in progress, provisional" on the screen and the PDF; the run at month end becomes the next revision. Yoann's words, on immutability: "un document qu'on génère ... ça doit être quelque chose d'immuable". Confirms the 10:02Z decision on closed-month revisions.
+
+
+## 2026-09-08T14:08:52+00:00 | User request and assistant implementation choice | Isolated UI refresh
+
+Yoann requested visual adaptation of the already-open Corgi hiring home, prohibited clicks and navigation on that reference, requested a dedicated branch, and chose DGX Spark for generated illustrations. Reference observed using accessibility read and screenshot only. Assistant choice: retain plain CSS and existing Next.js server pages; add a presentational shell receiving the already-authenticated user, without new database calls or changes to provider/security/money code. Generate original decorative corgi artwork on the existing Spark ComfyUI service; do not copy personal portal content. Keep all assets local. No backend changes, provider tests, push or deployment in this slice.
+
+## 2026-09-08T14:58:42+00:00 | User decision | Actual dashboard style with product judgment
+
+Yoann replaced the reference with app.corgi.insure/portal/coverage and allowed navigation in that account for observation. He clarified that style should be reused only where coherent and granted UI/UX discretion. Assistant choice: retain role-based operations navigation and authentic existing actions; adopt the actual dashboard's neutral surfaces, compact sidebar, white panels, black primary actions and orange emphasis. Do not add nonfunctional customer quote/support links or copy account data. Original Spark artwork may illustrate empty states; it does not compete with populated operational data. Financial behavior and Claude's separate B4 work remain unchanged.
+
+## 2026-09-08T15:34:02+00:00 | User refinement and assistant font choice | Typography and button precision
+
+Yoann requested matching the actual font, white text, color details and button bottom pixels, and permitted font-identification sites through computer use. The reference DOM names F37 Bolton and Inter. A generic heading-only crop was uploaded to WhatTheFont; its first alternatives do not override the direct CSS identification. With no F37 web license confirmed, assistant selected OFL DM Sans headings and Inter body after a visual comparison. Both are bundled locally with licenses and provenance. DM Sans is an approximation; no commercial font copied. White/orange and exact hover/active shades follow the visual request, with the contrast limitations recorded in the UI-02 handoff rather than a WCAG PASS claim. No money logic, external account data or deployment configuration changes.
+
+## 2026-09-08T15:59:44+00:00 | User navigation correction | Explicit parent hierarchy
+
+Yoann reported that Policies breadcrumbs did not follow subpages and asked for back arrows/navigation fixes. Assistant choice: explicit server-rendered page trails and named parent-return links, which also work on direct entry; no browser-history guesses or new navigation state. Remove the staff link to a broker-only policy list, preserving server authorization. Local visual-preview routes use synthetic adapters and disabled actions; they do not introduce app role switching or financial endpoints.
+
+## 2026-09-08T16:43:46.681082+00:00 | UI-04: normal sandbox presentation
+
+Yoann explicitly replaces the intrusive visual-preview banner and role strip with normal product navigation and a discreet Sandbox indicator. Return navigation moves to the sidebar; staff Policies is restored using existing guarded reads. Local demo forms retain native markup and GET navigation; an isolated server refuses all write methods and gives honest no-execution feedback. No financial action is simulated as completed by clicking. Sidebar overflow is independently scrollable in short windows. Presentation-only copy reflects zero-refund and approval-waiting plans; backend decisions remain unchanged. No integration with Claude/main or deployment is included.
+
+## 2026-09-08T18:04:17.633422+00:00 | User instruction | Integrate the interface with main
+
+User requested UI-04 committed first, then main merged into the dedicated interface branch with main business logic preserved. Shared STATUS, PLAN and COMPLIANCE-MATRIX belong to Claude and are retained from main. UI decision entries, handoffs, licences and illustrations remain. The separate Back control was removed at the user's request; breadcrumbs remain. Claude owns final independent UI review, main merge, deployment and the live session. This checkpoint does not claim final review or candidate-understanding PASS.

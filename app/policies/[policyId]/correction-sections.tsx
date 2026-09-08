@@ -94,7 +94,8 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
           <FormulaLinesTable lines={correction.lines} />
 
           <h4>The entries it posted</h4>
-          <table className="ledger">
+          <div className="table-scroll" role="region" aria-label="Policy details table 1" tabIndex={0}>
+<table className="ledger">
             <thead>
               <tr>
                 <th>Entry</th>
@@ -132,6 +133,7 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
               )}
             </tbody>
           </table>
+</div>
           <p className="note">
             The cash entries of the original endorsement are not in this table on purpose: Stripe really does hold that
             money, so reversing them would make the ledger claim it left. What the correction changes is what the
@@ -202,7 +204,8 @@ export async function PolicyTimeline({ policyId }: { policyId: string }) {
         day&quot;. A backdated correction has an old effective date and a recording time of today, which is exactly what
         makes a closed month reproducible.
       </p>
-      <table>
+      <div className="table-scroll" role="region" aria-label="Policy details table 2" tabIndex={0}>
+<table>
         <thead>
           <tr>
             <th>Effective</th>
@@ -233,6 +236,7 @@ export async function PolicyTimeline({ policyId }: { policyId: string }) {
           ))}
         </tbody>
       </table>
+</div>
     </>
   );
 }
@@ -276,7 +280,8 @@ export async function PolicyAsOf({
       ) : (
         <>
           <h3>{result.asOf}</h3>
-          <table className="amounts">
+          <div className="table-scroll" role="region" aria-label="Policy details table 3" tabIndex={0}>
+<table className="amounts">
             <tbody>
               <tr>
                 <th>Status on that date</th>
@@ -306,9 +311,11 @@ export async function PolicyAsOf({
               </tr>
             </tbody>
           </table>
+</div>
 
           <h4>Limits in force on {result.asOf}</h4>
-          <table className="amounts">
+          <div className="table-scroll" role="region" aria-label="Policy details table 4" tabIndex={0}>
+<table className="amounts">
             <tbody>
               {result.snapshot.coverageLines.map((line) => (
                 <tr key={line.name}>
@@ -318,6 +325,7 @@ export async function PolicyAsOf({
               ))}
             </tbody>
           </table>
+</div>
 
           <h4>Written premium segments earning on {result.asOf}</h4>
           <p className="note">
@@ -325,7 +333,8 @@ export async function PolicyAsOf({
             endorsement earns its prorated amount from its own effective date to the end of the term. This is why the
             annual premium in force is not the written premium once a policy has been endorsed.
           </p>
-          <table>
+          <div className="table-scroll" role="region" aria-label="Policy details table 5" tabIndex={0}>
+<table>
             <thead>
               <tr>
                 <th>From</th>
@@ -351,6 +360,7 @@ export async function PolicyAsOf({
               ))}
             </tbody>
           </table>
+</div>
           <p className="note">
             The same date as a PDF:{" "}
             <Link href={`/api/policies/${policyId}/documents/declarations?asOf=${result.asOf}`}>declarations</Link>

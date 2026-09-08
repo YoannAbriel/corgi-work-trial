@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -71,10 +72,7 @@ export default async function ReconciliationPage({
   );
 
   return (
-    <main>
-      <p className="note">
-        <Link href="/ops">Operations</Link>
-      </p>
+    <PortalShell user={user} active="reconciliation">
 
       <h1>Reconciliation</h1>
       <p className="lead">
@@ -89,7 +87,7 @@ export default async function ReconciliationPage({
         payment notes the fee as information only.
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.ran ? <p className="note">Run finished: {query.ran}</p> : null}
 
       {/* A failed latest run is called out above everything else: it found nothing because it
@@ -146,7 +144,8 @@ export default async function ReconciliationPage({
       {runs.length === 0 ? (
         <p className="note">Nothing has run yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Reconciliation table 1" tabIndex={0}>
+<table>
           <thead>
             <tr>
               <th>Finished (UTC)</th>
@@ -164,6 +163,7 @@ export default async function ReconciliationPage({
             ))}
           </tbody>
         </table>
+</div>
       )}
 
       <h2>Clearing balances that have not returned to zero</h2>
@@ -177,7 +177,8 @@ export default async function ReconciliationPage({
         <p className="note">Every clearing account is at zero: no premium billed and uncollected, no refund owed and
         unpaid, no claim payment in flight, no customer money waiting to be applied.</p>
       ) : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Reconciliation table 2" tabIndex={0}>
+<table>
           <thead>
             <tr>
               <th>Account</th>
@@ -193,6 +194,7 @@ export default async function ReconciliationPage({
             ))}
           </tbody>
         </table>
+</div>
       )}
 
       <h2>Breaks that went away</h2>
@@ -206,7 +208,7 @@ export default async function ReconciliationPage({
       ) : (
         <BreakTable rows={resolved} now={now} ageColumn="Was open for" />
       )}
-    </main>
+    </PortalShell>
   );
 }
 
@@ -276,7 +278,8 @@ function ClearingRow({ balance, now }: { balance: ClearingBalanceRow; now: Date 
 
 function BreakTable({ rows, now, ageColumn }: { rows: ReconciliationBreakRow[]; now: Date; ageColumn: string }) {
   return (
-    <table className="ledger">
+    <div className="table-scroll" role="region" aria-label="Reconciliation table 3" tabIndex={0}>
+<table className="ledger">
       <thead>
         <tr>
           <th>Reference</th>
@@ -314,6 +317,7 @@ function BreakTable({ rows, now, ageColumn }: { rows: ReconciliationBreakRow[]; 
         ))}
       </tbody>
     </table>
+</div>
   );
 }
 

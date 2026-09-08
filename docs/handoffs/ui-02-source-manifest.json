@@ -1,0 +1,22 @@
+{
+  "base": "c7784048a646c30c398d744eb451cd0e62ec128e",
+  "branch": "codex/corgi-interface",
+  "sha256": {
+    "app/broker/page.tsx": "60d3e441e16cd0be594ded150e11e59c1b6b26a19fe74d75f9a2b766da844294",
+    "app/globals.css": "ce65355ca7cba6fc565fc349f78682b6c0b393799f5f3dfe54d9fce0864b6331",
+    "app/login/page.tsx": "9ca70016be4c91d67c4f157be977f93fbb0926dcee90d82d59daacc9b7b2ca9e",
+    "app/ops/brokers/page.tsx": "9c13b9d6b8269ca48b7b8096abaf751c84150ef433d7a06e6c0a2813b29afe8b",
+    "app/ops/claims/page.tsx": "8ee78cef771264a52a69b8000053971ca12e4839b6819c8faf470afda7e2b327",
+    "app/page.tsx": "f933835c5ade39b0098b5dd1a74685b5f9250abe78925cfd117729f74d94b41c",
+    "components/portal-frame.tsx": "9452badf45f285c636df50e5379477331766842f47104858ff634c9d2facf372",
+    "components/portal-shell.tsx": "7a89de923a9a40612771f2a3366a94ee08313b2695046772d2233e9865c2ee94",
+    "components/workspace-overview.tsx": "ce3f24c995c54e006d5ffca8cd1eda49611d3df8af6f6d85632a4a5413f6893f",
+    "public/fonts/DMSans-Italic.woff2": "6c969f3abca2c9d97fcab4a89c6b2642315370a79871e182b631d007ef64dd8d",
+    "public/fonts/DMSans-OFL.txt": "7ec15e79c59bc14b86436a17e5eb7926b46cbcaeb08e1a7e6c110b415e6eb2a2",
+    "public/fonts/DMSans-Regular.woff2": "86c4090d4cde0a2e1fe9368673d4202f458cc53719a22d6e6c9dc23d5cdb547c",
+    "public/fonts/Inter-Italic.woff2": "ed170d96832332f1191cf02f4f0ca08b8937951a91b5c2b32418b9b2dc183244",
+    "public/fonts/Inter-OFL.txt": "5dd548d31a85f756e01d63e00d7faf1e324103ed3e9102fcbbabf2cc2db6dd39",
+    "public/fonts/Inter-Regular.woff2": "d97db9dfa4cb3250c6229bfd7b83d86db93b41dbf9872ac451110e60a708569c",
+    "public/illustrations/corgi-engraving.webp": "4294da130e3957b499a55f17ff2a6e0df8d35dc0181b189e437612f15b98819f"
+  }
+}

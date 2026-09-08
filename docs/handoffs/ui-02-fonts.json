@@ -1,0 +1,39 @@
+{
+  "selection": "Inter for body/navigation, DM Sans for headings after visual comparison with F37 Bolton and Albert Sans. DM Sans is an approximation, not F37 Bolton. No commercial font redistributed.",
+  "license": "SIL Open Font License 1.1; copyright and license files bundled beside fonts.",
+  "processing": "fontTools subset retaining U+0000-024F, U+2000-206F, U+20A0-20CF, U+2190-21FF and all OpenType layout features; converted to WOFF2. Other scripts use the CSS fallback font.",
+  "fonts": [
+    {
+      "file": "public/fonts/Inter-Italic.woff2",
+      "source_family": "https://github.com/google/fonts/tree/main/ofl/inter",
+      "source_file": "Inter-Italic[opsz,wght].ttf",
+      "source_sha256": "acd98e64795781b2058f07b18475e0ecee2a0fe2b42a49e2f9e37d0d6bf66ce6",
+      "sha256": "ed170d96832332f1191cf02f4f0ca08b8937951a91b5c2b32418b9b2dc183244",
+      "bytes": 172380
+    },
+    {
+      "file": "public/fonts/Inter-Regular.woff2",
+      "source_family": "https://github.com/google/fonts/tree/main/ofl/inter",
+      "source_file": "Inter[opsz,wght].ttf",
+      "source_sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+      "sha256": "d97db9dfa4cb3250c6229bfd7b83d86db93b41dbf9872ac451110e60a708569c",
+      "bytes": 155384
+    },
+    {
+      "file": "public/fonts/DMSans-Regular.woff2",
+      "source_family": "https://github.com/google/fonts/tree/main/ofl/dmsans",
+      "source_file": "DMSans[opsz,wght].ttf",
+      "source_sha256": "8cd08d97e89c24d0aa92edd2f0f4c8ee6195eee9b7c9f154865a58b02f0c1c0d",
+      "sha256": "86c4090d4cde0a2e1fe9368673d4202f458cc53719a22d6e6c9dc23d5cdb547c",
+      "bytes": 78448
+    },
+    {
+      "file": "public/fonts/DMSans-Italic.woff2",
+      "source_family": "https://github.com/google/fonts/tree/main/ofl/dmsans",
+      "source_file": "DMSans-Italic[opsz,wght].ttf",
+      "source_sha256": "22259c0cc8237221b80f44c76ba8d36e6bce3cda72779f5b2773643d499720ae",
+      "sha256": "6c969f3abca2c9d97fcab4a89c6b2642315370a79871e182b631d007ef64dd8d",
+      "bytes": 96976
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
@@ -20,7 +21,7 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
   const [states, kyb, { error }] = await Promise.all([statesWithTaxRates(), brokerKybState(user.brokerId), searchParams]);
 
   return (
-    <main>
+    <PortalShell active="policies" user={user} trail={[{ label: "New policy" }]}>
       <h1>New policy</h1>
       <p className="lead">
         Commercial general liability, annual term. The premium tax comes from the effective-dated rate on file for
@@ -40,14 +41,14 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
       )}
       {kyb.isProviderEvidence ? null : <p className="note">{KYB_NOT_LIVE_LABEL}: the KYB status is a seeded placeholder.</p>}
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="error" role="alert">{error}</p> : null}
 
       <form method="post" action="/api/policies" className="card">
         <label htmlFor="customerName">Customer name</label>
-        <input id="customerName" name="customerName" required maxLength={120} />
+        <input id="customerName" name="customerName" autoComplete="organization" required maxLength={120} />
 
         <label htmlFor="customerEmail">Customer email</label>
-        <input id="customerEmail" name="customerEmail" type="email" required maxLength={200} />
+        <input id="customerEmail" name="customerEmail" autoComplete="email" spellCheck={false} type="email" required maxLength={200} />
 
         <label htmlFor="stateCode">State</label>
         <select id="stateCode" name="stateCode" required>
@@ -72,6 +73,6 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
 
         <button type="submit">Create draft</button>
       </form>
-    </main>
+    </PortalShell>
   );
 }
