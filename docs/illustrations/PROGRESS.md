@@ -43,4 +43,6 @@ The machine-readable final audit is kept locally at `.local/illustration-jobs/fi
 
 ## Verification checkpoint
 
-The final audit currently reports: 150 planned, 150 cataloged, 150 files, 150 accepted current attempts, 150 unique IDs, names and hashes, 96 transparent cutouts, 34 opaque cutout fallbacks and 20 panoramas. The independent feature review is the remaining completion gate before the final commit.
+The final audit reports: 150 planned, 150 cataloged, 150 files, 150 accepted current attempts, 150 unique IDs, names and hashes, 96 transparent cutouts, 34 opaque cutout fallbacks and 20 panoramas.
+
+The independent feature review initially found a damaged alpha mask on `067-corgi-search` and an imprecise description of the review record. Both findings were corrected in `52149d2d90fd43c01f7af3e5cb39cf1f25a0984f`. The append-only re-review in `docs/reviews/illustration-library.md` records **PASS** for that exact revision with no unresolved material issue in the asset-library scope.
