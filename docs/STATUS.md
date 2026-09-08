@@ -10,7 +10,7 @@ Provider facts verified today against official documentation: Stripe refunds and
 
 Linear: authenticated in this session; the 16 domain tickets were listed read-only and left unchanged. Execution issues B0 to B14 created as YOA-609 to YOA-623 with acceptance criteria, blocking relations, evidence and estimates; a project status update was posted. No scenario was marked passed.
 
-Written this session: docs/ATTACK-PLAN.md, docs/checkpoints/t-plus-2h-email.md (draft, Yoann sends), docs/PLAN.md, four decision entries in docs/DECISIONS.md. T+2h email send status: not confirmed at the time of this update; Yoann reports the actual send time in the email draft file.
+Written this session: docs/ATTACK-PLAN.md, docs/checkpoints/t-plus-2h-email.md (draft, Yoann sends), docs/PLAN.md, four decision entries in docs/DECISIONS.md. T+2h email: SENT by Yoann at 09:49 Europe/Zurich (07:49 UTC) on the candidate thread, reported by him and recorded at 2026-09-08T08:07:11+00:00. Checkpoint met; the thread header is authoritative.
 
 Next acceptance criterion: B0 bootstrap and deploy. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 

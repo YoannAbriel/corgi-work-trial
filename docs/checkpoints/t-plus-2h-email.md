@@ -1,8 +1,8 @@
 # T+2h checkpoint email (draft, not sent by the assistant)
 
-Status: DRAFT prepared at 2026-09-08T07:39:00+00:00. Yoann sends it on the existing candidate thread before 09:50 Europe/Zurich. Record the actual send time below after sending.
+Status: SENT by Yoann on the existing candidate thread. Send time reported by Yoann: 2026-09-08 09:49 Europe/Zurich (07:49 UTC), one minute before the T+2h deadline. Recorded at 2026-09-08T08:07:11+00:00; the email header on the thread is the authoritative timestamp.
 
-Sent at: (to fill in)
+Sent at: 2026-09-08 09:49 Europe/Zurich (reported by Yoann)
 
 ---
 
