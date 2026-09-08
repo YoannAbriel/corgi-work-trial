@@ -167,14 +167,16 @@ export type CheckoutOperationView = {
 };
 
 // The policy's ISSUANCE payment operation, if the broker has started one: the latest attempt to
-// pay the policy itself. An endorsement delta is also collected by a stripe_checkout operation
-// (slice B4) and is shown with its endorsement, so those are left out here.
+// pay the policy itself. An endorsement delta (slice B4) and the difference of a correction
+// (slice B8) are also collected by stripe_checkout operations and are shown with the change they
+// belong to, so those are left out here.
 export async function checkoutOperationOfPolicy(policyId: string): Promise<CheckoutOperationView | null> {
   const [operation] = await sql<{ id: string; amount_cents: string }[]>`
     select id, amount_cents
       from money_operations operation
      where policy_id = ${policyId} and kind = 'stripe_checkout'
        and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
+       and not exists (select 1 from correction_collections fix where fix.collection_operation_id = operation.id)
      order by created_at desc
      limit 1
   `;

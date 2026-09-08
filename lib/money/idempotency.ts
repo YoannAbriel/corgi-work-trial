@@ -44,6 +44,19 @@ export function endorsementCheckoutIdempotencyKey(requestEventId: string, attemp
   return attempt === 1 ? key : `${key}:${attempt}`;
 }
 
+// One Checkout Session per attempt to collect the difference a backdated correction created
+// (slice B8). Keyed on the 'correction_rebook' policy event, because that event IS the intent:
+// one correction, one difference, one amount to collect. Same attempt rule as above, so a dead
+// hosted page gives the next attempt a new operation and a new key.
+export function correctionCheckoutIdempotencyKey(rebookEventId: string, attempt = 1): string {
+  if (!rebookEventId) {
+    throw new Error("rebookEventId is required to derive a correction checkout idempotency key");
+  }
+  assertAttempt(attempt);
+  const key = `correction-checkout:${rebookEventId}`;
+  return attempt === 1 ? key : `${key}:${attempt}`;
+}
+
 function assertAttempt(attempt: number): void {
   if (!Number.isInteger(attempt) || attempt < 1) {
     throw new Error(`an attempt must be a whole number starting at 1, got ${attempt}`);

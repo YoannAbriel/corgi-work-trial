@@ -17,6 +17,12 @@ import {
   refundOperationsOfPolicy,
   voidCorrectionOfPolicy,
 } from "@/lib/policy/read";
+import {
+  CorrectEndorsementDateForm,
+  CorrectionsExplained,
+  PolicyAsOf,
+  PolicyTimeline,
+} from "./correction-sections";
 import { FormulaLinesTable } from "./formula-lines";
 
 // One policy: what it costs, where it stands, and every journal entry it produced.
@@ -35,6 +41,10 @@ export default async function PolicyPage({
     refundSent?: string;
     bound?: string;
     endorsement?: string;
+    // Slice B8: the outcome of a backdated correction, and the date the "as it stood on" section
+    // rebuilds the policy for.
+    correction?: string;
+    asOf?: string;
   }>;
 }) {
   const user = await currentUser();
@@ -150,6 +160,7 @@ export default async function PolicyPage({
         <p className="note">This policy was already bound; nothing was posted a second time.</p>
       ) : null}
       {query.endorsement ? <p className="note">{endorsementNotice(query.endorsement)}</p> : null}
+      {query.correction ? <p className="note">{correctionNotice(query.correction)}</p> : null}
 
       <h2>Annual terms in force</h2>
       <p className="note">
@@ -384,6 +395,14 @@ export default async function PolicyPage({
                     {row.description}
                     <br />
                     <span className="note">{row.newLimitLabel}</span>
+                    {row.correctedFromEffectiveAt ? (
+                      <>
+                        <br />
+                        <span className="note">
+                          Corrected: entered as {row.correctedFromEffectiveAt}, put right to {row.effectiveAt}
+                        </span>
+                      </>
+                    ) : null}
                   </td>
                   <td className="amount">
                     {formatCentsAsUsd(row.figures.deltaTotalCents)}
@@ -405,7 +424,7 @@ export default async function PolicyPage({
           </p>
 
           <h2>Endorsements, explained</h2>
-          {schedule.map((row) => (
+          {schedule.map((row, index) => (
             <div key={`explained-${row.endorsedEventId}`}>
               <h3>
                 Effective {row.effectiveAt}: {row.description}
@@ -416,6 +435,17 @@ export default async function PolicyPage({
                 for display. Stripe references: {row.stripeReferences.length > 0 ? row.stripeReferences.join(", ") : "none"}.
               </p>
               <FormulaLinesTable lines={row.lines} />
+              {/* Slice B8: the panel's live-fire test. Staff operations can put a wrong effective
+                  date right; the preview shows the whole impact before anything is written. */}
+              {user.role === "staff_ops" && policy.status === "bound" && index === schedule.length - 1 ? (
+                <CorrectEndorsementDateForm
+                  policyId={policy.policyId}
+                  endorsedEventId={row.endorsedEventId}
+                  effectiveAt={row.effectiveAt}
+                  termStart={policy.effectiveAt}
+                  termEnd={policy.termEnd}
+                />
+              ) : null}
             </div>
           ))}
         </>
@@ -453,7 +483,7 @@ export default async function PolicyPage({
             anything is written. A past date is allowed: an insurer often learns late that cover stopped, and the money
             is always computed from the day cover really stopped.
             {schedule.length > 0
-              ? " This build refuses to cancel an endorsed policy: the per-segment earning is not computed yet."
+              ? " This policy has been endorsed, so the refund is computed segment by segment: the issuance premium earns over the whole term and each endorsement earns its prorated amount from its own effective date."
               : ""}
           </p>
           <form method="get" action={`/policies/${policy.policyId}/cancel`} className="card">
@@ -726,6 +756,13 @@ export default async function PolicyPage({
         </form>
       ) : null}
 
+      {/* --- Slice B8: backdated corrections, both clocks, and the policy on any date --- */}
+      <CorrectionsExplained policyId={policy.policyId} canPay={isOwningBroker || user.role === "staff_ops"} />
+
+      <PolicyAsOf policyId={policy.policyId} asOf={query.asOf} termStart={policy.effectiveAt} today={today} />
+
+      <PolicyTimeline policyId={policy.policyId} />
+
       <h2>Journal entries</h2>
       {entries.length === 0 ? (
         <p className="note">
@@ -846,6 +883,26 @@ function EndorsementInProgress({
       ) : null}
     </>
   );
+}
+
+// What the operator sees after a backdated correction (slice B8).
+function correctionNotice(outcome: string): string {
+  switch (outcome) {
+    case "collect":
+      return "The effective date is corrected. The endorsement is in force on the right date, and the difference is now owed by the customer: collect it from the correction block below.";
+    case "refund-requested":
+      return "The effective date is corrected and the difference was sent back to Stripe as a refund. It counts as completed only when Stripe's webhook confirms the money left; refresh in a moment.";
+    case "refund-held":
+      return "The effective date is corrected. The difference owed back is above $1,000, so it waits in the approval queue: a second person has to approve it before anything is sent to Stripe (/ops/approvals).";
+    case "done":
+      return "The effective date is corrected. The corrected date prices the same amount, so no money moves.";
+    case "returned":
+      return "You came back from the Stripe hosted page. The difference is collected when Stripe's webhook confirms the payment, not when the browser returns: refresh in a moment.";
+    case "cancelled":
+      return "The payment page for the difference was left without paying. The difference is still owed and shows as an open receivable.";
+    default:
+      return outcome;
+  }
 }
 
 function endorsementNotice(outcome: string): string {

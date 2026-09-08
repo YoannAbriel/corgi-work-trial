@@ -10,6 +10,11 @@ import {
   recordSuccessfulPayment,
 } from "@/lib/payments/collection";
 import {
+  correctionCollectionOfOperation,
+  recordExpiredCorrectionCheckout,
+  recordSuccessfulCorrectionPayment,
+} from "@/lib/payments/correction-collection";
+import {
   endorsementCollectionOfOperation,
   recordExpiredEndorsementCheckout,
   recordSuccessfulEndorsementPayment,
@@ -230,6 +235,22 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent): Prom
     };
   }
 
+  // The third kind of payment: the difference a backdated correction created (slice B8). It
+  // binds nothing and applies nothing; it settles a receivable the ledger already carries.
+  if (await correctionCollectionOfOperation(operationId)) {
+    const outcome = await recordSuccessfulCorrectionPayment(payment);
+    if (outcome.kind === "refused") {
+      return { status: "ignored", reason: outcome.reason };
+    }
+    return {
+      status: "done",
+      reason:
+        outcome.kind === "already_posted"
+          ? "already posted by an earlier delivery of this correction payment"
+          : "the correction difference is collected",
+    };
+  }
+
   const outcome = await recordSuccessfulPayment(payment);
   if (outcome.kind === "refused") {
     return { status: "ignored", reason: outcome.reason };
@@ -329,10 +350,13 @@ async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session): P
   if (!operationId) {
     return { status: "ignored", reason: "checkout session carries no usable operation id" };
   }
-  // An endorsement delta's page expiring is recorded on the endorsement's operation (slice B4).
+  // An endorsement delta's page expiring is recorded on the endorsement's operation (slice B4),
+  // a correction difference's on the correction's (slice B8).
   const outcome = (await endorsementCollectionOfOperation(operationId))
     ? await recordExpiredEndorsementCheckout({ operationId, sessionId: session.id })
-    : await recordExpiredCheckoutSession({ operationId, sessionId: session.id });
+    : (await correctionCollectionOfOperation(operationId))
+      ? await recordExpiredCorrectionCheckout({ operationId, sessionId: session.id })
+      : await recordExpiredCheckoutSession({ operationId, sessionId: session.id });
   return outcome.kind === "refused"
     ? { status: "ignored", reason: outcome.reason }
     : { status: "done", reason: "the payment page expired; it can be paid again with a new session" };

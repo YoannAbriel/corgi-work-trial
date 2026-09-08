@@ -16,6 +16,7 @@
     "check:refund-replay": "tsx scripts/check-refund-replay.ts",
     "check:kyb-replay": "tsx scripts/check-kyb-replay.ts",
     "check:endorsement-replay": "tsx scripts/check-endorsement-replay.ts",
+    "check:correction-replay": "tsx scripts/check-correction-replay.ts",
     "check:claims-and-approvals": "tsx scripts/check-claims-and-approvals.ts",
     "check:reconciliation": "tsx scripts/check-reconciliation.ts",
     "check:statements": "tsx scripts/check-statements.ts",
