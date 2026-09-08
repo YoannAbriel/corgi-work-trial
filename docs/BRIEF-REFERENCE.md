@@ -1,6 +1,6 @@
 # Released brief reference
 
-Source: general brief and all three track pages pasted by Yoann on September 8, 2026. This is a structured extraction, not an independently retrieved original. **No track has been selected.** Earlier recommendations are assistant proposals, not candidate decisions. Sandbox rules from kickoff have not been supplied here.
+Source: general brief and all three track pages pasted by Yoann on September 8, 2026. This is a structured extraction, not an independently retrieved original. **Current selection: Track 1 — Policy administration, explicitly selected by Yoann on September 8, 2026.** The other tracks remain reference material; earlier recommendations are historical proposals. Sandbox rules from kickoff have not been supplied here.
 
 ## General requirements
 

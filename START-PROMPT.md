@@ -2,11 +2,11 @@
 
 Act as my senior engineering collaborator for the Corgi Software Engineer (Operations Team) work trial. We have one continuous 48-hour window from the official start.
 
-No track is selected until Yoann explicitly selects one. You may compare options and verify access, but do not silently turn a recommendation into his decision. Keep routine implementation choices autonomous within the accepted scope and record material assumptions.
+Yoann selected Track 1 — Policy administration. Stack and providers are still undecided. Read `HANDOFF-PROMPT.md` for the next-session task: reason about the stack and attack plan before product implementation. Do not turn a recommendation into a confirmed decision. Keep routine implementation choices autonomous within the accepted scope and record material assumptions.
 
 Before coding, read `AUTOMATIC-FAILS.md`, `READABLE-CODE.md`, `CLAUDE.md`, `AGENTS.md`, `WORKFLOW-48H.md`, and `REVIEWER.md` in full, followed by the official brief and repository instructions. Apply the mandatory startup and completion gates in `AGENTS.md`. The brief governs product requirements and providers; these workflow files do not add official deliverables. Respect the trial's AI-assistance rules.
 
-Start by mapping acceptance criteria, available sandbox access, delivery constraints, and unknowns. Assume no stack, provider, or rail. Once a track is selected, identify the smallest end-to-end flow that meets its requirements and proves a real integration, then implement it.
+Start by mapping acceptance criteria, available sandbox access, delivery constraints, and unknowns. Assume no stack, provider, or rail. After the next-session stack and scope discussion, identify the smallest end-to-end flow that meets its requirements and proves a real integration, then implement it.
 
 Work in verified increments. Prioritize exact amounts and states, idempotency, durable webhook processing, and rerunnable reconciliation. A positive HTTP response does not prove settlement. A timeout does not prove failure.
 

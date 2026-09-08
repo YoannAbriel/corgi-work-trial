@@ -1,6 +1,6 @@
 # Preparation gap review — three Sol audits
 
-> Historical September 7 preparation review. The full brief and trial repository now exist. No track, stack or provider has been selected. Original findings below preserve their historical context; consult only relevant scenarios and follow the released brief and AUTOMATIC-FAILS.md.
+> Historical September 7 preparation review. The full brief and trial repository now exist. Track 1 is now selected; stack and providers remain undecided. Original findings below preserve their historical context; consult only relevant scenarios and follow the released brief and AUTOMATIC-FAILS.md.
 
 Date: 2026-09-07. Status: advisory preparation review; no product tests executed.
 

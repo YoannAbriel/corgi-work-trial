@@ -1,6 +1,6 @@
 # Corgi Trial: readiness, resilience, and compliance checklist
 
-Prepared September 7; updated September 8, 2026 after receipt of the full brief. This is an advisory preparation catalog, not 162 mandatory trial deliverables. Product tests remain NOT RUN. Track, stack and providers remain unselected. The released brief and `AUTOMATIC-FAILS.md` override historical conditional guidance. Use English for project artifacts and French for direct collaboration with Yoann; the announced financial scope remains US-focused.
+Prepared September 7; updated September 8, 2026 after receipt of the full brief. This is an advisory preparation catalog, not 162 mandatory trial deliverables. Product tests remain NOT RUN. Track 1 is selected; stack and providers remain undecided. The released brief and `AUTOMATIC-FAILS.md` override historical conditional guidance. Use English for project artifacts and French for direct collaboration with Yoann; the announced financial scope remains US-focused.
 
 ## How to record completion honestly
 
@@ -19,7 +19,7 @@ Scope 01-02; review the architecture; secure 03-05; build 06-09; verify 10-12; i
 ## 01. Scope, applicability, and submission criteria
 
 References/context:
-- Full brief received September 8, 2026; see `docs/BRIEF-REFERENCE.md` in the trial repository. Track not selected; workflow safeguards requested by Yoann.
+- Full brief received September 8, 2026; see `docs/BRIEF-REFERENCE.md` in the trial repository. Track 1 selected; workflow safeguards requested by Yoann.
 
 - [ ] **CRG-01-01 [T]** Map each official requirement to a feature, owner, evidence, and test; no brief requirement may remain without a ticket.
 - [ ] **CRG-01-02 [T]** Inventory providers, rails, API versions, quotas, and test identities; verify access with an authorized request without exposing secrets.

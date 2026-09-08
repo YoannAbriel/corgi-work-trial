@@ -11,7 +11,7 @@ Read [AUTOMATIC-FAILS.md](AUTOMATIC-FAILS.md) in full before planning, implement
 - **BAN:** committing secrets, including sandbox keys and webhook secrets.
 - **BAN:** submitting code Yoann cannot explain line by line.
 
-Read [READABLE-CODE.md](READABLE-CODE.md) before writing code. Yoann needs explicit, easy-to-follow implementation and short explanations in French. Candidate understanding must be verified honestly, never inferred from passing tests. **No track is selected yet.**
+Read [READABLE-CODE.md](READABLE-CODE.md) before writing code. Yoann needs explicit, easy-to-follow implementation and short explanations in French. Candidate understanding must be verified honestly, never inferred from passing tests. **Yoann selected Track 1 — Policy administration on September 8, 2026. Stack and providers are not selected.**
 
 No deadline, shortcut, reviewer or agent may waive these rules. Stop the affected action on a violation. Follow the evidence and incident procedure in `AUTOMATIC-FAILS.md`; report missing checks honestly. Repeat this check after a context reset and pass the mandatory file to every delegate. Local development is allowed; a localhost-only handoff is not.
 

@@ -6,11 +6,11 @@ Read [AUTOMATIC-FAILS.md](AUTOMATIC-FAILS.md) in full before any implementation 
 
 ## Candidate-readable implementation
 
-Read [READABLE-CODE.md](READABLE-CODE.md) before writing or reviewing code. Prefer explicit business logic, descriptive names, visible state transitions, short reading paths and concrete examples. Keep technical test results separate from Yoann's confirmed understanding. **Track selection remains open.**
+Read [READABLE-CODE.md](READABLE-CODE.md) before writing or reviewing code. Prefer explicit business logic, descriptive names, visible state transitions, short reading paths and concrete examples. Keep technical test results separate from Yoann's confirmed understanding. **Selected by Yoann: Track 1 — Policy administration. Stack and providers remain undecided.**
 
 ## Mission and scope
 
-Deliver a working, reviewable solution to the actual Software Engineer (Operations Team) trial within the continuous 48-hour window. The full general brief and all three track briefs were supplied on September 8, 2026. All tracks require an accessible deployment, an owned immutable double-entry ledger, genuinely live sandbox integrations, robust webhooks, backdated corrections, maker-checker, reconciliation, a working MCP surface and a running decision log. Track selection remains open; apply the selected track's additional requirements.
+Deliver a working, reviewable solution to the actual Software Engineer (Operations Team) trial within the continuous 48-hour window. The full general brief and all three track briefs were supplied on September 8, 2026. All tracks require an accessible deployment, an owned immutable double-entry ledger, genuinely live sandbox integrations, robust webhooks, backdated corrections, maker-checker, reconciliation, a working MCP surface and a running decision log. Apply all Track 1 requirements in addition to the general brief.
 
 Read the released brief, repository instructions and provider documentation before choosing an implementation. Record confirmed requirements separately from assumptions. Follow the trial's rules on tooling, AI assistance and submission. Never invent compliance requirements, provider behavior or completed tests.
 
@@ -111,7 +111,7 @@ Prioritize required acceptance criteria and money correctness, then operational 
 
 ## Historical queries and corrections
 
-Preserve effective/value time, recorded/booking time and immutable correction lineage. After track selection, define which historical query answers business-time truth, which answers what was known then, and how published statement revisions remain reproducible alongside corrected views. Record interpretations and unresolved questions explicitly; do not label an assistant's proposed interpretation as Corgi's answer.
+Preserve effective/value time, recorded/booking time and immutable correction lineage. For Track 1, define which historical query answers business-time truth, which answers what was known then, and how published statement revisions remain reproducible alongside corrected views. Record interpretations and unresolved questions explicitly; do not label an assistant's proposed interpretation as Corgi's answer.
 
 ## Reconciliation
 
@@ -134,6 +134,7 @@ Preserve effective/value time, recorded/booking time and immutable correction li
 ## Git hygiene
 
 - Inspect repository conventions before branching. Use one short-lived trial branch unless the submission instructions require another workflow.
+- Record consequential decisions and assumptions in `docs/DECISIONS.md` when they happen. Before each push, verify that it and `docs/STATUS.md` reflect the changes being shared. Commit each coherent verified increment; do not wait for the final checkpoint or invent decisions just to change the log.
 - Keep commits small and coherent, with meaningful descriptions such as `feat: persist webhook inbox before acknowledgment`.
 - Stage explicit files or hunks. Inspect `git diff --cached` and run relevant checks before committing. Keep code, migrations and their tests together.
 - Ignore secrets, `.env` files except examples, local databases, logs, sensitive fixtures and generated clutter. Preserve lockfiles and necessary migrations.
