@@ -28,6 +28,7 @@ import { collectionsStillRefundable, countRefundOperations } from "./cancel";
 import { foldPolicyEvents, refreshPolicyCurrent, type PolicyFold } from "./current";
 import {
   endorsementRequestPayload,
+  endorsementRequestsOfPolicy,
   endorsementRequestStanding,
   readEndorsementRequest,
   type EndorsementRequest,
@@ -158,6 +159,9 @@ export async function planEndorsement(input: EndorsementInputFromForm, database:
       taxRateBps: fold.terms.taxRateBps,
       taxChargedSoFarCents: await premiumTaxStillHeldForPolicy(database, policy.policyId),
       commissionRateBps: policy.commissionRateBps,
+      // The customer-approval threshold counts what this policy has already asked this customer
+      // for and not had answered (review finding F-B4-09).
+      otherUnapprovedRequestedCents: await additionalPremiumAwaitingTheCustomer(database, policy.policyId),
     });
   } catch (error) {
     if (error instanceof EndorsementNotComputable) {
@@ -661,6 +665,23 @@ async function loadPolicy(database: Queryable, policyId: string): Promise<Policy
     customerId: row.customer_id,
     commissionRateBps: row.commission_rate_bps,
   };
+}
+
+// Additional premium this policy has asked the customer for and not had answered: the requests
+// that are still waiting for a yes, none of them applied. A request the customer already
+// approved is money they said yes to and does not make the next one need a second yes.
+async function additionalPremiumAwaitingTheCustomer(database: Queryable, policyId: string): Promise<number> {
+  let total = 0;
+  for (const request of await endorsementRequestsOfPolicy(database, policyId)) {
+    if (request.figures.deltaTotalCents <= 0) {
+      continue; // a reduction gives money back, and the customer is never asked about it
+    }
+    const standing = await endorsementRequestStanding(database, request);
+    if (standing.state === "awaiting_approval") {
+      total += request.figures.deltaTotalCents;
+    }
+  }
+  return total;
 }
 
 // Premium tax charged on this policy and not given back yet: the credit balance of

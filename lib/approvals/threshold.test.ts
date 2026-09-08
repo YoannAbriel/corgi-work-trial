@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   claimPayoutNeedsApproval,
+  customerApprovalNeeded,
   MONEY_OUT_APPROVAL_THRESHOLD_CENTS,
   moneyOutNeedsApproval,
   refundNeedsApproval,
@@ -80,4 +81,15 @@ test("a failed refund counts for nothing: the money came back to us", () => {
 test("an amount that is not whole cents is a programming error on the refund rule too", () => {
   assert.throws(() => refundNeedsApproval({ amountCents: 0, policyRefundedCents: 0, policyPendingRefundCents: 0 }), /positive whole number of cents/);
   assert.throws(() => refundNeedsApproval({ amountCents: 100, policyRefundedCents: -1, policyPendingRefundCents: 0 }), /zero or more/);
+});
+
+test("the customer-approval threshold is cumulative per policy as well (F-B4-09)", () => {
+  const THRESHOLD = 50000; // $500, the value lib/money/endorsement.ts passes in
+  // One raise collecting $400 needs no approval; a second one while the first is still
+  // unapproved does, because together they collect $800 from the customer.
+  assert.equal(customerApprovalNeeded({ amountCents: 40000, unapprovedRequestedCents: 0, thresholdCents: THRESHOLD }), false);
+  assert.equal(customerApprovalNeeded({ amountCents: 40000, unapprovedRequestedCents: 40000, thresholdCents: THRESHOLD }), true);
+  // Exactly $500 is still not above $500.
+  assert.equal(customerApprovalNeeded({ amountCents: 50000, unapprovedRequestedCents: 0, thresholdCents: THRESHOLD }), false);
+  assert.equal(customerApprovalNeeded({ amountCents: 50001, unapprovedRequestedCents: 0, thresholdCents: THRESHOLD }), true);
 });

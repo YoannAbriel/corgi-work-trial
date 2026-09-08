@@ -81,3 +81,27 @@ export function refundNeedsApproval(input: RefundApprovalInput): boolean {
   const policyTotalAfterThisRefund = input.policyRefundedCents + input.policyPendingRefundCents + input.amountCents;
   return policyTotalAfterThisRefund > MONEY_OUT_APPROVAL_THRESHOLD_CENTS;
 }
+
+// THE CUSTOMER-APPROVAL THRESHOLD IS PER POLICY TOO (review finding F-B4-09). An endorsement
+// adding more than $500 of premium needs the customer's explicit yes (DECISIONS.md, 08:04Z), and
+// the same splitting trick works on it: two raises of $400 collect $800 from a customer who was
+// never asked. The base is the additional premium of the requests that are still waiting for
+// this customer, plus this one; an endorsement they already approved is money they already said
+// yes to, and does not make the next one need a second yes.
+//
+// The number itself lives in lib/money/endorsement.ts, next to the function that prices an
+// endorsement, so this file takes it as an argument rather than importing it back.
+export type CustomerApprovalInput = {
+  amountCents: number; // premium plus tax to collect for this endorsement
+  unapprovedRequestedCents: number; // requested, not yet approved, not applied, this one excluded
+  thresholdCents: number;
+};
+
+export function customerApprovalNeeded(input: CustomerApprovalInput): boolean {
+  for (const [name, value] of Object.entries(input)) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error(`${name} must be a whole number of cents, zero or more, got ${value}`);
+    }
+  }
+  return input.amountCents + input.unapprovedRequestedCents > input.thresholdCents;
+}

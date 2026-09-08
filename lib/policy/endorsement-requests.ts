@@ -1,6 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { centsFromDatabase } from "@/lib/money/cents";
+import { customerApprovalNeeded } from "@/lib/approvals/threshold";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS, type EndorsementDirection, type EndorsementFigures } from "@/lib/money/endorsement";
 
 // Reading endorsement requests back from policy_events.
@@ -123,14 +124,41 @@ export async function endorsementRequestStanding(
   };
 }
 
-// Does this request need the customer's explicit yes? Recomputed from the amount on the request
-// rather than read from its own customer_approval_required flag (review finding F-B4-08). The
-// flag is what the quote said when it was written and a payload is not a permission; the gates
-// read this function, so a payload claiming "no approval needed" cannot open the Pay button.
+// Does this request need the customer's explicit yes? Recomputed from the events, never read
+// from the request's own payload (review finding F-B4-08), and cumulative per policy (F-B4-09):
+// the base is the additional premium of the OTHER requests still waiting for this customer, plus
+// this one. Two raises of $400 asked for one after the other collect $800 from a customer who
+// was never asked, unless they are counted together.
 //
 // Only a charge is counted: a reduction gives money back and needs no customer approval.
-async function customerApprovalIsRequired(_database: Queryable, request: EndorsementRequest): Promise<boolean> {
-  return request.figures.deltaTotalCents > CUSTOMER_APPROVAL_THRESHOLD_CENTS;
+async function customerApprovalIsRequired(database: Queryable, request: EndorsementRequest): Promise<boolean> {
+  if (request.figures.deltaTotalCents <= 0) {
+    return false;
+  }
+  const others = await endorsementRequestsOfPolicy(database, request.policyId);
+  const approvedRequestEventIds = await approvedOrAppliedRequestEventIds(database, request.policyId);
+  const stillWaitingCents = others
+    .filter((other) => other.eventId !== request.eventId)
+    .filter((other) => other.figures.deltaTotalCents > 0)
+    .filter((other) => !approvedRequestEventIds.has(other.eventId))
+    .reduce((total, other) => total + other.figures.deltaTotalCents, 0);
+  return customerApprovalNeeded({
+    amountCents: request.figures.deltaTotalCents,
+    unapprovedRequestedCents: stillWaitingCents,
+    thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
+  });
+}
+
+// The requests this customer has already said yes to, or that are already in force. Money they
+// agreed to does not make the next endorsement need a second yes.
+async function approvedOrAppliedRequestEventIds(database: Queryable, policyId: string): Promise<Set<string>> {
+  const rows = await database<{ request_event_id: string | null }[]>`
+    select payload ->> 'request_event_id' as request_event_id
+      from policy_events
+     where policy_id = ${policyId}
+       and event_type in ('endorsement_approved', 'endorsed')
+  `;
+  return new Set(rows.map((row) => row.request_event_id).filter((id): id is string => id !== null));
 }
 
 // The request the policy page acts on: the latest one that is neither applied nor superseded.
