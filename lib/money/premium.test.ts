@@ -13,7 +13,7 @@ import {
 // The shared worked example: $1,200 written premium, cancelled on day 100.
 const WRITTEN = 120000;
 
-test("earned and unearned premium on a 366-day term, day 100 (the recited example)", () => {
+test("earned and unearned premium on a 366-day term, day 100 (January 1 policy)", () => {
   // 2028-01-01 to 2029-01-01 contains February 29, 2028: 366 days. Day 100 is 2028-04-10.
   // 120000 x 100 / 366 = 32786.885... earned, rounded down; the customer keeps the fraction.
   assert.equal(earnedPremiumCents(WRITTEN, "2028-01-01", "2029-01-01", "2028-04-10"), 32786);
