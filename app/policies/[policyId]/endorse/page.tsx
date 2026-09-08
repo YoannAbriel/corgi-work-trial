@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd, parseUsdAmountToCents } from "@/lib/money/cents";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
 import { EndorsementRefused, planEndorsement } from "@/lib/policy/endorse";
 import { FormulaLinesTable } from "../formula-lines";
+import { isUuid } from "@/lib/http/path-ids";
 
 // The impact preview, and the point of this slice: the broker sees exactly what the endorsement
 // will do to the money BEFORE anything is recorded, line by line with the formula behind each
@@ -35,6 +36,7 @@ export default async function EndorsePolicyPage({
     redirect("/login");
   }
   const [{ policyId }, query] = await Promise.all([params, searchParams]);
+  if (!isUuid(policyId)) notFound(); // a malformed id is an unknown page, not a 500 (F-B7-07)
 
   let plan;
   try {

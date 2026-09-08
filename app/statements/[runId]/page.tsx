@@ -4,6 +4,7 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { commissionPayableMovementCents } from "@/lib/statements/journal";
+import { isUuid } from "@/lib/http/path-ids";
 import {
   changesAgainstPrevious,
   statementRun,
@@ -45,6 +46,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
     redirect("/login");
   }
   const { runId } = await params;
+  if (!isUuid(runId)) notFound(); // a malformed id is an unknown page, not a 500 (F-B7-07)
   // A malformed id is a wrong address, not a server error: it must not reach the uuid column.
   if (!UUID.test(runId)) {
     notFound();
