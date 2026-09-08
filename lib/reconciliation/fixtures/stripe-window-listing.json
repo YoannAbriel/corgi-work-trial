@@ -1,0 +1,68 @@
+{
+  "captured_on": "2026-09-08",
+  "note": "Sanitized listing captured from the Stripe test-mode sandbox (whitelisted fields only, no client secrets, no card or billing details). The PaymentIntent is the real test-card payment of demo policy CGP-01062 and the Refund is its real cancellation refund; both exist in the Stripe dashboard. Used by lib/reconciliation/stripe-records.test.ts and scripts/check-reconciliation.ts.",
+  "paymentIntents": [
+    {
+      "id": "pi_3UDM4KK6R3v50tIy0F5xaBbu",
+      "object": "payment_intent",
+      "status": "succeeded",
+      "amount": 355684,
+      "amount_received": 355684,
+      "currency": "usd",
+      "created": 1788862560,
+      "livemode": false,
+      "metadata": {
+        "operation_id": "ddede650-8ff4-427a-8d02-31dc45acf10e",
+        "policy_id": "31509261-4bfd-4c0c-8e16-55ff03eff1b7"
+      },
+      "latest_charge": "ch_3UDM4KK6R3v50tIy0E0dwpR9"
+    }
+  ],
+  "refunds": [
+    {
+      "id": "re_3UDM4KK6R3v50tIy0scSGaps",
+      "object": "refund",
+      "status": "succeeded",
+      "amount": 324156,
+      "currency": "usd",
+      "created": 1788865092,
+      "metadata": {
+        "operation_id": "4bb39f3e-fe37-4cb4-9cd0-b8ac42ed34b1",
+        "policy_id": "31509261-4bfd-4c0c-8e16-55ff03eff1b7"
+      },
+      "payment_intent": "pi_3UDM4KK6R3v50tIy0F5xaBbu",
+      "charge": "ch_3UDM4KK6R3v50tIy0E0dwpR9",
+      "reason": null
+    }
+  ],
+  "balanceTransactions": [
+    {
+      "id": "txn_3UDM4KK6R3v50tIy0iP4lP8T",
+      "object": "balance_transaction",
+      "type": "refund",
+      "amount": -324156,
+      "fee": 0,
+      "net": -324156,
+      "currency": "usd",
+      "created": 1788865092,
+      "available_on": 1789430400,
+      "status": "pending",
+      "source": "re_3UDM4KK6R3v50tIy0scSGaps",
+      "description": "REFUND FOR CHARGE"
+    },
+    {
+      "id": "txn_3UDM4KK6R3v50tIy0m4oeRNj",
+      "object": "balance_transaction",
+      "type": "charge",
+      "amount": 355684,
+      "fee": 10345,
+      "net": 345339,
+      "currency": "usd",
+      "created": 1788862561,
+      "available_on": 1789430400,
+      "status": "pending",
+      "source": "ch_3UDM4KK6R3v50tIy0E0dwpR9",
+      "description": null
+    }
+  ]
+}

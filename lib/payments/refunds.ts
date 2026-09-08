@@ -8,6 +8,7 @@ import { refundCompletedEntries } from "@/lib/ledger/cancellation-entries";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { refundIdempotencyKey } from "@/lib/money/idempotency";
+import { refundStateFromEvents, type RefundState } from "./refund-state";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
 
 // Everything Stripe-facing about a refund: asking for it, recovering from a lost answer,
@@ -549,27 +550,10 @@ export type RefundOperation = {
   lastFailureStage: "create_refund" | "refund_lifecycle" | null;
 };
 
-// Where a refund stands, read from its append-only events.
-//
-// Not "the latest event wins": the answer from our own API call and the webhook describing the
-// same refund can be stored in either order, and a 'provider_accepted' appended a moment after
-// 'succeeded' must not make a completed refund look pending. Precedence instead, from the most
-// final state backwards. A failed refund that is re-issued becomes a NEW operation, so no
-// operation ever has to go back from 'succeeded' to anything else.
-export type RefundState = "requested" | "accepted" | "completed" | "failed";
-
-export function refundStateFromEvents(statuses: string[]): RefundState {
-  if (statuses.includes("succeeded")) {
-    return "completed";
-  }
-  if (statuses.includes("failed")) {
-    return "failed";
-  }
-  if (statuses.includes("provider_accepted")) {
-    return "accepted";
-  }
-  return "requested";
-}
+// The refund state rule moved to lib/payments/refund-state.ts, a file with no imports, so that
+// the reconciliation job can read it without loading this module's database pool and Stripe
+// client. Re-exported here because every existing caller imports it from this file.
+export { refundStateFromEvents, type RefundState } from "./refund-state";
 
 // Exported so the send action and the recovery job can read an operation without duplicating
 // the join between the operation, its allocation, its policy and its lifecycle.
