@@ -14,7 +14,7 @@ falls inside its window, so a break older than the seven-day default was compare
 the open list on its own and was filed under "breaks that went away". The screen answered "is this
 break in the latest run" when an operator asks "is this break explained".
 
-Migration 0016 stores the DATE OF THE COMPARED RECORD on each item: the provider's created time,
+Migration 0017 stores the DATE OF THE COMPARED RECORD on each item: the provider's created time,
 or the money operation's creation time when there is no provider record. A break is now resolved
 only by a later COMPLETE run OF THE SAME SOURCE whose window CONTAINS that date and which reports
 it as matched or not at all. A break nobody re-examined stays open with its age. The daily job
@@ -25,7 +25,7 @@ such a break needs a staff run with an explicit window on the screen.
 
 The column is nullable on purpose: `reconciliation_items` is a protected append-only table, so a
 migration may add a column but must never write a value into rows that already exist. Items
-written before 0016 use their first-seen instant instead, which is inside the window of the run
+written before 0017 use their first-seen instant instead, which is inside the window of the run
 that reported them, so one rule covers old and new items.
 
 **F-B10-02 (MEDIUM), the age reset when a break changed classification.** Two things left the key.
@@ -280,12 +280,12 @@ previous builder of this slice had applied the identical file to `corgi_test` at
 columns in the database match the file exactly (checked column by column). The trial database has
 NOT been migrated from this worktree.
 
-One thing to know about migration 0016. It was written and applied to `corgi_test` as 0013, and
+One thing to know about migration 0017 (named 0016 when this note was written). It was written and applied to `corgi_test` as 0013, and
 main then merged its own `0013_low_findings.sql`; two files sharing a number is what finding
 F-B3-09 caught once already, so it was renumbered to the next free slot. The runner applies a file
 once per NAME, so `corgi_test` has both names in `schema_migrations` and the column exists once;
 `add column if not exists` is what makes the second name a no-op there. On the trial database only
-0016 will ever be applied, as an ordinary creation.
+0017 will ever be applied, as an ordinary creation.
 
 ## What is not verified here
 

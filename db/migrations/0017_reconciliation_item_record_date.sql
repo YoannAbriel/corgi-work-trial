@@ -1,9 +1,9 @@
--- 0016: a reconciliation item remembers the DATE OF THE RECORD it is about (review F-B10-01).
+-- 0017: a reconciliation item remembers the DATE OF THE RECORD it is about (review F-B10-01).
 --
 -- Strictly additive: one nullable column on reconciliation_items. No row is written, no existing
 -- value changes, no constraint is dropped. Nothing from 0001 to 0015 is touched.
 --
--- WHY IT IS 0016 AND WHY IT IS IDEMPOTENT. It was written as 0013 and applied under that name to
+-- WHY IT IS 0017 AND WHY IT IS IDEMPOTENT. It was written as 0013, renumbered 0016 by its author, then 0017 by the coordinator (0016 is the statement format version), and applied under the first name to
 -- the disposable database corgi_test before the slice-B9 follow-ups merged their own 0013 into
 -- main. Two files sharing a number is the situation review finding F-B3-09 already caught once,
 -- so this one was renumbered to the next free slot rather than left to collide. The runner applies

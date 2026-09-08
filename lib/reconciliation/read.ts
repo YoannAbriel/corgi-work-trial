@@ -121,7 +121,7 @@ export type ReconciliationBreakRow = {
 // the oldest open break, so the ordinary case resolves itself (lib/reconciliation/run.ts,
 // windowCoveringOpenBreaks).
 //
-// record_at is null on items written before migration 0016. Their first-seen instant stands in
+// record_at is null on items written before migration 0017. Their first-seen instant stands in
 // for it: that is when we first saw the record, and it is by construction inside the window of
 // the run that reported it, so one rule covers old and new items alike.
 //
@@ -201,7 +201,19 @@ export async function resolvedBreaks(database: postgres.Sql, limit: number): Pro
      order by last_reported_at desc
      limit ${limit}
   `;
-  return rows.map(toBreakRow);
+  // Items written before the break key changed shape (review finding F-B10-02) are stored under
+  // the old key and can never be rewritten. Without this filter such a break shows twice: open
+  // under its new key with a fresh age, and "went away" under its old key (review finding
+  // F-B10-11). The reference is the same money in both rows, so a reference that is still open
+  // is not resolved, whatever key an earlier run filed it under. Decided in the read, not by
+  // touching the stored rows.
+  const open = await openBreaks(database);
+  const stillOpen = new Set(
+    open.flatMap((row) => [row.providerRef, row.ledgerRef].filter((ref): ref is string => ref !== null).map((ref) => `${row.source}|${ref}`)),
+  );
+  return rows
+    .map(toBreakRow)
+    .filter((row) => ![row.providerRef, row.ledgerRef].some((ref) => ref !== null && stillOpen.has(`${row.source}|${ref}`)));
 }
 
 // The oldest record date among the open breaks of EVERY source, or null when nothing is open. The
