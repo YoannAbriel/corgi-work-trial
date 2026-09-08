@@ -567,7 +567,9 @@ export async function approveEndorsement(input: ApprovalInput, database: postgre
   }
 
   const { request, standing } = await requireLiveRequest(database, input.policyId, input.requestEventId, input.quoteHash);
-  if (!request.figures.customerApprovalRequired) {
+  // Read from the standing, which recomputes it from the events, never from the request's own
+  // payload flag (review finding F-B4-08).
+  if (!standing.approvalRequired) {
     throw new EndorsementRefused("this endorsement is at or below the $500 threshold and needs no customer approval");
   }
   if (standing.approvedEventId) {

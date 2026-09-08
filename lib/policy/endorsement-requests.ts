@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { centsFromDatabase } from "@/lib/money/cents";
-import type { EndorsementDirection, EndorsementFigures } from "@/lib/money/endorsement";
+import { CUSTOMER_APPROVAL_THRESHOLD_CENTS, type EndorsementDirection, type EndorsementFigures } from "@/lib/money/endorsement";
 
 // Reading endorsement requests back from policy_events.
 //
@@ -41,6 +41,11 @@ export type EndorsementRequestState = "superseded" | "awaiting_approval" | "appr
 
 export type EndorsementRequestStanding = {
   state: EndorsementRequestState;
+  // Whether THIS request needs the customer's yes, recomputed here from the amount on the
+  // request rather than read from the payload's customer_approval_required flag (review finding
+  // F-B4-08). The flag is what the quote said when it was written and is fine to print; the
+  // gates read this one, so a payload that said "no approval needed" cannot open the Pay button.
+  approvalRequired: boolean;
   approvedEventId: string | null;
   approvedBy: string | null;
   approvedAt: Date | null;
@@ -94,12 +99,14 @@ export async function endorsementRequestStanding(
   // policy version, a cancellation ends the policy, a correction changes its history.
   const supersededBy = later.find((event) => event !== approval && event !== application);
 
+  const approvalRequired = await customerApprovalIsRequired(database, request);
+
   let state: EndorsementRequestState;
   if (application) {
     state = "applied";
   } else if (supersededBy) {
     state = "superseded";
-  } else if (request.figures.customerApprovalRequired && !approval) {
+  } else if (approvalRequired && !approval) {
     state = "awaiting_approval";
   } else {
     state = "approved";
@@ -107,12 +114,23 @@ export async function endorsementRequestStanding(
 
   return {
     state,
+    approvalRequired,
     approvedEventId: approval?.id ?? null,
     approvedBy: approval?.created_by ?? null,
     approvedAt: approval?.recorded_at ?? null,
     endorsedEventId: application?.id ?? null,
     supersededByEventType: state === "superseded" ? (supersededBy?.event_type ?? null) : null,
   };
+}
+
+// Does this request need the customer's explicit yes? Recomputed from the amount on the request
+// rather than read from its own customer_approval_required flag (review finding F-B4-08). The
+// flag is what the quote said when it was written and a payload is not a permission; the gates
+// read this function, so a payload claiming "no approval needed" cannot open the Pay button.
+//
+// Only a charge is counted: a reduction gives money back and needs no customer approval.
+async function customerApprovalIsRequired(_database: Queryable, request: EndorsementRequest): Promise<boolean> {
+  return request.figures.deltaTotalCents > CUSTOMER_APPROVAL_THRESHOLD_CENTS;
 }
 
 // The request the policy page acts on: the latest one that is neither applied nor superseded.

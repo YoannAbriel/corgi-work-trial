@@ -73,7 +73,7 @@ export default async function ApproveEndorsementPage({
           Approved on {standing.approvedAt?.toISOString().replace("T", " ").slice(0, 19)} UTC. The delta is collected by
           your broker.
         </p>
-      ) : !figures.customerApprovalRequired ? (
+      ) : !standing.approvalRequired ? (
         <p className="note">
           This endorsement is at or below {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} and needs no approval.
         </p>
