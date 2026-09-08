@@ -43,9 +43,9 @@ export const STRIPE_CONNECT_PROVIDER = "stripe_connect";
 // clocks, on purpose:
 //   * lib/kyb/eligibility.ts measures it from Stripe's own `created` timestamp when it maps a
 //     freshly read account, so a read taken seconds after creation reports pending;
-//   * this function measures it from our own submission row when it reports a status that is
-//     already recorded, so an approval that somehow reached the table too early is still not
-//     acted on.
+//   * this function measures it from our own submission row to the moment of the reading, so an
+//     approval that somehow reached the table too early is still not acted on until the window
+//     has passed.
 export const KYB_SETTLING_WINDOW_SECONDS = 120;
 
 export type RecordedKybEvent = {
@@ -65,8 +65,15 @@ export type ReportedKybStatus = {
 // submission that produced the account it talks about.
 //
 // The rule, in one sentence: report what the latest event says, unless it is a Stripe Connect
-// approval recorded less than the settling window after the broker submitted, in which case
-// report pending.
+// approval and less than the settling window has passed since the broker submitted, in which
+// case report pending.
+//
+// THE HOLD IS MEASURED AGAINST `now`, NOT AGAINST THE INSTANT THE APPROVAL WAS RECORDED (review
+// finding F-B3-04). Yoann's rule is "held at pending for at least two minutes after the broker
+// submits", and reading it from the recorded row said something else: an approval that landed
+// inside the window (a few seconds of skew between Stripe's clock and ours is enough) was held
+// for ever, a re-read appended nothing because the status had not changed, and a resubmission
+// was refused as already verified. Time-relative, the hold ends by itself.
 //
 // Everything else passes through unchanged, and deliberately so:
 //   * a 'failed' or 'pending' row is reported as it is; the window never makes a status worse
@@ -76,9 +83,13 @@ export type ReportedKybStatus = {
 //   * a Stripe approval with no submission on file has nothing to be measured against, so it
 //     is reported as recorded. That state cannot be reached by this build, where a submission
 //     is always committed before the account exists.
+//
+// `now` is an argument rather than a call to the clock, so the function stays pure and every
+// case below can be written as a pair of instants in the tests.
 export function reportedKybStatus(
   latestEvent: RecordedKybEvent | null,
   submissionRecordedAt: Date | null,
+  now: Date,
 ): ReportedKybStatus {
   if (!latestEvent) {
     return { status: "unknown", heldBySettlingWindow: false };
@@ -88,15 +99,20 @@ export function reportedKybStatus(
   if (!isStripeApproval || !submissionRecordedAt) {
     return { status: latestEvent.status, heldBySettlingWindow: false };
   }
-  if (secondsBetween(submissionRecordedAt, latestEvent.recordedAt) < KYB_SETTLING_WINDOW_SECONDS) {
+  if (secondsBetween(submissionRecordedAt, now) < KYB_SETTLING_WINDOW_SECONDS) {
+    return { status: "pending", heldBySettlingWindow: true };
+  }
+  // An approval recorded BEFORE the submission it is measured against describes the connected
+  // account of an earlier submission, so it is not evidence about this one and no amount of
+  // waiting makes it so. The new submission writes its own status row, which then takes over as
+  // the latest event, so nothing is stuck: this only decides what to say in between.
+  if (latestEvent.recordedAt < submissionRecordedAt) {
     return { status: "pending", heldBySettlingWindow: true };
   }
   return { status: "approved", heldBySettlingWindow: false };
 }
 
-// Whole seconds between two instants. A submission recorded after the event it is compared
-// with (which would mean the broker submitted again) gives a negative number, which is below
-// the window and therefore holds the older approval: the safe direction again.
+// Whole seconds between two instants.
 function secondsBetween(from: Date, to: Date): number {
   return Math.floor((to.getTime() - from.getTime()) / 1000);
 }

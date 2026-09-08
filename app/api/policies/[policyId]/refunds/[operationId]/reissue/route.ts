@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 import { reissueRefund, RefundReissueRefused, RefundSendRefused } from "@/lib/payments/refunds";
 
 // POST /api/policies/{policyId}/refunds/{operationId}/reissue
@@ -20,6 +21,10 @@ export async function POST(
   const { policyId, operationId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ policy: policyId, refund: operationId });
+  if (malformedId) {
+    return malformedId;
   }
   if (user.role !== "staff_ops") {
     return backToPolicy(policyId, "only staff operations can re-issue a failed refund");

@@ -1,5 +1,6 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { decideApprovalRequest, ApprovalRefused } from "@/lib/approvals/approvals";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 
 // POST /api/approvals/{requestId}: a checker approves or rejects one money-out request.
 //
@@ -17,6 +18,10 @@ export async function POST(request: Request, context: { params: Promise<{ reques
   const { requestId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ "approval request": requestId });
+  if (malformedId) {
+    return malformedId;
   }
 
   const form = await request.formData();

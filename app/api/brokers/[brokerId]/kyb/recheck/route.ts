@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { badPathIdResponse } from "@/lib/http/path-ids";
 import { brokerKybState } from "@/lib/broker/kyb";
 import { refreshBrokerKybFromStripe } from "@/lib/broker/kyb-onboarding";
 
@@ -21,6 +22,10 @@ export async function POST(request: Request, context: { params: Promise<{ broker
   const { brokerId } = await context.params;
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
+  }
+  const malformedId = badPathIdResponse({ broker: brokerId });
+  if (malformedId) {
+    return malformedId;
   }
 
   const isOwningBroker = user.role === "broker" && user.brokerId === brokerId;

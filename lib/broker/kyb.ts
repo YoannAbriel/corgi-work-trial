@@ -66,7 +66,9 @@ export async function brokerKybState(brokerId: string, database: postgres.Sql = 
   // recorded. A submission made afterwards belongs to a later verification and must not be
   // used to judge this one.
   const submission = await latestSubmissionRecordedBy(brokerId, latestEvent.recordedAt, database);
-  const reported = reportedKybStatus(latestEvent, submission?.recordedAt ?? null);
+  // The settling window is counted from the submission to this reading, so it ends by itself
+  // (review finding F-B3-04). This is the only place the clock is read; the rule stays pure.
+  const reported = reportedKybStatus(latestEvent, submission?.recordedAt ?? null, new Date());
 
   return {
     status: reported.status,
@@ -103,7 +105,7 @@ export type BrokerKybEvent = {
 
 export async function latestBrokerKybEvent(
   brokerId: string,
-  database: postgres.Sql = sql,
+  database: Queryable = sql,
 ): Promise<BrokerKybEvent | null> {
   const [row] = await database<KybEventRow[]>`
     select id, status, provider, provider_ref, payload, recorded_at, created_by
@@ -240,7 +242,7 @@ export type NewBrokerKybSubmission = Omit<BrokerKybSubmission, "id" | "recordedA
 // during the provider call leaves the declaration and the terms acceptance on file.
 export async function insertBrokerKybSubmission(
   submission: NewBrokerKybSubmission,
-  database: postgres.Sql = sql,
+  database: Queryable = sql,
 ): Promise<{ submissionId: string; recordedAt: Date }> {
   const [row] = await database<{ id: string; recorded_at: Date }[]>`
     insert into broker_kyb_submissions (
@@ -280,12 +282,40 @@ export async function latestBrokerKybSubmission(
 // makes the idempotency key of the next submission unique and derived rather than random.
 export async function countBrokerKybSubmissions(
   brokerId: string,
-  database: postgres.Sql = sql,
+  database: Queryable = sql,
 ): Promise<number> {
   const [row] = await database<{ count: string }[]>`
     select count(*)::text as count from broker_kyb_submissions where broker_id = ${brokerId}
   `;
   return Number(row.count);
+}
+
+// The broker's most recent submission if it is still waiting for its answer from Stripe: no
+// status row carries its id, and it is younger than the window given.
+//
+// Both events written by submitBrokerKyb, the failure and the account it created, carry
+// `submission_id` in their payload, so a submission stops being "in flight" as soon as either is
+// appended. A submission whose process died before that ages out of the window instead of
+// blocking the broker for ever (review finding F-B3-05).
+export async function submissionAwaitingProviderAnswer(
+  brokerId: string,
+  withinLastMinutes: number,
+  database: Queryable = sql,
+): Promise<{ submissionId: string; recordedAt: Date } | null> {
+  const [row] = await database<{ id: string; recorded_at: Date }[]>`
+    select submission.id, submission.recorded_at
+      from broker_kyb_submissions submission
+     where submission.broker_id = ${brokerId}
+       and submission.recorded_at > now() - ${`${withinLastMinutes} minutes`}::interval
+       and not exists (
+             select 1 from broker_kyb_events event
+              where event.broker_id = submission.broker_id
+                and event.payload ->> 'submission_id' = submission.id::text
+           )
+     order by submission.sequence_number desc
+     limit 1
+  `;
+  return row ? { submissionId: row.id, recordedAt: row.recorded_at } : null;
 }
 
 async function latestSubmissionRecordedBy(

@@ -6,6 +6,7 @@ import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { issuanceAndCollectionEntries, unappliedCashReceivedEntry, type CollectedFrom } from "@/lib/ledger/policy-entries";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { foldPolicyEvents, refreshPolicyCurrent } from "@/lib/policy/current";
+import { policyWasVoided } from "@/lib/policy/status";
 import { policyTermsToPayload } from "@/lib/policy/terms";
 
 // What happens when Stripe says the customer paid. This is the only place in the application
@@ -247,10 +248,22 @@ function violatedConstraintName(error: unknown): string | null {
 // 'correction_reversal' policy event superseding the issuance they produced. The policy event
 // is what carries the reason, and it is also what catches a payment made on a LATER attempt,
 // whose own entries were never reversed because they were never committed.
+//
+// A reversal only counts while nothing has re-booked the policy, which is the same reading the
+// policy's own status uses (policyWasVoided in lib/policy/status.ts). Slice B8 corrects a policy
+// by reversing it and re-booking it, and after that the money IS in the ledger again: a late
+// duplicate of the original payment is then an ordinary replay and must read as already posted
+// rather than be refused (review finding F-B2-18). Asking the fold rather than repeating its
+// rule here is what keeps the two answers from drifting apart.
 async function correctionThatReversedOperation(
   database: postgres.Sql,
   operation: CheckoutOperation,
 ): Promise<{ correctionEventId: string; reason: string } | null> {
+  const { eventTypes } = await foldPolicyEvents(database, operation.policyId);
+  if (!policyWasVoided(eventTypes)) {
+    return null;
+  }
+
   const [correction] = await database<{ id: string; reason: string | null }[]>`
     select reversal.id, reversal.payload ->> 'reason' as reason
       from policy_events reversal
@@ -342,10 +355,18 @@ async function recordPaymentWithoutBinding(
 
 // Appends the 'succeeded' status of an operation, and only the first time.
 //
-// The guard is inside the statement rather than a read followed by a write, so two deliveries
-// of the same payment cannot both decide that the status is missing. It matters on the refused
-// path: there the posting transaction's unique index is not what stops a replay, since nothing
-// is posted, so this statement is the whole protection against a second identical status row.
+// Two things stop a second row, and the second one is what makes it a fact:
+//
+//   * `where not exists` handles the ordinary case, a delivery arriving after another one
+//     finished: it reads the history in the same statement rather than in an earlier query.
+//   * `on conflict ... do nothing` handles the race that guard cannot see, two deliveries of the
+//     same payment in flight at the same moment: neither of them sees the other's uncommitted
+//     row, so both pass the sub-select and the partial unique index of migration 0013 refuses
+//     the loser. Doing nothing is the right answer, because the row it wanted is already there
+//     (review finding F-B2-19).
+//
+// It matters on the refused path (rule 14): there nothing is posted, so the journal's unique key
+// is not what stops a replay, and this statement is the whole protection.
 async function appendSucceededEventOnce(
   transaction: postgres.TransactionSql,
   payment: SuccessfulPayment,
@@ -358,6 +379,7 @@ async function appendSucceededEventOnce(
        select 1 from money_operation_events
         where operation_id = ${payment.operationId} and status = 'succeeded'
      )
+    on conflict (operation_id) where status = 'succeeded' do nothing
   `;
 }
 

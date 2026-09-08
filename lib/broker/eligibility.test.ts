@@ -31,13 +31,14 @@ test("the settling window is the decided two minutes", () => {
   assert.equal(KYB_SETTLING_WINDOW_SECONDS, 120);
 });
 
-test("a Stripe approval recorded inside the settling window is reported as pending", () => {
+test("a Stripe approval is reported as pending while the window since the submission runs", () => {
   // Stripe's identity check lands 45 to 50 seconds after the account is created. An approval
-  // recorded at 90 seconds is therefore an answer we cannot yet distinguish from "no answer
-  // has come back", so it is not acted on (Yoann's decision, DECISIONS.md 11:14Z).
+  // read at 90 seconds is therefore an answer we cannot yet distinguish from "no answer has
+  // come back", so it is not acted on (Yoann's decision, DECISIONS.md 11:14Z).
   const reported = reportedKybStatus(
     { status: "approved", provider: "stripe_connect", recordedAt: secondsAfterSubmission(90) },
     SUBMITTED_AT,
+    secondsAfterSubmission(90),
   );
   assert.equal(reported.status, "pending");
   assert.equal(reported.heldBySettlingWindow, true);
@@ -46,20 +47,34 @@ test("a Stripe approval recorded inside the settling window is reported as pendi
 
 test("the very last second of the window still holds the approval", () => {
   const reported = reportedKybStatus(
-    { status: "approved", provider: "stripe_connect", recordedAt: secondsAfterSubmission(119) },
+    { status: "approved", provider: "stripe_connect", recordedAt: secondsAfterSubmission(50) },
     SUBMITTED_AT,
+    secondsAfterSubmission(119),
   );
   assert.equal(reported.status, "pending");
 });
 
-test("a Stripe approval recorded after the settling window is reported as approved", () => {
+test("once two minutes have passed since the submission, the approval is reported", () => {
   const reported = reportedKybStatus(
-    { status: "approved", provider: "stripe_connect", recordedAt: secondsAfterSubmission(120) },
+    { status: "approved", provider: "stripe_connect", recordedAt: secondsAfterSubmission(50) },
     SUBMITTED_AT,
+    secondsAfterSubmission(120),
   );
   assert.equal(reported.status, "approved");
   assert.equal(reported.heldBySettlingWindow, false);
   assert.equal(bindingIsAllowed(reported.status), true);
+});
+
+test("an approval recorded INSIDE the window is released once the window has passed", () => {
+  // The corner the review found (F-B3-04): a few seconds of skew between Stripe's clock and
+  // ours put the approval inside the window, and the old rule then held it for ever, with a
+  // re-read appending nothing and a resubmission refused as already verified. Held at 90
+  // seconds, approved at 130: the hold ends by itself.
+  const skewed = { status: "approved" as const, provider: "stripe_connect", recordedAt: secondsAfterSubmission(3) };
+  assert.equal(reportedKybStatus(skewed, SUBMITTED_AT, secondsAfterSubmission(90)).status, "pending");
+  const released = reportedKybStatus(skewed, SUBMITTED_AT, secondsAfterSubmission(130));
+  assert.equal(released.status, "approved");
+  assert.equal(released.heldBySettlingWindow, false);
 });
 
 test("the window never makes a status worse: a failure inside it stays a failure", () => {
@@ -68,6 +83,7 @@ test("the window never makes a status worse: a failure inside it stays a failure
   const reported = reportedKybStatus(
     { status: "failed", provider: "stripe_connect", recordedAt: secondsAfterSubmission(40) },
     SUBMITTED_AT,
+    secondsAfterSubmission(40),
   );
   assert.equal(reported.status, "failed");
   assert.equal(reported.heldBySettlingWindow, false);
@@ -77,6 +93,7 @@ test("a pending recorded inside the window is simply pending", () => {
   const reported = reportedKybStatus(
     { status: "pending", provider: "stripe_connect", recordedAt: secondsAfterSubmission(1) },
     SUBMITTED_AT,
+    secondsAfterSubmission(1),
   );
   assert.equal(reported.status, "pending");
   assert.equal(reported.heldBySettlingWindow, false);
@@ -89,6 +106,7 @@ test("the window applies to Stripe Connect statuses only, not to the seeded plac
   const reported = reportedKybStatus(
     { status: "approved", provider: "seed", recordedAt: secondsAfterSubmission(1) },
     SUBMITTED_AT,
+    secondsAfterSubmission(1),
   );
   assert.equal(reported.status, "approved");
   assert.equal(reported.heldBySettlingWindow, false);
@@ -100,26 +118,30 @@ test("a Stripe approval with no submission on file is reported as recorded", () 
   const reported = reportedKybStatus(
     { status: "approved", provider: "stripe_connect", recordedAt: secondsAfterSubmission(10) },
     null,
+    secondsAfterSubmission(10),
   );
   assert.equal(reported.status, "approved");
 });
 
 test("no event at all is unknown, which blocks binding", () => {
-  const reported = reportedKybStatus(null, SUBMITTED_AT);
+  const reported = reportedKybStatus(null, SUBMITTED_AT, secondsAfterSubmission(0));
   assert.equal(reported.status, "unknown");
   assert.equal(bindingIsAllowed(reported.status), false);
 });
 
 test("a submission newer than the approval holds it, because it belongs to another account", () => {
   // The broker submitted again: the approval on file describes the previous connected account,
-  // so it is not evidence about the new one. Negative elapsed time is below the window, which
-  // is the safe answer rather than an accident.
-  const reported = reportedKybStatus(
-    { status: "approved", provider: "stripe_connect", recordedAt: secondsAfterSubmission(-600) },
-    SUBMITTED_AT,
-  );
-  assert.equal(reported.status, "pending");
-  assert.equal(reported.heldBySettlingWindow, true);
+  // so it is not evidence about the new one, and time does not change that. The new submission
+  // writes its own status row, which then becomes the latest event.
+  const approvalOfThePreviousAccount = {
+    status: "approved" as const,
+    provider: "stripe_connect",
+    recordedAt: secondsAfterSubmission(-600),
+  };
+  assert.equal(reportedKybStatus(approvalOfThePreviousAccount, SUBMITTED_AT, secondsAfterSubmission(10)).status, "pending");
+  const longAfter = reportedKybStatus(approvalOfThePreviousAccount, SUBMITTED_AT, secondsAfterSubmission(6000));
+  assert.equal(longAfter.status, "pending");
+  assert.equal(longAfter.heldBySettlingWindow, true);
 });
 
 // ---------------------------------------------------------------------------------------

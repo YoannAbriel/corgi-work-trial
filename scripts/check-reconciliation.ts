@@ -90,7 +90,7 @@ async function main() {
   // read first.
   const { recordSuccessfulPayment } = await import("@/lib/payments/collection");
   const { recordCancellation } = await import("@/lib/policy/cancel");
-  const { openClaim, setClaimReserve, todayUtc } = await import("@/lib/claims/claims");
+  const { openClaim, setClaimReserve, todayUtc, SCHEDULED_JOB } = await import("@/lib/claims/claims");
   const { addClaimantBankAccount, requestClaimPayment, sendClaimPayment, settleClaimPayment } = await import(
     "@/lib/claims/payments"
   );
@@ -312,6 +312,7 @@ async function main() {
       policyId: p2.policyId,
       occurredAt: "2028-05-01",
       reportedAt: "2028-05-02",
+      openedOn: "2028-05-02", // the claim is opened on the day the loss is reported
       description: "water damage in the workshop",
       claimantName: CLAIMANT_NAME,
       actor: maker,
@@ -341,7 +342,7 @@ async function main() {
 
   // R1: sent and settled through the production functions. Both sides agree.
   const settledPayment = await payOnTheRail(SETTLED_PAYMENT_CENTS);
-  await settleClaimPayment({ operationId: settledPayment.operationId, settledOn: todayUtc(), broughtForwardBy: null }, runtime);
+  await settleClaimPayment({ operationId: settledPayment.operationId, settledOn: todayUtc(), settledBy: SCHEDULED_JOB }, runtime);
 
   // R2: THE PLANTED PAYOUT MISMATCH. A transfer that exists at the rail and nowhere else. It is
   // written straight into the rail's own table, as the owner, because that table is the
@@ -410,7 +411,7 @@ async function main() {
 
   // The fix is the real thing, not an edit: the settlement job books the settlement, exactly as
   // it would in production. Nothing about the earlier break is deleted or updated.
-  await settleClaimPayment({ operationId: inFlightPayment.operationId, settledOn: todayUtc(), broughtForwardBy: null }, runtime);
+  await settleClaimPayment({ operationId: inFlightPayment.operationId, settledOn: todayUtc(), settledBy: SCHEDULED_JOB }, runtime);
   const afterTheFixRun = await runReconciliation(
     { source: claimsRailSourceOn(runtime), window, runByUserId: maker.userId, now: laterThanTheRailThreshold },
     runtime,
