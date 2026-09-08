@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { SandboxReferences } from "@/components/disclosures";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -139,7 +140,15 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           <tr>
             <th>Content hash (sha256)</th>
             <td>
-              <code>{run.contentHash}</code>
+              {/* The hash is what proves a re-run reproduced this revision. It is evidence, so it
+                  sits behind the affordance with the run id rather than across the row. */}
+              re-running this month with the same knowledge cutoff reproduces it
+              <SandboxReferences
+                references={[
+                  { label: "Content hash (sha256)", value: run.contentHash },
+                  { label: "Statement run id", value: run.runId },
+                ]}
+              />
             </td>
           </tr>
           <tr>

@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { SandboxReferences } from "@/components/disclosures";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
@@ -178,7 +179,12 @@ export default async function CancelPolicyPage({
           <tbody>
             {plan.slices.map((slice) => (
               <tr key={slice.paymentIntentId}>
-                <td>{slice.paymentIntentId}</td>
+                <td>
+                  the payment that collected it
+                  <SandboxReferences
+                    references={[{ label: "Stripe PaymentIntent", value: slice.paymentIntentId }]}
+                  />
+                </td>
                 <td className="amount">{formatCentsAsUsd(slice.refundedPremiumCents)}</td>
                 <td className="amount">{formatCentsAsUsd(slice.refundedTaxCents)}</td>
                 <td className="amount">{formatCentsAsUsd(slice.amountCents)}</td>

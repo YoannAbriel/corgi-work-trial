@@ -8,6 +8,7 @@ import {
   endorsementRequestsOfPolicy,
   endorsementRequestStanding,
   figuresFromPayload,
+  liveEndorsementRequest,
   type EndorsementRequest,
   type EndorsementRequestStanding,
 } from "./endorsement-requests";
@@ -267,4 +268,35 @@ async function stripeReferencesOfEndorsement(
 async function recordedAtOfEvent(database: postgres.Sql, eventId: string): Promise<Date | null> {
   const [row] = await database<{ recorded_at: Date }[]>`select recorded_at from policy_events where id = ${eventId}`;
   return row ? row.recorded_at : null;
+}
+
+// ---------------------------------------------------------------------------
+// Count for the sidebar badge and the "what needs you" block
+// ---------------------------------------------------------------------------
+
+// How many endorsement requests are waiting for a customer's yes, either across the policies of
+// one customer (their own badge) or across the policies of one broker (the broker cannot approve,
+// but they are the one who has to chase it).
+//
+// It reuses liveEndorsementRequest policy by policy rather than asking the question in SQL, and
+// that is deliberate: "awaiting_approval" is decided in lib/policy/endorsement-requests.ts from
+// the events recorded after the request, including the cumulative $500 rule. A SQL copy of that
+// rule would be a second definition, and a badge that disagrees with the screen it points at is
+// worse than no badge. One small query per policy, at trial volumes.
+export async function countEndorsementsAwaitingCustomerApproval(
+  owner: { customerId: string } | { brokerId: string },
+  database: postgres.Sql = sql,
+): Promise<number> {
+  const policies = await database<{ id: string }[]>`
+    select id from policies
+     where ${"customerId" in owner ? database`customer_id = ${owner.customerId}` : database`broker_id = ${owner.brokerId}`}
+  `;
+  let waiting = 0;
+  for (const policy of policies) {
+    const live = await liveEndorsementRequest(database, policy.id);
+    if (live?.standing.state === "awaiting_approval") {
+      waiting += 1;
+    }
+  }
+  return waiting;
 }

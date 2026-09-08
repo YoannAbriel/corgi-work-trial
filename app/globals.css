@@ -1058,3 +1058,295 @@ table.approval-details td { min-width: 0; }
 table.formula td:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 table.formula tr.total td { font-weight: 600; }
 h3 { margin-top: 24px; font-size: 16px; }
+
+/* --- Interface polish (findings F-UI-01 to F-UI-04): what waits for you, actions on demand,
+       provider references behind a small affordance, and the echo of a typed amount. --- */
+
+/* Read by a screen reader, never shown: gives a bare number a meaning. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The count on a navigation entry. */
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--orange);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.sidebar-nav a[aria-current="page"] .nav-badge {
+  background: white;
+  color: #c04600;
+}
+
+/* The "what needs you" block at the top of a workspace home. */
+.needs-you {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: white;
+  padding: 24px 28px;
+  margin: 24px 0;
+}
+.needs-you h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-size: 16px;
+}
+.needs-you h2 svg {
+  color: var(--orange);
+}
+.needs-you-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.needs-you-list a {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fcfcfd;
+  text-decoration: none;
+  color: var(--ink);
+}
+.needs-you-list a:hover {
+  border-color: #a9aaae;
+  color: var(--ink);
+}
+.needs-you-list a > span:nth-child(2) {
+  flex: 1;
+  min-width: 0;
+}
+.needs-you-list strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+}
+.needs-you-list a > span > span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.needs-you-list a > svg {
+  flex-shrink: 0;
+  color: var(--ink-2);
+}
+.count-chip {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: #fff1e8;
+  color: #a33d00;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A native disclosure: the explanation of a screen, and the actions of one row. */
+details.disclosure {
+  margin: 16px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: white;
+}
+details.disclosure > summary,
+details.row-actions > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+details.disclosure > summary::-webkit-details-marker,
+details.row-actions > summary::-webkit-details-marker,
+details.sandbox-reference > summary::-webkit-details-marker {
+  display: none;
+}
+details.disclosure > summary:hover,
+details.row-actions > summary:hover {
+  color: var(--ink);
+}
+details[open] > summary .disclosure-chevron {
+  transform: rotate(90deg);
+}
+.disclosure-chevron {
+  flex-shrink: 0;
+  transition: transform 0.12s;
+}
+details.disclosure[open] > summary {
+  border-bottom: 1px solid #ededee;
+  color: var(--ink);
+}
+details.disclosure > div {
+  padding: 6px 16px 14px;
+}
+details.disclosure p {
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+/* Row actions expand inside their cell: a floating panel would be clipped by the horizontal
+   scroll container the tables live in. */
+details.row-actions > summary {
+  min-height: 32px;
+  padding: 4px 0;
+  white-space: nowrap;
+}
+details.row-actions > div {
+  padding-top: 6px;
+}
+details.row-actions form.card {
+  margin-top: 8px;
+  padding: 14px;
+  max-width: 320px;
+}
+details.row-actions form.inline-form + form.inline-form {
+  margin-left: 8px;
+}
+details.row-actions button {
+  margin-top: 8px;
+}
+
+/* The identifiers of one money movement, next to its human label. Expanded in place, for the
+   same clipping reason. */
+details.sandbox-reference {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+details.sandbox-reference > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f6f6f7;
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+details.sandbox-reference > summary:hover {
+  border-color: #a9aaae;
+  color: var(--ink);
+}
+details.sandbox-reference[open] > summary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: white;
+}
+details.sandbox-reference > div {
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfbfc;
+  min-width: 220px;
+}
+.sandbox-reference-title {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+details.sandbox-reference dl {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+details.sandbox-reference dt {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+details.sandbox-reference dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* The echo under a money field: what the browser understood of what was typed. */
+.amount-echo {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The frame of a signed-out page: no workspace sidebar, because there is no workspace to walk
+   around yet. Same ground, same brand, same sandbox disclosure. */
+.signed-out {
+  min-height: 100dvh;
+  padding: 8px;
+  background: #f5f6f7;
+  display: flex;
+  flex-direction: column;
+}
+.signed-out > main,
+.signed-out > .portal-footer {
+  background: var(--surface);
+}
+.signed-out > main {
+  flex: 1;
+  border-radius: 0;
+  max-width: none;
+  width: auto;
+  padding: 34px 48px 44px;
+}
+.signed-out-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 22px 10px 14px;
+  background: var(--surface);
+  border-radius: 14px 14px 0 0;
+  border-bottom: 1px solid #eaeaed;
+}
+.signed-out .portal-footer {
+  border-radius: 0 0 14px 14px;
+}
+.signed-out .brand {
+  padding: 0;
+  min-height: 0;
+}
+@media (max-width: 800px) {
+  .signed-out > main {
+    padding: 28px 22px 32px;
+  }
+}

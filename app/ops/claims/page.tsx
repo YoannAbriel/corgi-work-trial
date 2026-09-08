@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { Disclosure } from "@/components/disclosures";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
@@ -23,12 +24,22 @@ export default async function OpsClaimsPage() {
     <PortalShell active="claims" user={user}>
       <h1>Track your <em>claims.</em></h1>
       <p className="lead">
-        Signed in as {user.displayName} ({user.role}). Incurred is what a claim has cost so far:
-        paid plus the reserve still outstanding.
+        Every claim in the system, with what it has cost so far. Signed in as {user.displayName} ({user.role}).
       </p>
-      <p className="note">
-        <Link href="/ops/approvals">Money-out approvals</Link>
-      </p>
+
+      <Disclosure>
+        <p>
+          <strong>Incurred</strong> is what a claim has cost so far: paid plus the reserve still
+          outstanding. <strong>Paid</strong> counts a payment from the moment it is sent on the
+          rail, and a return puts it back. Both figures are folded from the claim&apos;s own events
+          every time this page is rendered, never stored.
+        </p>
+        <p>
+          Open a claim number to set its reserve, record the claimant&apos;s bank account and ask
+          for a payment. A payment above the threshold waits in the{" "}
+          <Link href="/ops/approvals">money-out approvals</Link> queue until a second person decides.
+        </p>
+      </Disclosure>
 
       {claims.length === 0 ? (
         <p className="note">

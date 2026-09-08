@@ -1,4 +1,6 @@
 import { PortalShell } from "@/components/portal-shell";
+import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
+import { MoneyAmountInput } from "@/components/money-amount-input";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -77,19 +79,31 @@ export default async function ClaimPage({
       { label: "Claims", href: "/ops/claims" },
       { label: `Claim ${claim.claimNumber}` },
     ]}>
-      <p className="note">
-        <Link href="/ops/claims">All claims</Link> | <Link href="/ops/approvals">Money-out approvals</Link> |{" "}
-        <Link href={`/policies/${claim.policyId}`}>Policy {claim.policyNumber}</Link>
-      </p>
-
       <h1>Claim {claim.claimNumber}</h1>
       <p className="lead">
         {claim.claimantName}. Loss on {claim.occurredAt}, reported {claim.reportedAt}, policy{" "}
-        {claim.policyNumber}
+        <Link href={`/policies/${claim.policyId}`}>{claim.policyNumber}</Link>.
       </p>
       <p className={`badge ${claim.position.isClosed ? "badge-warn" : "badge-ok"}`}>
         {claim.position.isClosed ? "closed" : "open"}
       </p>
+      <SandboxReferences references={[{ label: "Claim id", value: claim.claimId }]} />
+
+      <Disclosure>
+        <p>
+          The three figures below are the ones Track 1 asks for, and they are derived from this
+          claim&apos;s events every time the page is rendered, never stored:{" "}
+          <strong>incurred = paid + reserve</strong>. The journal at the bottom is the same story in
+          double entry; if the two ever disagree, the page shows both rather than reconciling them
+          for the reader.
+        </p>
+        <p>
+          A payment is refused unless it clears the reserve available, the per-occurrence limit and
+          the aggregate limit, and any payment above{" "}
+          {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} also needs a second person to
+          approve it in the <Link href="/ops/approvals">money-out approvals</Link> queue.
+        </p>
+      </Disclosure>
 
       {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.opened ? <p className="note" role="status">The claim is open. Set a reserve before paying anything.</p> : null}
@@ -140,10 +154,70 @@ export default async function ClaimPage({
         </tbody>
       </table>
         </div>
-      <p className="note">
-        A payment is refused unless it clears all three, and any payment above{" "}
-        {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} also needs a second person to approve it.
-      </p>
+
+      {/* Every action this claim offers, in one place and closed by default: the page shows what
+          the claim costs first, and a form only when somebody asks for it. Each form keeps its own
+          endpoint and fields, and the server checks the role, the ceilings and the approval again
+          whatever this page displayed. */}
+      {canAct ? (
+        <>
+          <h2>Actions</h2>
+          <Disclosure title={claim.position.hasReserve ? "Adjust the reserve" : "Set the reserve"}>
+            <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+              <input type="hidden" name="action" value="set-reserve" />
+              <label htmlFor="reserveAmount">
+                {claim.position.hasReserve ? "Adjust the reserve to (US dollars)" : "Set the reserve to (US dollars)"}
+              </label>
+              <MoneyAmountInput id="reserveAmount" name="reserveAmount" placeholder="5,000.00" required />
+              <label htmlFor="reserveNote">Why (optional)</label>
+              <input id="reserveNote" name="note" placeholder="engineer's estimate revised" />
+              <button type="submit">
+                {claim.position.hasReserve ? "Adjust the reserve" : "Set the reserve"}
+              </button>
+            </form>
+          </Disclosure>
+
+          <Disclosure title="Record the claimant's bank account (LOCAL SIMULATOR)">
+            <p>
+              This is a simulated ownership check, not a live bank integration. It says verified when
+              the account holder name matches the claimant and the routing number is one this simulator
+              can reach ({SIMULATED_REACHABLE_ROUTING_NUMBERS.join(" or ")}), and failed otherwise. Only
+              the last four digits and a token are stored: the numbers typed below are compared and
+              dropped.
+            </p>
+            <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+              <input type="hidden" name="action" value="add-bank-account" />
+              <label htmlFor="accountHolderName">Account holder name</label>
+              <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
+              <label htmlFor="routingNumber">Routing number (nine digits)</label>
+              <input id="routingNumber" name="routingNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="110000000" required />
+              <label htmlFor="accountNumber">Account number</label>
+              <input id="accountNumber" name="accountNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="000123456789" required />
+              <button type="submit">Check ownership and record the account</button>
+            </form>
+          </Disclosure>
+
+          <Disclosure title="Request a payment to the claimant">
+            <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+              <input type="hidden" name="action" value="request-payment" />
+              <label htmlFor="paymentAmount">Pay the claimant (US dollars)</label>
+              <MoneyAmountInput id="paymentAmount" name="paymentAmount" placeholder="1,200.00" required />
+              <button type="submit">Request this payment</button>
+            </form>
+          </Disclosure>
+
+          {claim.position.reserveCents === 0 && claim.pendingCents === 0 ? (
+            <Disclosure title="Close this claim">
+              <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+                <input type="hidden" name="action" value="close" />
+                <label htmlFor="closeNote">Closing note (optional)</label>
+                <input id="closeNote" name="note" placeholder="settled in full" />
+                <button type="submit">Close this claim</button>
+              </form>
+            </Disclosure>
+          ) : null}
+        </>
+      ) : null}
 
       <h2>Reserve history</h2>
       {reserves.length === 0 ? (
@@ -182,28 +256,12 @@ export default async function ClaimPage({
         </div>
       )}
 
-      {canAct ? (
-        <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-          <input type="hidden" name="action" value="set-reserve" />
-          <label htmlFor="reserveAmount">
-            {claim.position.hasReserve ? "Adjust the reserve to (US dollars)" : "Set the reserve to (US dollars)"}
-          </label>
-          <input id="reserveAmount" name="reserveAmount" inputMode="decimal" placeholder="5000.00" required />
-          <label htmlFor="reserveNote">Why (optional)</label>
-          <input id="reserveNote" name="note" placeholder="engineer's estimate revised" />
-          <button type="submit">
-            {claim.position.hasReserve ? "Adjust the reserve" : "Set the reserve"}
-          </button>
-        </form>
-      ) : null}
-
       <h2>Claimant bank account (LOCAL SIMULATOR)</h2>
       <p className="note">
-        This is a simulated ownership check, not a live bank integration. It says verified when
-        the account holder name matches the claimant and the routing number is one this simulator
-        can reach ({SIMULATED_REACHABLE_ROUTING_NUMBERS.join(" or ")}), and failed otherwise. Only
-        the last four digits and a token are stored: the numbers typed below are compared and
-        dropped.
+        A simulated ownership check, not a live bank integration: it says verified when the account
+        holder name matches the claimant and the routing number is one this simulator can reach
+        ({SIMULATED_REACHABLE_ROUTING_NUMBERS.join(" or ")}), and failed otherwise. Only the last
+        four digits and a token are stored.
       </p>
       {bankAccount ? (
         <>
@@ -224,12 +282,15 @@ export default async function ClaimPage({
                 </td>
               </tr>
               <tr>
-                <th>Token used as the payment destination</th>
-                <td>{bankAccount.accountToken}</td>
-              </tr>
-              <tr>
                 <th>Result</th>
-                <td>{bankAccount.reason}</td>
+                <td>
+                  {bankAccount.reason}
+                  <SandboxReferences
+                    references={[
+                      { label: "Simulated account token (payment destination)", value: bankAccount.accountToken },
+                    ]}
+                  />
+                </td>
               </tr>
             </tbody>
           </table>
@@ -238,19 +299,6 @@ export default async function ClaimPage({
       ) : (
         <p className="note">No bank account recorded yet. A payment cannot be requested without a verified one.</p>
       )}
-
-      {canAct ? (
-        <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-          <input type="hidden" name="action" value="add-bank-account" />
-          <label htmlFor="accountHolderName">Account holder name</label>
-          <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
-          <label htmlFor="routingNumber">Routing number (nine digits)</label>
-          <input id="routingNumber" name="routingNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="110000000" required />
-          <label htmlFor="accountNumber">Account number</label>
-          <input id="accountNumber" name="accountNumber" autoComplete="off" spellCheck={false} inputMode="numeric" placeholder="000123456789" required />
-          <button type="submit">Check ownership and record the account</button>
-        </form>
-      ) : null}
 
       <h2>Payments</h2>
       {payments.length === 0 ? (
@@ -302,13 +350,20 @@ export default async function ClaimPage({
                     )}
                   </td>
                   <td>
-                    {payment.transferRef ?? <span className="note">not sent yet</span>}
+                    {payment.transferRef ? "on the rail" : <span className="note">not sent yet</span>}
                     {payment.requestedByName ? (
                       <>
                         <br />
                         <span className="note">requested by {payment.requestedByName}</span>
                       </>
                     ) : null}
+                    <SandboxReferences
+                      references={[
+                        { label: "Money operation id", value: payment.operationId },
+                        { label: "Simulated transfer reference", value: payment.transferRef },
+                        { label: "Approval request id", value: payment.approvalRequestId },
+                      ]}
+                    />
                   </td>
                   <td>
                     {user.role === "staff_ops" ? (
@@ -328,24 +383,6 @@ export default async function ClaimPage({
         </table>
         </div>
       )}
-
-      {canAct ? (
-        <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-          <input type="hidden" name="action" value="request-payment" />
-          <label htmlFor="paymentAmount">Pay the claimant (US dollars)</label>
-          <input id="paymentAmount" name="paymentAmount" inputMode="decimal" placeholder="1200.00" required />
-          <button type="submit">Request this payment</button>
-        </form>
-      ) : null}
-
-      {canAct && claim.position.reserveCents === 0 && claim.pendingCents === 0 ? (
-        <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-          <input type="hidden" name="action" value="close" />
-          <label htmlFor="closeNote">Closing note (optional)</label>
-          <input id="closeNote" name="note" placeholder="settled in full" />
-          <button type="submit">Close this claim</button>
-        </form>
-      ) : null}
 
       <h2>Journal entries of this claim</h2>
       {entries.length === 0 ? (
@@ -406,10 +443,12 @@ function PaymentActions({
 
   if (railStatus === "ready to send") {
     return (
-      <form method="post" action={action} className="inline-form">
-        <input type="hidden" name="action" value="send" />
-        <button type="submit">Send on the rail</button>
-      </form>
+      <RowActions label="Send">
+        <form method="post" action={action} className="inline-form">
+          <input type="hidden" name="action" value="send" />
+          <button type="submit">Send on the rail</button>
+        </form>
+      </RowActions>
     );
   }
   if (railStatus === "waiting for approval") {
@@ -417,22 +456,26 @@ function PaymentActions({
   }
   if (railStatus === "sent") {
     return (
-      <form method="post" action={action} className="inline-form">
-        <input type="hidden" name="action" value="settle" />
-        <button type="submit">
-          LOCAL SIMULATOR: settle now (it would settle on its own after {SIMULATED_SETTLEMENT_DELAY_DAYS} days)
-        </button>
-      </form>
+      <RowActions label="LOCAL SIMULATOR">
+        <form method="post" action={action} className="inline-form">
+          <input type="hidden" name="action" value="settle" />
+          <button type="submit">
+            LOCAL SIMULATOR: settle now (it would settle on its own after {SIMULATED_SETTLEMENT_DELAY_DAYS} days)
+          </button>
+        </form>
+      </RowActions>
     );
   }
   if (railStatus === "settled") {
     return (
-      <form method="post" action={action} className="card">
-        <input type="hidden" name="action" value="return" />
-        <label htmlFor={`returnReason-${operationId}`}>LOCAL SIMULATOR: the bank returns the money</label>
-        <input id={`returnReason-${operationId}`} name="returnReason" defaultValue="account_closed" />
-        <button type="submit">Return this payment</button>
-      </form>
+      <RowActions label="LOCAL SIMULATOR">
+        <form method="post" action={action} className="card">
+          <input type="hidden" name="action" value="return" />
+          <label htmlFor={`returnReason-${operationId}`}>LOCAL SIMULATOR: the bank returns the money</label>
+          <input id={`returnReason-${operationId}`} name="returnReason" defaultValue="account_closed" />
+          <button type="submit">Return this payment</button>
+        </form>
+      </RowActions>
     );
   }
   return <span className="note">nothing to do</span>;

@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -55,12 +56,18 @@ export default async function CustomerPage({
     rows.push({ ...policy, live, correctionsToApprove });
   }
 
+  // What is waiting for this customer, read once for the sidebar count and for the block below.
+  const tasks = await workspaceTasks(user);
+
   return (
-    <PortalShell user={user} active="policies">
+    <PortalShell user={user} active="policies" tasks={tasks}>
       <h1>Your policies</h1>
       <p className="lead">
         Signed in as {user.displayName} ({user.email}).
       </p>
+
+      <WhatNeedsYou tasks={tasks} />
+
       {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.approved === "1" ? <p className="note">Thank you, the endorsement is approved. Your broker collects the delta.</p> : null}
       {query.approved === "already" ? <p className="note">This endorsement was already approved.</p> : null}

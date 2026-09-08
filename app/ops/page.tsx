@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { workspaceTasks } from "@/components/what-needs-you";
 import { WorkspaceOverview } from "@/components/workspace-overview";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
@@ -15,10 +16,13 @@ export default async function OpsHomePage() {
   }
 
   const isApprover = user.role === "staff_approver";
+  // Read once here and given to both the shell (the numbers on the sidebar) and the overview
+  // (the "what needs you" block), so the home page counts what is waiting a single time.
+  const tasks = await workspaceTasks(user);
 
   return (
-    <PortalShell user={user} active="home">
-      <WorkspaceOverview isApprover={isApprover} />
+    <PortalShell user={user} active="home" tasks={tasks}>
+      <WorkspaceOverview isApprover={isApprover} tasks={tasks} />
     </PortalShell>
   );
 }

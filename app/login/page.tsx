@@ -1,4 +1,4 @@
-import { PortalShell } from "@/components/portal-shell";
+import { SignedOutFrame } from "@/components/signed-out-frame";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 
@@ -16,7 +16,7 @@ export default async function LoginPage({
   const { error } = await searchParams;
 
   return (
-    <PortalShell active="login">
+    <SignedOutFrame>
       <div className="page-heading">
         <h1>
           Welcome to your <em>workspace.</em>
@@ -83,6 +83,6 @@ export default async function LoginPage({
           </p>
         </section>
       </div>
-    </PortalShell>
+    </SignedOutFrame>
   );
 }

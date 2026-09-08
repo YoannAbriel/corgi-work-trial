@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
@@ -37,19 +38,23 @@ export default async function BrokerPage() {
     );
   }
 
-  const [policies, kyb] = await Promise.all([
+  const [policies, kyb, tasks] = await Promise.all([
     policiesOfBroker(user.brokerId),
     brokerKybState(user.brokerId),
+    // What is waiting on this broker's policies, read once for the sidebar count and the block.
+    workspaceTasks(user),
   ]);
 
   return (
-    <PortalShell active="policies" user={user}>
+    <PortalShell active="policies" user={user} tasks={tasks}>
       <h1>
         Your <em>policies.</em>
       </h1>
       <p className="lead">
         Signed in as {user.displayName} ({user.email}).
       </p>
+
+      <WhatNeedsYou tasks={tasks} />
 
       <p
         className={

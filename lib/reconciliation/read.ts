@@ -259,3 +259,19 @@ function toBreakRow(row: BreakRowShape): ReconciliationBreakRow {
     note: row.note,
   };
 }
+
+// How many breaks are open right now, for the sidebar badge and the "what needs you" block.
+//
+// It reuses the two SQL fragments above rather than restating the rule, for the reason written
+// where they are declared: what makes a break open must exist once, or the number next to
+// "Reconciliation" and the list it points at would drift apart. Only `count(*)` differs from
+// openBreaks, so nothing is transferred: this runs on every page of the workspace.
+export async function countOpenBreaks(database: postgres.Sql): Promise<number> {
+  const [row] = await database<{ open_breaks: number }[]>`
+    with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+    select count(*)::int as open_breaks
+      from latest_report
+     where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+  `;
+  return row.open_breaks;
+}

@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { Disclosure, SandboxReferences } from "@/components/disclosures";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -47,21 +48,28 @@ export default async function OpsStatementsPage({
         A statement is one broker&apos;s commission account for one calendar month, read from the journal and
         frozen. Signed in as {user.displayName} ({user.role}). All times are UTC.
       </p>
-      <p className="note">
-        Every figure below is a movement of a ledger account. Two collected figures are shown, because they
-        answer two questions: the CASH is what the customers paid (premium, tax and fee) and the PREMIUM is the
-        part of it commission is earned on. Commission earned and clawbacks are the movements of the
-        broker&apos;s commission payable account, and the net due is the sum of those movements for the month.
-        A run made before the month is over is marked provisional and stays exactly as it is; running the month
-        again stores a new revision that names the one it replaces.
-      </p>
+      <Disclosure>
+        <p>
+          Every figure below is a movement of a ledger account. Two collected figures are shown, because they
+          answer two questions: the CASH is what the customers paid (premium, tax and fee) and the PREMIUM is the
+          part of it commission is earned on. Commission earned and clawbacks are the movements of the
+          broker&apos;s commission payable account, and the net due is the sum of those movements for the month.
+          A run made before the month is over is marked provisional and stays exactly as it is; running the month
+          again stores a new revision that names the one it replaces.
+        </p>
+        <p>
+          The two dates are the whole point of the screen: the <strong>month</strong> is the business month the
+          entries belong to (their effective date), and the <strong>knowledge cutoff</strong> is the instant up to
+          which the ledger was read. Running the same month again with the same cutoff produces the same content
+          hash, which the list shows as identical to the previous revision.
+        </p>
+      </Disclosure>
 
       {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.ran ? <p className="note">{query.ran}</p> : null}
 
-      <section className="card-block">
-        <h2>Run a statement</h2>
-        <p className="note">
+      <Disclosure title="Run a statement">
+        <p>
           Leave the knowledge cutoff empty for a fresh close, which reads everything the ledger knows right
           now. Fill it with the cutoff of an earlier revision to reproduce that revision: the run is stored
           again (a re-run is evidence) and is flagged as identical when its content hash matches.
@@ -84,7 +92,7 @@ export default async function OpsStatementsPage({
 
           <button type="submit">Run the statement</button>
         </form>
-      </section>
+      </Disclosure>
 
       <h2>Runs</h2>
       {runs.length === 0 ? (
@@ -110,7 +118,6 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
           <th className="amount">Commission</th>
           <th className="amount">Clawback</th>
           <th className="amount">Net due</th>
-          <th>Content hash</th>
           <th>Run by</th>
         </tr>
       </thead>
@@ -119,6 +126,15 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
           <tr key={run.runId}>
             <td>
               <Link href={`/statements/${run.runId}`}>{run.statementMonth}</Link>
+              {/* The run id and the content hash are the evidence a reviewer reproduces a
+                  revision with; they are not what an operator reads down the column. */}
+              <SandboxReferences
+                references={[
+                  { label: "Statement run id", value: run.runId },
+                  { label: "Content hash", value: run.contentHash },
+                  { label: "Canonical format version", value: String(run.canonicalVersion) },
+                ]}
+              />
               {run.monthWasStillRunning ? (
                 <>
                   <br />
@@ -157,9 +173,6 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
             <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
             <td className="amount">{formatCentsAsUsd(-run.clawbackCents)}</td>
             <td className="amount">{formatCentsAsUsd(run.netDueCents)}</td>
-            <td>
-              <code>{run.contentHash.slice(0, 12)}</code>
-            </td>
             <td>{run.runByName ?? <span className="note">no signed-in user</span>}</td>
           </tr>
         ))}

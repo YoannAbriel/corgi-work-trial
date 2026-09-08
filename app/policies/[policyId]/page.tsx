@@ -1,4 +1,6 @@
 import { PortalShell } from "@/components/portal-shell";
+import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
+import { MoneyAmountInput } from "@/components/money-amount-input";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -17,6 +19,7 @@ import {
   policyDetail,
   refundOperationsOfPolicy,
   voidCorrectionOfPolicy,
+  type RefundOperationView,
 } from "@/lib/policy/read";
 import {
   CorrectEndorsementDateForm,
@@ -140,8 +143,7 @@ export default async function PolicyPage({
       {query.payment === "cancelled" ? <p className="note" role="status">The payment page was left without paying.</p> : null}
       {query.cancelled ? (
         <p className="note" role="status">
-          The policy is cancelled and {query.cancelled} refund request(s) were sent to Stripe. A refund counts as
-          completed only when Stripe&apos;s webhook confirms the money left; refresh in a moment.
+          {cancellationRefundNotice(refunds)}
         </p>
       ) : null}
       {query.reissued ? (
@@ -214,26 +216,33 @@ export default async function PolicyPage({
         </div>
 
       <h2>Documents as of a date</h2>
-      <p className="note">
-        Real PDFs rebuilt from the policy events effective on or before the date you pick: between two endorsements the
-        declarations page shows the premium and limits in force on that day. Superseded events are skipped.
-      </p>
-      <form method="get" action={`/api/policies/${policy.policyId}/documents/declarations`} className="card">
-        <label htmlFor="asOfDeclarations">Declarations page as of</label>
-        <input id="asOfDeclarations" name="asOf" type="date" defaultValue={today} min={policy.effectiveAt} required />
-        <button type="submit">Open the declarations page (PDF)</button>
-      </form>
-      <form method="get" action={`/api/policies/${policy.policyId}/documents/endorsement-schedule`} className="card">
-        <label htmlFor="asOfSchedule">Endorsement schedule as of</label>
-        <input id="asOfSchedule" name="asOf" type="date" defaultValue={today} min={policy.effectiveAt} required />
-        <button type="submit">Open the endorsement schedule (PDF)</button>
-      </form>
+      <Disclosure title="Open a document as of a date">
+        <p>
+          Real PDFs rebuilt from the policy events effective on or before the date you pick: between two endorsements
+          the declarations page shows the premium and limits in force on that day. Superseded events are skipped.
+        </p>
+        <form method="get" action={`/api/policies/${policy.policyId}/documents/declarations`} className="card">
+          <label htmlFor="asOfDeclarations">Declarations page as of</label>
+          <input id="asOfDeclarations" name="asOf" type="date" defaultValue={today} min={policy.effectiveAt} required />
+          <button type="submit">Open the declarations page (PDF)</button>
+        </form>
+        <form method="get" action={`/api/policies/${policy.policyId}/documents/endorsement-schedule`} className="card">
+          <label htmlFor="asOfSchedule">Endorsement schedule as of</label>
+          <input id="asOfSchedule" name="asOf" type="date" defaultValue={today} min={policy.effectiveAt} required />
+          <button type="submit">Open the endorsement schedule (PDF)</button>
+        </form>
+      </Disclosure>
 
       <h2>Payment</h2>
       {operation ? (
         <p className="note">
-          Money operation {operation.operationId}, last status: {operation.latestStatus ?? "none"}
-          {operation.providerRef ? `, Stripe session ${operation.providerRef}` : ""}
+          Last status of the premium payment: {operation.latestStatus ?? "none"}.
+          <SandboxReferences
+            references={[
+              { label: "Money operation id", value: operation.operationId },
+              { label: "Stripe Checkout Session", value: operation.providerRef },
+            ]}
+          />
         </p>
       ) : (
         <p className="note">No payment started yet.</p>
@@ -248,10 +257,14 @@ export default async function PolicyPage({
             {voidCorrection.reason}
           </p>
           <p className="note">
-            Correction event {voidCorrection.correctionEventId}
-            {voidCorrection.reversedEntryCount > 0 ? `, ${voidCorrection.reversedEntryCount} entries reversed` : ""}.
+            {voidCorrection.reversedEntryCount > 0
+              ? `${voidCorrection.reversedEntryCount} entries were reversed. `
+              : ""}
             Nothing was deleted: the original entries and their reversals are both in the journal below, and this
             policy can no longer be paid. A replacement needs a new draft.
+            <SandboxReferences
+              references={[{ label: "Correction event id", value: voidCorrection.correctionEventId }]}
+            />
           </p>
         </>
       ) : null}
@@ -313,34 +326,32 @@ export default async function PolicyPage({
       {canChange && !liveEndorsement ? (
         <>
           <h2>Endorse this policy</h2>
-          <p className="note">
-            Change the annual premium or the limits from a date inside the term. The next screen shows the exact money it
-            moves, line by line, before anything is recorded. The money is always priced from the effective date: a
-            backdated endorsement charges more days, never the day it was typed.
-          </p>
+          <Disclosure title="Change the premium or the limits">
+            <p>
+              Change the annual premium or the limits from a date inside the term. The next screen shows the exact
+              money it moves, line by line, before anything is recorded. The money is always priced from the effective
+              date: a backdated endorsement charges more days, never the day it was typed.
+            </p>
           <form method="get" action={`/policies/${policy.policyId}/endorse`} className="card">
             <label htmlFor="newAnnualPremium">New annual premium (USD)</label>
-            <input
+            <MoneyAmountInput
               id="newAnnualPremium"
               name="newAnnualPremium"
               required
-              inputMode="decimal"
               defaultValue={(policy.annualPremiumCents / 100).toFixed(2)}
             />
             <label htmlFor="newPerOccurrenceLimit">New per-occurrence limit (USD)</label>
-            <input
+            <MoneyAmountInput
               id="newPerOccurrenceLimit"
               name="newPerOccurrenceLimit"
               required
-              inputMode="decimal"
               defaultValue={(policy.perOccurrenceLimitCents / 100).toFixed(2)}
             />
             <label htmlFor="newAggregateLimit">New aggregate limit (USD)</label>
-            <input
+            <MoneyAmountInput
               id="newAggregateLimit"
               name="newAggregateLimit"
               required
-              inputMode="decimal"
               defaultValue={(policy.aggregateLimitCents / 100).toFixed(2)}
             />
             <label htmlFor="endorsementEffectiveAt">Effective date</label>
@@ -357,6 +368,7 @@ export default async function PolicyPage({
             <input id="reason" name="reason" maxLength={200} />
             <button type="submit">Preview the endorsement</button>
           </form>
+          </Disclosure>
         </>
       ) : null}
       {canChange && liveEndorsement ? (
@@ -418,7 +430,17 @@ export default async function PolicyPage({
                     </span>
                   </td>
                   <td className="amount">{formatCentsAsUsd(row.figures.newAnnualPremiumCents)}</td>
-                  <td>{row.stripeReferences.length > 0 ? row.stripeReferences.join(", ") : "no money moved"}</td>
+                  <td>
+                    {row.stripeReferences.length > 0 ? "money moved" : "no money moved"}
+                    {row.stripeReferences.length > 0 ? (
+                      <SandboxReferences
+                        references={row.stripeReferences.map((reference, index) => ({
+                          label: `Stripe reference ${index + 1}`,
+                          value: reference,
+                        }))}
+                      />
+                    ) : null}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -439,7 +461,17 @@ export default async function PolicyPage({
               <p className="note">
                 {row.figures.daysRemaining} of {row.figures.termDays} days remained from {row.effectiveAt}. Every figure
                 below is the one stored on the endorsement event and posted to the journal; none of it is recomputed
-                for display. Stripe references: {row.stripeReferences.length > 0 ? row.stripeReferences.join(", ") : "none"}.
+                for display.
+                <SandboxReferences
+                  references={
+                    row.stripeReferences.length > 0
+                      ? row.stripeReferences.map((reference, index) => ({
+                          label: `Stripe reference ${index + 1}`,
+                          value: reference,
+                        }))
+                      : [{ label: "Stripe references", value: null }]
+                  }
+                />
               </p>
               <FormulaLinesTable lines={row.lines} />
               {/* Slice B8: the panel's live-fire test. Staff operations can put a wrong effective
@@ -473,9 +505,17 @@ export default async function PolicyPage({
               <li key={request.request.eventId} className="note">
                 {request.request.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC: {request.request.description},
                 effective {request.request.figures.effectiveAt}, {formatCentsAsUsd(request.request.figures.deltaTotalCents)}
-                {request.collection?.applicationRefusedReason
-                  ? `. Paid (${request.collection.paymentIntentId}) but not applied: ${request.collection.applicationRefusedReason}`
-                  : ""}
+                {request.collection?.applicationRefusedReason ? (
+                  <>
+                    . Paid but not applied: {request.collection.applicationRefusedReason}
+                    <SandboxReferences
+                      references={[
+                        { label: "Stripe PaymentIntent", value: request.collection.paymentIntentId },
+                        { label: "Money operation id", value: request.collection.operationId },
+                      ]}
+                    />
+                  </>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -485,14 +525,15 @@ export default async function PolicyPage({
       {canChange ? (
         <>
           <h2>Cancel this policy</h2>
-          <p className="note">
-            Pick the day cover stops. The next screen shows exactly what would be refunded and clawed back before
-            anything is written. A past date is allowed: an insurer often learns late that cover stopped, and the money
-            is always computed from the day cover really stopped.
-            {schedule.length > 0
-              ? " This policy has been endorsed, so the refund is computed segment by segment: the issuance premium earns over the whole term and each endorsement earns its prorated amount from its own effective date."
-              : ""}
-          </p>
+          <Disclosure title="Pick the day cover stops">
+            <p>
+              The next screen shows exactly what would be refunded and clawed back before anything is written. A past
+              date is allowed: an insurer often learns late that cover stopped, and the money is always computed from
+              the day cover really stopped.
+              {schedule.length > 0
+                ? " This policy has been endorsed, so the refund is computed segment by segment: the issuance premium earns over the whole term and each endorsement earns its prorated amount from its own effective date."
+                : ""}
+            </p>
           <form method="get" action={`/policies/${policy.policyId}/cancel`} className="card">
             <label htmlFor="effectiveAt">Cancellation effective date</label>
             <input
@@ -513,6 +554,7 @@ export default async function PolicyPage({
             </select>
             <button type="submit">Preview the cancellation</button>
           </form>
+          </Disclosure>
         </>
       ) : null}
 
@@ -620,9 +662,15 @@ export default async function PolicyPage({
                   </td>
                   <td className="amount">{formatCentsAsUsd(refund.amountCents)}</td>
                   <td>
-                    {refund.refundId ?? "not created yet"}
-                    <br />
-                    <span className="note">on {refund.paymentIntentId}</span>
+                    {refund.refundId ? "created at Stripe" : "not created yet"}
+                    <SandboxReferences
+                      references={[
+                        { label: "Stripe Refund", value: refund.refundId },
+                        { label: "On Stripe PaymentIntent", value: refund.paymentIntentId },
+                        { label: "Money operation id", value: refund.operationId },
+                        { label: "Approval request id", value: refund.approvalRequestId },
+                      ]}
+                    />
                   </td>
                   <td>
                     {refund.failureReason ? (
@@ -634,17 +682,19 @@ export default async function PolicyPage({
                           stays open until a new one completes.
                         </span>
                         {user.role === "staff_ops" ? (
-                          <form
-                            method="post"
-                            action={`/api/policies/${policy.policyId}/refunds/${refund.operationId}/reissue`}
-                            className="inline-form"
-                          >
-                            <button type="submit">
-                              {refund.failureStage === "approval"
-                                ? "Raise a new approval request for this refund"
-                                : "Re-issue this refund"}
-                            </button>
-                          </form>
+                          <RowActions label="Try this refund again">
+                            <form
+                              method="post"
+                              action={`/api/policies/${policy.policyId}/refunds/${refund.operationId}/reissue`}
+                              className="inline-form"
+                            >
+                              <button type="submit">
+                                {refund.failureStage === "approval"
+                                  ? "Raise a new approval request for this refund"
+                                  : "Re-issue this refund"}
+                              </button>
+                            </form>
+                          </RowActions>
                         ) : null}
                       </>
                     ) : (
@@ -662,15 +712,17 @@ export default async function PolicyPage({
                     {refund.state === "requested" &&
                     user.role === "staff_ops" &&
                     (!refund.approvalRequestId || refund.approvalDecision === "approved") ? (
-                      <form
-                        method="post"
-                        action={`/api/policies/${policy.policyId}/refunds/${refund.operationId}/send`}
-                        className="inline-form"
-                      >
-                        <button type="submit">
-                          {refund.approvalRequestId ? "Send this approved refund to Stripe" : "Send to Stripe again"}
-                        </button>
-                      </form>
+                      <RowActions label="Send this refund">
+                        <form
+                          method="post"
+                          action={`/api/policies/${policy.policyId}/refunds/${refund.operationId}/send`}
+                          className="inline-form"
+                        >
+                          <button type="submit">
+                            {refund.approvalRequestId ? "Send this approved refund to Stripe" : "Send to Stripe again"}
+                          </button>
+                        </form>
+                      </RowActions>
                     ) : null}
                     {refund.state === "requested" && refund.approvalRequestId && refund.approvalDecision !== "approved" ? (
                       <span className="note">
@@ -746,6 +798,7 @@ export default async function PolicyPage({
           on the server from the policy's events, so a voided or unpaid policy is refused there
           whatever the page shows. */}
       {user.role === "staff_ops" && (policy.status === "bound" || policy.status === "cancelled") ? (
+        <Disclosure title="Open a claim on this policy">
         <form method="post" action={`/api/policies/${policy.policyId}/claims`} className="card">
           <label htmlFor="claimantName">Claimant name</label>
           {/* The bank ownership check compares the account holder with this name, so it is the
@@ -767,6 +820,7 @@ export default async function PolicyPage({
           <input id="description" name="description" placeholder="water damage in the workshop" required />
           <button type="submit">Open a claim</button>
         </form>
+        </Disclosure>
       ) : null}
 
       {/* --- Slice B8: backdated corrections, both clocks, and the policy on any date --- */}
@@ -862,10 +916,15 @@ function EndorsementInProgress({
 
       {collection ? (
         <p className="note">
-          Delta operation {collection.operationId}, last status: {collection.latestStatus ?? "none"}
-          {collection.sessionId ? `, Stripe session ${collection.sessionId}` : ""}
-          {collection.paymentIntentId ? `, payment ${collection.paymentIntentId}` : ""}
+          Last status of the delta payment: {collection.latestStatus ?? "none"}
           {collection.isDead ? ". The hosted page expired: the next Pay click opens a new session under a new key." : ""}
+          <SandboxReferences
+            references={[
+              { label: "Money operation id", value: collection.operationId },
+              { label: "Stripe Checkout Session", value: collection.sessionId },
+              { label: "Stripe PaymentIntent", value: collection.paymentIntentId },
+            ]}
+          />
         </p>
       ) : null}
 
@@ -897,6 +956,49 @@ function EndorsementInProgress({
         <p className="note">The owning broker pays the delta from this page.</p>
       ) : null}
     </>
+  );
+}
+
+// What the banner says after a cancellation, read from the refunds it actually opened (review
+// finding F-UI-04). It used to say "were sent to Stripe" for every refund, including one sitting
+// in the approval queue with nothing sent at all. Each group below is a different fact about the
+// customer's money, so each one is named separately and none is implied.
+function cancellationRefundNotice(refunds: RefundOperationView[]): string {
+  if (refunds.length === 0) {
+    return "The policy is cancelled. Nothing was owed back, so no refund was opened.";
+  }
+  const waitingForApproval = refunds.filter(
+    (refund) => refund.state === "requested" && refund.approvalRequestId !== null && refund.approvalDecision !== "approved",
+  ).length;
+  const notSentYet = refunds.filter(
+    (refund) => refund.state === "requested" && (refund.approvalRequestId === null || refund.approvalDecision === "approved"),
+  ).length;
+  const sentToStripe = refunds.filter((refund) => refund.state === "accepted").length;
+  const completed = refunds.filter((refund) => refund.state === "completed").length;
+  const failed = refunds.filter((refund) => refund.state === "failed").length;
+
+  const parts: string[] = [];
+  if (waitingForApproval > 0) {
+    parts.push(
+      `${waitingForApproval} waits for a second person to approve it (nothing has been sent to Stripe)`,
+    );
+  }
+  if (notSentYet > 0) {
+    parts.push(`${notSentYet} is recorded and owed, and has not left for Stripe yet`);
+  }
+  if (sentToStripe > 0) {
+    parts.push(`${sentToStripe} was sent to Stripe and is not confirmed yet`);
+  }
+  if (completed > 0) {
+    parts.push(`${completed} is completed`);
+  }
+  if (failed > 0) {
+    parts.push(`${failed} failed and the customer is still owed the money`);
+  }
+  const opened = refunds.length === 1 ? "one refund" : `${refunds.length} refunds`;
+  return (
+    `The policy is cancelled and it opened ${opened}: ${parts.join(", ")}. ` +
+    "A refund counts as completed only when Stripe's webhook confirms the money left; the table below is the detail."
   );
 }
 
