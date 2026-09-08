@@ -20,3 +20,29 @@ export function moneyOutNeedsApproval(amountCents: number): boolean {
   }
   return amountCents > MONEY_OUT_APPROVAL_THRESHOLD_CENTS;
 }
+
+// THE THRESHOLD IS PER CLAIM, NOT PER PAYMENT (decided by Yoann on 2026-09-08, review finding
+// F-B7-02). Two payments of $600 on one claim are $1,200 out of the door; splitting a payout
+// into sub-threshold lines must not skip the approver. A claim payment therefore needs an
+// approval when the payment alone is above the threshold, OR when it would bring the claim's
+// money out (already sent and not returned, plus requested and still waiting, plus this one)
+// above the threshold. The refund path has no equivalent rule because a cancellation refunds
+// one total, computed once.
+export type ClaimPayoutApprovalInput = {
+  amountCents: number; // this payment
+  claimPaidCents: number; // sent and not returned, on this claim
+  claimPendingCents: number; // requested and not yet sent, on this claim (this one excluded)
+};
+
+export function claimPayoutNeedsApproval(input: ClaimPayoutApprovalInput): boolean {
+  for (const [name, value] of Object.entries(input)) {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error(`${name} must be a whole number of cents, zero or more, got ${value}`);
+    }
+  }
+  if (moneyOutNeedsApproval(input.amountCents)) {
+    return true;
+  }
+  const claimTotalAfterThisPayment = input.claimPaidCents + input.claimPendingCents + input.amountCents;
+  return claimTotalAfterThisPayment > MONEY_OUT_APPROVAL_THRESHOLD_CENTS;
+}

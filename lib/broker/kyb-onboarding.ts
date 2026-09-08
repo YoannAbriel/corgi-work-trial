@@ -206,6 +206,8 @@ export type KybUpdateOutcome = {
   // How many of the broker's open payment pages were closed because the new status forbids
   // binding (see expireOpenCheckoutSessionsOfBroker). Only set by the Stripe refresh.
   expiredCheckoutSessions?: number;
+  // Set instead of the count when Stripe refused to close the pages; the status stays recorded.
+  expiryError?: string;
 };
 
 // Maps a freshly read account and records the result if, and only if, the status changed.
@@ -282,7 +284,15 @@ export async function refreshBrokerKybFromStripe(
   // that a customer does not pay for a policy that cannot be bound (rule 14, technical
   // addition). Done after the status is committed, and only on a real change.
   if (outcome.appended && !bindingIsAllowed(outcome.status)) {
-    outcome.expiredCheckoutSessions = await expireOpenCheckoutSessionsOfBroker(request.brokerId, database);
+    // The status row is already committed. A Stripe error while closing the pages must not turn
+    // that committed transition into a webhook failure that a retry could not repair (the retry
+    // would find nothing to append): it is recorded on the outcome and shown, not thrown
+    // (review finding F-B7-11). A page left open is caught by rule 14 at payment time anyway.
+    try {
+      outcome.expiredCheckoutSessions = await expireOpenCheckoutSessionsOfBroker(request.brokerId, database);
+    } catch (error) {
+      outcome.expiryError = error instanceof Error ? error.message.slice(0, 300) : "unknown error while expiring sessions";
+    }
   }
   return outcome;
 }

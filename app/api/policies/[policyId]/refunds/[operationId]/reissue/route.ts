@@ -1,13 +1,14 @@
 import { currentUser } from "@/lib/auth/current-user";
-import { reissueRefund, RefundReissueRefused } from "@/lib/payments/refunds";
+import { reissueRefund, RefundReissueRefused, RefundSendRefused } from "@/lib/payments/refunds";
 
 // POST /api/policies/{policyId}/refunds/{operationId}/reissue
 //
-// The staff action offered when a refund FAILED at the customer's bank. The money never left,
-// the customer is still owed it, and refund_payable is still open in the ledger, so this
-// creates a NEW refund operation with a new idempotency key and asks Stripe again. It posts no
-// journal entry: the liability was opened once and is cleared once, by whichever attempt
-// finally completes.
+// The staff action offered when a refund FAILED at the customer's bank, or was REJECTED by the
+// approver. The money never left, the customer is still owed it, and refund_payable is still
+// open in the ledger, so this creates a NEW refund operation with a new idempotency key. Above
+// the threshold the new attempt carries a new approval request and goes back to the queue;
+// below it, Stripe is asked again. It posts no journal entry: the liability was opened once
+// and is cleared once, by whichever attempt finally completes.
 //
 // Restricted to staff operations: re-sending money is an operations decision, and a broker
 // should not be able to trigger a second payout attempt from the policy page.
@@ -28,7 +29,7 @@ export async function POST(
     const { outcome } = await reissueRefund({ policyId, failedOperationId: operationId, actorUserId: user.id });
     return redirectTo(`/policies/${policyId}?reissued=${encodeURIComponent(outcome.status)}`);
   } catch (error) {
-    if (error instanceof RefundReissueRefused) {
+    if (error instanceof RefundReissueRefused || error instanceof RefundSendRefused) {
       return backToPolicy(policyId, error.message);
     }
     throw error;

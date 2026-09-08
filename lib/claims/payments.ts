@@ -2,7 +2,7 @@ import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { assertIntentIsApproved, createApprovalRequest } from "@/lib/approvals/approvals";
 import { bankAccountDestination, type MoneyOutIntent } from "@/lib/approvals/intent";
-import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { claimPayoutNeedsApproval } from "@/lib/approvals/threshold";
 import {
   claimPaymentReturnedEntries,
   claimPaymentSentEntry,
@@ -220,8 +220,14 @@ export async function requestClaimPayment(
     }
 
     // Above the threshold, the approval request is written FIRST, in this same transaction, and
-    // the money operation carries its id. Nothing can move without it.
-    const needsApproval = moneyOutNeedsApproval(input.amountCents);
+    // the money operation carries its id. Nothing can move without it. The threshold is per
+    // CLAIM, not per payment (lib/approvals/threshold.ts, review finding F-B7-02): what has
+    // already been sent and what is still waiting on this claim count with this payment.
+    const needsApproval = claimPayoutNeedsApproval({
+      amountCents: input.amountCents,
+      claimPaidCents: snapshot.position.paidCents,
+      claimPendingCents: snapshot.pendingCents,
+    });
     const intent = claimPaymentIntent(snapshot.claimId, input.amountCents, bankAccount.accountToken);
     const approvalRequestId = needsApproval
       ? await createApprovalRequest(transaction, {
@@ -415,9 +421,16 @@ export async function sendClaimPayment(
         current.approvalRequestId,
         claimPaymentIntent(current.claimId, current.amountCents, bankAccount.accountToken),
       );
-    } else if (moneyOutNeedsApproval(current.amountCents)) {
+    } else if (
+      claimPayoutNeedsApproval({
+        amountCents: current.amountCents,
+        claimPaidCents: snapshot.position.paidCents,
+        // This operation is part of the pending total and is the one being sent.
+        claimPendingCents: snapshot.pendingCents - current.amountCents,
+      })
+    ) {
       throw new ClaimRefused(
-        "this payment is above the approval threshold but carries no approval request; it cannot be sent",
+        "this payment would take the claim above the approval threshold but carries no approval request; it cannot be sent",
       );
     }
 

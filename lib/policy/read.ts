@@ -389,6 +389,9 @@ export type RefundOperationView = {
   requestedAt: Date;
   completedOn: string | null; // the UTC day the money left Stripe
   failureReason: string | null;
+  // Which kind of failure: our call to Stripe, Stripe's own lifecycle, or the approver's
+  // rejection. The page words the state and the action from it (review finding F-B7-04).
+  failureStage: "create_refund" | "refund_lifecycle" | "approval" | null;
   // Stripe reported a failure after this refund had already completed. It cannot happen on the
   // card refunds this build creates, and nothing is reversed automatically, so it is shown as
   // something an operator has to look at.
@@ -463,6 +466,14 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
       failureReason:
         state === "failed" && lastFailure
           ? String(lastFailure.payload.reason ?? lastFailure.payload.message ?? "Stripe refused the refund")
+          : null,
+      failureStage:
+        state === "failed" && lastFailure
+          ? lastFailure.payload.stage === "create_refund"
+            ? "create_refund"
+            : lastFailure.payload.stage === "approval"
+              ? "approval"
+              : "refund_lifecycle"
           : null,
       failedAfterCompletion: state === "completed" && ownEvents[ownEvents.length - 1]?.status === "failed",
       approvalRequestId: operation.approval_request_id,

@@ -78,7 +78,7 @@ async function main() {
   );
   const { claimPaymentIntent } = await import("@/lib/claims/payments");
   const { recordCancellation } = await import("@/lib/policy/cancel");
-  const { assertRefundMaySend, createReissuedRefundOperation, loadRefundOperation, RefundSendRefused } = await import(
+  const { assertRefundMaySend, createReissuedRefundOperation, issueRefundsAtStripe, loadRefundOperation, RefundSendRefused } = await import(
     "@/lib/payments/refunds"
   );
   const { stuckOperations, STUCK_AFTER_MINUTES } = await import("@/lib/payments/recover");
@@ -746,6 +746,124 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
+  // 11b. The threshold is per claim, not per payment (review finding F-B7-02, Yoann's decision)
+  // ---------------------------------------------------------------------------
+
+  const splitPolicy = await createPaidPolicy(recordSuccessfulPayment, people.brokerId);
+  const splitClaim = await openClaim(
+    {
+      policyId: splitPolicy.policyId,
+      occurredAt: "2028-05-03",
+      reportedAt: "2028-05-04",
+      description: "roof leak, paid in instalments",
+      claimantName: CLAIMANT_NAME,
+      actor: maker,
+    },
+    runtime,
+  );
+  await setClaimReserve({ claimId: splitClaim.claimId, newReserveCents: REDUCED_RESERVE_CENTS, note: "estimate", actor: maker }, runtime);
+  await addClaimantBankAccount(
+    {
+      claimId: splitClaim.claimId,
+      accountHolderName: CLAIMANT_NAME,
+      routingNumber: REACHABLE_ROUTING_NUMBER,
+      accountNumber: "000123456789",
+      actor: maker,
+    },
+    runtime,
+  );
+  const firstSixHundred = await requestClaimPayment({ claimId: splitClaim.claimId, amountCents: 60000, actor: maker }, runtime);
+  report(
+    "a first $600 on a claim goes without an approver",
+    firstSixHundred.approvalRequestId === null,
+    `approval request: ${firstSixHundred.approvalRequestId}`,
+  );
+  const secondSixHundred = await requestClaimPayment({ claimId: splitClaim.claimId, amountCents: 60000, actor: maker }, runtime);
+  report(
+    "a second $600 on the same claim needs an approver: the claim would reach $1,200",
+    secondSixHundred.approvalRequestId !== null,
+    `approval request: ${secondSixHundred.approvalRequestId}`,
+  );
+  const afterSplitAttempt = await refusal(() => sendClaimPayment({ operationId: secondSixHundred.operationId, actor: maker }, runtime));
+  report(
+    "the second $600 cannot be sent before a distinct approver decides",
+    /approv/i.test(afterSplitAttempt),
+    afterSplitAttempt,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 11c. Every road to Stripe passes the maker-checker gate (review finding F-B7-01)
+  // ---------------------------------------------------------------------------
+
+  // An above-threshold refund operation that carries NO approval request, the shape the old
+  // re-issue path used to create after a rejection. Fabricated on the disposable database from
+  // the queued cancellation refund's own allocation, so the amounts are real.
+  const queuedRefund = await loadRefundOperation(runtime, refundOperationId);
+  if (!queuedRefund) {
+    throw new Error("the queued cancellation refund could not be read back");
+  }
+  const [ungated] = await runtime<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key, created_by)
+    values ('stripe_refund', 'stripe', ${queuedRefund.amountCents}, ${queuedRefund.policyId},
+            ${`policy-refund:${queuedRefund.policyId}:${queuedRefund.paymentIntentId}:check-f-b7-01`}, ${maker.userId})
+    returning id
+  `;
+  await runtime`
+    insert into money_operation_events (operation_id, status, payload)
+    values (${ungated.id}, 'requested', ${runtime.json({ note: "check fixture: above the threshold, no approval request" })})
+  `;
+  await runtime`
+    insert into refund_allocations (
+      refund_operation_id, policy_id, policy_event_id, collection_operation_id, payment_intent_id,
+      amount_cents, refunded_premium_cents, refunded_tax_cents, commission_clawback_cents
+    ) values (
+      ${ungated.id}, ${queuedRefund.policyId}, ${queuedRefund.policyEventId}, ${queuedRefund.collectionOperationId},
+      ${queuedRefund.paymentIntentId}, ${queuedRefund.amountCents}, ${queuedRefund.refundedPremiumCents},
+      ${queuedRefund.refundedTaxCents}, ${queuedRefund.commissionClawbackCents}
+    )
+  `;
+  const eventsBeforeGate = await countOperationEvents(ungated.id);
+  const [gateAnswer] = await issueRefundsAtStripe([ungated.id], runtime);
+  report(
+    "issueRefundsAtStripe itself refuses an above-threshold refund that carries no approval request",
+    gateAnswer.status === "refused" && /no approval request/.test(gateAnswer.detail),
+    `${gateAnswer.status}: ${gateAnswer.detail}`,
+  );
+  report(
+    "that refusal is not a provider failure: nothing was appended to the operation",
+    (await countOperationEvents(ungated.id)) === eventsBeforeGate,
+    `${await countOperationEvents(ungated.id)} event(s), was ${eventsBeforeGate}`,
+  );
+
+  // The approver says no. A re-issue must go back to the queue, never to Stripe.
+  await runtime`
+    insert into money_operation_events (operation_id, status, payload)
+    values (${ungated.id}, 'failed', ${runtime.json({ stage: "approval", reason: "rejected by the approver" })})
+  `;
+  const rejectedShape = await loadRefundOperation(runtime, ungated.id);
+  report(
+    "a rejection is recognised as an approval-stage failure, not as a Stripe failure",
+    rejectedShape?.lastFailureStage === "approval",
+    String(rejectedShape?.lastFailureStage),
+  );
+  const reissuedAfterRejection = await createReissuedRefundOperation(
+    { policyId: queuedRefund.policyId, failedOperationId: ungated.id, actorUserId: maker.userId },
+    runtime,
+  );
+  const reissuedShape = await loadRefundOperation(runtime, reissuedAfterRejection);
+  report(
+    "re-issuing an above-threshold refund raises a NEW approval request on the new operation",
+    reissuedShape?.approvalRequestId !== null && reissuedShape?.approvalRequestId !== undefined,
+    `approval request: ${reissuedShape?.approvalRequestId}`,
+  );
+  const [reissueGateAnswer] = await issueRefundsAtStripe([reissuedAfterRejection], runtime);
+  report(
+    "and the new attempt cannot reach Stripe until that request is approved",
+    reissueGateAnswer.status === "refused",
+    `${reissueGateAnswer.status}: ${reissueGateAnswer.detail}`,
+  );
+
+  // ---------------------------------------------------------------------------
   // 12. The whole ledger still balances
   // ---------------------------------------------------------------------------
 
@@ -993,6 +1111,13 @@ async function operationStatuses(operationId: string): Promise<string[]> {
     select status from money_operation_events where operation_id = ${operationId} order by sequence_number
   `;
   return rows.map((row) => row.status);
+}
+
+async function countOperationEvents(operationId: string): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`
+    select count(*)::text as count from money_operation_events where operation_id = ${operationId}
+  `;
+  return Number(row.count);
 }
 
 main().catch(async (error) => {

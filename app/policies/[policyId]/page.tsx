@@ -121,7 +121,15 @@ export default async function PolicyPage({
           completed only when Stripe&apos;s webhook confirms the money left; refresh in a moment.
         </p>
       ) : null}
-      {query.reissued ? <p className="note">A new refund was re-issued: Stripe answered {query.reissued}.</p> : null}
+      {query.reissued ? (
+        <p className="note">
+          {query.reissued === "queued_for_approval"
+            ? "A new refund attempt was raised and waits for a distinct approver (/ops/approvals); nothing was sent."
+            : query.reissued === "refused"
+              ? "The refund was not sent: the maker-checker gate refused it (see the reason on the refund line)."
+              : `A new refund was re-issued: Stripe answered ${query.reissued}.`}
+        </p>
+      ) : null}
       {query.refundSent ? <p className="note">The refund was sent to Stripe: {query.refundSent}.</p> : null}
       {query.bound === "1" ? (
         <p className="note">The policy is now bound and the four issuance entries are in the journal below.</p>
@@ -365,7 +373,9 @@ export default async function PolicyPage({
                     {refund.state === "completed"
                       ? `completed ${formatCentsAsUsd(refund.amountCents)}${refund.completedOn ? ` on ${refund.completedOn}` : ""}`
                       : refund.state === "failed"
-                        ? "requested, not completed"
+                        ? refund.failureStage === "approval"
+                          ? "rejected by the approver, nothing sent"
+                          : "failed, not completed"
                         : refund.approvalRequestId && refund.approvalDecision !== "approved"
                           ? refund.approvalDecision === "rejected"
                             ? "awaiting approval: rejected"
@@ -393,7 +403,11 @@ export default async function PolicyPage({
                             action={`/api/policies/${policy.policyId}/refunds/${refund.operationId}/reissue`}
                             className="inline-form"
                           >
-                            <button type="submit">Re-issue this refund</button>
+                            <button type="submit">
+                              {refund.failureStage === "approval"
+                                ? "Raise a new approval request for this refund"
+                                : "Re-issue this refund"}
+                            </button>
                           </form>
                         ) : null}
                       </>
