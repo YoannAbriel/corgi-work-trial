@@ -89,3 +89,26 @@ table.amounts { max-width: 520px; }
 table.amounts th { font-weight: 400; color: var(--ink-2); }
 table.amounts tr.total th, table.amounts tr.total td { font-weight: 600; color: var(--ink); }
 table.ledger td:first-child { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* --- Slice B3: the KYB form and the disabled Pay button. --- */
+button:disabled {
+  background: #d6dce3;
+  color: #6b7683;
+  cursor: not-allowed;
+}
+form.card span.note { margin: 0; }
+form.card label.checkbox-label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  color: var(--ink);
+  margin-top: 16px;
+}
+form.card label.checkbox-label input { width: auto; margin-top: 3px; }
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  background: #eceff2;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
