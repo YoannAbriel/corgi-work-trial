@@ -1,4 +1,10 @@
 import { formatCalendarDate, formatCents, formatUtcTimestamp } from "@/lib/documents/format";
+import {
+  ISSUER_NAME,
+  ISSUER_TAGLINE,
+  SANDBOX_LABEL,
+  createPdfStyles,
+} from "@/lib/documents/pdf-theme";
 import { collectedFigures } from "./compute";
 import type { StatementLineRow, StatementRunDetail } from "./read";
 
@@ -7,7 +13,7 @@ import type { StatementLineRow, StatementRunDetail } from "./read";
 // Same shape as the two policy documents (lib/documents/render.tsx): it runs on the server, it
 // returns a Buffer, and it loads @react-pdf/renderer with `await import(...)` because that package
 // is published as ES modules only and a static import would turn into a require() in the
-// CommonJS-compiled test runner.
+// CommonJS-compiled test runner. It shares their look through lib/documents/pdf-theme.ts.
 //
 // The document is built ONLY from what the run stored. It recomputes nothing: a statement PDF
 // downloaded today and the same PDF downloaded next year say the same thing, because the run is
@@ -22,50 +28,6 @@ async function loadPdfRenderer() {
   return import("@react-pdf/renderer");
 }
 
-const styles = {
-  page: { paddingTop: 40, paddingBottom: 56, paddingHorizontal: 44, fontSize: 10, fontFamily: "Helvetica" },
-  documentTitle: { fontSize: 16, fontFamily: "Helvetica-Bold", marginBottom: 2 },
-  documentSubtitle: { fontSize: 10, color: "#444444", marginBottom: 16 },
-  sectionTitle: { fontSize: 11, fontFamily: "Helvetica-Bold", marginTop: 16, marginBottom: 6 },
-  row: { flexDirection: "row", paddingVertical: 3 },
-  rowWithRule: { flexDirection: "row", paddingVertical: 3, borderTopWidth: 0.5, borderTopColor: "#999999" },
-  label: { width: 150, color: "#444444" },
-  value: { flexGrow: 1 },
-  monospace: { flexGrow: 1, fontFamily: "Courier", fontSize: 9 },
-  amountColumn: { width: 88, textAlign: "right" },
-  kindColumn: { width: 100 },
-  policyColumn: { width: 76 },
-  dateColumn: { width: 92 },
-  provisional: { fontSize: 10, marginBottom: 12 },
-  descriptionColumn: { flexGrow: 1, paddingRight: 8 },
-  tableHeader: {
-    flexDirection: "row",
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: "#333333",
-    fontFamily: "Helvetica-Bold",
-  },
-  totalRow: {
-    flexDirection: "row",
-    paddingVertical: 4,
-    borderTopWidth: 1,
-    borderTopColor: "#333333",
-    fontFamily: "Helvetica-Bold",
-  },
-  emptyState: { paddingVertical: 8, color: "#444444" },
-  footer: {
-    position: "absolute",
-    left: 44,
-    right: 44,
-    bottom: 24,
-    fontSize: 8,
-    color: "#444444",
-    borderTopWidth: 0.5,
-    borderTopColor: "#999999",
-    paddingTop: 6,
-  },
-} as const;
-
 // What each line kind is called on the document, in the broker's own terms.
 const KIND_LABEL: Record<StatementLineRow["kind"], string> = {
   premium_collected: "Premium collected",
@@ -76,7 +38,8 @@ const KIND_LABEL: Record<StatementLineRow["kind"], string> = {
 };
 
 export async function renderStatementPdf(statement: StatementRunDetail): Promise<Buffer> {
-  const { Document, Page, Text, View, renderToBuffer } = await loadPdfRenderer();
+  const { Document, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  const styles = createPdfStyles(StyleSheet);
   const { run, lines } = statement;
   // A run says which shape its own columns are in (migration 0016). A v1 run stored the cash in
   // the premium column and no commission base, so it is printed with its own labels and a note,
@@ -86,66 +49,91 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
   return renderToBuffer(
     <Document
       title={`Broker statement ${run.brokerName} ${run.statementMonth} revision ${run.revision}`}
-      author="Corgi"
+      // The document says on its face who issued it, so the metadata says the same thing.
+      author={ISSUER_NAME}
       // The metadata carries the run's own creation time rather than the current clock, so
       // downloading the same run twice produces the same file.
       creationDate={run.createdAt}
       modificationDate={run.createdAt}
     >
-      <Page size="LETTER" style={styles.page}>
-        <Text style={styles.documentTitle}>Broker Commission Statement</Text>
-        {/* One interpolated string rather than several children: react-pdf draws each child as
-            its own run, and a subtitle split into five pieces is harder to read back out of the
-            file than it is to write. */}
-        <Text style={styles.documentSubtitle}>
-          {`${run.brokerName}, ${run.statementMonth}, revision ${run.revision}`}
-        </Text>
+      {/* pageWithTallFooter, not page: this footer carries two long paragraphs, and the footer
+          is positioned absolutely, so the page has to reserve the room it occupies. */}
+      <Page size="LETTER" style={styles.pageWithTallFooter}>
+        <View style={styles.issuerHeader} fixed>
+          <View style={styles.issuerIdentity}>
+            <Text style={styles.issuerName}>{ISSUER_NAME}</Text>
+            <Text style={styles.issuerTagline}>{ISSUER_TAGLINE}</Text>
+          </View>
+          <Text style={styles.sandboxLabel}>{SANDBOX_LABEL}</Text>
+        </View>
 
-        {collected.formatNote ? <Text style={styles.provisional}>{collected.formatNote}</Text> : null}
+        <View style={styles.titleBand}>
+          <View style={styles.titleBandAccentBar} />
+          <View style={styles.titleBandBody}>
+            <Text style={styles.documentTitle}>Broker Commission Statement</Text>
+            {/* One interpolated string rather than several children: react-pdf draws each child as
+                its own run, and a subtitle split into five pieces is harder to read back out of the
+                file than it is to write. */}
+            <Text style={styles.documentSubtitle}>
+              {`${run.brokerName}, ${run.statementMonth}, revision ${run.revision}`}
+            </Text>
+          </View>
+        </View>
 
-        {run.monthWasStillRunning ? (
-          <Text style={styles.provisional}>
-            {`MONTH IN PROGRESS, PROVISIONAL. This statement was produced before ${run.statementMonth} was over, so more money can still be booked into that month. It will not change: the run made once the month has ended is the next revision, and the definitive one.`}
-          </Text>
+        {collected.formatNote ? (
+          <View style={styles.callout}>
+            <Text>{collected.formatNote}</Text>
+          </View>
         ) : null}
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Statement month</Text>
-          <Text style={styles.value}>
+        {run.monthWasStillRunning ? (
+          <View style={styles.callout}>
+            <Text>
+              {`MONTH IN PROGRESS, PROVISIONAL. This statement was produced before ${run.statementMonth} was over, so more money can still be booked into that month. It will not change: the run made once the month has ended is the next revision, and the definitive one.`}
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.factRow}>
+          <Text style={styles.factLabel}>Statement month</Text>
+          <Text style={styles.factValue}>
             {`${formatCalendarDate(`${run.statementMonth}-01`)} to the last day of that month (business dates)`}
           </Text>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Revision</Text>
-          <Text style={styles.value}>
+        <View style={styles.factRow}>
+          <Text style={styles.factLabel}>Revision</Text>
+          <Text style={styles.factValue}>
             {`${run.revision}${
               run.supersedesRunId ? ", superseding the previous revision of the same month" : ", the first run of this month"
             }${run.identicalToPrevious ? " (identical to the revision it supersedes)" : ""}`}
           </Text>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Knowledge cutoff</Text>
-          <Text style={styles.value}>{formatUtcTimestamp(run.knowledgeCutoff.toISOString())}</Text>
+        <View style={styles.factRow}>
+          <Text style={styles.factLabel}>Knowledge cutoff</Text>
+          <Text style={styles.factValue}>{formatUtcTimestamp(run.knowledgeCutoff.toISOString())}</Text>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Content hash (sha256)</Text>
-          <Text style={styles.monospace}>{run.contentHash}</Text>
+        <View style={styles.factRow}>
+          <Text style={styles.factLabel}>Content hash (sha256)</Text>
+          <Text style={styles.factValueMono}>{run.contentHash}</Text>
         </View>
-        <View style={styles.row}>
-          <Text style={styles.label}>Produced</Text>
-          <Text style={styles.value}>
+        <View style={styles.factRow}>
+          <Text style={styles.factLabel}>Produced</Text>
+          <Text style={styles.factValue}>
             {`${formatUtcTimestamp(run.createdAt.toISOString())}${run.runByName ? ` by ${run.runByName}` : ""}`}
           </Text>
         </View>
 
+        {/* `wrap={false}` on every table row below: a row that does not fit moves whole to the
+            next page instead of being cut through the middle, which is how a long description
+            ended up alone at the top of a page with none of its figures. */}
         <Text style={styles.sectionTitle}>Movements</Text>
         <View style={styles.tableHeader}>
-          <Text style={styles.dateColumn}>Effective</Text>
-          <Text style={styles.kindColumn}>Line</Text>
-          <Text style={styles.policyColumn}>Policy</Text>
-          <Text style={styles.descriptionColumn}>Description</Text>
-          <Text style={styles.amountColumn}>Amount</Text>
-          <Text style={styles.amountColumn}>Premium in it</Text>
+          <Text style={styles.statementDateColumn}>Effective</Text>
+          <Text style={styles.statementKindColumn}>Line</Text>
+          <Text style={styles.statementPolicyColumn}>Policy</Text>
+          <Text style={styles.textColumn}>Description</Text>
+          <Text style={styles.statementAmountColumn}>Amount</Text>
+          <Text style={styles.statementAmountColumn}>Premium in it</Text>
         </View>
         {lines.length === 0 ? (
           <Text style={styles.emptyState}>
@@ -153,60 +141,70 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
           </Text>
         ) : (
           lines.map((line) => (
-            <View key={line.journalEntryId} style={styles.rowWithRule}>
-              <Text style={styles.dateColumn}>{formatCalendarDate(line.effectiveAt.toISOString().slice(0, 10))}</Text>
-              <Text style={styles.kindColumn}>{KIND_LABEL[line.kind]}</Text>
-              <Text style={styles.policyColumn}>{line.policyNumber ?? "-"}</Text>
-              <Text style={styles.descriptionColumn}>{line.description}</Text>
-              <Text style={styles.amountColumn}>{formatCents(line.amountCents)}</Text>
-              <Text style={styles.amountColumn}>
+            <View key={line.journalEntryId} style={styles.statementTableRow} wrap={false}>
+              <Text style={styles.statementDateColumn}>
+                {formatCalendarDate(line.effectiveAt.toISOString().slice(0, 10))}
+              </Text>
+              <Text style={styles.statementKindColumn}>{KIND_LABEL[line.kind]}</Text>
+              <Text style={styles.statementPolicyColumn}>{line.policyNumber ?? "-"}</Text>
+              {/* textColumn is the fix for review finding F-B9-08: it takes the space the fixed
+                  columns leave (flexBasis 0) and wraps inside it, instead of keeping its natural
+                  width and printing a long description over the amounts. */}
+              <Text style={styles.textColumn}>{line.description}</Text>
+              <Text style={styles.statementAmountColumn}>{formatCents(line.amountCents)}</Text>
+              <Text style={styles.statementAmountColumn}>
                 {line.commissionBaseCents === null ? "-" : formatCents(line.commissionBaseCents)}
               </Text>
             </View>
           ))
         )}
 
-        <Text style={styles.sectionTitle}>Totals</Text>
-        <View style={styles.rowWithRule}>
-          <Text style={styles.descriptionColumn}>Cash collected from customers (premium, tax and fee)</Text>
-          <Text style={styles.amountColumn}>{formatCents(collected.cashCollectedCents)}</Text>
-        </View>
-        <View style={styles.rowWithRule}>
-          <Text style={styles.descriptionColumn}>Premium collected, which is the commission base</Text>
-          <Text style={styles.amountColumn}>
-            {collected.premiumCollectedCents === null ? "not stored" : formatCents(collected.premiumCollectedCents)}
-          </Text>
-        </View>
-        <View style={styles.rowWithRule}>
-          <Text style={styles.descriptionColumn}>
-            {collected.premiumCollectedCents === null ? "Commission earned" : "Commission earned on that premium"}
-          </Text>
-          <Text style={styles.amountColumn}>{formatCents(run.commissionEarnedCents)}</Text>
-        </View>
-        <View style={styles.rowWithRule}>
-          <Text style={styles.descriptionColumn}>Commission clawed back on refunded premium</Text>
-          <Text style={styles.amountColumn}>{formatCents(-run.clawbackCents)}</Text>
-        </View>
-        {run.adjustmentCents === 0 ? null : (
-          <View style={styles.rowWithRule}>
-            <Text style={styles.descriptionColumn}>Other adjustments to the commission owed</Text>
-            <Text style={styles.amountColumn}>{formatCents(run.adjustmentCents)}</Text>
+        {/* The six totals are one short block and are read as one: `wrap={false}` on the
+            block keeps them on a single page, instead of leaving the cash on one page and the
+            net due on the next. */}
+        <View wrap={false}>
+          <Text style={styles.sectionTitle}>Totals</Text>
+          <View style={styles.tableRow} wrap={false}>
+            <Text style={styles.textColumn}>Cash collected from customers (premium, tax and fee)</Text>
+            <Text style={styles.statementTotalAmountColumn}>{formatCents(collected.cashCollectedCents)}</Text>
           </View>
-        )}
-        <View style={styles.totalRow}>
-          <Text style={styles.descriptionColumn}>Net due to the broker</Text>
-          <Text style={styles.amountColumn}>{formatCents(run.netDueCents)}</Text>
+          <View style={styles.tableRow} wrap={false}>
+            <Text style={styles.textColumn}>Premium collected, which is the commission base</Text>
+            <Text style={styles.statementTotalAmountColumn}>
+              {collected.premiumCollectedCents === null ? "not stored" : formatCents(collected.premiumCollectedCents)}
+            </Text>
+          </View>
+          <View style={styles.tableRow} wrap={false}>
+            <Text style={styles.textColumn}>
+              {collected.premiumCollectedCents === null ? "Commission earned" : "Commission earned on that premium"}
+            </Text>
+            <Text style={styles.statementTotalAmountColumn}>{formatCents(run.commissionEarnedCents)}</Text>
+          </View>
+          <View style={styles.tableRow} wrap={false}>
+            <Text style={styles.textColumn}>Commission clawed back on refunded premium</Text>
+            <Text style={styles.statementTotalAmountColumn}>{formatCents(-run.clawbackCents)}</Text>
+          </View>
+          {run.adjustmentCents === 0 ? null : (
+            <View style={styles.tableRow} wrap={false}>
+              <Text style={styles.textColumn}>Other adjustments to the commission owed</Text>
+              <Text style={styles.statementTotalAmountColumn}>{formatCents(run.adjustmentCents)}</Text>
+            </View>
+          )}
+          <View style={styles.totalRow} wrap={false}>
+            <Text style={styles.textColumn}>Net due to the broker</Text>
+            <Text style={styles.statementTotalAmountColumn}>{formatCents(run.netDueCents)}</Text>
+          </View>
         </View>
 
         <View style={styles.footer} fixed>
-          <Text>
+          <Text style={styles.footerSentence}>
             The two collected figures are the same money read twice: the cash is what the customers paid,
             premium plus state premium tax plus policy fee, and the premium is the part of it commission is
             earned on. Commission is that premium times the broker&apos;s rate, rounded down, and never touches
             tax or fee. Refunds are not netted into either figure; they are on their own lines, next to the
             clawback each one produced.
           </Text>
-          <Text>
+          <Text style={styles.footerSentence}>
             Net due is the movement of this broker&apos;s commission payable account in the ledger for this
             month. Running this month again for the same broker with the knowledge cutoff above reads the same
             journal entries and produces the same content hash, because a journal row can never change and its
@@ -215,6 +213,16 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
             here and present in a later run with the same cutoff. It cannot happen once the month is closed and
             quiet. A correction recorded after the cutoff produces a new revision instead of changing this one.
           </Text>
+          <View style={styles.footerBottomRow}>
+            <Text>Generated {formatUtcTimestamp(run.createdAt.toISOString())}.</Text>
+            {/* react-pdf resolves this render prop once the page count is known, which is why
+                the total can be printed on page one. */}
+            <Text
+              style={styles.footerPageNumber}
+              render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+              fixed
+            />
+          </View>
         </View>
       </Page>
     </Document>,
