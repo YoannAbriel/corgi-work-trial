@@ -210,7 +210,10 @@ export async function checkoutOperationOfPolicy(policyId: string): Promise<Check
   return {
     operationId: operation.id,
     amountCents: centsFromDatabase(operation.amount_cents, "amount_cents"),
-    latestStatus: latest ? latest.status : null,
+    // A final status wins over a later step: Stripe may deliver checkout.session.completed after
+    // payment_intent.succeeded, and the rows written before the F-B2-20 fix keep that order forever
+    // (append-only). What the screen calls the last status is the furthest the operation got.
+    latestStatus: succeeded ? "succeeded" : latest ? latest.status : null,
     checkoutUrl: accepted?.payload?.checkout_url ?? null,
     providerRef: accepted?.provider_ref ?? null,
     bindingRefusedReason: succeeded?.payload?.binding_refused_reason ?? null,
