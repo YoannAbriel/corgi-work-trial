@@ -1,7 +1,14 @@
--- 0013: a reconciliation item remembers the DATE OF THE RECORD it is about (review F-B10-01).
+-- 0016: a reconciliation item remembers the DATE OF THE RECORD it is about (review F-B10-01).
 --
 -- Strictly additive: one nullable column on reconciliation_items. No row is written, no existing
--- value changes, no constraint is dropped. Nothing from 0001 to 0012 is touched.
+-- value changes, no constraint is dropped. Nothing from 0001 to 0015 is touched.
+--
+-- WHY IT IS 0016 AND WHY IT IS IDEMPOTENT. It was written as 0013 and applied under that name to
+-- the disposable database corgi_test before the slice-B9 follow-ups merged their own 0013 into
+-- main. Two files sharing a number is the situation review finding F-B3-09 already caught once,
+-- so this one was renumbered to the next free slot rather than left to collide. The runner applies
+-- a file once per NAME, so corgi_test would otherwise try to add the column a second time under
+-- the new name: `if not exists` makes that a no-op there and a normal creation everywhere else.
 --
 -- WHY THIS COLUMN EXISTS
 --
@@ -24,8 +31,8 @@
 -- written before this migration therefore carry NULL. The reads treat NULL as the item's own
 -- first_seen_at, which is the instant we first saw the record and is by construction inside the
 -- window of the run that reported it, so one rule covers both.
-alter table reconciliation_items add column record_at timestamptz;
+alter table reconciliation_items add column if not exists record_at timestamptz;
 
 -- The coverage question is asked per source and per record date, so the screen reads this column
 -- next to the run's window on every open break.
-create index reconciliation_items_by_record_date on reconciliation_items (record_at);
+create index if not exists reconciliation_items_by_record_date on reconciliation_items (record_at);
