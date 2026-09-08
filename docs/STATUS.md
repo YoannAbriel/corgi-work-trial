@@ -76,7 +76,13 @@ Yoann paid a fresh policy CGP-01274 ($2,312 premium, tax 5433, fee 2500, charge 
 
 B8a: CGP-01061 (bound on a locally fabricated webhook) corrected by `npm run void:fabricated-binding`: the guard asked Stripe and confirmed the payment intent does not exist, then one transaction wrote a correction_reversal policy event superseding the issuance and four reversal entries mirroring the originals (lib/ledger/reverse.ts, lib/policy/void-fabricated-binding.ts). Originals untouched; the fold skips superseded events; ledger cash_stripe now equals what Stripe holds (270661 cents); the same run on corgi_test showed net zero per account and a refused second attempt. B2 re-review requested. B3 wiring is being built by a delegate; B5 independent review in progress.
 
-Next: B3 merge and live KYB proof, then the T+24h email (draft in docs/checkpoints), then B4, B7, B8 (correction UI), B9. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
+## 2026-09-08T12:05:27+00:00 | Walkthrough progress, B2 re-review status, B5 review PASS
+
+Walkthrough with Yoann (four questions on the money path, his own words): B2 outbox order (half right, then explained: crash safety and the stable key), which Stripe event posts (right, with the reason), replay twice is one (inbox by event id right, journal by operation id explained and confirmed back), B5 refund liability (refund_payable as a clearing account explained with his own policy's figures). Status: B2 and B5 EXPLAINED, QUESTIONS OPEN until a second pass tomorrow; B1 QUESTIONS OPEN.
+
+B2 re-review at 109dafb: four fixes verified; new finding F-B2-13 (voided policy could still be paid): first door closed (session expired at Stripe, void fixed at 5b14830), second door (attempt 2 on a voided policy, unique-violation mapped to already_posted) assigned to the B3 delegate with the reviewer's exact spec; re-review after B3 merges. B5 review: PASS with four MEDIUM (F-B5-01 approval on refunds and F-B5-02/03 refund re-issue and recovery assigned to the B7 delegate; F-B5-04 a deployed-app cancellation after B7). B7 (claims, reserves, simulated rail, maker-checker) being built by a delegate.
+
+Next: B3 merge and live KYB proof, README and T+24h email, B7 merge, then B4, B8 (correction UI), B9, B10, B11. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
 
