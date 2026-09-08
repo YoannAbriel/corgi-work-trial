@@ -10,6 +10,7 @@ import { foldPolicyEvents } from "@/lib/policy/current";
 import { policyWasVoided } from "@/lib/policy/status";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
 import { CHECKOUT_EXPIRED_REASON, type SuccessfulPayment } from "./collection";
+import type { UserRole } from "@/lib/auth/current-user";
 
 // Collecting the difference a backdated correction created, when the corrected date charges more
 // days of cover than the date that was entered by mistake (slice B8).
@@ -127,7 +128,8 @@ async function loadCorrectionCollection(
 
 export type CorrectionApprovalActor = {
   userId: string;
-  role: "broker" | "customer" | "staff_ops" | "staff_approver";
+  // Every role the application knows, including 'agent' (slice B11); the checks are allowlists.
+  role: UserRole;
   customerId: string | null;
 };
 
@@ -225,7 +227,7 @@ async function outstandingCorrectionCollection(
 export type StartCorrectionCheckoutRequest = {
   policyId: string;
   rebookEventId: string;
-  actor: { userId: string; role: "broker" | "customer" | "staff_ops" | "staff_approver"; brokerId: string | null };
+  actor: { userId: string; role: UserRole; brokerId: string | null };
 };
 
 export async function startCorrectionCheckout(

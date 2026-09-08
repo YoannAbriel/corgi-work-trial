@@ -76,6 +76,19 @@ export default async function ApprovalsPage({
                     <th>Where the money would go</th>
                     <td>{request.destination}</td>
                   </tr>
+                  {request.raisedThrough ? (
+                    <tr>
+                      {/* Slice B11: the request came through the MCP endpoint. An approver has to
+                          see that a machine asked before deciding; the agent itself can never
+                          decide, in this application and in the database. */}
+                      <th>How it was raised</th>
+                      <td>
+                        {request.raisedByAgent ? <strong>Raised by an AGENT. </strong> : null}
+                        {request.raisedThrough}. The person named above holds that key; an agent
+                        principal can never approve a money-out.
+                      </td>
+                    </tr>
+                  ) : null}
                   <tr>
                     <th>What is being approved, exactly</th>
                     <td>

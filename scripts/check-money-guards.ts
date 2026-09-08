@@ -60,6 +60,13 @@ const PROTECTED_TABLES = [
   // never an edit of the revision that was published.
   "statement_runs",
   "statement_lines",
+  // Added by migration 0018 (slice B11): the MCP API keys, their revocations and the log of every
+  // call. Not money rows, protected all the same: they record who was allowed to ask what, and
+  // what an agent actually asked. An UPDATE would let somebody re-point a key at another user, or
+  // make a call disappear, after the fact.
+  "mcp_api_keys",
+  "mcp_key_revocations",
+  "mcp_calls",
   // Added by migration 0014 (slice B8): which Stripe payment settles the difference a backdated
   // correction created.
   "correction_collections",
@@ -295,6 +302,26 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     returning id
   `;
 
+  // Slice B11: one MCP API key, its revocation and one call made with it. The hash is a
+  // plausible sha256 and not a real one: no key exists whose sha256 this is, and the fixture is
+  // rolled back anyway.
+  const [apiKey] = await tx<{ id: string }[]>`
+    insert into mcp_api_keys (user_id, label, key_prefix, key_hash, principal_kind, created_by)
+    values (${maker.id}, 'guard check key', 'cmk_' || substr(md5(gen_random_uuid()::text), 1, 8),
+            encode(sha256(gen_random_uuid()::text::bytea), 'hex'), 'agent', ${maker.id})
+    returning id
+  `;
+  const [keyRevocation] = await tx<{ id: string }[]>`
+    insert into mcp_key_revocations (api_key_id, revoked_by, reason)
+    values (${apiKey.id}, ${maker.id}, 'guard check revocation')
+    returning id
+  `;
+  const [mcpCall] = await tx<{ id: string }[]>`
+    insert into mcp_calls (api_key_id, method, tool, arguments_hash, outcome, detail, duration_ms)
+    values (${apiKey.id}, 'tools/call', 'get_policy_as_of', repeat('b', 64), 'ok', null, 12)
+    returning id
+  `;
+
   // A correction of that endorsement's effective date, and the payment that settles the
   // difference it created (migration 0014). 5047 = 4931 of premium + 116 of tax, the recited
   // example: entered as 2028-07-09, corrected to 2028-06-09.
@@ -338,6 +365,9 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     endorsement_collections: endorsementCollection.id,
     statement_runs: statementRun.id,
     statement_lines: statementLine.id,
+    mcp_api_keys: apiKey.id,
+    mcp_key_revocations: keyRevocation.id,
+    mcp_calls: mcpCall.id,
     journal_entries: journalEntry.id,
     correction_collections: correctionCollection.id,
   };
@@ -661,19 +691,21 @@ async function runMakerCheckerChecks(owner: postgres.Sql): Promise<void> {
     );
   }
 
-  // 3. An agent principal cannot even exist yet: the users.role CHECK of migration 0002 does not
-  //    allow 'agent'. When slice B11 adds it, the trigger checked above is what keeps refusing
-  //    it, because it demands exactly 'staff_approver'.
-  const agentPrincipal = await expectError(owner, async (tx) => {
+  // 3. An agent principal CAN exist since migration 0018 (slice B11) added 'agent' to the
+  //    users.role CHECK, and the trigger checked above is what keeps refusing it as a decider,
+  //    because it demands exactly 'staff_approver'. Until 0018 this check asserted the opposite
+  //    (that the role could not be created at all), which was true of the schema at the time; the
+  //    refusal it really cares about is the one below and in section 11.
+  const agentPrincipalExists = await expectError(owner, async (tx) => {
     await tx`
       insert into users (email, display_name, role)
       values ('mc-agent-' || gen_random_uuid()::text || '@example.invalid', 'an MCP api key', 'agent')
     `;
   });
   report(
-    "an 'agent' principal cannot be created today, and the approver trigger would refuse it anyway",
-    !!agentPrincipal && /users_role_check/i.test(agentPrincipal),
-    agentPrincipal ?? "no error raised",
+    "an 'agent' principal can be created, and section 11 proves the approver trigger refuses it",
+    agentPrincipalExists === null,
+    agentPrincipalExists ?? "created, as migration 0018 intends",
   );
 
   // 4. A decision by a user who does not exist at all.
@@ -1113,6 +1145,100 @@ async function runStatementShapeChecks(owner: postgres.Sql): Promise<void> {
       statementClock.created_at.getTime() > Date.parse("2020-01-01T00:00:00Z") &&
       statementClock.recorded_at.getTime() > Date.parse("2020-01-01T00:00:00Z"),
     statementClock ? `stored ${statementClock.created_at.toISOString()} instead of 2000-01-01` : "no row read",
+  );
+
+  // 11. Migration 0018 (slice B11): what the MCP surface may and may not be given.
+
+  // An agent principal must never hold the visibility of the one role that can approve money out.
+  // The endpoint exposes no approve tool at all; this is the door closed from the other side.
+  const agentKeyForAnApprover = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [approver] = await tx<{ id: string }[]>`
+      select decided_by as id from approval_decisions where id = ${fixture.approval_decisions}
+    `;
+    await tx`
+      insert into mcp_api_keys (user_id, label, key_prefix, key_hash, principal_kind)
+      values (${approver.id}, 'guard check agent key for an approver', 'cmk_00000000', repeat('c', 64), 'agent')
+    `;
+  });
+  report(
+    "an AGENT MCP key cannot be created for a staff_approver",
+    !!agentKeyForAnApprover && /agent principal cannot hold a staff_approver key/.test(agentKeyForAnApprover),
+    agentKeyForAnApprover ?? "no error raised",
+  );
+
+  // The same key for the same person, held by a person rather than by an agent, is fine: the rule
+  // is about who holds it, not about who it belongs to.
+  const humanKeyForAnApprover = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [approver] = await tx<{ id: string }[]>`
+      select decided_by as id from approval_decisions where id = ${fixture.approval_decisions}
+    `;
+    await tx`
+      insert into mcp_api_keys (user_id, label, key_prefix, key_hash, principal_kind)
+      values (${approver.id}, 'guard check human key for an approver', 'cmk_00000001', repeat('d', 64), 'human')
+    `;
+  });
+  report(
+    "a HUMAN MCP key for a staff_approver is allowed: the rule is about who holds the key",
+    humanKeyForAnApprover === null,
+    humanKeyForAnApprover ?? "accepted, as it should be",
+  );
+
+  // A key is revoked once. A second revocation would make "when was it revoked" ambiguous, and
+  // no row here can be updated to settle it.
+  const revokedTwice = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`
+      insert into mcp_key_revocations (api_key_id, reason) values (${fixture.mcp_api_keys}, 'a second revocation')
+    `;
+  });
+  report(
+    "an MCP key can be revoked only once",
+    !!revokedTwice && /mcp_key_revocations_api_key_id_key/.test(revokedTwice),
+    revokedTwice ?? "no error raised",
+  );
+
+  // The role 'agent' exists, and the maker-checker trigger of 0008 refuses it, which is the
+  // promise that migration wrote down before slice B11 existed.
+  const agentRoleDecides = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [agent] = await tx<{ id: string }[]>`
+      insert into users (email, display_name, role)
+      values ('guard-agent-' || gen_random_uuid()::text || '@example.invalid', 'guard check agent', 'agent')
+      returning id
+    `;
+    const [request] = await tx<{ id: string }[]>`
+      select id from approval_requests where id = ${fixture.approval_requests}
+    `;
+    await tx`
+      insert into approval_decisions (request_id, decided_by, decision)
+      values (${request.id}, ${agent.id}, 'approved')
+    `;
+  });
+  report(
+    "a user with the role 'agent' exists and CANNOT decide a money-out",
+    !!agentRoleDecides && /maker-checker: only a staff_approver/.test(agentRoleDecides),
+    agentRoleDecides ?? "no error raised",
+  );
+
+  // When a call was made comes from the database: a call log a caller could backdate would be
+  // worth nothing during an incident.
+  let mcpClock: Date | null = null;
+  await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    const [call] = await tx<{ called_at: Date }[]>`
+      insert into mcp_calls (api_key_id, method, outcome, duration_ms, called_at)
+      values (${fixture.mcp_api_keys}, 'tools/list', 'ok', 3, '2000-01-01T00:00:00Z')
+      returning called_at
+    `;
+    mcpClock = call.called_at;
+  });
+  const mcpCallTime = mcpClock as Date | null;
+  report(
+    "an MCP call is timed by the database, not by the caller",
+    mcpCallTime !== null && mcpCallTime.getTime() > Date.parse("2020-01-01T00:00:00Z"),
+    mcpCallTime ? `stored ${mcpCallTime.toISOString()} instead of 2000-01-01` : "no row read",
   );
 }
 
