@@ -39,12 +39,15 @@ export async function assertStripeSandbox(): Promise<void> {
   }
 }
 
-// Signing secret of the webhook endpoint for the current environment
-// (production: the endpoint registered on the deployed URL; local: the `stripe listen` secret).
-export function stripeWebhookSigningSecret(): string {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) {
+// Signing secrets of the webhook endpoints for the current environment. The account endpoint
+// (STRIPE_WEBHOOK_SECRET: payments, refunds; locally the `stripe listen` secret) is required.
+// The Connect endpoint (STRIPE_CONNECT_WEBHOOK_SECRET: account.updated of connected accounts)
+// is optional locally and required in production for broker KYB events.
+export function stripeWebhookSigningSecrets(): string[] {
+  const accountSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!accountSecret) {
     throw new Error("STRIPE_WEBHOOK_SECRET must be set");
   }
-  return secret;
+  const connectSecret = process.env.STRIPE_CONNECT_WEBHOOK_SECRET;
+  return connectSecret ? [accountSecret, connectSecret] : [accountSecret];
 }

@@ -16,7 +16,7 @@ import {
   recordFailedRefund,
 } from "@/lib/payments/refunds";
 import { replyForRefusedLease, type WebhookProcessingStatus } from "@/lib/payments/webhook-inbox";
-import { stripe, stripeWebhookSigningSecret } from "@/lib/stripe";
+import { stripe, stripeWebhookSigningSecrets } from "@/lib/stripe";
 
 // POST /api/webhooks/stripe
 //
@@ -49,10 +49,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "missing stripe-signature header" }, { status: 400 });
   }
 
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(rawBody, signature, stripeWebhookSigningSecret());
-  } catch {
+  // Two Stripe endpoints point at this route with two signing secrets: the account endpoint
+  // (payments and refunds of our own account) and the Connect endpoint (account.updated of the
+  // brokers' connected accounts; Stripe only delivers those through an endpoint created with
+  // connect=true). A delivery is accepted when it verifies against either secret.
+  const event = verifyAgainstKnownSecrets(rawBody, signature);
+  if (!event) {
     return Response.json({ error: "invalid signature" }, { status: 400 });
   }
 
@@ -90,6 +92,18 @@ export async function POST(request: Request) {
     `;
     return Response.json({ received: false, status: "failed" }, { status: 500 });
   }
+}
+
+// Returns the verified event, or null when the signature matches none of our endpoint secrets.
+function verifyAgainstKnownSecrets(rawBody: string, signature: string): Stripe.Event | null {
+  for (const secret of stripeWebhookSigningSecrets()) {
+    try {
+      return stripe.webhooks.constructEvent(rawBody, signature, secret);
+    } catch {
+      // not this endpoint's secret; try the next one
+    }
+  }
+  return null;
 }
 
 // Inserts the immutable event and its pending processing row. If the event already exists,
