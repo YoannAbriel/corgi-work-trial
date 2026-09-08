@@ -1,8 +1,21 @@
 # Slice B11 implementation notes (the MCP surface)
 
 Written by the B11 delegate on 2026-09-08. Branch `worktree-agent-a0f8e7758a0bbff1b`, worktree
-`/Users/yoannabriel/dev/corgi-work-trial/.claude/worktrees/agent-a0f8e7758a0bbff1b`, four commits
-on top of `6fd5ff4`. Nothing was pushed, nothing was deployed, no shared planning file was edited.
+`/Users/yoannabriel/dev/corgi-work-trial/.claude/worktrees/agent-a0f8e7758a0bbff1b`, five commits
+on top of `6fd5ff4` plus a merge of `main` at `dba9c43`. Nothing was pushed, nothing was deployed,
+no shared planning file was edited.
+
+**The merge of main, and what it changed here.** Two conflicts, both resolved in favour of main
+outside the MCP files: `app/ops/page.tsx` is main's `PortalShell` plus `WorkspaceOverview` (my
+list of links is gone with the old page), and `scripts/check-money-guards.ts` keeps BOTH sides
+(main's `correction_collections` of slice B8 and this slice's three MCP tables). Three follow-on
+edits were needed: `/ops/mcp-keys` now renders inside `PortalShell` like every other operations
+screen, the navigation and the overview gained an "MCP keys" entry (otherwise the screen would
+have had no way in), and slice B8's three actor types (`CorrectionActor`,
+`CorrectionApprovalActor`, `StartCorrectionCheckoutRequest`) now use `UserRole` for the same
+reason `CancellationActor` and `EndorsementActor` do: they check with allowlists, so the new
+`'agent'` role is refused by default. The migration keeps the number `0018`: main's last one is
+`0017_reconciliation_item_record_date.sql`.
 
 Companion document: `docs/handoffs/b11-mcp-session.md`, a sanitized curl session the coordinator
 can replay call by call.
@@ -270,7 +283,20 @@ $ npm test                                        375 tests, 374 pass, 0 fail, 1
 $ npm run check:mcp                               52 of 52 PASS, exit 0   (new)
 $ npm run check:claims-and-approvals              71 of 71 PASS, exit 0   (unchanged by this slice)
 $ npm run check:money-guards -- --database=test    177 PASS, 1 FAIL: see below
+
+after the merge of main at dba9c43:
+
+$ npm ci                                          lucide-react and the rest of main's interface work
+$ npm run typecheck                               exit 0
+$ npm test                                        404 tests, 403 pass, 0 fail, 1 skipped
+$ npm run build                                   exit 0, 47 routes, /api/mcp, /api/mcp-keys and
+                                                  /ops/mcp-keys listed
+$ npm run check:mcp                               52 of 52 PASS, exit 0
 ```
+
+The money guards were NOT run again after the merge, on the coordinator's instruction: they are
+proven on an ephemeral database at merge time. The `/ops/mcp-keys` screen was rendered once more
+after the merge (200, inside the new shell, reachable from the sidebar and from the overview).
 
 **The money guards were run twice, and the reason matters.** The first run found one real failure:
 the B7-era assertion that a user with the role `'agent'` cannot be created, which migration 0018
@@ -381,4 +407,5 @@ afterwards and port 3800 is free.
 4. **Replay `docs/handoffs/b11-mcp-session.md`** against the deployed URL, and, if time allows,
    point one real MCP client at it.
 5. **Watch for the B10 clearing-balances fix** (F-B10-03): when it lands, replace the local query
-   in `lib/mcp/tools/reconciliation-breaks.ts` with the shared reader.
+   in `lib/mcp/tools/reconciliation-breaks.ts` with the shared reader. As of the merge of `main`
+   at `dba9c43` it had not landed.
