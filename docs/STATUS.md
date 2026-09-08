@@ -60,7 +60,15 @@ Live proof at 10:16Z: Yoann paid policy CGP-01062 ($3,450.75 premium, California
 
 Delegate findings adopted: webhook payloads were stored as jsonb strings by the B1a code (fixed with sql.json(); the two probe rows keep the old shape and are ignored by queries); Next.js 16 appends a block to AGENTS.md on dev runs (agentRules turned off). Demo data now in the trial database: broker Redwood Commercial Brokers (15%), users broker@, customer@, ops@, approver@example.com sharing DEMO_PASSWORD, policies CGP-01061 (bound through a locally signed webhook) and CGP-01062 (bound through the real Stripe delivery above). Independent review of B2 in progress (docs/reviews/b2-issuance-and-collection.md). Walkthrough NOT REVIEWED WITH YOANN.
 
-Next acceptance criterion: B3 broker KYB on Stripe Connect (adapter being built by a delegate), then B4 endorsement. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
+## 2026-09-08T11:06:08+00:00 | B2 review FAIL (data), documents and KYB adapter merged (c548ccb), B5 in progress
+
+B2 independent review: FAIL on F-B2-01 (CGP-01061 bound on a locally fabricated payment; Yoann decided reversal plus dated correction event, done as B8a after B5 merges), MEDIUM F-B2-02 (503 while a lease is in flight, stuck-events view), F-B2-03 (Checkout expiry: new intent per attempt, decided), F-B2-04 (a fresh draft must be paid on the deployed URL). Code controls all passed. Register: docs/reviews/FINDINGS.md.
+
+Merged from the documents/KYB delegate: lib/documents (pure fold of policy events as of a date, declarations and endorsement schedule PDFs, text-asserted tests) and lib/kyb (Stripe Connect Accounts v2 adapter, eligibility mapping with captured fixtures, opt-in live test PASS). `npm test` 103 pass, 1 skipped. Findings for Yoann: Stripe's business identity check lands about 45 to 50 seconds after account creation (settling window rule), the published pending EIN fixture yields approved, the ToS attestation and business URL are mandatory. Fourteen test accounts tagged corgi_probe exist in the Stripe sandbox. B5 (cancellation with a real refund) is being built by a delegate, including F-B2-02 and F-B2-03.
+
+Walkthrough status: B1 QUESTIONS OPEN, B2 QUESTIONS OPEN (Yoann asked for shorter explanations; the Code page was rewritten with a flow diagram).
+
+Next: merge B5, then B8a (reversal of CGP-01061), then B3 wiring, then the T+24h email. Planned checks: `/api/health` reachable from outside with DB ok, gitleaks staged and history scans PASS, `.env.example` complete, sandbox accounts created within the 15-minute timeboxes or the blocker reported. Product AF-01 through AF-06 verification: NOT RUN (no product exists yet).
 
 ## Earlier status (kept as history)
 
