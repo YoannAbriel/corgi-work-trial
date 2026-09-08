@@ -37,6 +37,26 @@ export function assertClaimsOperator(actor: ClaimActor): void {
   }
 }
 
+// The two scheduled jobs (settling due payouts, recovering stuck operations) act on claims with
+// no user behind them: they only ever finish work a person already asked for, and their HTTP
+// entry points are authenticated by CRON_SECRET (lib/jobs/authorize.ts). They say so explicitly
+// instead of passing no actor at all, so that a future caller cannot forget to be checked
+// (review findings F-B7-05 and F-B7-10).
+export const SCHEDULED_JOB = "scheduled_job";
+
+export type ClaimActorOrJob = ClaimActor | typeof SCHEDULED_JOB;
+
+export function assertClaimsOperatorOrJob(actor: ClaimActorOrJob): void {
+  if (actor !== SCHEDULED_JOB) {
+    assertClaimsOperator(actor);
+  }
+}
+
+// The user id recorded on the rows an action writes, or null when the scheduled job wrote them.
+export function actorUserId(actor: ClaimActorOrJob): string | null {
+  return actor === SCHEDULED_JOB ? null : actor.userId;
+}
+
 // ---------------------------------------------------------------------------
 // The lock every money decision on a claim takes first
 // ---------------------------------------------------------------------------

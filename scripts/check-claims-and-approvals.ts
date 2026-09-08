@@ -441,12 +441,12 @@ async function main() {
   // ---------------------------------------------------------------------------
 
   const settlement = await settleClaimPayment(
-    { operationId: queuedOperationId, settledOn: "2028-05-12", broughtForwardBy: maker.userId },
+    { operationId: queuedOperationId, settledOn: "2028-05-12", settledBy: maker },
     runtime,
   );
   report("the rail settles the payment", settlement.outcome === "settled", settlement.outcome);
   const settledAgain = await settleClaimPayment(
-    { operationId: queuedOperationId, settledOn: "2028-05-12", broughtForwardBy: maker.userId },
+    { operationId: queuedOperationId, settledOn: "2028-05-12", settledBy: maker },
     runtime,
   );
   report("running the settlement again does nothing", settledAgain.outcome === "already_settled", settledAgain.outcome);
@@ -886,6 +886,16 @@ async function main() {
     assertPaymentBelongsToClaim(splitClaim.claimId, firstSixHundred.operationId, runtime),
   );
   report("the claim that owns the payment passes the same check", rightPair === "no error raised", rightPair);
+
+  // F-B7-10: settling now checks its own actor instead of trusting the route that called it.
+  const approverSettling = await refusal(() =>
+    settleClaimPayment({ operationId: queuedOperationId, settledOn: "2028-05-12", settledBy: checker }, runtime),
+  );
+  report(
+    "the approver cannot settle a payment: settleClaimPayment checks the actor itself",
+    /only staff operations/.test(approverSettling),
+    approverSettling,
+  );
 
   // ---------------------------------------------------------------------------
   // 12. The whole ledger still balances

@@ -45,13 +45,12 @@ export async function POST(
 
       case "settle": {
         // Only staff operations drive the simulated rail, like every other money action here.
-        if (user.role !== "staff_ops") {
-          throw new ClaimRefused(`only staff operations can settle a payment; your role is "${user.role}"`);
-        }
+        // The role is checked inside settleClaimPayment, from the actor passed here, so a
+        // future caller cannot settle a payment without being checked (finding F-B7-10).
         const settled = await settleClaimPayment({
           operationId,
           settledOn: todayUtc(),
-          broughtForwardBy: user.id,
+          settledBy: actor,
         });
         return backToClaim(claimId, `payment=${settled.outcome}`);
       }

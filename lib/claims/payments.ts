@@ -24,12 +24,15 @@ import {
 } from "@/lib/rails/bank-verification-simulator";
 import {
   ClaimRefused,
+  actorUserId,
   assertClaimsOperator,
+  assertClaimsOperatorOrJob,
   claimSnapshot,
   entryContext,
   lockClaimForMoneyDecision,
   todayUtc,
   type ClaimActor,
+  type ClaimActorOrJob,
   type ClaimSnapshot,
 } from "./claims";
 import { claimPaymentRefusal } from "./limits";
@@ -508,7 +511,10 @@ export async function sendClaimPayment(
 export type SettleClaimPaymentInput = {
   operationId: string;
   settledOn: string; // the day the rail says the money left
-  broughtForwardBy: string | null; // user id when a person settled it early from the claim screen
+  // Who is settling: a staff operator pressing "settle now" on the LOCAL SIMULATOR controls, or
+  // SCHEDULED_JOB when the settlement job does it on its settlement date. Stated by every caller
+  // rather than inferred, and checked below (review finding F-B7-10).
+  settledBy: ClaimActorOrJob;
 };
 
 // The rail confirms the money has left. Called by the job for every transfer whose settlement
@@ -517,6 +523,9 @@ export async function settleClaimPayment(
   input: SettleClaimPaymentInput,
   database: postgres.Sql = sql,
 ): Promise<{ outcome: "settled" | "already_settled" }> {
+  assertClaimsOperatorOrJob(input.settledBy);
+  const broughtForwardBy = actorUserId(input.settledBy);
+
   return database.begin(async (transaction) => {
     const operation = await claimPayoutOperation(transaction, input.operationId);
     if (!operation) {
@@ -549,7 +558,7 @@ export async function settleClaimPayment(
       amountCents: current.amountCents,
       destinationToken: bankAccount?.accountToken ?? "",
       settledOn: input.settledOn,
-      note: input.broughtForwardBy
+      note: broughtForwardBy
         ? "LOCAL SIMULATOR: settlement brought forward from the claim screen"
         : "LOCAL SIMULATOR: settled by the scheduled job on its settlement date",
     });
@@ -560,7 +569,7 @@ export async function settleClaimPayment(
       amountCents: current.amountCents,
       operationId: current.operationId,
       payload: { transfer_ref: current.transferRef, settled_on: input.settledOn },
-      createdBy: input.broughtForwardBy,
+      createdBy: broughtForwardBy,
     });
     await transaction`
       insert into money_operation_events (operation_id, status, provider_ref, payload)
@@ -571,7 +580,7 @@ export async function settleClaimPayment(
     // The cash entry carries the day the cash moved, exactly as the collection and refund
     // entries do.
     const entry = claimPaymentSettledEntry(
-      entryContext(snapshot, claimEventId, input.settledOn, input.broughtForwardBy),
+      entryContext(snapshot, claimEventId, input.settledOn, broughtForwardBy),
       current.amountCents,
     );
     await postJournalEntry(transaction, entry.header, entry.lines);
