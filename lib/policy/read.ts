@@ -283,6 +283,43 @@ export async function journalEntriesOfPolicy(policyId: string): Promise<JournalE
   return entries;
 }
 
+// The correction that reversed this policy's issuance, when there is one. The policy status is
+// then 'voided': the issuance row and its entries are still in the database, the fold no longer
+// applies them, and this is what the page shows instead of a bound policy.
+export type VoidCorrectionView = {
+  correctionEventId: string;
+  reason: string;
+  recordedAt: Date;
+  reversedEntryCount: number;
+};
+
+export async function voidCorrectionOfPolicy(policyId: string): Promise<VoidCorrectionView | null> {
+  const [row] = await sql<
+    { id: string; reason: string | null; recorded_at: Date; reversed_entry_ids: string[] | null }[]
+  >`
+    select reversal.id,
+           reversal.payload ->> 'reason' as reason,
+           reversal.recorded_at,
+           reversal.payload -> 'reversed_entry_ids' as reversed_entry_ids
+      from policy_events reversal
+      join policy_events superseded on superseded.id = reversal.supersedes_event_id
+     where reversal.policy_id = ${policyId}
+       and reversal.event_type = 'correction_reversal'
+       and superseded.event_type = 'issued'
+     order by reversal.sequence_number desc
+     limit 1
+  `;
+  if (!row) {
+    return null;
+  }
+  return {
+    correctionEventId: row.id,
+    reason: row.reason ?? "no reason recorded",
+    recordedAt: row.recorded_at,
+    reversedEntryCount: Array.isArray(row.reversed_entry_ids) ? row.reversed_entry_ids.length : 0,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Cancellation and refunds (slice B5)
 // ---------------------------------------------------------------------------

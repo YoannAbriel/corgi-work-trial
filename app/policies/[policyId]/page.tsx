@@ -10,6 +10,7 @@ import {
   journalEntriesOfPolicy,
   policyDetail,
   refundOperationsOfPolicy,
+  voidCorrectionOfPolicy,
 } from "@/lib/policy/read";
 
 // One policy: what it costs, where it stands, and every journal entry it produced.
@@ -47,12 +48,13 @@ export default async function PolicyPage({
     redirect("/broker");
   }
 
-  const [kyb, operation, entries, cancellation, refunds, query] = await Promise.all([
+  const [kyb, operation, entries, cancellation, refunds, voidCorrection, query] = await Promise.all([
     brokerKybState(policy.brokerId),
     checkoutOperationOfPolicy(policyId),
     journalEntriesOfPolicy(policyId),
     cancellationOfPolicy(policyId),
     refundOperationsOfPolicy(policyId),
+    voidCorrectionOfPolicy(policyId),
     searchParams,
   ]);
 
@@ -60,7 +62,8 @@ export default async function PolicyPage({
   // is about the broker behind it; the server asks both again when the button is pressed and
   // again when Stripe confirms the payment, so hiding or disabling a button is never the
   // control, only the explanation.
-  const policyCanBePaid = isOwningBroker && policy.status !== "bound" && policy.status !== "cancelled";
+  const policyCanBePaid =
+    isOwningBroker && policy.status !== "bound" && policy.status !== "cancelled" && policy.status !== "voided";
   const brokerMayBind = bindingIsAllowed(kyb.status);
   // Cancelling is the owning broker's or staff operations' decision. The same check runs again
   // on the server when the preview is computed and when the cancellation is confirmed, so
@@ -160,6 +163,23 @@ export default async function PolicyPage({
       ) : (
         <p className="note">No payment started yet.</p>
       )}
+
+      {policy.status === "voided" && voidCorrection ? (
+        <>
+          {/* The issuance and its four entries are still in the database; the fold no longer
+              applies them, and the reversal entries are visible in the journal below. */}
+          <p className="error">
+            Voided by a correction on {voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC:{" "}
+            {voidCorrection.reason}
+          </p>
+          <p className="note">
+            Correction event {voidCorrection.correctionEventId}
+            {voidCorrection.reversedEntryCount > 0 ? `, ${voidCorrection.reversedEntryCount} entries reversed` : ""}.
+            Nothing was deleted: the original entries and their reversals are both in the journal below, and this
+            policy can no longer be paid. A replacement needs a new draft.
+          </p>
+        </>
+      ) : null}
 
       {operation?.bindingRefusedReason ? (
         <>
