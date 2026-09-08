@@ -101,3 +101,15 @@ test("the recited example: March 1, 2028 policy, 365 days, cancelled on day 100 
   // Commission on the $1,200 collected: 18000. On the refunded 87124, the base is 13068.6 (rounding open).
   assert.equal(commissionCents(120000, 1500), 18000);
 });
+
+test("California premium tax at 2.35% on the recited example", () => {
+  // Decided by Yoann on 2026-09-08: California, 235 basis points (Cal. Const. art. XIII s. 28(d)).
+  assert.equal(stateTaxCents(120000, 235), 2820); // $28.20 charged with the $1,200 premium
+  assert.equal(refundedTaxCents(87124, 235), 2048); // 2047.41 -> 2048 refunded on cancellation
+  assert.deepEqual(proRataCancellationRefund(WRITTEN, 235, "2028-03-01", "2029-03-01", "2028-06-09"), {
+    unearnedPremiumCents: 87124,
+    refundedTaxCents: 2048,
+    refundedFeeCents: 0,
+    totalRefundCents: 89172, // $891.72
+  });
+});
