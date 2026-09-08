@@ -8,10 +8,12 @@ Reviewed revision: merge `856e75c0d63c2c5e4324a27a3b8935d734cfc11e`, parents `bf
 `66fb7fe` (branch `codex/corgi-interface`), merge base `e110a7c`. Scope: the diff `e110a7c..856e75c`
 restricted to `app/**`, `components/**`, `public/**`, `package.json` and `package-lock.json`.
 
-Deployed revision measured: `af086358f611cdafbfda3e6087ac5f2695b4bdd2`, reported by `/api/health`.
-That revision is the reviewed merge minus `app/loading.tsx`, which the coordinator removed at
-18:15Z after finding F-UI-00. Every production measurement below is therefore against the merge
-plus that one deletion, and I say so where it matters.
+Deployed revisions measured: `af086358f611cdafbfda3e6087ac5f2695b4bdd2` for the full sweep, then
+`c9064d8d270f52caf21bce365665af3829c2e74c` for a repeat of the refusal cases and the login-shell
+check. Both are reported by `/api/health`, and the interface files are byte-identical between them:
+each is the reviewed merge minus `app/loading.tsx`, which the coordinator removed at 18:15Z after
+finding F-UI-00. Every production measurement below is therefore against the merge plus that one
+deletion, and I say so where it matters.
 
 Verdict: **PASS** for the interface scope, with F-UI-01 recorded as found in the reviewed revision
 and already fixed, and F-UI-02 open as a required correction before submission. Candidate
@@ -205,6 +207,10 @@ requests answered 307 and 404. The defect and the fix are both confirmed by meas
 Consequences while it was live: an external check of the deployed URL sees 200 for every protected
 page, which misstates the access control in AF-01 evidence; and a client without JavaScript never
 leaves the loading shell. It is recorded as F-UI-01 below and as F-UI-00 in `docs/reviews/FINDINGS.md`.
+I agree with the coordinator's MEDIUM rating: the defect is in the honesty of the HTTP behaviour and
+in the curl evidence a panel would gather, not in data exposure. I re-ran the fifteen refusal cases
+against the later deployed revision `c9064d8` and they answer 307 and 404 exactly as tabulated
+above, so the fix holds on the revision now serving.
 
 ### 375 pixel viewport
 
@@ -297,6 +303,7 @@ ownership as accepted rather than as a violation.
 | F-UI-08 | LOW | `components/portal-shell.tsx:60-98` derives the navigation list and five display values through nested ternaries up to three levels deep; `app/policies/[policyId]/correction-sections.tsx` has five `<table>` openings left unindented at column 0 by the wrapper insertion. AF-06 risk, no behaviour defect. |
 | F-UI-09 | LOW | The merge added four `"peer": true` markers to `package-lock.json` on `@types/node`, `@types/react`, `react` and `react-dom`. At the start of this review the working tree carried an uncommitted modification removing them again, evidence that two npm runs on this repository disagree about those markers. The modification was gone by the end of the review and no commit since `856e75c` has touched the lockfile, so the committed file is consistent; the churn is worth one line and no more. |
 | F-UI-10 | LOW | `docs/DECISIONS.md` is no longer chronological: the six interface entries (14:08 to 18:04) sit as a block after the business entries that end at 16:53. Entry 14:58 is headed "User decision" although its body attributes the visual choices to the assistant, and entry 16:43 carries no attribution field at all. |
+| F-UI-11 | LOW | `/login` renders inside `PortalShell`, so a signed-out visitor is shown workspace chrome: the brand block, an "Insurance" section label, a two-item sidebar, a breadcrumb bar and, most awkwardly, an account block with a person avatar reading "Corgi workspace / Policy administration" for a visitor who has no account. Raised by Yoann. The relayed detail that the sidebar shows the seven staff destinations does **not** reproduce, and I could not produce it by any path I tried. |
 
 ### Evidence and required corrections
 
@@ -336,6 +343,34 @@ twenty good ones already do ("Policy journal", "Reserve history", "Refund alloca
 commit in between touching the file. Required correction: none beyond noting the npm version that
 produced the committed lockfile, so a reviewer starting from a clean clone can tell an expected
 rewrite from a real drift.
+
+**F-UI-11, tested rather than accepted.** The coordinator relayed Yoann's observation that the
+login page shows a workspace sidebar with links to Overview, Policies, Brokers, Claims, Approvals,
+Reconciliation and Statements while the visitor is anonymous. I could not reproduce the seven-link
+part and I believe it does not occur. `components/portal-shell.tsx:34-81` selects the navigation
+from the `user` prop, and `app/login/page.tsx:16` renders `<PortalShell active="login">` with no
+`user`, so the anonymous branch at lines 78 to 81 supplies exactly two links. Measured three ways on
+the deployed application:
+
+- Anonymous `GET /login`: the rendered `nav[aria-label="Main navigation"]` contains `/` Overview and
+  `/login` Sign in, nothing else.
+- The real sign-out path driven in Chrome 152: signed in as `ops@example.com`, `/ops` shows the
+  seven staff links, the account block "Sam Patel, operations / Staff operations" and a sign-out
+  form; clicking sign-out lands on `/login` with two links, the placeholder account block and no
+  sign-out form. No staff destination survives the transition.
+- A staff cookie on `GET /login` answers 307 to `/ops`, so a signed-in staff user never renders that
+  page at all.
+
+What does render, and what I take the objection to be about, is visible in the desktop capture: the
+sign-in page sits inside the portal chrome, with the brand block, an "Insurance" section label, a
+sidebar, a breadcrumb reading "Overview > Sign in", the sidebar collapse toggle, and an account
+block showing a person avatar above the words "Corgi workspace / Policy administration" for a
+visitor who has no account. That last element is the weakest part: it presents an identity that does
+not exist. Expected fix, and the one I would make: render `/` and `/login` in a bare layout without
+`PortalShell`, or give `PortalShell` a signed-out mode that drops the account block, the section
+label and the breadcrumb and keeps only the brand. Severity LOW: no authorisation issue, no data
+exposure, both anonymous links are public pages, and it is a product-judgment defect rather than a
+functional one.
 
 **Main moved during this review.** At startup `HEAD` was `7170471`; by the end it was `9809b0e`
 (loading-boundary removal, B4 and B8 finding merges, the PDF visual pass). None of those commits
