@@ -1,9 +1,10 @@
 # Slice B4 implementation notes (endorsements, delta collection and refund, as-of documents)
 
 Written by the B4 delegate on 2026-09-08. Branch `worktree-agent-ace13549089ca5fe0`, worktree
-`/Users/yoannabriel/dev/corgi-work-trial/.claude/worktrees/agent-ace13549089ca5fe0`. Six commits
-on top of `main` at `4decb8c`, including one merge of `main` (rule 14 and the B7 claims and
-approvals). Nothing was pushed, nothing was deployed, no shared planning file was edited.
+`/Users/yoannabriel/dev/corgi-work-trial/.claude/worktrees/agent-ace13549089ca5fe0`. Eight commits
+on top of `main` at `4decb8c`, including two merges of `main`: the first brought rule 14 and the
+B7 claims and approvals, the second the B10 reconciliation. Nothing was pushed, nothing was
+deployed, no shared planning file was edited.
 
 This slice was started by a previous delegate that an API session limit cut off. Its two commits
 (`c4ce8ac`, `9d72c03`) and its uncommitted screens are kept; what changed is described in
@@ -227,19 +228,38 @@ All from the worktree root, after the merge of `main`.
 
 ```
 $ npm run typecheck                                exit 0
-$ npm run build                                    exit 0, 39 routes
-$ npm test                                         257 tests, 256 pass, 0 fail, 1 skipped
-                                                   (249 before this slice's last commits; the
-                                                   skipped one is B3's live KYB test)
+$ npm run build                                    exit 0, 42 routes
+$ npm test                                         312 tests, 311 pass, 0 fail, 1 skipped
+                                                   (the skipped one is B3's live KYB test; 257 of
+                                                   them before the B10 merge)
 $ npm run check:endorsement-replay                 69 PASS, 0 FAIL, exit 0
 $ npm run check:payment-replay                     29 PASS, 0 FAIL, exit 0   (B2, unchanged)
 $ npm run check:refund-replay                      27 PASS, 0 FAIL, exit 0   (B5, unchanged)
 $ npm run check:kyb-replay                         23 PASS, 0 FAIL, exit 0   (B3, unchanged)
 $ npm run check:claims-and-approvals               55 PASS, 0 FAIL, exit 0   (B7, unchanged)
-$ npm run check:money-guards -- --database=test    118 PASS, 0 FAIL, exit 0  (110 before)
+$ npm run check:money-guards -- --database=test    135 PASS, 1 FAIL (a deadlock, see below),
+                                                   exit 1  (118 PASS, 0 FAIL before the B10
+                                                   merge; 110 checks before this slice)
 $ npm run check:ledger-guards                      10 PASS, 0 FAIL, exit 0   (trial database,
                                                    every check rolled back)
 ```
+
+**The one failing check is contention on the shared database, and the guard behind it was
+verified another way.** After the B10 merge, `check:money-guards` reported "deadlock detected" on
+two TRUNCATE probes; rerun once, one of them passed and `owner cannot TRUNCATE approval_requests`
+failed the same way. Postgres takes ACCESS EXCLUSIVE locks on every cascaded table BEFORE the
+BEFORE TRUNCATE trigger can speak, and `corgi_test` had two other non-idle backends at the time
+(the parallel slices), so the probe deadlocks before reaching the guard. This is the contention
+the B7 delegate documented.
+
+What was verified instead, read-only and in one second: `approval_requests` carries all three of
+its triggers (`approval_requests_are_append_only`, `approval_requests_cannot_be_truncated`,
+`approval_requests_recorded_at_is_server_set`) and `app_runtime` holds `INSERT, SELECT` and
+nothing else on it. The same check ran 118 PASS, 0 FAIL earlier today on the same schema, before
+the B10 merge added its tables, and that run exercised this probe. Nothing about
+`approval_requests` changed in this slice: it belongs to B7 and is untouched here.
+
+The lesson stays the one B7 recorded: run one check script at a time against one database.
 
 `npm run check:endorsement-replay` calls Stripe for real three times in test mode (two Checkout
 Sessions, one payment-intent lookup) and no money moves. It commits rows, so it refuses to run
@@ -333,6 +353,9 @@ here because the coordinator asked for interference to be named.
 - **`npm run check:money-guards` was not run against the trial database.** The B7 delegate
   recorded deadlocks when its TRUNCATE probes contend with the live application, so it was run
   on `corgi_test` only, as the assignment asked.
+- **One TRUNCATE probe was not exercised on the last run** (`approval_requests`, section 7): it
+  deadlocked against the other sessions using the shared disposable database. The guard was read
+  out of the catalogue instead, and the same probe passed earlier today.
 - **Independent review.** Not performed by this delegate, by design.
 - **Walkthrough with Yoann: NOT REVIEWED WITH YOANN.**
 
@@ -359,6 +382,12 @@ here because the coordinator asked for interference to be named.
    `/Users/yoannabriel/dev/corgi-work-trial/.worktrees/corgi-interface` on port 3107. Reported to
    the coordinator at the time; whoever owns it has to restart it. No file outside this worktree
    was touched.
-6. **`README.md` needs no new integration row for this slice**: the endorsement delta and its
+6. **The reconciliation screen does not list the suspense account.** B10 names one clearing
+   account per operation kind (`premium_receivable`, `refund_payable`, `claims_payable`), so cash
+   parked in `unapplied_customer_cash` by rule 14, at issuance or now on an endorsement delta,
+   shows no open clearing balance anywhere. `ARCHITECTURE.md` section 1 asks the reconciliation
+   screen to list non-zero clearing balances with their age. This belongs to B10 or B13, not to
+   this slice, and is recorded here because this slice adds a second way to fill that account.
+7. **`README.md` needs no new integration row for this slice**: the endorsement delta and its
    refund run on the Stripe slot that is already listed as `LIVE SANDBOX`. The document
    generation row (`REAL`) now covers the two as-of PDFs, which is worth one sentence.
