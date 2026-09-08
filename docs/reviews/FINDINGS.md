@@ -110,6 +110,26 @@ One line per finding from the independent reviews (design and implementation). F
 | F-B8-05 | LOW | The timeline prints "effective date ? put right to ?" for the void correction of CGP-01061 (no date keys on that payload) | Voided wording when the keys are absent | OPEN, dispatched 18:29Z |
 | F-B8-06 | LOW | Three refusals rest on reading only (voided policy, refunded endorsement, cancellation after a correction) | Check lines | OPEN (B13) |
 | F-B8-07 | LOW | The as-of field defaults to today while its min is the term start, so a policy whose term has not started ships a rejected value | Default to the term start when today is before it | OPEN, dispatched 18:29Z |
+| F-B8-08 | LOW | Statement premium base of a correction refund split over several Stripe payments: each refund line carries the whole correction's premium (lib/statements/journal.ts subquery keyed on the re-book event); no total or ledger tie affected, the figure is printed and hashed | Read refund_allocations.refunded_premium_cents per line | OPEN (B13-2) |
+| F-B8-09 | LOW | The two document date fields on the policy page defaulted to today with min at the term start, so on a future-dated policy they refused to submit | Default inside the constraint | FIXED b9636c2 |
 | F-UI-02 | MEDIUM | UI reviewer: the public home and the login page lost every visible sandbox sentence; the only app-level disclosure left is a collapsed control reading "Sandbox"; the first page the panel opens reads as a live product (per-integration labels intact, so not AF-02) | One visible sentence on / and /login; Yoann to confirm the 16:43Z Codex decision entry | OPEN, put to Yoann 18:37Z |
 | F-UI-03 to F-UI-10 | LOW | Eight LOW items in docs/reviews/ui-main-merge.md | UI polish or B13 | OPEN |
 | F-UI-11 | LOW | The login page renders inside the workspace shell (brand block, section label, two-link sidebar, breadcrumb, placeholder account block) for an anonymous visitor; raised by Yoann; the seven staff links do not reproduce, the reviewer measured anonymous /login on production | Bare layout for / and /login | OPEN (UI polish, YOA-627) |
+| F-UI-12 | MEDIUM | The money mask stripped every character the server refuses before submitting: "1 200,50" became 120,050 and would have been booked as $120,050.00; also 12.345, 1.2.3, -5, 1e3 | Strip only the mask's own characters, leave the rest for the server parser | FIXED b9636c2 (docs/reviews/ui-polish.md) |
+| F-UI-13 to F-UI-19 | LOW | Dead approval-details CSS, globals.css growth, / still in the workspace shell for anonymous, two count functions without a database parameter, silent count catch, one liveEndorsementRequest read per policy on every page, echo "$007.00" | UI rebuild (YOA-633) or B13-2 | OPEN (F-UI-19 fixed b9636c2) |
+| F-UI-20 | LOW | The four primary actions on /ops/claims/[id] still served folded after 41be7fc | Claim page rebuild | OPEN (YOA-633) |
+| F-UI-21 | LOW | The opened document lookup sat third on the policy page, above the payment and the journal | Policy page rebuild | FIXED b9636c2 (documents moved to the side column) |
+| F-YA-06 | MEDIUM | Yoann, 19:36Z with a screenshot: the policy page was a document, eleven stacked sections in one column, a paragraph before each block, forms inline, 40% of the width empty ("le foutu vrac") | Identity band, actions as buttons, two columns, tables in panels, forms on their own pages, explanations folded | FIXED b9636c2 for the policy page; other screens OPEN (YOA-633) |
+
+## B11 MCP surface (docs/reviews/b11-mcp.md, PASS at 5f2c841, 19:37Z)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-B11-01 | MEDIUM | An agent-raised claim payment at or below $1,000 creates no approval request, and the claim screen shows only the key holder's human name; below the threshold no human is told a machine asked | Print requested_through on the claim payments table; money rule for Yoann: does any agent-raised payment queue regardless of amount | OPEN (decision put to Yoann 19:46Z) |
+| F-B11-02 | LOW | Caller strings reach mcp_calls verbatim (tool name unbounded, refusals quote asOf, method and protocol version in detail) | Bound and sanitise before insert | OPEN (B13-2) |
+| F-B11-03 | LOW | run_reconciliation is agent-callable with no rate limit and its run is attributed to the key holder's name without an agent marker | Agent marker on the run; disclosed limitation | OPEN (B13-2) |
+| F-B11-04 | LOW | The 0018 trigger fires on key insert only; a later promotion of the holder to staff_approver would leave an agent key on an approver (no code path changes a role today) | Trigger on users.role change, or a check at call time | OPEN (B13-2) |
+| F-B11-05 | LOW | A failed mcp_calls insert is swallowed; the surface can answer with no audit row | Fail the call or log the failure | OPEN (B13-2) |
+| F-B11-06 | LOW | additionalProperties false is advertised but arguments are not validated against the schema | Validate | OPEN (B13-2) |
+| F-B11-07 | LOW | Keys never expire; not stated as a limitation | README limitation | OPEN (B13-2) |
+| F-B12-01 | LOW | get_policy_as_of without asOf on a policy whose term starts later refuses with a terse sentence (builder B12-1) | Name the first effective date in the refusal | OPEN (B13-2) |
