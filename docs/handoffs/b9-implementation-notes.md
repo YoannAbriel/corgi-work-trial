@@ -9,7 +9,7 @@ planning file was edited.
 **Decision 19 (DECISIONS.md, 16:53Z) is implemented on this branch**, points 2 and 3: the
 statement shows the cash collected AND the premium that is the commission base, and a run made
 before its month is over is labeled provisional. Point 1 (the month is the effective date) was
-already how the slice was built. Migration `0013_statement_commission_base.sql` carries the two new
+already how the slice was built. Migration `0015_statement_commission_base.sql` carries the two new
 columns; see section 7 for what changed and why.
 
 ## 1. Startup receipt
@@ -262,7 +262,7 @@ After the merge of main (B4 included) and decision 19:
 
 ```
 $ git merge main                                clean, no conflict
-$ npm run migrate -- --database=test            applied 0013_statement_commission_base.sql
+$ npm run migrate -- --database=test            applied 0015_statement_commission_base.sql
 $ npm run typecheck                             exit 0
 $ npm run build                                 exit 0
 $ npm test                                      333 tests, 332 pass, 1 skipped
