@@ -1772,3 +1772,18 @@ button.orange {
 button.orange:hover {
   background: #ff7d33;
 }
+@media (max-width: 580px) {
+  .entry-columns {
+    grid-template-columns: minmax(0, 1fr) 92px 92px;
+  }
+  table.entry-lines col.amount-column {
+    width: 92px;
+  }
+  table.entry-lines td {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  table.entry-lines td.credit-side {
+    padding-left: 20px;
+  }
+}
