@@ -26,7 +26,9 @@ Live slots: premium collection on Stripe (LIVE SANDBOX); broker KYB on Stripe Co
 
 Repository (private, access granted at submission): https://github.com/YoannAbriel/corgi-work-trial. Decision log, plan and review records are in docs/.
 
-Next 24 hours: endorsement with pro-rated delta and impact preview, backdated correction by reversal and re-book, claims with reserves and maker-checker, monthly broker statement, reconciliation screen, MCP surface.
+Also deployed this afternoon: claims with reserves (incurred = paid + reserve, checked against the journal after every step), payouts on a labeled local simulator, maker-checker above $1,000 with a hashed intent and a distinct approver (enforced in code and by a database trigger), and the reconciliation job with its breaks screen (Stripe and the rail pulled by API, a planted mismatch found, a failed fetch never reported clean).
+
+Next 24 hours: endorsement with pro-rated delta and impact preview, backdated correction by reversal and re-book, monthly broker statement, MCP surface, hardening.
 
 Best regards,
 Yoann Abriel
