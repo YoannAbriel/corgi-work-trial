@@ -289,10 +289,26 @@ export async function recordFailedRefund(
   if (alreadyFailed.length > 0) {
     return { kind: "already_posted" };
   }
+
+  // A failure reported AFTER a completion is a different situation, and the ledger cannot fix
+  // it on its own: we booked the cash as gone, and a late failure means it came back. Stripe
+  // documents that path for payment methods where the refund needs bank details from the
+  // customer (docs.stripe.com/refunds, "Refunds requiring action", read 2026-09-08): such a
+  // refund can leave `succeeded` for `requires_action` and end `failed`. This build collects
+  // by card only, where that transition does not happen, so nothing is reversed automatically:
+  // the fact is recorded, flagged for a human, and a reversal stays an operator decision.
+  const failedAfterCompletion = operation.state === "completed";
   await database`
     insert into money_operation_events (operation_id, status, provider_ref, payload)
     values (${input.operationId}, 'failed', ${input.refundId},
-            ${database.json({ stage: "refund_lifecycle", reason: input.reason.slice(0, 500) })})
+            ${database.json({
+              stage: "refund_lifecycle",
+              reason: input.reason.slice(0, 500),
+              needs_human: failedAfterCompletion,
+              note: failedAfterCompletion
+                ? "this refund had already been reported as completed and posted to the ledger; a reversal is an operator decision, nothing was posted here"
+                : undefined,
+            })})
   `;
   return { kind: "recorded" };
 }

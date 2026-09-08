@@ -338,6 +338,10 @@ export type RefundOperationView = {
   requestedAt: Date;
   completedOn: string | null; // the UTC day the money left Stripe
   failureReason: string | null;
+  // Stripe reported a failure after this refund had already completed. It cannot happen on the
+  // card refunds this build creates, and nothing is reversed automatically, so it is shown as
+  // something an operator has to look at.
+  failedAfterCompletion: boolean;
 };
 
 export async function refundOperationsOfPolicy(policyId: string): Promise<RefundOperationView[]> {
@@ -400,6 +404,7 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
         state === "failed" && lastFailure
           ? String(lastFailure.payload.reason ?? lastFailure.payload.message ?? "Stripe refused the refund")
           : null,
+      failedAfterCompletion: state === "completed" && ownEvents[ownEvents.length - 1]?.status === "failed",
     };
   });
 }

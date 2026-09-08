@@ -3,6 +3,7 @@ import { sql } from "@/db/client";
 import { premiumEarnedToDateEntry, refundRequestedEntry } from "@/lib/ledger/cancellation-entries";
 import { postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
+import { isCalendarDate } from "@/lib/money/dates";
 import { refundIdempotencyKey } from "@/lib/money/idempotency";
 import { cancellationBreakdown, type CancellationBreakdown } from "@/lib/money/premium";
 import {
@@ -144,6 +145,9 @@ export async function planCancellation(
   assertCancellationAllowed({ policyId: policy.policyId, policyNumber: policy.policyNumber });
 
   // The effective date must be a day the policy actually covers.
+  if (!isCalendarDate(request.effectiveAt)) {
+    throw new CancellationRefused(`"${request.effectiveAt}" is not a calendar date`);
+  }
   //
   // A date in the PAST is allowed on purpose: an insurer routinely learns days or weeks later
   // that cover stopped, and the money must then be computed from the day cover really stopped,

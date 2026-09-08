@@ -293,6 +293,12 @@ export default async function PolicyPage({
                         {formatCentsAsUsd(refund.commissionClawbackCents)}
                       </span>
                     )}
+                    {refund.failedAfterCompletion ? (
+                      <p className="error">
+                        Stripe reported a failure after this refund had completed. Nothing was reversed
+                        automatically: an operator has to decide whether the cash came back and post a reversal.
+                      </p>
+                    ) : null}
                   </td>
                 </tr>
               ))}
