@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -21,9 +22,9 @@ export default async function BrokerStatementsPage() {
   }
   if (user.role !== "broker" || !user.brokerId) {
     return (
-      <main>
+      <PortalShell user={user} active="statements">
         <h1>Statements</h1>
-        <p className="error">
+        <p className="error" role="alert">
           This page is the broker journey. Your account has the role &quot;{user.role}&quot;.
         </p>
         {user.role === "staff_ops" || user.role === "staff_approver" ? (
@@ -31,17 +32,14 @@ export default async function BrokerStatementsPage() {
             <Link href="/ops/statements">Broker statements (operations)</Link>
           </p>
         ) : null}
-      </main>
+      </PortalShell>
     );
   }
 
   const runs = await listStatementRuns(sql, { brokerId: user.brokerId, limit: HOW_MANY_RUNS_SHOWN });
 
   return (
-    <main>
-      <p className="note">
-        <Link href="/broker">Broker workspace</Link>
-      </p>
+    <PortalShell user={user} active="statements">
 
       <h1>Your statements</h1>
       <p className="lead">
@@ -60,7 +58,8 @@ export default async function BrokerStatementsPage() {
       {runs.length === 0 ? (
         <p className="note">No statement has been produced for you yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
+<table>
           <thead>
             <tr>
               <th>Month</th>
@@ -108,8 +107,9 @@ export default async function BrokerStatementsPage() {
             ))}
           </tbody>
         </table>
+</div>
       )}
-    </main>
+    </PortalShell>
   );
 }
 

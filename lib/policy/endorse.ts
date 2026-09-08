@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { createApprovalRequest } from "@/lib/approvals/approvals";
-import { moneyOutNeedsApproval } from "@/lib/approvals/threshold";
+import { refundNeedsApproval } from "@/lib/approvals/threshold";
 import { endorsementRefundRequestedEntry } from "@/lib/ledger/endorsement-entries";
 import { postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase, formatCentsAsUsd } from "@/lib/money/cents";
@@ -21,13 +21,14 @@ import {
   RefundCannotBeAllocated,
   type RefundSlice,
 } from "@/lib/money/refund-allocation";
-import { issueRefundsAtStripe, refundIntent } from "@/lib/payments/refunds";
+import { issueRefundsAtStripe, policyRefundTotals, refundIntent } from "@/lib/payments/refunds";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
 import Stripe from "stripe";
 import { collectionsStillRefundable, countRefundOperations } from "./cancel";
 import { foldPolicyEvents, refreshPolicyCurrent, type PolicyFold } from "./current";
 import {
   endorsementRequestPayload,
+  endorsementRequestsOfPolicy,
   endorsementRequestStanding,
   readEndorsementRequest,
   type EndorsementRequest,
@@ -161,6 +162,9 @@ export async function planEndorsement(input: EndorsementInputFromForm, database:
       taxRateBps: fold.terms.taxRateBps,
       taxChargedSoFarCents: await premiumTaxStillHeldForPolicy(database, policy.policyId),
       commissionRateBps: policy.commissionRateBps,
+      // The customer-approval threshold counts what this policy has already asked this customer
+      // for and not had answered (review finding F-B4-09).
+      otherUnapprovedRequestedCents: await additionalPremiumAwaitingTheCustomer(database, policy.policyId),
     });
   } catch (error) {
     if (error instanceof EndorsementNotComputable) {
@@ -168,6 +172,8 @@ export async function planEndorsement(input: EndorsementInputFromForm, database:
     }
     throw error;
   }
+
+  const refundsSoFar = await policyRefundTotals(database, policy.policyId);
 
   return {
     policyId: policy.policyId,
@@ -182,8 +188,16 @@ export async function planEndorsement(input: EndorsementInputFromForm, database:
     newLimitLabel: limitLabel(input.newPerOccurrenceLimitCents, input.newAggregateLimitCents),
     description: describeChange(fold.terms, input),
     reason: input.reason && input.reason.trim().length > 0 ? input.reason.trim().slice(0, 200) : null,
-    // Only a reduction sends money out, so only a reduction can cross the money-out threshold.
-    refundNeedsApproval: figures.direction === "refund" && moneyOutNeedsApproval(-figures.deltaTotalCents),
+    // Only a reduction sends money out, so only a reduction can cross the money-out threshold,
+    // and the threshold is read against everything this policy has given back (F-B4-04): three
+    // reductions of $600 are $1,800 out of the door and cannot each escape the approver.
+    refundNeedsApproval:
+      figures.direction === "refund" &&
+      refundNeedsApproval({
+        amountCents: -figures.deltaTotalCents,
+        policyRefundedCents: refundsSoFar.refundedCents,
+        policyPendingRefundCents: refundsSoFar.pendingCents,
+      }),
   };
 }
 
@@ -560,7 +574,9 @@ export async function approveEndorsement(input: ApprovalInput, database: postgre
   }
 
   const { request, standing } = await requireLiveRequest(database, input.policyId, input.requestEventId, input.quoteHash);
-  if (!request.figures.customerApprovalRequired) {
+  // Read from the standing, which recomputes it from the events, never from the request's own
+  // payload flag (review finding F-B4-08).
+  if (!standing.approvalRequired) {
     throw new EndorsementRefused("this endorsement is at or below the $500 threshold and needs no customer approval");
   }
   if (standing.approvedEventId) {
@@ -652,6 +668,23 @@ async function loadPolicy(database: Queryable, policyId: string): Promise<Policy
     customerId: row.customer_id,
     commissionRateBps: row.commission_rate_bps,
   };
+}
+
+// Additional premium this policy has asked the customer for and not had answered: the requests
+// that are still waiting for a yes, none of them applied. A request the customer already
+// approved is money they said yes to and does not make the next one need a second yes.
+async function additionalPremiumAwaitingTheCustomer(database: Queryable, policyId: string): Promise<number> {
+  let total = 0;
+  for (const request of await endorsementRequestsOfPolicy(database, policyId)) {
+    if (request.figures.deltaTotalCents <= 0) {
+      continue; // a reduction gives money back, and the customer is never asked about it
+    }
+    const standing = await endorsementRequestStanding(database, request);
+    if (standing.state === "awaiting_approval") {
+      total += request.figures.deltaTotalCents;
+    }
+  }
+  return total;
 }
 
 // Premium tax charged on this policy and not given back yet: the credit balance of

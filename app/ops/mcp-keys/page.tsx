@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { PortalShell } from "@/components/portal-shell";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { listApiKeys } from "@/lib/mcp/keys";
@@ -39,11 +39,7 @@ export default async function McpKeysPage({
   ]);
 
   return (
-    <main>
-      <p className="note">
-        <Link href="/ops">Operations</Link>
-      </p>
-
+    <PortalShell user={user} active="mcp-keys">
       <h1>MCP API keys</h1>
       <p className="lead">
         One key, one user. Every tool answers with exactly what that user may see on these screens, and nothing more.
@@ -55,8 +51,8 @@ export default async function McpKeysPage({
         <code> mcp_calls</code>, including the ones that were refused.
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
-      {query.revoked ? <p className="note">The key was revoked. It answers 401 from now on.</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
+      {query.revoked ? <p className="note" role="status">The key was revoked. It answers 401 from now on.</p> : null}
 
       <h2>Create a key</h2>
       <form method="post" action="/api/mcp-keys" className="card">
@@ -92,6 +88,7 @@ export default async function McpKeysPage({
         <p className="note">No key has been created yet. The seed deliberately creates none: a seed that printed a
           secret would put it in a terminal log.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="MCP API keys" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -142,6 +139,7 @@ export default async function McpKeysPage({
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <h2>What a key can do</h2>
@@ -165,6 +163,6 @@ export default async function McpKeysPage({
           </li>
         ))}
       </ul>
-    </main>
+    </PortalShell>
   );
 }

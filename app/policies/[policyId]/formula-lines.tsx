@@ -8,6 +8,7 @@ import type { FormulaLine } from "@/lib/money/endorsement";
 // figures arrive already computed.
 export function FormulaLinesTable({ lines }: { lines: FormulaLine[] }) {
   return (
+    <div className="table-scroll" role="region" aria-label="Amount calculation details" tabIndex={0}>
     <table className="formula">
       <thead>
         <tr>
@@ -28,5 +29,6 @@ export function FormulaLinesTable({ lines }: { lines: FormulaLine[] }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

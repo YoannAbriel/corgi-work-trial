@@ -1,0 +1,32 @@
+{
+  "purpose": "Original decorative artwork, generated on the user-owned Spark. No reference screenshot or personal data was sent. Not integration evidence.",
+  "selection": "Desk v1 rejected for a beige background; desk v2 selected for a cleaner white background. Landscape v1 selected. Converted to WebP; landscape resized to 768x512.",
+  "assets": [
+    {
+      "file": "public/illustrations/corgi-desk.webp",
+      "generator": "DGX Spark / ComfyUI / installed Krea model",
+      "job_id": "39d8e330-5792-4197-9c7b-f078d1973841",
+      "model": "krea2_turbo_fp8_scaled.safetensors",
+      "prompt": "On a pure solid white RGB 255 255 255 background, a single adorable orange and white Pembroke Welsh corgi sits behind a small ivory laptop, facing the viewer with a cheerful intelligent expression. Large upright ears, short paws, soft modeled fur, small round black eyes. One tiny terracotta cup and a tiny sage succulent beside the laptop. Premium 3D clay product illustration, matte materials, soft diffused light, delicate ground shadow immediately under the objects only. Entire compact group fully visible in the central 70 percent of the image with wide PURE WHITE empty margin on ALL four sides. Bright isolated cutout product render for a website. White empty backdrop, no beige room, no gradient, no scenery. No text, no logos, no watermark. Restrained peach and apricot accents.",
+      "seed": 180927,
+      "steps": 8,
+      "width": 1024,
+      "height": 1024,
+      "output_bytes": 20658,
+      "sha256": "487ab6344237ea12ab921f6751a8a147a933d7668d7c80688ced2ee4109dc522"
+    },
+    {
+      "file": "public/illustrations/corgi-landscape.webp",
+      "generator": "DGX Spark / ComfyUI / installed Krea model",
+      "job_id": "9c1b2ba2-71ac-4d94-bbfc-c413feee0ae3",
+      "model": "krea2_turbo_fp8_scaled.safetensors",
+      "prompt": "A delicate premium 3D clay illustration for the bottom of a white sidebar. Wide miniature landscape with one tiny orange and white Pembroke Welsh corgi sitting with its back to the viewer, looking toward a warm rising sun over rolling pale peach hills. Small stylized apricot trees in the distance, winding cream path. A calm hopeful scene, soft matte clay materials, creamy whites, pale peach, warm apricot, just a hint of sage. The landscape occupies the bottom half of the image; the upper half is pure white empty space with a very soft seamless fade into the landscape. Low contrast high key lighting, subtle soft contact shadows, minimal sparse composition, sophisticated playful product illustration. No text, no lettering, no logo, no border, no watermark.",
+      "seed": 180928,
+      "steps": 8,
+      "width": 1152,
+      "height": 768,
+      "output_bytes": 11040,
+      "sha256": "4a85432bcdb55d566b6170df396d795473c986d363a37a371ef216325cc84a4e"
+    }
+  ]
+}

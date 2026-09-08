@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { sql } from "@/db/client";
@@ -38,23 +39,17 @@ export default async function ApproveEndorsementPage({
   const request = await readEndorsementRequest(sql, policyId, requestEventId);
   if (!request) {
     return (
-      <main>
-        <p className="note">
-          <Link href="/customer">Back to your policies</Link>
-        </p>
+      <PortalShell user={user} active="policies" trail={[{ label: "Endorsement approval" }]}>
         <h1>Endorsement approval</h1>
-        <p className="error">This endorsement request does not exist on this policy.</p>
-      </main>
+        <p className="error" role="alert">This endorsement request does not exist on this policy.</p>
+      </PortalShell>
     );
   }
   const standing = await endorsementRequestStanding(sql, request);
   const figures = request.figures;
 
   return (
-    <main>
-      <p className="note">
-        <Link href="/customer">Back to your policies</Link>
-      </p>
+    <PortalShell user={user} active="policies" trail={[{ label: "Endorsement approval" }]}>
 
       <h1>Approve the endorsement of policy {policy.policyNumber}</h1>
       <p className="lead">
@@ -62,12 +57,12 @@ export default async function ApproveEndorsementPage({
         {request.description}. {request.reason ? `Reason given: ${request.reason}.` : null}
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
 
       {standing.state === "applied" ? (
         <p className="note">This endorsement is already in force.</p>
       ) : standing.state === "superseded" ? (
-        <p className="error">
+        <p className="error" role="alert">
           This quote was superseded by a later change on the policy; the figures below are no longer the ones on offer.
         </p>
       ) : standing.approvedEventId ? (
@@ -75,9 +70,10 @@ export default async function ApproveEndorsementPage({
           Approved on {standing.approvedAt?.toISOString().replace("T", " ").slice(0, 19)} UTC. The delta is collected by
           your broker.
         </p>
-      ) : !figures.customerApprovalRequired ? (
+      ) : !standing.approvalRequired ? (
         <p className="note">
-          This endorsement is at or below {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} and needs no approval.
+          This endorsement is at or below {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}, counting anything else
+          this policy is waiting on you for, and needs no approval.
         </p>
       ) : null}
 
@@ -101,6 +97,6 @@ export default async function ApproveEndorsementPage({
           <button type="submit">Approve</button>
         </form>
       ) : null}
-    </main>
+    </PortalShell>
   );
 }

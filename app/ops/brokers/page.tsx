@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 import { KYB_NOT_LIVE_LABEL } from "@/lib/broker/eligibility";
@@ -24,8 +25,8 @@ export default async function OpsBrokersPage({
   const [brokers, query] = await Promise.all([brokersWithKybState(), searchParams]);
 
   return (
-    <main>
-      <h1>Brokers and their verification</h1>
+    <PortalShell active="verification" user={user}>
+      <h1>Brokers & <em>verification.</em></h1>
       <p className="note">
         Verification runs on Stripe Connect business verification in test mode, which is not a dedicated KYB vendor;
         every status below comes from Stripe&apos;s own answers, never from a form.
@@ -35,12 +36,13 @@ export default async function OpsBrokersPage({
         approved; every status is a row that was appended when it was observed, never edited.
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
-      {query.rechecked ? <p className="note">Read again at Stripe: {query.rechecked}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
+      {query.rechecked ? <p className="note" role="status">Read again at Stripe: {query.rechecked}</p> : null}
 
       {brokers.length === 0 ? (
-        <p className="note">No broker exists yet.</p>
+        <p className="note" role="status">No broker exists yet.</p>
       ) : (
+        <div className="table-scroll" role="region" aria-label="Broker verification" tabIndex={0}>
         <table>
           <thead>
             <tr>
@@ -126,6 +128,7 @@ export default async function OpsBrokersPage({
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <p className="note">
@@ -133,6 +136,6 @@ export default async function OpsBrokersPage({
         Stripe stops emitting <code>account.updated</code> once its identity check has landed, which happens inside the
         two-minute settling window, so this button is how a pending broker becomes approved.
       </p>
-    </main>
+    </PortalShell>
   );
 }

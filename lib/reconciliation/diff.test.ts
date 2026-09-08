@@ -337,3 +337,31 @@ test("a returned payout the ledger never learned about is not stale: nothing mor
   assert.equal(item.classification, "matched");
   assert.match(item.note, /moved no cash on either side/);
 });
+
+// ---------------------------------------------------------------------------
+// The date of the compared record (review finding F-B10-01)
+// ---------------------------------------------------------------------------
+
+test("a paired item is dated by the provider, which is the authority on when its money moved", () => {
+  const [item] = diff([payment({ createdAt: TWO_DAYS_AGO })], [collectedInLedger()]);
+  assert.equal(item.recordAt, TWO_DAYS_AGO);
+});
+
+test("a provider-only item is dated by the provider record", () => {
+  const [item] = diff([payment({ providerRef: "pi_planted", operationId: null, createdAt: FOUR_DAYS_AGO })], []);
+  assert.equal(item.recordAt, FOUR_DAYS_AGO);
+});
+
+test("a ledger-only item is dated by the money operation, the only record there is", () => {
+  const [item] = diff([], [collectedInLedger({ requestedAt: FOUR_DAYS_AGO })]);
+  assert.equal(item.classification, "local_only");
+  assert.equal(item.recordAt, FOUR_DAYS_AGO);
+});
+
+test("every item carries a record date, whatever its classification", () => {
+  const items = diff(
+    [payment(), refund(), payment({ providerRef: "pi_planted", operationId: null })],
+    [collectedInLedger(), refundInLedger(), collectedInLedger({ operationId: "OP_LOCAL", providerRef: "pi_local" })],
+  );
+  assert.ok(items.every((item) => typeof item.recordAt === "string" && !Number.isNaN(Date.parse(item.recordAt))));
+});

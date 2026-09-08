@@ -1,0 +1,244 @@
+{
+  "pages": [
+    {
+      "path": "/ops",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Your operations.",
+      "height": 917,
+      "main": 1
+    },
+    {
+      "path": "/ops/policies",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Your policies.",
+      "height": 754,
+      "main": 1
+    },
+    {
+      "path": "/ops/reconciliation",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Reconciliation",
+      "height": 1444,
+      "main": 1
+    },
+    {
+      "path": "/ops/statements",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Broker statements",
+      "height": 1175,
+      "main": 1
+    },
+    {
+      "path": "/broker/statements",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Your statements",
+      "height": 754,
+      "main": 1
+    },
+    {
+      "path": "/customer",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Your policies",
+      "height": 754,
+      "main": 1
+    },
+    {
+      "path": "/policies/preview-policy",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Policy UI-PREVIEW-001",
+      "height": 4782,
+      "main": 1
+    },
+    {
+      "path": "/policies/preview-policy/cancel?effectiveAt=2026-09-08",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Cancel policy UI-PREVIEW-001",
+      "height": 1509,
+      "main": 1
+    },
+    {
+      "path": "/policies/preview-policy/endorse",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Endorsement preview",
+      "height": 754,
+      "main": 1
+    },
+    {
+      "path": "/policies/preview-policy/corrections/new",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Correct an endorsement date on policy UI-PREVIEW-001",
+      "height": 1352,
+      "main": 1
+    },
+    {
+      "path": "/policies/preview-policy/endorsements/preview-request/approve",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Approve the endorsement of policy UI-PREVIEW-001",
+      "height": 754,
+      "main": 1
+    },
+    {
+      "path": "/policies/preview-policy/corrections/preview-correction/approve",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Policy UI-PREVIEW-001: a correction to approve",
+      "height": 921,
+      "main": 1
+    },
+    {
+      "path": "/statements/00000000-0000-4000-8000-000000000004",
+      "width": 1512,
+      "documentWidth": 1512,
+      "heading": "Example Brokerage, 2026-08",
+      "height": 1790,
+      "main": 1
+    },
+    {
+      "path": "/ops",
+      "documentWidth": 390,
+      "heading": "Your operations.",
+      "height": 1933,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/ops/policies",
+      "documentWidth": 390,
+      "heading": "Your policies.",
+      "height": 1134,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/ops/reconciliation",
+      "documentWidth": 390,
+      "heading": "Reconciliation",
+      "height": 2447,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/ops/statements",
+      "documentWidth": 390,
+      "heading": "Broker statements",
+      "height": 1784,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/broker/statements",
+      "documentWidth": 390,
+      "heading": "Your statements",
+      "height": 1086,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/customer",
+      "documentWidth": 390,
+      "heading": "Your policies",
+      "height": 1038,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/policies/preview-policy",
+      "documentWidth": 390,
+      "heading": "Policy UI-PREVIEW-001",
+      "height": 6014,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/policies/preview-policy/cancel?effectiveAt=2026-09-08",
+      "documentWidth": 390,
+      "heading": "Cancel policy UI-PREVIEW-001",
+      "height": 2081,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/policies/preview-policy/endorse",
+      "documentWidth": 390,
+      "heading": "Endorsement preview",
+      "height": 1086,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/policies/preview-policy/corrections/new",
+      "documentWidth": 390,
+      "heading": "Correct an endorsement date on policy UI-PREVIEW-001",
+      "height": 2167,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/policies/preview-policy/endorsements/preview-request/approve",
+      "documentWidth": 390,
+      "heading": "Approve the endorsement of policy UI-PREVIEW-001",
+      "height": 1038,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/policies/preview-policy/corrections/preview-correction/approve",
+      "documentWidth": 390,
+      "heading": "Policy UI-PREVIEW-001: a correction to approve",
+      "height": 1317,
+      "main": 1,
+      "width": 390
+    },
+    {
+      "path": "/statements/00000000-0000-4000-8000-000000000004",
+      "documentWidth": 390,
+      "heading": "Example Brokerage, 2026-08",
+      "height": 2785,
+      "main": 1,
+      "width": 390
+    }
+  ],
+  "mobileEndScroll": [
+    {
+      "path": "/policies/preview-policy",
+      "footerBottom": 843.1953125,
+      "remaining": -0.5,
+      "scrollY": 5707.5
+    },
+    {
+      "path": "/policies/preview-policy/cancel?effectiveAt=2026-09-08",
+      "footerBottom": 842.9921875,
+      "remaining": 0,
+      "scrollY": 1285
+    },
+    {
+      "path": "/ops/reconciliation",
+      "footerBottom": 843.1640625,
+      "remaining": -0.5,
+      "scrollY": 1603.5
+    },
+    {
+      "path": "/ops/statements",
+      "footerBottom": 843.1796875,
+      "remaining": -0.5,
+      "scrollY": 940.5
+    },
+    {
+      "path": "/statements/00000000-0000-4000-8000-000000000004",
+      "footerBottom": 843.0390625,
+      "remaining": 0,
+      "scrollY": 1941
+    }
+  ]
+}

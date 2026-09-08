@@ -16,6 +16,7 @@
     "check:refund-replay": "tsx scripts/check-refund-replay.ts",
     "check:kyb-replay": "tsx scripts/check-kyb-replay.ts",
     "check:endorsement-replay": "tsx scripts/check-endorsement-replay.ts",
+    "check:correction-replay": "tsx scripts/check-correction-replay.ts",
     "check:claims-and-approvals": "tsx scripts/check-claims-and-approvals.ts",
     "check:reconciliation": "tsx scripts/check-reconciliation.ts",
     "check:statements": "tsx scripts/check-statements.ts",
@@ -28,6 +29,7 @@
   },
   "dependencies": {
     "@react-pdf/renderer": "4.9.0",
+    "lucide-react": "^1.43.0",
     "next": "16.3.4",
     "postgres": "3.4.9",
     "react": "19.2.8",

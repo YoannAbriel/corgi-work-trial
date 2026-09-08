@@ -69,6 +69,14 @@ export async function recordSuccessfulPayment(
       reason: `operation ${payment.operationId} collects an endorsement delta and is posted by the endorsement path, not as an issuance`,
     };
   }
+  // Same second line of defence for the difference a correction created (slice B8): posting the
+  // four issuance entries under it would write the whole annual premium a second time.
+  if (operation.correctionRebookEventId) {
+    return {
+      kind: "refused",
+      reason: `operation ${payment.operationId} collects the difference of a correction and is posted by the correction path, not as an issuance`,
+    };
+  }
   // The provider's amount must be the amount we asked for. A different amount is not a money
   // event we know how to journal, so it stops here and stays visible for a human.
   if (operation.amountCents !== payment.amountReceivedCents) {
@@ -398,8 +406,10 @@ async function latestSuccessfulPayment(
      where operation.policy_id = ${policyId}
        and operation.kind = 'stripe_checkout'
        and event.status = 'succeeded'
-       -- the issuance payment only: an endorsement delta payment cannot bind a policy
+       -- the issuance payment only: neither an endorsement delta nor a correction difference
+       -- can bind a policy
        and not exists (select 1 from endorsement_collections link where link.collection_operation_id = operation.id)
+       and not exists (select 1 from correction_collections fix where fix.collection_operation_id = operation.id)
      order by event.sequence_number desc
      limit 1
   `;
@@ -453,10 +463,10 @@ export async function recordExpiredCheckoutSession(
   // The expiry of an endorsement's hosted page is recorded by the endorsement path (the route
   // sends it there first); the rule below ("already bound, nothing to reopen") is about the
   // issuance and would be wrong for an endorsement on a bound policy.
-  if (operation.endorsementRequestEventId) {
+  if (operation.endorsementRequestEventId || operation.correctionRebookEventId) {
     return {
       kind: "refused",
-      reason: `operation ${expiry.operationId} collects an endorsement delta; its expiry belongs to the endorsement path`,
+      reason: `operation ${expiry.operationId} collects an endorsement delta or a correction difference; its expiry belongs to that path`,
     };
   }
   // A session can expire after the payment succeeded on another attempt; the policy is bound
@@ -513,6 +523,8 @@ type CheckoutOperation = {
   // Set when this operation collects an endorsement delta rather than the issuance charge
   // (an endorsement_collections row names the request it pays for, migration 0009).
   endorsementRequestEventId: string | null;
+  // Set when it collects the difference a backdated correction created (migration 0014).
+  correctionRebookEventId: string | null;
 };
 
 async function loadCheckoutOperation(
@@ -528,6 +540,7 @@ async function loadCheckoutOperation(
       broker_id: string;
       commission_rate_bps: number;
       endorsement_request_event_id: string | null;
+      correction_rebook_event_id: string | null;
     }[]
   >`
     select operation.id,
@@ -536,11 +549,13 @@ async function loadCheckoutOperation(
            policy.policy_number as policy_number,
            broker.id            as broker_id,
            broker.commission_rate_bps,
-           link.request_event_id as endorsement_request_event_id
+           link.request_event_id as endorsement_request_event_id,
+           correction.correction_rebook_event_id
       from money_operations operation
       join policies policy on policy.id = operation.policy_id
       join brokers broker  on broker.id = policy.broker_id
       left join endorsement_collections link on link.collection_operation_id = operation.id
+      left join correction_collections correction on correction.collection_operation_id = operation.id
      where operation.id = ${operationId}
        and operation.kind = 'stripe_checkout'
   `;
@@ -555,5 +570,6 @@ async function loadCheckoutOperation(
     commissionRateBps: row.commission_rate_bps,
     amountCents: centsFromDatabase(row.amount_cents, "amount_cents"),
     endorsementRequestEventId: row.endorsement_request_event_id,
+    correctionRebookEventId: row.correction_rebook_event_id,
   };
 }

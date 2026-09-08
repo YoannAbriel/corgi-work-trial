@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -58,10 +59,10 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
   const isOwningBroker = user.role === "broker" && user.brokerId === statement.run.brokerId;
   if (!isStaff && !isOwningBroker) {
     return (
-      <main>
+      <PortalShell user={user} active="statements" trail={[{ label: "Statements", href: user.role === "broker" ? "/broker/statements" : "/ops/statements" }, { label: "Statement detail" }]}>
         <h1>Broker statement</h1>
-        <p className="error">This statement belongs to another broker.</p>
-      </main>
+        <p className="error" role="alert">This statement belongs to another broker.</p>
+      </PortalShell>
     );
   }
 
@@ -83,7 +84,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
     run.previousCanonicalVersion !== null && run.previousCanonicalVersion !== run.canonicalVersion;
 
   return (
-    <main>
+    <PortalShell user={user} active="statements" trail={[{ label: "Statements", href: user.role === "broker" ? "/broker/statements" : "/ops/statements" }, { label: "Statement detail" }]}>
       <p className="note">
         <Link href={isStaff ? "/ops/statements" : "/broker/statements"}>All statements</Link>
       </p>
@@ -122,7 +123,8 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
         </p>
       ) : null}
 
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
+<table className="amounts">
         <tbody>
           <tr>
             <th>Statement month</th>
@@ -163,6 +165,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           </tr>
         </tbody>
       </table>
+</div>
 
       <h2>Reproducing this statement</h2>
       <p className="note">
@@ -181,7 +184,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           account in the journal for {run.statementMonth}, recomputed now with the same knowledge cutoff.
         </p>
       ) : (
-        <p className="error">
+        <p className="error" role="alert">
           The statement says {formatCentsAsUsd(run.netDueCents)} and the journal says{" "}
           {formatCentsAsUsd(ledgerMovementCents)} for the same broker, month and cutoff. The ledger is the truth:
           this run must not be paid until the difference is explained.
@@ -195,7 +198,8 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           statement is a real statement: it says the month was quiet, not that nothing was looked at.
         </p>
       ) : (
-        <table className="ledger">
+        <div className="table-scroll" role="region" aria-label="Statements table 2" tabIndex={0}>
+<table className="ledger">
           <thead>
             <tr>
               <th>Effective</th>
@@ -239,10 +243,12 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
             ))}
           </tbody>
         </table>
+</div>
       )}
 
       <h2>Totals</h2>
-      <table className="amounts">
+      <div className="table-scroll" role="region" aria-label="Statements table 3" tabIndex={0}>
+<table className="amounts">
         <tbody>
           <tr>
             <th>Cash collected from customers (premium, tax and fee)</th>
@@ -281,6 +287,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           </tr>
         </tbody>
       </table>
+</div>
       <p className="note">
         The two collected figures are the same money read twice: the cash line is what the customers paid,
         premium plus state premium tax plus policy fee, and the premium line is the part of it commission is
@@ -309,7 +316,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           </form>
         </section>
       ) : null}
-    </main>
+    </PortalShell>
   );
 }
 
@@ -323,7 +330,8 @@ function Changes({ changes, previousRevision }: { changes: { appeared: RevisionC
           The same journal entries, one for one. Nothing was added and nothing was taken away.
         </p>
       ) : (
-        <table className="ledger">
+        <div className="table-scroll" role="region" aria-label="Statements table 4" tabIndex={0}>
+<table className="ledger">
           <thead>
             <tr>
               <th>Journal entry</th>
@@ -347,6 +355,7 @@ function Changes({ changes, previousRevision }: { changes: { appeared: RevisionC
             ))}
           </tbody>
         </table>
+</div>
       )}
     </>
   );

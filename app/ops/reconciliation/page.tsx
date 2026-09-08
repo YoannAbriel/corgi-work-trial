@@ -1,3 +1,4 @@
+import { PortalShell } from "@/components/portal-shell";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -5,6 +6,11 @@ import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { describeAge } from "@/lib/reconciliation/breaks";
 import { CLAIMS_RAIL_STALE_AFTER_HOURS } from "@/lib/reconciliation/claims-rail-source";
+import {
+  CLEARING_ACCOUNT_MEANING,
+  nonZeroClearingBalances,
+  type ClearingBalanceRow,
+} from "@/lib/reconciliation/clearing-balances";
 import { openBreaks, recentRuns, resolvedBreaks, type ReconciliationBreakRow, type ReconciliationRunRow } from "@/lib/reconciliation/read";
 import { STRIPE_STALE_AFTER_HOURS } from "@/lib/reconciliation/stripe-source";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/reconciliation/window";
@@ -49,21 +55,24 @@ export default async function ReconciliationPage({
     redirect("/broker");
   }
 
-  // The three reads and the query string, together: the page renders once, with everything.
-  const [runs, breaks, resolved, query] = await Promise.all([
+  // The four reads and the query string, together: the page renders once, with everything.
+  const [runs, breaks, resolved, clearingBalances, query] = await Promise.all([
     recentRuns(sql, HOW_MANY_RUNS_SHOWN),
     openBreaks(sql),
     resolvedBreaks(sql, HOW_MANY_RESOLVED_SHOWN),
+    nonZeroClearingBalances(sql),
     searchParams,
   ]);
   const now = new Date();
-  const lastFailedRun = runs.find((run) => run.status === "failed");
+  // The banner is about the LATEST run of each source, not about any failed run in the list
+  // (review finding F-B10-05): a source that failed at noon and completed twice since is not
+  // failing. `runs` arrives newest first, so the first row of a source is its latest run.
+  const sourcesWhoseLatestRunFailed = runs.filter(
+    (run) => run.status === "failed" && runs.find((other) => other.source === run.source) === run,
+  );
 
   return (
-    <main>
-      <p className="note">
-        <Link href="/ops">Operations</Link>
-      </p>
+    <PortalShell user={user} active="reconciliation">
 
       <h1>Reconciliation</h1>
       <p className="lead">
@@ -78,18 +87,17 @@ export default async function ReconciliationPage({
         payment notes the fee as information only.
       </p>
 
-      {query.error ? <p className="error">{query.error}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error}</p> : null}
       {query.ran ? <p className="note">Run finished: {query.ran}</p> : null}
 
-      {/* A failed run is called out above everything else: it found nothing because it could not
-          look, and reading its zero as "clean" is the exact mistake the brief forbids. */}
-      {lastFailedRun ? (
-        <p className="error">
-          The most recent {SOURCE_LABEL[lastFailedRun.source] ?? lastFailedRun.source} run FAILED at{" "}
-          {utc(lastFailedRun.finishedAt)} and compared nothing: {lastFailedRun.fetchError}. The breaks below are what the
-          last run that actually completed found, not a fresh answer.
+      {/* A failed latest run is called out above everything else: it found nothing because it
+          could not look, and reading its zero as "clean" is the exact mistake the brief forbids. */}
+      {sourcesWhoseLatestRunFailed.map((run) => (
+        <p className="error" key={run.runId}>
+          The most recent {SOURCE_LABEL[run.source] ?? run.source} run FAILED at {utc(run.finishedAt)} and compared
+          nothing: {run.fetchError}. Nothing below has been re-examined for that source since.
         </p>
-      ) : null}
+      ))}
 
       <section className="card-block">
         <h2>Run now</h2>
@@ -109,8 +117,10 @@ export default async function ReconciliationPage({
 
       <h2>Open breaks</h2>
       <p className="note">
-        Everything the latest completed run of each source reported as anything but matched. The age is counted from the
-        first run that ever reported the same break, not from the latest one. Staleness thresholds are assumptions of
+        Everything a completed run reported as anything but matched and that no later run has explained. A break leaves
+        this list only when a later completed run of the same source, <strong>whose window covers the date of the
+        record</strong>, no longer reports it: a break nobody has looked at again stays here, however old it gets. The
+        age is counted from the first run that ever reported it as a break. Staleness thresholds are assumptions of
         this build: {STRIPE_STALE_AFTER_HOURS} hours at Stripe, {CLAIMS_RAIL_STALE_AFTER_HOURS} hours on the simulated
         rail.
       </p>
@@ -134,7 +144,8 @@ export default async function ReconciliationPage({
       {runs.length === 0 ? (
         <p className="note">Nothing has run yet.</p>
       ) : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Reconciliation table 1" tabIndex={0}>
+<table>
           <thead>
             <tr>
               <th>Finished (UTC)</th>
@@ -152,19 +163,52 @@ export default async function ReconciliationPage({
             ))}
           </tbody>
         </table>
+</div>
+      )}
+
+      <h2>Clearing balances that have not returned to zero</h2>
+      <p className="note">
+        Read straight from the journal, with no window at all, so nothing here can be missed for being old. These four
+        accounts hold money on its way somewhere and must end at zero; a balance that is still open is a flow that has
+        not finished, and one that is weeks old is an operations case. This list is the second net under the break list
+        above: it does not depend on any provider answering, or on any run having compared anything.
+      </p>
+      {clearingBalances.length === 0 ? (
+        <p className="note">Every clearing account is at zero: no premium billed and uncollected, no refund owed and
+        unpaid, no claim payment in flight, no customer money waiting to be applied.</p>
+      ) : (
+        <div className="table-scroll" role="region" aria-label="Reconciliation table 2" tabIndex={0}>
+<table>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Policy or claim</th>
+              <th className="amount">Still open</th>
+              <th>Oldest entry (UTC)</th>
+              <th>Open for</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clearingBalances.map((balance) => (
+              <ClearingRow key={`${balance.accountId}-${balance.policyId}-${balance.claimId}`} balance={balance} now={now} />
+            ))}
+          </tbody>
+        </table>
+</div>
       )}
 
       <h2>Breaks that went away</h2>
       <p className="note">
-        Reported by an earlier run and absent from the latest completed run of that source. Nothing was deleted: the
-        items of every run are still on file, which is how a break can be shown as resolved rather than vanish.
+        Reported by an earlier run, and looked at again since by a completed run of the same source whose window covered
+        the record, which no longer reports it. Nothing was deleted: the items of every run are still on file, which is
+        how a break can be shown as resolved rather than vanish.
       </p>
       {resolved.length === 0 ? (
         <p className="note">No break has been resolved yet.</p>
       ) : (
         <BreakTable rows={resolved} now={now} ageColumn="Was open for" />
       )}
-    </main>
+    </PortalShell>
   );
 }
 
@@ -216,9 +260,26 @@ function RunRow({ run }: { run: ReconciliationRunRow }) {
   );
 }
 
+function ClearingRow({ balance, now }: { balance: ClearingBalanceRow; now: Date }) {
+  return (
+    <tr>
+      <td>
+        {balance.accountName}
+        <br />
+        <span className="note">{CLEARING_ACCOUNT_MEANING[balance.accountId]}</span>
+      </td>
+      <td>{balance.policyNumber ?? balance.claimNumber ?? <span className="note">no policy or claim on the entry</span>}</td>
+      <td className="amount">{formatCentsAsUsd(balance.openCents)}</td>
+      <td>{utc(balance.oldestEntryAt)}</td>
+      <td>{describeAge(balance.oldestEntryAt, now)}</td>
+    </tr>
+  );
+}
+
 function BreakTable({ rows, now, ageColumn }: { rows: ReconciliationBreakRow[]; now: Date; ageColumn: string }) {
   return (
-    <table className="ledger">
+    <div className="table-scroll" role="region" aria-label="Reconciliation table 3" tabIndex={0}>
+<table className="ledger">
       <thead>
         <tr>
           <th>Reference</th>
@@ -256,6 +317,7 @@ function BreakTable({ rows, now, ageColumn }: { rows: ReconciliationBreakRow[]; 
         ))}
       </tbody>
     </table>
+</div>
   );
 }
 

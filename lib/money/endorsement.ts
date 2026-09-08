@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { customerApprovalNeeded } from "@/lib/approvals/threshold";
 import { daysBetween, termDays, type CalendarDate } from "./dates";
 import {
   commissionCents,
@@ -32,7 +33,9 @@ import {
 // The customer must approve when the amount to collect (premium plus tax) is above $500.
 
 // Assumption of this build, not a Corgi rule (DECISIONS.md, 08:04Z): an endorsement adding more
-// than $500 needs the customer's explicit approval before the money is collected.
+// than $500 needs the customer's explicit approval before the money is collected. The threshold
+// is read against the policy, not against one endorsement: see customerApprovalNeeded in
+// lib/approvals/threshold.ts (review finding F-B4-09).
 export const CUSTOMER_APPROVAL_THRESHOLD_CENTS = 50000;
 
 export type EndorsementInput = {
@@ -50,6 +53,10 @@ export type EndorsementInput = {
   // it (the same cap as a cancellation, review finding F-B1-07).
   taxChargedSoFarCents: number;
   commissionRateBps: number;
+  // Additional premium already asked for on this policy and not yet approved by the customer,
+  // excluding this quote. The customer-approval threshold is cumulative per policy (review
+  // finding F-B4-09), so two raises of $400 in a row cannot each escape the question.
+  otherUnapprovedRequestedCents?: number;
 };
 
 // "charge": the customer pays the delta. "refund": the customer is refunded. "none": nothing
@@ -153,7 +160,13 @@ export function computeEndorsement(input: EndorsementInput): EndorsementFigures 
     commissionDeltaCents,
     direction,
     // Approval is about money the customer has to pay: a refund never needs it.
-    customerApprovalRequired: deltaTotalCents > CUSTOMER_APPROVAL_THRESHOLD_CENTS,
+    customerApprovalRequired:
+      deltaTotalCents > 0 &&
+      customerApprovalNeeded({
+        amountCents: deltaTotalCents,
+        unapprovedRequestedCents: input.otherUnapprovedRequestedCents ?? 0,
+        thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
+      }),
     taxRateBps: input.taxRateBps,
     taxChargedSoFarCents: input.taxChargedSoFarCents,
     commissionRateBps: input.commissionRateBps,
