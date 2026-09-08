@@ -1,5 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
+import { bindingIsAllowed } from "@/lib/broker/eligibility";
+import { brokerKybState } from "@/lib/broker/kyb";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { issuanceAndCollectionEntries } from "@/lib/ledger/policy-entries";
 import { centsFromDatabase } from "@/lib/money/cents";
@@ -9,23 +11,35 @@ import { policyTermsToPayload } from "@/lib/policy/terms";
 // What happens when Stripe says the customer paid. This is the only place in the application
 // that turns a provider event into journal entries.
 //
-// Everything below runs in ONE transaction: the four journal entries, the 'succeeded' status
-// of the money operation, the 'issued' policy event that binds the policy, and the refreshed
-// cache. Either the policy is bound and the ledger shows the money, or nothing happened.
+// The posting runs in ONE transaction: the four journal entries, the 'succeeded' status of the
+// money operation, the 'issued' policy event that binds the policy, and the refreshed cache.
+// Either the policy is bound and the ledger shows the money, or nothing happened.
 //
 // Replay safety comes from the database, not from a flag: the journal's unique index on
 // (source_kind, source_id, entry_type) refuses a second set of entries for the same money
 // operation, and the partial unique index on policy_events refuses a second issuance. A
 // unique violation therefore means "this was already posted", which is a success for the
 // caller: Stripe gets a 200 and stops retrying.
+//
+// BROKER ELIGIBILITY IS CHECKED HERE, AT BINDING TIME (review finding F-B2-L).
+// The check already runs when the payment page is opened (lib/payments/checkout.ts), but the
+// question "may this broker bind?" is answered again at the moment the policy would actually
+// be bound, because minutes pass between the two and a verification can fail in between. When
+// the broker is not approved, the money is recorded as arrived and NOTHING is journaled and
+// NOTHING is bound: the payment becomes an operations case that a human resolves with
+// retryBindingAfterEligibility once the broker is verified. See its comment for the ledger
+// consequence, which is deliberate and visible rather than hidden.
 
 // Each function below takes the database handle as a parameter whose default is the
-// application pool. Production always uses the default; scripts/check-payment-replay.ts passes
-// the disposable test database so that the replay check runs this exact code, with real
-// commits, without writing into the trial ledger.
+// application pool. Production always uses the default; scripts/check-payment-replay.ts and
+// scripts/check-kyb-replay.ts pass the disposable test database so that the checks run this
+// exact code, with real commits, without writing into the trial ledger.
 export type CollectionOutcome =
   | { kind: "posted" }
   | { kind: "already_posted" }
+  // The money arrived and is recorded on the operation, but the policy was NOT bound and
+  // nothing was journaled, because the broker is not eligible.
+  | { kind: "binding_refused"; reason: string }
   | { kind: "refused"; reason: string };
 
 export type SuccessfulPayment = {
@@ -52,6 +66,63 @@ export async function recordSuccessfulPayment(
     };
   }
 
+  const kyb = await brokerKybState(operation.brokerId, database);
+  if (!bindingIsAllowed(kyb.status)) {
+    const reason = `broker not eligible: the KYB status is "${kyb.status}" and must be "approved"`;
+    await recordPaymentWithoutBinding(database, operation, payment, reason);
+    return { kind: "binding_refused", reason };
+  }
+
+  return postCollectionAndBind(database, operation, payment, null);
+}
+
+// Binds the policy after the broker has become eligible, for a payment that arrived while they
+// were not. Staff operations only; the eligibility question is asked again here, so a stale
+// screen or a direct call to the route cannot bind an ineligible broker's policy.
+//
+// It re-runs the same posting transaction as a first delivery would: the same four entries
+// under the same money operation id, the same 'issued' event. Nothing is special-cased, which
+// is why a second run answers "already posted" instead of doubling anything.
+//
+// The ledger consequence of the refusal, stated plainly because it is a real gap and the
+// reconciliation screen will show it: between the refusal and this retry, Stripe holds cash
+// that our ledger does not show. The money is recorded on the operation (status 'succeeded',
+// with the refusal reason), the policy page says "paid, binding refused", and the difference
+// is a provider-only record that reconciliation reports as a break with its age. Posting the
+// cash to a suspense account instead would keep the ledger complete; that is a design question
+// for the coordinator and Yoann, not a decision this function should make quietly.
+export async function retryBindingAfterEligibility(
+  request: { policyId: string; actorUserId: string },
+  database: postgres.Sql = sql,
+): Promise<CollectionOutcome> {
+  const payment = await latestSuccessfulPayment(database, request.policyId);
+  if (!payment) {
+    return { kind: "refused", reason: "no successful payment on this policy, so there is nothing to bind" };
+  }
+  const operation = await loadCheckoutOperation(database, payment.operationId);
+  if (!operation) {
+    return { kind: "refused", reason: `no stripe_checkout money operation ${payment.operationId}` };
+  }
+
+  const kyb = await brokerKybState(operation.brokerId, database);
+  if (!bindingIsAllowed(kyb.status)) {
+    return {
+      kind: "binding_refused",
+      reason: `broker not eligible: the KYB status is "${kyb.status}" and must be "approved"`,
+    };
+  }
+
+  return postCollectionAndBind(database, operation, payment, request.actorUserId);
+}
+
+// The one posting transaction, shared by the webhook and by the staff retry.
+// `boundBy` is the user id when a human asked for the binding, null when a Stripe event did.
+async function postCollectionAndBind(
+  database: postgres.Sql,
+  operation: CheckoutOperation,
+  payment: SuccessfulPayment,
+  boundBy: string | null,
+): Promise<CollectionOutcome> {
   try {
     await database.begin(async (transaction) => {
       const { terms } = await foldPolicyEvents(transaction, operation.policyId);
@@ -72,17 +143,16 @@ export async function recordSuccessfulPayment(
         await postJournalEntry(transaction, entry.header, entry.lines);
       }
 
-      await transaction`
-        insert into money_operation_events (operation_id, status, provider_ref, payload)
-        values (${operation.operationId}, 'succeeded', ${payment.paymentIntentId},
-                ${transaction.json({ amount_received_cents: payment.amountReceivedCents, paid_on: payment.paidOn })})
-      `;
+      await appendSucceededEventOnce(transaction, payment, {
+        amount_received_cents: payment.amountReceivedCents,
+        paid_on: payment.paidOn,
+      });
 
       // The policy becomes bound here and nowhere else: coverage starts once the premium is paid.
       await transaction`
         insert into policy_events (policy_id, event_type, effective_at, payload, created_by)
         values (${operation.policyId}, 'issued', ${terms.termStart},
-                ${transaction.json(policyTermsToPayload(terms))}, null)
+                ${transaction.json(policyTermsToPayload(terms))}, ${boundBy})
       `;
 
       await refreshPolicyCurrent(transaction, operation.policyId);
@@ -90,11 +160,185 @@ export async function recordSuccessfulPayment(
     return { kind: "posted" };
   } catch (error) {
     if (isUniqueViolation(error)) {
-      // Same money operation, second delivery: the entries are already in the journal.
-      return { kind: "already_posted" };
+      return interpretUniqueViolation(database, operation, error);
     }
     throw error;
   }
+}
+
+// The journal's unique key: one entry of a given type per business operation. A violation of
+// this constraint always concerns the operation we were posting, because that is what the
+// entries are keyed on.
+const JOURNAL_ENTRY_KEY = "journal_entries_source_kind_source_id_entry_type_key";
+
+// Why the posting was refused, and whether that refusal is good news.
+//
+// A unique violation used to mean one thing, "somebody already posted this", and answering
+// already_posted told Stripe to stop retrying. Two situations break that reading, and both end
+// with real money at Stripe and nothing in the ledger (review finding F-B2-13):
+//
+//   * a correction reversed this operation's entries. The entries are still there, so the
+//     unique key still refuses, but the ledger no longer holds that money.
+//   * the violation came from ANOTHER operation. After a void, the superseded 'issued' row
+//     stays in policy_events, so a payment made on a second attempt posts four fresh entries
+//     under its own operation id and is then rolled back by
+//     policy_events_one_issuance_per_policy. Nothing of that payment was journaled.
+//
+// So the constraint that actually fired is read from the Postgres error rather than guessed,
+// and already_posted is answered only when this operation's own entries are in the journal.
+// Everything else is refused, which lands the delivery in the inbox as ignored and visible.
+async function interpretUniqueViolation(
+  database: postgres.Sql,
+  operation: CheckoutOperation,
+  error: unknown,
+): Promise<CollectionOutcome> {
+  const constraintName = violatedConstraintName(error);
+
+  const correction = await correctionThatReversedOperation(database, operation);
+  if (correction) {
+    return {
+      kind: "refused",
+      reason: `this policy was voided by correction event ${correction.correctionEventId} (${correction.reason}); a payment on it must be handled by operations`,
+    };
+  }
+
+  if (constraintName === JOURNAL_ENTRY_KEY) {
+    // Same money operation, second delivery: its entries are already in the journal.
+    return { kind: "already_posted" };
+  }
+
+  // Any other constraint: the entries of THIS operation decide. They are the only proof that
+  // this payment was ever booked. The operation's own 'succeeded' status is not proof, because
+  // a payment whose binding was refused carries one with nothing posted.
+  if (await operationHasJournalEntries(database, operation.operationId)) {
+    return { kind: "already_posted" };
+  }
+
+  return {
+    kind: "refused",
+    reason: `the posting was refused by ${constraintName ?? "a unique constraint"} and nothing of this payment was journaled; operations must decide what to do with this money`,
+  };
+}
+
+// The constraint Postgres named in the error. postgres.js copies the server's error fields onto
+// the error object, so this is the database's own answer rather than a guess from the message.
+function violatedConstraintName(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) return null;
+  const named = (error as { constraint_name?: unknown }).constraint_name;
+  return typeof named === "string" ? named : null;
+}
+
+// Has a correction undone what this operation posted? Two shapes count, because a void writes
+// both: reversal entries pointing at the entries filed under this operation, and a
+// 'correction_reversal' policy event superseding the issuance they produced. The policy event
+// is what carries the reason, and it is also what catches a payment made on a LATER attempt,
+// whose own entries were never reversed because they were never committed.
+async function correctionThatReversedOperation(
+  database: postgres.Sql,
+  operation: CheckoutOperation,
+): Promise<{ correctionEventId: string; reason: string } | null> {
+  const [correction] = await database<{ id: string; reason: string | null }[]>`
+    select reversal.id, reversal.payload ->> 'reason' as reason
+      from policy_events reversal
+      join policy_events superseded on superseded.id = reversal.supersedes_event_id
+     where reversal.policy_id = ${operation.policyId}
+       and reversal.event_type = 'correction_reversal'
+       and superseded.event_type = 'issued'
+     order by reversal.sequence_number desc
+     limit 1
+  `;
+  if (correction) {
+    return { correctionEventId: correction.id, reason: correction.reason ?? "no reason recorded" };
+  }
+
+  const [reversedEntries] = await database<{ count: string }[]>`
+    select count(*)::text as count
+      from journal_entries reversal
+      join journal_entries original on original.id = reversal.reverses_entry_id
+     where original.source_kind = 'money_operation'
+       and original.source_id = ${operation.operationId}
+  `;
+  if (Number(reversedEntries.count) > 0) {
+    return { correctionEventId: "none", reason: "this operation's journal entries carry reversals" };
+  }
+  return null;
+}
+
+async function operationHasJournalEntries(database: postgres.Sql, operationId: string): Promise<boolean> {
+  const [row] = await database<{ count: string }[]>`
+    select count(*)::text as count from journal_entries
+     where source_kind = 'money_operation' and source_id = ${operationId}
+  `;
+  return Number(row.count) > 0;
+}
+
+// The money arrived, the policy is not bound. One appended status, no journal entry at all:
+// the operation's history says the payment succeeded AND why nothing was booked, and the
+// policy page reads the reason back from this payload.
+async function recordPaymentWithoutBinding(
+  database: postgres.Sql,
+  operation: CheckoutOperation,
+  payment: SuccessfulPayment,
+  reason: string,
+): Promise<void> {
+  await database.begin(async (transaction) => {
+    await appendSucceededEventOnce(transaction, payment, {
+      amount_received_cents: payment.amountReceivedCents,
+      paid_on: payment.paidOn,
+      binding_refused_reason: reason,
+    });
+    await refreshPolicyCurrent(transaction, operation.policyId);
+  });
+}
+
+// Appends the 'succeeded' status of an operation, and only the first time.
+//
+// The guard is inside the statement rather than a read followed by a write, so two deliveries
+// of the same payment cannot both decide that the status is missing. It matters on the refused
+// path: there the posting transaction's unique index is not what stops a replay, since nothing
+// is posted, so this statement is the whole protection against a second identical status row.
+async function appendSucceededEventOnce(
+  transaction: postgres.TransactionSql,
+  payment: SuccessfulPayment,
+  payload: Record<string, string | number>,
+): Promise<void> {
+  await transaction`
+    insert into money_operation_events (operation_id, status, provider_ref, payload)
+    select ${payment.operationId}, 'succeeded', ${payment.paymentIntentId}, ${transaction.json(payload)}
+     where not exists (
+       select 1 from money_operation_events
+        where operation_id = ${payment.operationId} and status = 'succeeded'
+     )
+  `;
+}
+
+// The payment facts of the last successful collection of a policy, read back from the
+// operation's own history so the staff retry re-posts exactly what Stripe reported.
+async function latestSuccessfulPayment(
+  database: postgres.Sql,
+  policyId: string,
+): Promise<SuccessfulPayment | null> {
+  const [row] = await database<
+    { operation_id: string; provider_ref: string | null; payload: Record<string, unknown> }[]
+  >`
+    select event.operation_id, event.provider_ref, event.payload
+      from money_operation_events event
+      join money_operations operation on operation.id = event.operation_id
+     where operation.policy_id = ${policyId}
+       and operation.kind = 'stripe_checkout'
+       and event.status = 'succeeded'
+     order by event.sequence_number desc
+     limit 1
+  `;
+  if (!row) {
+    return null;
+  }
+  return {
+    operationId: row.operation_id,
+    paymentIntentId: String(row.provider_ref ?? ""),
+    amountReceivedCents: centsFromDatabase(row.payload.amount_received_cents, "amount_received_cents"),
+    paidOn: String(row.payload.paid_on ?? ""),
+  };
 }
 
 // Stripe says the payment failed. No money moved, so nothing is journaled: the failure is

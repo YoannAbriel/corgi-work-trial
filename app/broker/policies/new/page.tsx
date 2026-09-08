@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
@@ -28,9 +29,14 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
       </p>
 
       {kyb.status === "approved" ? null : (
-        <p className="badge badge-warn">
-          KYB status: {kyb.status}. A draft can be created, but binding will be refused until the broker is approved.
-        </p>
+        <>
+          <p className="badge badge-warn">
+            KYB status: {kyb.status}. A draft can be created, but binding will be refused until the broker is approved.
+          </p>
+          <p className="note">
+            {kyb.explanation} <Link href="/broker/kyb">Submit or check the business verification</Link>.
+          </p>
+        </>
       )}
       {kyb.isProviderEvidence ? null : <p className="note">{KYB_NOT_LIVE_LABEL}: the KYB status is a seeded placeholder.</p>}
 

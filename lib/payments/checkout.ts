@@ -5,6 +5,7 @@ import { brokerKybState } from "@/lib/broker/kyb";
 import { checkoutIdempotencyKey } from "@/lib/money/idempotency";
 import { CHECKOUT_EXPIRED_REASON } from "./collection";
 import { foldPolicyEvents, refreshPolicyCurrent } from "@/lib/policy/current";
+import { policyWasVoided } from "@/lib/policy/status";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
 
 // Starting the payment of a policy draft: the outbox rule of ARCHITECTURE.md section 4.
@@ -48,6 +49,13 @@ export async function startCheckout(
   const { eventTypes, terms } = await foldPolicyEvents(database, request.policyId);
   if (eventTypes.includes("issued")) {
     throw new CheckoutRefused("this policy is already bound and paid");
+  }
+  // A correction reversed this policy's issuance. The superseded 'issued' row is still in the
+  // table, so a payment made on a new attempt would post its four entries and then be rolled
+  // back by the one-issuance index, leaving real money at Stripe with nothing journaled
+  // (review finding F-B2-13). The refusal happens here, before a hosted page can be opened.
+  if (policyWasVoided(eventTypes)) {
+    throw new CheckoutRefused("this policy was voided by a correction; create a new draft");
   }
 
   // Server-side eligibility, rechecked at execution time and not merely when the page was

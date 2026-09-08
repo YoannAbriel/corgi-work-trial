@@ -189,6 +189,20 @@ export function mapAccountToEligibility(account: VerifiableAccount, checkedAt: s
   return decide("approved", "business identity settled and recipient capability active");
 }
 
+// Every error code Stripe currently carries on the account's requirements, in the order it
+// lists them. Stored with the status event and shown to staff, so the operations screen quotes
+// the provider's own words for a refusal instead of paraphrasing them. An account with nothing
+// outstanding returns an empty list.
+export function requirementErrorCodes(account: VerifiableAccount): string[] {
+  const codes: string[] = [];
+  for (const entry of account.requirements?.entries ?? []) {
+    for (const error of entry.errors ?? []) {
+      if (error.code) codes.push(error.code);
+    }
+  }
+  return codes;
+}
+
 // Does this requirement put the company's identity in question?
 //
 // Deliberately pessimistic on the two cases where we do not know enough: an entry with no

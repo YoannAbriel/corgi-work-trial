@@ -35,6 +35,9 @@ const TABLES_THAT_MUST_BE_EMPTY = [
   "users",
   "state_tax_rates",
   "broker_kyb_events",
+  // A broker's business verification (migration 0006). It is append-only like the rest, so a
+  // database that already holds one is not a database to seed from zero.
+  "broker_kyb_submissions",
   "policies",
   "policy_events",
   "money_operations",

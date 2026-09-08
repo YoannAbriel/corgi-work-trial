@@ -3,7 +3,7 @@
 // lib/policy/current.ts writes the result into the policy_current cache; nothing posts money
 // from it.
 
-export type PolicyStatus = "draft" | "awaiting_payment" | "payment_failed" | "bound" | "cancelled";
+export type PolicyStatus = "draft" | "awaiting_payment" | "payment_failed" | "bound" | "cancelled" | "voided";
 
 export type MoneyOperationStatus =
   | "requested"
@@ -18,13 +18,33 @@ export type PolicyStatusInput = {
   latestPaymentStatus: MoneyOperationStatus | null; // last status of the checkout operation, null when none exists
 };
 
+// True when a correction reversed this policy's issuance and nothing has re-booked it.
+//
+// The fold (lib/policy/current.ts) drops an event named by a later correction's
+// supersedes_event_id, so a voided policy has a 'correction_reversal' in its event types and no
+// 'issued' any more, while both rows stay in the table. The re-book of slice B8 will add a
+// 'correction_rebook', which is what makes the policy bound again, so it is checked here too:
+// a corrected policy must not read as voided.
+export function policyWasVoided(policyEventTypes: string[]): boolean {
+  return (
+    policyEventTypes.includes("correction_reversal") &&
+    !policyEventTypes.includes("issued") &&
+    !policyEventTypes.includes("correction_rebook")
+  );
+}
+
 // Order matters and is read top to bottom:
-//   a cancelled policy stays cancelled; a policy with an 'issued' event is bound, whatever
-//   happened afterwards to the payment operation; without issuance, the payment tells the
-//   story: failed, in flight, or never started.
+//   a cancelled policy stays cancelled; a policy whose issuance was reversed by a correction is
+//   voided, whatever its payment operation says afterwards (the void marks the attempt dead, so
+//   the payment status alone would read as 'payment_failed' and hide the correction); a policy
+//   with an 'issued' event is bound, whatever happened afterwards to the payment operation;
+//   without issuance, the payment tells the story: failed, in flight, or never started.
 export function derivePolicyStatus(input: PolicyStatusInput): PolicyStatus {
   if (input.policyEventTypes.includes("cancelled")) {
     return "cancelled";
+  }
+  if (policyWasVoided(input.policyEventTypes)) {
+    return "voided";
   }
   if (input.policyEventTypes.includes("issued")) {
     return "bound";

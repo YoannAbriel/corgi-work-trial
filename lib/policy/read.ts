@@ -155,6 +155,11 @@ export type CheckoutOperationView = {
   latestStatus: MoneyOperationStatus | null;
   checkoutUrl: string | null; // the hosted Stripe page, kept so a retry reuses the same session
   providerRef: string | null; // Checkout Session id
+  // Set when the money arrived but the policy was NOT bound because the broker was not
+  // eligible at that moment (lib/payments/collection.ts). It is read back from the operation's
+  // own 'succeeded' status row, so the page shows the reason that was recorded, not a fresh
+  // guess at why.
+  bindingRefusedReason: string | null;
 };
 
 // The policy's payment operation, if the broker has started one. There is at most one
@@ -186,12 +191,21 @@ export async function checkoutOperationOfPolicy(policyId: string): Promise<Check
      limit 1
   `;
 
+  // The payment succeeded; whether it also bound the policy is on that same row.
+  const [succeeded] = await sql<{ payload: { binding_refused_reason?: string } }[]>`
+    select payload from money_operation_events
+     where operation_id = ${operation.id} and status = 'succeeded'
+     order by sequence_number desc
+     limit 1
+  `;
+
   return {
     operationId: operation.id,
     amountCents: centsFromDatabase(operation.amount_cents, "amount_cents"),
     latestStatus: latest ? latest.status : null,
     checkoutUrl: accepted?.payload?.checkout_url ?? null,
     providerRef: accepted?.provider_ref ?? null,
+    bindingRefusedReason: succeeded?.payload?.binding_refused_reason ?? null,
   };
 }
 
@@ -267,6 +281,43 @@ export async function journalEntriesOfPolicy(policyId: string): Promise<JournalE
     });
   }
   return entries;
+}
+
+// The correction that reversed this policy's issuance, when there is one. The policy status is
+// then 'voided': the issuance row and its entries are still in the database, the fold no longer
+// applies them, and this is what the page shows instead of a bound policy.
+export type VoidCorrectionView = {
+  correctionEventId: string;
+  reason: string;
+  recordedAt: Date;
+  reversedEntryCount: number;
+};
+
+export async function voidCorrectionOfPolicy(policyId: string): Promise<VoidCorrectionView | null> {
+  const [row] = await sql<
+    { id: string; reason: string | null; recorded_at: Date; reversed_entry_ids: string[] | null }[]
+  >`
+    select reversal.id,
+           reversal.payload ->> 'reason' as reason,
+           reversal.recorded_at,
+           reversal.payload -> 'reversed_entry_ids' as reversed_entry_ids
+      from policy_events reversal
+      join policy_events superseded on superseded.id = reversal.supersedes_event_id
+     where reversal.policy_id = ${policyId}
+       and reversal.event_type = 'correction_reversal'
+       and superseded.event_type = 'issued'
+     order by reversal.sequence_number desc
+     limit 1
+  `;
+  if (!row) {
+    return null;
+  }
+  return {
+    correctionEventId: row.id,
+    reason: row.reason ?? "no reason recorded",
+    recordedAt: row.recorded_at,
+    reversedEntryCount: Array.isArray(row.reversed_entry_ids) ? row.reversed_entry_ids.length : 0,
+  };
 }
 
 // ---------------------------------------------------------------------------

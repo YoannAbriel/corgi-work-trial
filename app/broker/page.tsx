@@ -13,13 +13,20 @@ export default async function BrokerPage() {
     redirect("/login");
   }
   if (user.role !== "broker" || !user.brokerId) {
+    const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
     return (
       <main>
         <h1>Broker workspace</h1>
         <p className="error">
-          This build implements the broker journey. Your account has the role &quot;{user.role}&quot;; the staff
-          and customer screens arrive in later slices.
+          This page is the broker journey. Your account has the role &quot;{user.role}&quot;.
         </p>
+        {isStaff ? (
+          <p>
+            <Link href="/ops/brokers">Brokers and their verification</Link>
+          </p>
+        ) : (
+          <p className="note">The customer screens arrive in a later slice.</p>
+        )}
         <LogoutButton />
       </main>
     );
@@ -35,12 +42,13 @@ export default async function BrokerPage() {
       </p>
 
       <p className={kyb.status === "approved" ? "badge badge-ok" : "badge badge-warn"}>KYB status: {kyb.status}</p>
+      <p className="note">{kyb.explanation}</p>
       {kyb.isProviderEvidence ? null : (
         <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
       )}
 
       <p>
-        <Link href="/broker/policies/new">New policy</Link>
+        <Link href="/broker/policies/new">New policy</Link> — <Link href="/broker/kyb">Business verification</Link>
       </p>
 
       {policies.length === 0 ? (
