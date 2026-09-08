@@ -81,3 +81,23 @@ test("inputs must be non-negative integer cents", () => {
   assert.throws(() => earnedPremiumCents(1200.5, "2028-01-01", "2029-01-01", "2028-04-10"), /integer number of cents/);
   assert.throws(() => stateTaxCents(-1, 300), /integer number of cents/);
 });
+
+test("the recited example: March 1, 2028 policy, 365 days, cancelled on day 100 (June 9)", () => {
+  // Decided by Yoann on 2026-09-08 (DECISIONS.md): this is the example told at the debrief.
+  // Written $1,200, 3% tax, cancelled on day 100 of 365. Earned 32876, unearned 87124,
+  // tax refunded ceil(87124 x 3%) = 2614, fee never refunded: total $897.38.
+  assert.deepEqual(proRataCancellationRefund(WRITTEN, 300, "2028-03-01", "2029-03-01", "2028-06-09"), {
+    unearnedPremiumCents: 87124,
+    refundedTaxCents: 2614,
+    refundedFeeCents: 0,
+    totalRefundCents: 89738,
+  });
+  // Endorsement +$600 annual on day 100: 265 days remain, 60000 x 265 / 365 = 43561.64 -> 43561.
+  assert.equal(endorsementDeltaCents(120000, 180000, "2028-03-01", "2029-03-01", "2028-06-09"), 43561);
+  // The same change backdated 30 days (295 days remain): 48493.15 -> 48493.
+  assert.equal(endorsementDeltaCents(120000, 180000, "2028-03-01", "2029-03-01", "2028-05-10"), 48493);
+  // Lowering by $600 on day 100 credits the customer 43562 (rounded up).
+  assert.equal(endorsementDeltaCents(180000, 120000, "2028-03-01", "2029-03-01", "2028-06-09"), -43562);
+  // Commission on the $1,200 collected: 18000. On the refunded 87124, the base is 13068.6 (rounding open).
+  assert.equal(commissionCents(120000, 1500), 18000);
+});
