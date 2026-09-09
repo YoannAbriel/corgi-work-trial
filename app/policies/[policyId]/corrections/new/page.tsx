@@ -89,16 +89,20 @@ export default async function CorrectEndorsementDatePage({
       </p>
 
       <h2>What changes</h2>
+      {/* UI-024: the three cells below hold sentences and dates, not amounts. Carrying the amount
+          class gave them white-space: nowrap, so the endorsement's description held the table
+          open on one 942 px line, the label column was squeezed to 44 px, and "Endorsement"
+          came out one letter per line. Only the money rows keep the class. */}
       <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
 <table className="amounts">
         <tbody>
           <tr>
             <th>Endorsement</th>
-            <td className="amount">{plan.description}</td>
+            <td>{plan.description}</td>
           </tr>
           <tr>
             <th>Effective date</th>
-            <td className="amount">
+            <td>
               {money.wrongEffectiveAt} to {money.correctedEffectiveAt}
             </td>
           </tr>
@@ -116,7 +120,7 @@ export default async function CorrectEndorsementDatePage({
           </tr>
           <tr>
             <th>Reason that will be written on every entry</th>
-            <td className="amount">{plan.reason}</td>
+            <td>{plan.reason}</td>
           </tr>
         </tbody>
       </table>
