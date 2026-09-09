@@ -1056,6 +1056,117 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
+  // 11f. The creator of an MCP key cannot decide what that key raised (F-INT-01)
+  // ---------------------------------------------------------------------------
+
+  // THE ATTACK IN ONE SENTENCE: a staff_approver mints an MCP key for the staff_ops user, raises a
+  // claim payment through it, then approves it as themselves. Two different user ids, one human on
+  // both sides of the gate. Decision 26 shut that door at the screen (only staff_ops create keys);
+  // migration 0024 shuts it at the database, and lib/approvals refuses it first with the same
+  // sentence. Both halves are exercised here.
+  //
+  // WHY NOT IN check:mcp: that script needs the application listening on port 3800, which belongs
+  // to another slice's local server. Nothing here needs HTTP: the key is inserted with the owner
+  // connection and the request is raised through requestClaimPayment, the very function the MCP
+  // tool calls (lib/mcp/tools/claim-payment.ts), with the same requestedThrough channel.
+  const secondCheckerId = await createSecondApprover();
+  const keyMintedByTheApprover = await mintKeyCreatedBy(people.checkerId, people.makerId);
+
+  const keyPolicy = await createPaidPolicy(recordSuccessfulPayment, people.brokerId);
+  const keyClaim = await openClaim(
+    {
+      policyId: keyPolicy.policyId,
+      occurredAt: "2028-05-07",
+      reportedAt: "2028-05-08",
+      openedOn: "2028-05-08",
+      description: "a loss whose payment is raised through an MCP key",
+      claimantName: CLAIMANT_NAME,
+      actor: maker,
+    },
+    runtime,
+  );
+  await setClaimReserve(
+    { claimId: keyClaim.claimId, newReserveCents: 300000, note: "estimate", actor: maker },
+    runtime,
+  );
+  await addClaimantBankAccount(
+    {
+      claimId: keyClaim.claimId,
+      accountHolderName: CLAIMANT_NAME,
+      routingNumber: REACHABLE_ROUTING_NUMBER,
+      accountNumber: "000123456789",
+      actor: maker,
+    },
+    runtime,
+  );
+  const raisedThroughTheKey = await requestClaimPayment(
+    {
+      claimId: keyClaim.claimId,
+      amountCents: PAYMENT_CENTS,
+      actor: maker,
+      requestedThrough: {
+        channel: "mcp",
+        principalKind: "human",
+        keyPrefix: keyMintedByTheApprover.keyPrefix,
+        keyId: keyMintedByTheApprover.keyId,
+      },
+    },
+    runtime,
+  );
+  const keyRequestId = raisedThroughTheKey.approvalRequestId as string;
+  const [storedKeyOnRequest] = await owner<{ raised_through_key_id: string | null }[]>`
+    select raised_through_key_id from approval_requests where id = ${keyRequestId}
+  `;
+  report(
+    "a request raised through an MCP key names that key on the request itself",
+    storedKeyOnRequest?.raised_through_key_id === keyMintedByTheApprover.keyId,
+    `raised_through_key_id ${storedKeyOnRequest?.raised_through_key_id ?? "null"}`,
+  );
+
+  const byTheKeyCreator = await refusal(() =>
+    decideApprovalRequest(
+      { requestId: keyRequestId, decidedByUserId: people.checkerId, decidedByRole: "staff_approver", decision: "approved", reason: null },
+      runtime,
+    ),
+  );
+  report(
+    "THE APPLICATION refuses the approver who created the key that raised the request",
+    /the person who created the key that raised this request cannot decide it/.test(byTheKeyCreator),
+    byTheKeyCreator,
+  );
+
+  // The same decision inserted straight into the table by the OWNER connection, with no
+  // application check in the way and with the strongest role the database has.
+  const keyCreatorAtTheDatabase = await refusal(
+    () => owner`
+      insert into approval_decisions (request_id, decided_by, decision)
+      values (${keyRequestId}, ${people.checkerId}, 'approved')
+    `,
+  );
+  report(
+    "THE DATABASE refuses the same decision, even for the owner role",
+    /the person who created the key that raised this request cannot decide it/.test(keyCreatorAtTheDatabase),
+    keyCreatorAtTheDatabase,
+  );
+
+  // And the request is not stuck: any other approver, who was handed no key, decides it normally.
+  await decideApprovalRequest(
+    {
+      requestId: keyRequestId,
+      decidedByUserId: secondCheckerId,
+      decidedByRole: "staff_approver",
+      decision: "approved",
+      reason: "checked by an approver who holds no key on this request",
+    },
+    runtime,
+  );
+  report(
+    "a different staff approver, who created no key, can decide it",
+    (await approvalRequest(runtime, keyRequestId))?.decision === "approved",
+    "approved",
+  );
+
+  // ---------------------------------------------------------------------------
   // 12. The whole ledger still balances
   // ---------------------------------------------------------------------------
 
@@ -1155,6 +1266,37 @@ async function createPeople(): Promise<{
       checkerId: checker.id,
     };
   });
+}
+
+// A second approver, for the check that a request refused to one approver is still decidable by
+// another. Created apart from createPeople() so that the older sections keep exactly the people
+// they had.
+async function createSecondApprover(): Promise<string> {
+  const [approver] = await owner<{ id: string }[]>`
+    insert into users (email, display_name, role)
+    values ('claims-check-' || gen_random_uuid()::text || '@example.invalid', 'Claims check second approver', 'staff_approver')
+    returning id
+  `;
+  return approver.id;
+}
+
+// One MCP API key whose creator is the approver and whose holder is the operator: exactly the
+// credential review finding F-INT-01 describes. Inserted with the owner connection because no
+// HTTP call is made here. NO SECRET IS GENERATED: the key is never presented to the endpoint in
+// this check, only named by its id, so key_hash is the sha256 of a random uuid that unlocks
+// nothing and that nobody holds.
+async function mintKeyCreatedBy(
+  creatorUserId: string,
+  holderUserId: string,
+): Promise<{ keyId: string; keyPrefix: string }> {
+  const [key] = await owner<{ id: string; key_prefix: string }[]>`
+    insert into mcp_api_keys (user_id, label, key_prefix, key_hash, principal_kind, created_by)
+    values (${holderUserId}, 'claims check key minted by an approver',
+            'cmk_' || substr(md5(gen_random_uuid()::text), 1, 8),
+            encode(sha256(gen_random_uuid()::text::bytea), 'hex'), 'human', ${creatorUserId})
+    returning id, key_prefix
+  `;
+  return { keyId: key.id, keyPrefix: key.key_prefix };
 }
 
 // A bound, paid policy, built exactly as slice B2 builds one.

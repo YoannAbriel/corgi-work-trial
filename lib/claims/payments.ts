@@ -175,6 +175,10 @@ export type RequestChannel = {
   channel: "mcp";
   principalKind: "human" | "agent";
   keyPrefix: string; // the public half of the API key, never the secret
+  // The key's row id. Stored on the approval request so that migration 0024's trigger can refuse
+  // a decision by the person who created that key (review finding F-INT-01). Optional because the
+  // claim events written before that migration carry a channel without it.
+  keyId?: string;
 };
 
 export type RequestClaimPaymentInput = {
@@ -258,6 +262,8 @@ export async function requestClaimPayment(
           destinationDescription:
             `LOCAL SIMULATOR bank account ...${bankAccount.accountNumberLast4} held by ${bankAccount.accountHolderName}`,
           requestedByUserId: input.actor.userId,
+          // Which key raised it, as a foreign key rather than as prose (migration 0024).
+          raisedThroughKeyId: input.requestedThrough?.keyId ?? null,
           payload: {
             claim_number: snapshot.claimNumber,
             policy_number: snapshot.policyNumber,
