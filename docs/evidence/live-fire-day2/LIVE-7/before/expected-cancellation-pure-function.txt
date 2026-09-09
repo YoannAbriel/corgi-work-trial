@@ -1,0 +1,14 @@
+{
+  "termDays": 365,
+  "earnedDays": 61,
+  "writtenPremiumCents": 263506,
+  "earnedPremiumCents": 38629,
+  "unearnedPremiumCents": 224877,
+  "refundedTaxCents": 5285,
+  "taxRefundWasCappedAtCharged": false,
+  "refundedFeeCents": 0,
+  "totalRefundCents": 230162,
+  "commissionClawbackCents": 33731
+}
+refund $2301.62, clawback $337.31, earned $386.29, unearned $2248.77, tax back $52.85
+money-out threshold: above $1,000, a distinct approver is required

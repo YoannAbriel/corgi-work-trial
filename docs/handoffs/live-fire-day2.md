@@ -172,7 +172,7 @@ coordinator, not built during the live-fire.
 Addendum LIVE-8: Yoann ran Redwood 2026-09 once more at 20:03:04Z, revision 7, identical to
 revision 6 ($437.45, same hash); one more immutable row, no effect.
 
-## LIVE-9: second endorsement on CGP-01707, the cumulative $500 threshold and three as-of dates (YOA-647)
+## LIVE-9: second endorsement on CGP-01707, the cumulative $500 threshold and three as-of dates (YOA-648)
 
 Deployed revision at the start of the step, `/api/health` at 20:04:24Z: `92379e2`. Starting
 terms on record after LIVE-8: annual premium $2,400.00 from 2026-09-22, limits $2M / $4M.
@@ -232,3 +232,77 @@ tile and the same pair on the policy lists); a pending endorsement absent from t
 "Changes to this policy" table (a row with a state chip); no visible notification for the broker
 after the customer's approval (band action, notice line, sub-menu count); the broker home
 printing the count twice without a plural ("11 endorsement delta to pay").
+
+## LIVE-7: cancellation of CGP-01707 with an open claim, refund above $1,000 through the approval queue (YOA-647)
+
+Deployed revision at the start of the step, `/api/health` at 20:22:07Z: `d002f77` (interface
+batch 1; nothing under db/ or app/api). Policy state before: cancelled nowhere, three written
+premium segments (120000 from 2026-09-08, 115397 from 2026-09-22, 28109 from 2026-10-01), tax
+charged 2820 + 2711 + 660 = 6191, cash collected $2,721.97, open claim CLM-00213 with a $2,000.00
+reserve and $0.00 paid, approvals queue empty (`LIVE-7/before/`).
+
+Expected refund computed before the click with `cancellationBreakdown` (lib/money/premium.ts) on
+those segments (`LIVE-7/before/expected-cancellation-pure-function.txt`) and read again on the
+broker's preview page for 2026-11-08 (`LIVE-7/before/cancel-preview-2026-11-08.txt`, identical
+figures on 92379e2 and d002f77).
+
+### Click 1: broker@example.com, Cancel the policy, effective 2026-11-08, Preview then Confirm (20:32:36Z)
+
+| Figure | Expected (pure function) | Read (preview, then the policy after Confirm) | Agree |
+|---|---|---|---|
+| Days covered | 61 of 365 | 61 of 365 | agree |
+| Written premium | 263506 | $2,635.06 | agree |
+| Earned, kept | floor(120000 x 61 / 365) + floor(115397 x 47 / 351) + floor(28109 x 38 / 342) = 20054 + 15452 + 3123 = 38629 | $386.29, `premium_earned_to_date` 38629 effective 2026-11-08 | agree |
+| Unearned, refunded | 263506 - 38629 = 224877 | $2,248.77, four `refund_requested` entries 81374 + 5260 + 28108 + 110135 effective 2026-11-08 | agree |
+| Tax refunded | ceil(224877 x 235 / 10000) = 5285, under the 6191 charged | $52.85 | agree |
+| Fee refunded | 0 | $0.00 | agree |
+| Total refund | 230162 | $2,301.62 | agree |
+| Commission clawback | floor(224877 x 1500 / 10000) = 33731 | $337.31 | agree |
+| Refund slices, newest collection first | 28769, 5384, 112724, 83285 (the issuance payment partly) | $287.69 (pi_3UDrw9), $53.84 (pi_3UDrW1), $1,127.24 (pi_3UDf5Y), $832.85 (pi_3UDUCU) | agree |
+| Maker-checker | total above $1,000, a distinct approver required | "This refund is above $1,000.00, so it requires approval ... a staff approver who is not you" | agree |
+| Open claim | untouched | "Reserve still held, untouched $2,000.00; already paid on it, untouched $0.00", CLM-00213 named | agree |
+| After Confirm | policy cancelled, four requests waiting, nothing at Stripe | policy "cancelled"; `refund_payable` credited $2,301.62 in four `refund_requested` entries; queue: 4 waiting, $2,301.62 | agree |
+
+### Click 2: ops@example.com, /ops/approvals (read by Yoann on his screen, about 20:33Z)
+
+Four rows waiting, $287.69, $832.85, $1,127.24 and $53.84, asked by Dana Ruiz (broker),
+destination Stripe, subject CGP-01707, each with the chip **"not an approver"** and no decision
+form; the band states the rule and "Agent raised 1" counts the earlier MCP request. Expected:
+refused, never the initiator, never a non-approver. Agree. (This session read the queue as ops
+before the cancellation, empty, and after the decisions, where the four rows show "approved";
+the waiting state itself is Yoann's read.)
+
+### Click 3: approver@example.com, approve the four requests with a reason (20:34:28Z to 20:34:32Z)
+
+Decided view read as ops: four rows "approved, Alex Kim, approver, 2026-09-09", each with the
+intent text and its hash under "What was approved, exactly", decided at 20:34:28Z, 20:34:29Z,
+20:34:30Z and 20:34:32Z (`LIVE-7/after/approvals-decided.txt`). Agree.
+
+### Click 4: ops@example.com, policy page, "Send to Stripe" on the four refunds (about 20:36Z)
+
+Yoann pressed the four buttons in quick succession; each POST redirected to the policy page,
+which he saw reload once. Read by GET afterwards:
+
+| Figure | Expected | Read | Agree |
+|---|---|---|---|
+| Stripe refunds created through the Refunds API | four, one per PaymentIntent | re_3UDrw9K6R3v50tIy1ffy43I1 ($287.69), re_3UDUCUK6R3v50tIy0gKOTYl7 ($832.85), re_3UDf5YK6R3v50tIy1TVf1Llk ($1,127.24), re_3UDrW1K6R3v50tIy1qNn3zvG ($53.84) | agree |
+| Webhooks | refund.created, refund.updated, charge.refunded per refund | received on the deployed endpoint; refund.updated after refund.created answered "already posted by an earlier delivery of this refund"; charge.refunded "confirmation only" | agree |
+| Requested versus completed | each refund requested at 20:32:36Z, completed by the webhook | four rows "completed 2026-09-09" on the money view; `refund_completed` Cr cash_stripe 28769, 83285, 112724, 5384 recorded 20:36:27Z to 20:36:28Z, effective 2026-09-09 | agree |
+| Refunded from Stripe | 230162 | $2,301.62 | agree |
+| Clawback entries | 4216 + 12206 + 16520 + 789 = 33731 | four `commission_clawback` Dr commission_payable, -$42.16, -$122.06, -$165.20, -$7.89 | agree |
+| Commission payable after | 39525 - 33731 = 5794 (15 percent of the 38629 earned, floored) | $57.94, "18000 + 16520 + 789 + 4216 - 4216 - 12206 - 16520 - 789" | agree |
+| Unearned premium after | 0 | $0.00 | agree |
+| Refunds requested and not completed | 0 after the webhooks | none open on the clearing list of the policy | agree |
+| Claim reserve | $2,000.00 untouched, claim open | CLM-00213 open, reserve $2,000.00, paid $0.00, incurred $2,000.00 | agree |
+
+Every figure of LIVE-7 agrees. Freeze checklist section D: evidence in
+`docs/evidence/live-fire-day2/LIVE-7/` (before: preview, pure-function output, policy money and
+claims, empty queue; after: policy overview, money, claims, decided queue, console timeline,
+screenshots).
+
+Interface items from the step, sent to the interface session: staff operations had no
+notification for the four approved refunds to send (no item under Policies or Money for ops; he
+found the buttons on the policy page); four separate "Send to Stripe" buttons pressed in a row
+reload the page once and give no per-refund feedback (a "Send the approved refunds" action for
+the whole cancellation, or a toast per send). Neither changes a money path: the send route
+already covers each operation and refuses an unapproved one.
