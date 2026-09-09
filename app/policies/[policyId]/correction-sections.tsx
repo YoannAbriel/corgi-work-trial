@@ -128,8 +128,11 @@ export function LatestTermsStat({
 }
 
 // The id the band's "Pay the delta" link lands on: the Pay row of the Billing view. Named beside
-// COLLECT_ANCHOR below so the two anchors of that view are declared together.
+// COLLECT_ANCHOR below so the anchors of the policy's views are declared together.
 export const PAY_DELTA_ANCHOR = "pay-delta";
+
+// The id the "refunds approved, $X to send" notice lands on: the refunds table of the Money view.
+export const REFUNDS_ANCHOR = "refunds";
 
 // THE SENTENCE ABOVE THE TILES while a change is quoted or approved and not paid for.
 //

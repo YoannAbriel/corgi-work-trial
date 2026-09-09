@@ -62,6 +62,7 @@ import {
   endorsementNeedsThisReader,
   LatestTermsStat,
   PAY_DELTA_ANCHOR,
+  REFUNDS_ANCHOR,
   pendingEndorsementNotice,
   pendingEndorsementState,
   correctionHref,
@@ -240,6 +241,18 @@ export default async function PolicyPage({
       ? liveEndorsement
       : null;
   const payDeltaHref = `${billingHref}#${PAY_DELTA_ANCHOR}`;
+  // LIVE-7: refunds an approver has said yes to and nobody has sent yet. EXACTLY the condition
+  // the "Send to Stripe" buttons on the Money view are drawn from, read once here so the notice
+  // and the buttons can never disagree about how many there are.
+  const refundsWaitingToBeSent =
+    user.role === "staff_ops"
+      ? refunds.filter(
+          (refund) =>
+            refund.state === "requested" && (!refund.approvalRequestId || refund.approvalDecision === "approved"),
+        )
+      : [];
+  const refundsWaitingCents = refundsWaitingToBeSent.reduce((total, refund) => total + refund.amountCents, 0);
+  const refundsHref = `${path}?view=money#${REFUNDS_ANCHOR}`;
   // TWO OPEN ITEMS, ONE PRIMARY. Both orange is two shouts and no order, so the one that has been
   // waiting longest is the orange action and the other steps back to secondary. "Waiting since"
   // is when each became payable: the customer's approval for a delta, the recording of the
@@ -310,7 +323,18 @@ export default async function PolicyPage({
     ...toast("endorsement", endorsementOutcome, "info", "Endorsement", (endorsementOutcome ?? "").replace(/-/g, " ")),
     ...toast("correction", correctionOutcome, "info", "Correction", (correctionOutcome ?? "").replace(/-/g, " ")),
     ...toast("reissued", reissuedOutcome, "info", "Refund re-issued", (reissuedOutcome ?? "").replace(/_/g, " ")),
-    ...toast("refundSent", refundSentOutcome, "ok", "Refund sent", refundSentOutcome ?? ""),
+    // LIVE-7. The send route redirects with ?refundSent=<status>, one of the four words
+    // RefundIssueOutcome carries (lib/payments/refunds.ts): provider_accepted, queued_for_approval,
+    // failed, refused. Only the first is money on its way. The toast used to be green for all four
+    // with the raw word as its body, so four sends in a row said "provider_accepted" four times in
+    // green whatever had happened.
+    ...toast(
+      "refundSent",
+      refundSentOutcome,
+      refundSentTone(refundSentOutcome),
+      refundSentOutcome === "provider_accepted" ? "Refund sent" : "Refund not sent",
+      refundSentText(refundSentOutcome),
+    ),
     ...toast("changeRequest", changeRequestOutcome, "ok", "Answer sent", "It is under the request it answers."),
   ];
 
@@ -328,6 +352,17 @@ export default async function PolicyPage({
 
   const notices = [
     refusal ? <p key="error" className="error" role="alert">{refusal}</p> : null,
+    // LIVE-7: four approved refund slices sat on the money view with nothing at the top of the
+    // page saying so, and each send gave no readable answer. Staff operations only, because they
+    // are the only role that may press the button the line points at.
+    refundsWaitingToBeSent.length > 0 ? (
+      <p key="refundsToSend" className="note" role="status">
+        <Emphasis>
+          {`${refundsWaitingToBeSent.length} ${refundsWaitingToBeSent.length === 1 ? "refund" : "refunds"} approved, ${formatCentsAsUsd(refundsWaitingCents)} to send.`}
+        </Emphasis>{" "}
+        <Link href={refundsHref}>Send them on the money view</Link>
+      </p>
+    ) : null,
     pendingNotice ? (
       <p key="pendingEndorsement" className="note" role="status">
         <Emphasis>{pendingNotice}</Emphasis>
@@ -356,7 +391,9 @@ export default async function PolicyPage({
             : `A new refund was re-issued: Stripe answered ${reissuedOutcome}.`}
       </p>
     ) : null,
-    refundSentOutcome ? <p key="sent" className="note">The refund was sent to Stripe: {refundSentOutcome}.</p> : null,
+    // The long form of the same event as the toast. It used to read "was sent to Stripe" even
+    // when the status was `refused` or `failed`; both now come from one sentence, decided once.
+    refundSentOutcome ? <p key="sent" className="note">{refundSentText(refundSentOutcome)}</p> : null,
     boundOutcome === "1" ? (
       <p key="bound" className="note" role="status">The policy is now bound and the four issuance entries are in the journal.</p>
     ) : null,
@@ -1242,6 +1279,8 @@ export default async function PolicyPage({
           {refunds.length > 0 ? (
             <DataTable
               ariaLabel="Refunds"
+              // The anchor the "refunds approved, $X to send" notice lands on (LIVE-7).
+              id={REFUNDS_ANCHOR}
               legend={
                 <Legend
                   items={[
@@ -1686,6 +1725,28 @@ function ledgerSoFar(entries: JournalEntryView[]) {
     commissionNetCents: accountSumCents(entries, "commission_payable", "credits_minus_debits"),
     unearnedPremiumCents: accountSumCents(entries, "unearned_premium", "credits_minus_debits"),
   };
+}
+
+// LIVE-7. POST /api/policies/{id}/refunds/{operationId}/send redirects here with
+// ?refundSent=<status>, one of the four words RefundIssueOutcome carries
+// (lib/payments/refunds.ts): provider_accepted, queued_for_approval, failed, refused. Only the
+// first is money on its way to the customer. The toast was green for all four with the raw word
+// as its body, so four sends in a row said "provider_accepted" in green whatever had happened
+// (Yoann, LIVE-7). The three tones the shell has are ok, info and error; there is no warn.
+function refundSentTone(status: string | undefined): ToastNotice["tone"] {
+  if (status === "provider_accepted") return "ok";
+  if (status === "queued_for_approval") return "info";
+  return "error";
+}
+
+function refundSentText(status: string | undefined): string {
+  if (status === "provider_accepted") {
+    return "Refund sent to Stripe. It counts as completed when Stripe's webhook confirms the money left.";
+  }
+  if (status === "queued_for_approval") {
+    return "Refund not sent: it waits for a second approver.";
+  }
+  return `Refund not sent: ${(status ?? "").replace(/_/g, " ")}.`;
 }
 
 // One toast, when the route sent the page back with that parameter. The long sentence stays in
