@@ -1174,19 +1174,22 @@ async function main() {
   );
 
   // A reference of an accepted shape that matches nothing is an ANSWER, not an error: an agent
-  // must be able to tell "I looked and there is nothing" from "the tool broke".
+  // must be able to tell "I looked and there is nothing" from "the tool broke". Since decision 53
+  // that answer is ONE sentence and does not repeat the closed list of accepted shapes, which
+  // tools/list already publishes twice (the description and the `reference` schema).
+  const nothingMatchesSentence = "Nothing in this database matches that reference.";
   const unknownPolicyNumber = await inspect(staffKey.presentedKey, "CGP-99998");
   const unknownPaymentIntent = await inspect(staffKey.presentedKey, "pi_never_created_by_this_system");
   report(
-    "AN UNKNOWN REFERENCE ANSWERS NOTHING MATCHES, and is not an error",
+    "AN UNKNOWN REFERENCE ANSWERS NOTHING MATCHES IN ONE SENTENCE, and is not an error",
     unknownPolicyNumber.ok &&
       unknownPolicyNumber.file.found === false &&
       unknownPolicyNumber.file.resolvedTo === "nothing" &&
+      unknownPolicyNumber.file.whatThisMeans === nothingMatchesSentence &&
       unknownPaymentIntent.ok &&
-      unknownPaymentIntent.file.found === false,
-    unknownPolicyNumber.ok
-      ? unknownPolicyNumber.file.whatThisMeans.slice(0, 90) + "..."
-      : unknownPolicyNumber.refusal,
+      unknownPaymentIntent.file.found === false &&
+      unknownPaymentIntent.file.whatThisMeans === nothingMatchesSentence,
+    unknownPolicyNumber.ok ? unknownPolicyNumber.file.whatThisMeans : unknownPolicyNumber.refusal,
   );
 
   // The schema advertises a reference of 1 to 200 characters. Enforced by the transport before
