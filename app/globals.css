@@ -1568,6 +1568,9 @@ div.note {
 }
 .fact {
   display: grid;
+  /* F-B13-30: one explicit column that can shrink; an implicit auto track sizes to the widest
+     fold and made the page scroll sideways at 375 px once an explanation opened. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   padding: 12px 14px;
   border: 1px solid var(--line);
