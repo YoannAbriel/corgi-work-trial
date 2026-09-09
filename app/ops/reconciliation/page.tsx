@@ -1,13 +1,11 @@
 import "@/app/styles/money.css";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
-import { SandboxReferences } from "@/components/disclosures";
 import { FailureLine } from "@/components/console-parts";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
-import { Bars, Chart, ChartRow, Donut, HBars } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty";
-import { Inspector } from "@/components/ui/inspector";
+import { Inspector, type InspectorContext } from "@/components/ui/inspector";
 import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -108,19 +106,10 @@ const CLASSIFICATION_MEANING: Record<string, string> = {
   matched: "both sides agree",
 };
 
-// The four age buckets of the open breaks, oldest last. Computed here from the rows the page
-// already read: a picture never costs a query.
-const AGE_BUCKETS = [
-  { label: "< 1 h", upToHours: 1 },
-  { label: "< 24 h", upToHours: 24 },
-  { label: "< 7 d", upToHours: 24 * 7 },
-  { label: "older", upToHours: Number.POSITIVE_INFINITY },
-];
-
-function bucketOf(firstSeenAt: Date, now: Date): string {
-  const hours = (now.getTime() - firstSeenAt.getTime()) / 3600000;
-  return (AGE_BUCKETS.find((bucket) => hours < bucket.upToHours) ?? AGE_BUCKETS[AGE_BUCKETS.length - 1]).label;
-}
+// No chart on this screen (cycle 2, decision 4). The split by classification was one full ring at
+// 100 % with a single legend entry, and the split by age said nothing the "Open for" column and
+// the Oldest tile do not (round 1, MEDIUM). The counts stay: in the tiles, in the toolbar chips
+// and in the band.
 
 export default async function ReconciliationPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
@@ -192,14 +181,38 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
     null,
   );
   const latestRunOf = (source: string) => runs.find((run) => run.source === source) ?? null;
-  // One label per run for the two charts, and the scale they share. The label has to be unique,
-  // because a chart keys its rows by it, and two runs of the same source can finish in the same
-  // minute: the position in the list is what tells them apart.
-  const runLabels: Record<string, string> = Object.fromEntries(
-    runs.map((run, index) => [run.runId, `${index + 1}. ${SOURCE_NAME[run.source] ?? run.source} ${calendarDate(run.finishedAt)}`]),
-  );
-  // The two charts are read side by side, so a bar of the same length must mean the same count.
-  const mostRecordsInARun = Math.max(1, ...runs.map((run) => Math.max(run.providerRecordCount, run.ledgerRecordCount)));
+  // The whole open set, by source, counted in SQL. It is the sentence behind the "To act on"
+  // figure rather than two tiles of its own (cycle 2, decision 2).
+  const openBySourceSentence = SOURCES.map(
+    (source) => `${SOURCE_NAME[source]} ${openBreaksBySource[source] ?? 0}`,
+  ).join(", ");
+
+  // The row the reader clicked a reference in, whatever list it is in. A provider-only payment
+  // has no operation in this database, so the drawer would answer "nothing matches" for every
+  // reference this table offers (round 1, HIGH). It is handed the row's own facts instead.
+  const rowOfReference =
+    inspected === null
+      ? undefined
+      : [...openPage.rows, ...probes.rows, ...explained.rows].find((row) => referenceOf(row) === inspected);
+  const inspectorContext: InspectorContext | undefined = rowOfReference
+    ? {
+        title: "What this screen knows about it",
+        sentence:
+          rowOfReference.ledgerRef === null
+            ? "No operation in this database carries this reference: the money exists only at the provider. These are the facts the run recorded."
+            : "These are the facts the latest run recorded about it.",
+        facts: [
+          { label: "Provider reference", value: rowOfReference.providerRef ?? "none" },
+          { label: "Ledger operation id", value: rowOfReference.ledgerRef ?? "none" },
+          { label: "At the provider", value: amountText(rowOfReference.providerAmountCents) },
+          { label: "In the ledger", value: amountText(rowOfReference.ledgerAmountCents) },
+          { label: "Source", value: `${SOURCE_NAME[rowOfReference.source] ?? rowOfReference.source}, ${SOURCE_MODE[rowOfReference.source]}` },
+          { label: "Classification", value: rowOfReference.classification.replace(/_/g, " ") },
+          { label: "First seen", value: rowOfReference.firstSeenAt.toISOString() },
+          { label: "What the run says", value: noteInDollars(rowOfReference.note) },
+        ],
+      }
+    : undefined;
 
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
@@ -219,14 +232,9 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
     label: VIEW_LABEL[one],
     href: withParams(PATH, query, { view: one, inspect: null, all: null }),
     current: one === view,
-    count:
-      one === "breaks"
-        ? openPage.totalOpen
-        : one === "runs"
-          ? runs.length
-          : one === "clearing"
-            ? clearingBalances.length
-            : resolved.length,
+    // A count in the navigation is a count of work waiting, never a count of records (cycle 2,
+    // decision 3): the breaks to act on are the only figure here somebody has to act on.
+    count: one === "breaks" ? openPage.totalOpen : undefined,
   }));
 
   return (
@@ -236,13 +244,23 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
       views={views}
       toasts={toasts}
       inspector={
-        inspected ? <Inspector reference={inspected} closeHref={closeInspectorHref(PATH, query)} user={user} now={now} /> : undefined
+        inspected ? (
+          <Inspector
+            reference={inspected}
+            closeHref={closeInspectorHref(PATH, query)}
+            user={user}
+            now={now}
+            context={inspectorContext}
+          />
+        ) : undefined
       }
       band={{
         title: "Reconciliation",
         meta: (
           <>
-            {/* Breaks to act on and probes are counted separately and never added up: this build
+            {/* Two chips at most (cycle 2, decision 1). The AF-02 words are said once in the top
+                bar of every screen and again on every simulated row; they are not repeated here.
+                Breaks to act on and probes are counted separately and never added up: this build
                 plants one more probe at the provider on every check run, and reading "28 breaks"
                 when they are 28 planted payments is the confusion finding F-YA-10 recorded. */}
             <Chip tone={!openRead.ok || openPage.totalOpen > 0 ? "warn" : "ok"}>
@@ -252,12 +270,13 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
                   ? "no break to act on"
                   : `${openPage.totalOpen} ${openPage.totalOpen === 1 ? "break" : "breaks"} to act on`}
             </Chip>
-            {probes.totalProbes > 0 ? <Chip tone="neutral">{probes.totalProbes} probes from check runs</Chip> : null}
-            {/* The two integration labels stay in the band, never behind a fold: what is live and
-                what is simulated is the first thing a reader has to know (AF-02). */}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
-            {sourcesWhoseLatestRunFailed.length > 0 ? <Chip tone="warn">latest run failed</Chip> : null}
+            {/* The second chip is the more urgent of the two facts: a run that failed found
+                nothing because it could not look, and that outranks the probe count. */}
+            {sourcesWhoseLatestRunFailed.length > 0 ? (
+              <Chip tone="warn">latest run failed</Chip>
+            ) : probes.totalProbes > 0 ? (
+              <Chip tone="neutral">{probes.totalProbes} probes from check runs</Chip>
+            ) : null}
           </>
         ),
         actions: (
@@ -299,65 +318,29 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
       {view === "breaks" ? (
         <>
           <FailureLine attempted={openRead} />
+          {/* Three tiles: what to act on, what is planted, and how old the oldest is. The split by
+              source is the WHOLE open set, counted in SQL, and it is the sentence behind the first
+              figure rather than two tiles of its own (cycle 2, decision 2). */}
           <Stats>
             <Stat
               label="To act on"
               value={openPage.totalOpen}
               tone={openPage.totalOpen > 0 ? "warn" : "ok"}
               note="not a probe, nobody has explained it"
+              hint={`By source, over every open break: ${openBySourceSentence}`}
             />
-            {/* The split by source is the WHOLE open set, counted in SQL, never the rows the page
-                drew: the list below is one page of the set and a tile is a total. */}
-            {SOURCES.map((source) => (
-              <Stat
-                key={source}
-                label={SOURCE_NAME[source]}
-                value={openBreaksBySource[source] ?? 0}
-                note={SOURCE_MODE[source]}
-                href={withParams(PATH, query, { view: "breaks", source, inspect: null, all: null })}
-              />
-            ))}
+            <Stat
+              label="Probes"
+              value={probes.totalProbes}
+              note="planted by our own check runs"
+              hint="Payments the check script puts at the provider on purpose. They are reported for ever and are not breaks to act on."
+            />
             <Stat
               label="Oldest"
               value={oldestBreak ? <When instant={oldestBreak} now={now} /> : "none"}
               note="since it was first reported"
             />
           </Stats>
-
-          {/* A CHART TOTAL IS ALWAYS THE WHOLE OPEN SET, never the page. The classification and the
-              age of a break are read off the rows, and the rows are one page of the set, so these
-              two pictures are drawn only when the page holds every break to act on. When it does
-              not, the page says so instead of drawing a split of a part as if it were the whole.
-              The split by source, which IS counted over the whole set in SQL, is in the tiles. */}
-          {openPage.totalOpen > 0 && !openPage.capped ? (
-            <ChartRow>
-              <Chart title="By classification" figure={openPage.totalOpen}>
-                <Donut
-                  caption="Every break to act on, by classification"
-                  center={openPage.totalOpen}
-                  slices={BREAK_CLASSES.map((name) => ({
-                    label: name.replace(/_/g, " "),
-                    value: openPage.rows.filter((row) => row.classification === name).length,
-                  })).filter((slice) => slice.value > 0)}
-                />
-              </Chart>
-              <Chart title="By age" figure={openPage.totalOpen}>
-                <Bars
-                  caption="Every break to act on, by age bucket"
-                  points={AGE_BUCKETS.map((bucket) => ({
-                    label: bucket.label,
-                    value: openPage.rows.filter((row) => bucketOf(row.firstSeenAt, now) === bucket.label).length,
-                  }))}
-                />
-              </Chart>
-            </ChartRow>
-          ) : openPage.capped ? (
-            <p className="note money-explainer">
-              No picture while the list is capped. The page holds {openPage.rows.length} of {openPage.totalOpen} breaks
-              to act on, and a split of that part would read as a split of the whole. The split by source is in the
-              tiles above, counted over every one of them.
-            </p>
-          ) : null}
 
           <BreakTable
             rows={breaksOnThePage}
@@ -448,13 +431,11 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
               counted; nothing was dropped.
             </p>
           ) : null}
+          {/* One line, because About says the rest: a paragraph of seven lines sat between two
+              tables (cycle 2, decision 9). */}
           <p className="note money-explainer">
-            These are payments <strong>this project&apos;s own check script creates</strong>. Every run of{" "}
-            <code>npm run check:reconciliation</code> puts one real PaymentIntent of $42.42 into the Stripe sandbox with
-            a test card and no operation id, to prove that money at the provider with nothing behind it in our books is
-            found by the comparison. No ledger entry will ever explain them, by construction, so they are reported for
-            ever and they are <strong>not breaks to act on</strong>. They are not hidden either: they are listed here,
-            counted here, and a real provider-only break would appear in the table above and not in this one.
+            Payments our own check script plants at the provider on purpose. No ledger entry can explain one, so they
+            are reported for ever and are not breaks to act on.
           </p>
 
           <h2 className="money-heading">Explained breaks</h2>
@@ -472,14 +453,16 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
       {view === "runs" ? (
         <>
           <FailureLine attempted={runsRead} />
+          {/* One tile per source: when the last run of that source finished, and whether it
+              worked. The number of runs drawn is not something a person acts on, so it is not a
+              tile any more (cycle 2, decision 2). */}
           <Stats>
-            <Stat label="Runs shown" value={runs.length} note={`newest ${HOW_MANY_RUNS_SHOWN} of every source`} />
             {SOURCES.map((source) => {
               const latest = latestRunOf(source);
               return (
                 <Stat
                   key={source}
-                  label={`Latest ${SOURCE_NAME[source].toLowerCase()}`}
+                  label={`Latest ${SOURCE_NAME[source]} run`}
                   value={latest ? <When instant={latest.finishedAt} now={now} /> : "never"}
                   tone={latest?.status === "failed" ? "warn" : "neutral"}
                   note={latest ? latest.status : SOURCE_MODE[source]}
@@ -488,45 +471,10 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
             })}
           </Stats>
 
-          {/* The window form sits above the list it produces. Same action, same two field names as
-              before; only the button became a SubmitButton (F-YA-09). */}
-          <div className="card money-form-card">
-            <h2>Run with a window</h2>
-            <form method="post" action="/api/jobs/reconcile" className="card">
-              <label htmlFor="from">From (UTC date, optional)</label>
-              <input id="from" name="from" type="text" placeholder="2026-09-01" />
-              <label htmlFor="to">To (UTC date, optional)</label>
-              <input id="to" name="to" type="text" placeholder="2026-09-08" />
-              <SubmitButton className="secondary">Reconcile both sources</SubmitButton>
-            </form>
-            <p className="note">
-              Both sources, one after the other. The window defaults to {DEFAULT_WINDOW_DAYS} days.
-            </p>
-          </div>
-
-          {runs.length > 0 ? (
-            // The wrapper carries the one rule this screen adds for a horizontal bar, until the
-            // interface coordinator moves it into the system stylesheet (see app/styles/money.css).
-            <div className="money-charts">
-            <ChartRow>
-              <Chart title="Provider records" figure={runs.reduce((total, run) => total + run.providerRecordCount, 0)}>
-                <HBars
-                  caption="Provider records compared, one row per run, newest first"
-                  max={mostRecordsInARun}
-                  rows={runs.map((run) => ({ label: runLabels[run.runId], value: run.providerRecordCount }))}
-                />
-              </Chart>
-              <Chart title="Ledger records" figure={runs.reduce((total, run) => total + run.ledgerRecordCount, 0)}>
-                <HBars
-                  caption="Ledger records compared, one row per run, newest first"
-                  max={mostRecordsInARun}
-                  rows={runs.map((run) => ({ label: runLabels[run.runId], value: run.ledgerRecordCount, color: "var(--chart-2)" }))}
-                />
-              </Chart>
-            </ChartRow>
-            </div>
-          ) : null}
-
+          {/* The table and the form that feeds it, side by side (round 1, MEDIUM: the form sat
+              alone in a 1450 px row). No chart: two bar charts of the same twelve runs restated
+              the two columns beside them (cycle 2, decision 4). */}
+          <div className="layout-2">
           <DataTable ariaLabel="Reconciliation runs">
             <thead>
               <tr>
@@ -604,26 +552,42 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
               })
             )}
           </DataTable>
+
+          {/* Same action, same two field names as before; only the button became a SubmitButton
+              (F-YA-09). */}
+          <div className="card">
+            <h2>Run with a window</h2>
+            <form method="post" action="/api/jobs/reconcile" className="card">
+              <label htmlFor="from">From (UTC date, optional)</label>
+              <input id="from" name="from" type="text" placeholder="2026-09-01" />
+              <label htmlFor="to">To (UTC date, optional)</label>
+              <input id="to" name="to" type="text" placeholder="2026-09-08" />
+              <SubmitButton className="secondary">Reconcile both sources</SubmitButton>
+            </form>
+            <p className="note">
+              Both sources, one after the other. The window defaults to {DEFAULT_WINDOW_DAYS} days.
+            </p>
+          </div>
+          </div>
         </>
       ) : null}
 
       {view === "clearing" ? (
         <>
           <FailureLine attempted={clearingRead} />
+          {/* One tile (cycle 2, decision 2): how many accounts are not back at zero. The oldest
+              entry and the amount of each balance are columns of the table under it. */}
           <Stats>
             <Stat
               label="Open balances"
               value={clearingBalances.length}
               tone={clearingBalances.length > 0 ? "warn" : "ok"}
               note="clearing accounts not back at zero"
-            />
-            {/* The oldest of the open balances, not a total: these four accounts hold money moving
-                in opposite directions, and adding them would invent a figure the ledger never
-                posted. The amount of each balance is in its own row. */}
-            <Stat
-              label="Oldest"
-              value={oldestClearingEntry ? <When instant={oldestClearingEntry} now={now} /> : "none"}
-              note="since the flow started"
+              hint={
+                oldestClearingEntry
+                  ? `The oldest of them started ${utc(oldestClearingEntry)} UTC. These accounts hold money moving in opposite directions, so they are counted, never added up.`
+                  : "These accounts hold money moving in opposite directions, so they are counted, never added up."
+              }
             />
           </Stats>
 
@@ -670,9 +634,15 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
       {view === "resolved" ? (
         <>
           <FailureLine attempted={resolvedRead} />
+          {/* One tile: the breaks still open are the subject of the first view and its badge. */}
           <Stats>
-            <Stat label="Resolved" value={resolved.length} tone="ok" note={`newest ${HOW_MANY_RESOLVED_SHOWN}`} />
-            <Stat label="Still open" value={openPage.totalOpen} tone={openPage.totalOpen > 0 ? "warn" : "ok"} note="not explained yet" />
+            <Stat
+              label="Resolved"
+              value={resolved.length}
+              tone="ok"
+              note={`newest ${HOW_MANY_RESOLVED_SHOWN}`}
+              hint="A later completed run of the same source, whose window covered the record, no longer reports it. Nothing was deleted."
+            />
           </Stats>
 
           <BreakTable
@@ -713,9 +683,11 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
         </p>
         <h4>Probe payments</h4>
         <p>
-          Payments this project&apos;s own check script plants in the Stripe sandbox to prove the comparison finds money
-          at a provider with nothing behind it in our books. No ledger entry will ever explain one, so they are reported
-          for ever and counted apart from the breaks to act on.
+          Every run of <code>npm run check:reconciliation</code> puts one real PaymentIntent of $42.42 into the Stripe
+          sandbox with a test card and no operation id, to prove the comparison finds money at a provider with nothing
+          behind it in our books. No ledger entry will ever explain one, so they are reported for ever and counted
+          apart from the breaks to act on. They are not hidden: they are listed and counted in their own table, and a
+          real provider-only break appears in the table of breaks to act on and not in that one.
         </p>
         <h4>The two sources</h4>
         <p>
@@ -834,7 +806,7 @@ function BreakTable({
         </tbody>
       ) : (
         rows.map((row, index) => {
-          const reference = row.providerRef ?? row.ledgerRef ?? row.breakKey;
+          const reference = referenceOf(row);
           return (
             <ExpandRow
               key={`${row.breakKey}-${row.lastReportedAt.toISOString()}`}
@@ -870,24 +842,35 @@ function BreakTable({
                 </>
               }
             >
+              {/* What the classification means is defined once, in the legend under the table, and
+                  is not repeated on every row; the note prints its amounts as dollars like every
+                  other figure on the screen (round 1, MEDIUM). */}
               <FactGrid
                 items={[
                   { label: "Difference", value: money(row.differenceCents) },
-                  { label: "What it means", value: CLASSIFICATION_MEANING[row.classification] },
-                  { label: "Note", value: row.note },
                   { label: "First seen", value: `${utc(row.firstSeenAt)} UTC` },
                   { label: "Last reported", value: `${utc(row.lastReportedAt)} UTC` },
+                  { label: "What the run says", value: noteInDollars(row.note), wide: true },
                   {
                     label: "References",
+                    wide: true,
                     value: (
-                      <SandboxReferences
-                        inline
-                        references={[
+                      <span className="money-references">
+                        {[
                           { label: "Provider reference", value: row.providerRef },
                           { label: "Ledger operation id", value: row.ledgerRef },
                           { label: "Break key", value: row.breakKey },
-                        ]}
-                      />
+                        ].map((reference) => (
+                          <span key={reference.label}>
+                            {reference.label}{" "}
+                            {reference.value === null ? (
+                              <span className="dt-muted">none</span>
+                            ) : (
+                              <Ref value={reference.value} />
+                            )}
+                          </span>
+                        ))}
+                      </span>
                     ),
                   },
                 ]}
@@ -1000,7 +983,7 @@ function ProbeTable({
           </tr>
         ) : (
           rows.map((row) => {
-            const reference = row.providerRef ?? row.ledgerRef ?? row.breakKey;
+            const reference = referenceOf(row);
             return (
               <Row key={row.breakKey} selected={inspected === reference}>
                 <td>
@@ -1056,7 +1039,7 @@ function ExplainedTable({
           </tr>
         ) : (
           rows.map((row) => {
-            const reference = row.providerRef ?? row.ledgerRef ?? row.breakKey;
+            const reference = referenceOf(row);
             return (
               <Row key={`${row.breakKey}-${row.explanation.recordedAt.toISOString()}`} selected={inspected === reference}>
                 <td>
@@ -1099,6 +1082,27 @@ function describeRunResult(probeCount: number, breakCount: number): string {
 // A missing amount is a side that has no record at all, which is not the same as zero.
 function money(amountCents: number | null) {
   return amountCents === null ? <span className="dt-muted">no record</span> : formatCentsAsUsd(amountCents);
+}
+
+// The same answer as `money`, as plain text, for the drawer's fact list.
+function amountText(amountCents: number | null): string {
+  return amountCents === null ? "no record" : formatCentsAsUsd(amountCents);
+}
+
+// The reference a row is known by on this screen, and the value its inspector link carries.
+function referenceOf(row: ReconciliationBreakRow): string {
+  return row.providerRef ?? row.ledgerRef ?? row.breakKey;
+}
+
+// The note the comparison stored counts in cents ("a payment of 10000 cents"), beside the
+// $100.00 the same row prints (round 1, MEDIUM). The stored text is untouched in the database;
+// this is presentation only, and it is the same figure in the currency every other amount on the
+// screen uses. A number too large to be an exact integer is left exactly as it was stored.
+function noteInDollars(note: string): string {
+  return note.replace(/(-?\d+) cents/g, (whole, cents: string) => {
+    const amountCents = Number(cents);
+    return Number.isSafeInteger(amountCents) ? formatCentsAsUsd(amountCents) : whole;
+  });
 }
 
 function utc(instant: Date): string {

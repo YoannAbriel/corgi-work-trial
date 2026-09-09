@@ -2,19 +2,20 @@ import "@/app/styles/money.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
-import { SandboxReferences } from "@/components/disclosures";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { DataTable, ExpandHead, ExpandRow, FactGrid, Num } from "@/components/ui/table";
+import { DataTable, ExpandHead, ExpandRow, FactGrid, Num, Ref } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import { sql } from "@/db/client";
 import { approvalRequests, type ApprovalRequestView } from "@/lib/approvals/approvals";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser, type SignedInUser } from "@/lib/auth/current-user";
+import { claimHeader } from "@/lib/claims/read";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import { policyDetail } from "@/lib/policy/read";
 import { pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 
 // The maker-checker queue: every money-out above the threshold, who asked for it, exactly what
@@ -34,6 +35,12 @@ import { pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/view
 const PATH = "/ops/approvals";
 const VIEWS = ["waiting", "decided"] as const;
 
+// The rule, in one sentence, said in the band and again in the row that is waiting for it
+// (cycle 2, decision 15). The threshold itself comes from lib/approvals/threshold.ts, so the
+// sentence and the code that refuses a payment cannot disagree.
+const MAKER_CHECKER_RULE =
+  "Money out above the threshold needs a second person to approve it, never the person who asked. The database refuses a decision by the requester and by anybody who is not a staff approver.";
+
 export default async function ApprovalsPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
   if (!user) {
@@ -49,12 +56,27 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
   const waiting = requests.filter((request) => request.decision === null);
   const decided = requests.filter((request) => request.decision !== null);
   const waitingCents = waiting.reduce((total, request) => total + request.amountCents, 0);
-  const approved = decided.filter((request) => request.decision === "approved").length;
   const raisedByAgent = requests.filter((request) => request.raisedByAgent).length;
 
   const view = pickView(query.view, VIEWS);
   const rows = view === "waiting" ? waiting : decided;
-  const isApprover = user.role === "staff_approver";
+
+  // THE NUMBER A PERSON RECOGNISES. The queue stores the subject's id, not its number, so the
+  // Subject column used to be four identical links reading "claim" (round 1, MEDIUM). The number
+  // lives on the claim and on the policy, and is read here with the readers those two screens
+  // already use: read only, one row at a time, on the rows this view draws (the queue holds the
+  // money-out above the threshold, so it is short). A subject that cannot be read keeps the word.
+  const subjectNumbers = new Map(
+    await Promise.all(
+      rows.map(async (request) => {
+        const number =
+          request.subjectKind === "claim"
+            ? (await claimHeader(request.subjectId, sql))?.claimNumber
+            : (await policyDetail(request.subjectId, sql))?.policyNumber;
+        return [request.requestId, number ?? request.subjectKind] as const;
+      }),
+    ),
+  );
 
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
@@ -66,7 +88,9 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
     label: one === "waiting" ? "Waiting" : "Decided",
     href: withParams(PATH, query, { view: one }),
     current: one === view,
-    count: one === "waiting" ? waiting.length : decided.length,
+    // Only what somebody must act on carries a count (cycle 2, decision 3): the decided ones are
+    // a record, not a queue.
+    count: one === "waiting" ? waiting.length : undefined,
   }));
 
   return (
@@ -79,15 +103,17 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         title: "Money-out approvals",
         meta: (
           <>
+            {/* Two chips (cycle 2, decision 1): what is waiting, and the rule that put it there.
+                The AF-02 words are in the top bar of every screen and on every simulated row, and
+                a viewer who cannot decide is told so in the Decision cell of each row. */}
             <Chip tone={waiting.length > 0 ? "warn" : "ok"}>
               {waiting.length === 0 ? "nothing waiting" : `${waiting.length} waiting, ${formatCentsAsUsd(waitingCents)}`}
             </Chip>
-            <Chip tone="neutral">above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}</Chip>
-            {/* A refund leaves through Stripe, a claim payment through the simulated rail: both
-                slots are named here, in the same words as every other screen (AF-02). */}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
-            {isApprover ? null : <Chip tone="warn">you cannot decide: not an approver</Chip>}
+            {/* The human-in-the-loop rule, in the band, with the whole rule on hover (cycle 2,
+                decision 15). */}
+            <span title={MAKER_CHECKER_RULE}>
+              <Chip tone="neutral">second person above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}</Chip>
+            </span>
           </>
         ),
       }}
@@ -100,19 +126,35 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         </div>
       ) : null}
 
+      {/* Three figures somebody acts on. How many were approved of the decided ones is history,
+          and the Decided view is where it is read (cycle 2, decision 2). */}
       <Stats>
-        <Stat label="Waiting" value={waiting.length} tone={waiting.length > 0 ? "warn" : "ok"} note="no money moves until decided" />
-        <Stat label="Amount waiting" value={formatCentsAsUsd(waitingCents)} tone="accent" note="sum of the requests above" />
-        <Stat label="Approved" value={approved} note={`of ${decided.length} decided`} />
-        <Stat label="Agent raised" value={raisedByAgent} tone={raisedByAgent > 0 ? "warn" : "neutral"} note="asked through the MCP endpoint" />
+        <Stat
+          label="Waiting"
+          value={waiting.length}
+          tone={waiting.length > 0 ? "warn" : "ok"}
+          note="no money moves until decided"
+          hint={MAKER_CHECKER_RULE}
+        />
+        <Stat label="Amount waiting" value={formatCentsAsUsd(waitingCents)} tone="accent" note="sum of the requests waiting" />
+        <Stat
+          label="Agent raised"
+          value={raisedByAgent}
+          tone={raisedByAgent > 0 ? "warn" : "neutral"}
+          note="asked through the MCP endpoint"
+          hint="A request an agent raised waits for a human approver whatever the amount. An agent can never decide one."
+        />
       </Stats>
 
+      {/* Five columns and the fold: what is asked, who asked, where the money would go, which
+          record it hangs off, and the decision. The kind of money-out reads under its amount and
+          "agent raised" under the person who asked, so the Decision cell keeps the room its two
+          buttons need at 1024 px (round 1, MEDIUM). */}
       <DataTable ariaLabel={view === "waiting" ? "Money-out requests waiting" : "Money-out requests already decided"}>
         <thead>
           <tr>
             <ExpandHead />
             <th className="num">Amount</th>
-            <th>What</th>
             <th>Asked by</th>
             <th>Destination</th>
             <th>Subject</th>
@@ -122,7 +164,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
         {rows.length === 0 ? (
           <tbody>
             <tr>
-              <td colSpan={7} className="dt-empty">
+              <td colSpan={6} className="dt-empty">
                 <EmptyState illustration={view === "waiting" ? "all-clear" : "closed-folder"}>
                   {view === "waiting" ? "Nothing is waiting for a decision." : "No request has been decided yet."}
                 </EmptyState>
@@ -133,12 +175,15 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
           rows.map((request) => (
             <ExpandRow
               key={request.requestId}
-              columns={6}
+              columns={5}
               cells={
                 <>
-                  <Num>{formatCentsAsUsd(request.amountCents)}</Num>
+                  <Num sub={request.kind.replace(/_/g, " ")}>{formatCentsAsUsd(request.amountCents)}</Num>
                   <td>
-                    {request.kind.replace(/_/g, " ")}
+                    {request.requestedByName}
+                    <span className="dt-sub">
+                      <When instant={request.requestedAt} now={now} />
+                    </span>
                     {/* An approver has to see that a machine asked before deciding, so this badge
                         is never folded away; the agent itself can never decide, here or in the
                         database (slice B11). */}
@@ -148,19 +193,16 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
                       </span>
                     ) : null}
                   </td>
-                  <td>
-                    {request.requestedByName}
-                    <span className="dt-sub">
-                      <When instant={request.requestedAt} now={now} />
-                    </span>
-                  </td>
-                  <td>{request.destination}</td>
-                  <td>
+                  {/* The mode word and the masked tail, never the whole sentence: the account
+                      holder and the parenthetical are facts of the expansion (round 1, MEDIUM).
+                      The AF-02 word stays exact on the row of a simulated destination. */}
+                  <td>{shortDestination(request.destination)}</td>
+                  <td className="nowrap">
                     <Link href={request.subjectKind === "claim" ? `/ops/claims/${request.subjectId}` : `/policies/${request.subjectId}`} prefetch={false}>
-                      {request.subjectKind}
+                      {subjectNumbers.get(request.requestId)}
                     </Link>
                   </td>
-                  <td className="dt-actions">
+                  <td className="money-decision">
                     <Decision request={request} user={user} />
                   </td>
                 </>
@@ -173,27 +215,20 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
                 What was approved, exactly
               </p>
               <pre className="money-intent">{request.canonicalIntent}</pre>
+              {/* The identifiers read as ordinary facts, one to a line, with the whole value in
+                  `title`: behind a dark dot the panel was cut off by the edge of the card, and it
+                  repeated the hash the row above it already prints (round 1, cycle 2 decision 7). */}
               <FactGrid
                 items={[
-                  { label: "sha256 of that text", value: request.intentHash },
+                  { label: "Where the money would go", value: request.destination, wide: true },
+                  { label: "sha256 of that text", value: <Ref value={request.intentHash} /> },
+                  { label: "Approval request id", value: <Ref value={request.requestId} /> },
                   { label: "Asked at", value: `${utc(request.requestedAt)} UTC` },
                   ...(request.raisedThrough ? [{ label: "Raised through", value: request.raisedThrough }] : []),
                   ...(request.decidedAt
                     ? [{ label: "Decided at", value: `${utc(request.decidedAt)} UTC by ${request.decidedByName ?? "unknown"}` }]
                     : []),
-                  ...(request.decisionReason ? [{ label: "Reason", value: request.decisionReason }] : []),
-                  {
-                    label: "References",
-                    value: (
-                      <SandboxReferences
-                        inline
-                        references={[
-                          { label: "Approval request id", value: request.requestId },
-                          { label: "sha256 of the approved text", value: request.intentHash },
-                        ]}
-                      />
-                    ),
-                  },
+                  ...(request.decisionReason ? [{ label: "Reason", value: request.decisionReason, wide: true }] : []),
                 ]}
               />
             </ExpandRow>
@@ -265,6 +300,10 @@ function Decision({ request, user }: { request: ApprovalRequestView; user: Signe
   }
   return (
     <form method="post" action={`/api/approvals/${request.requestId}`} className="money-decide">
+      {/* The rule, above the two buttons that apply it (cycle 2, decision 15). */}
+      <span className="money-decision-rule" title={MAKER_CHECKER_RULE}>
+        needs a second person: not the requester
+      </span>
       <label className="visually-hidden" htmlFor={`reason-${request.requestId}`}>
         Reason, optional, kept with the decision
       </label>
@@ -278,6 +317,31 @@ function Decision({ request, user }: { request: ApprovalRequestView; user: Signe
         </SubmitButton>
       </span>
     </form>
+  );
+}
+
+// The destination in a cell: the rail, then the tail that tells one account from another. The
+// whole sentence the request stored is printed in the expansion, untouched.
+//
+//   "LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC" -> "LOCAL SIMULATOR ...6789"
+//   "Stripe payment pi_3UDN8aK6R3v50tIy0bsGOcBN (card refund to the customer)" -> "Stripe ...GOcBN"
+//
+// A sentence written in any other shape is cut to its first three words rather than guessed at.
+// The rail keeps its own line when the cell is narrow, so the AF-02 words are never split in
+// half; only the tail after them wraps.
+function shortDestination(destination: string) {
+  const maskedAccount = /^LOCAL SIMULATOR .*?(\.\.\.\w+)/.exec(destination);
+  if (maskedAccount) return <Rail name="LOCAL SIMULATOR" tail={maskedAccount[1]} />;
+  const stripePayment = /^Stripe payment (\S+)/.exec(destination);
+  if (stripePayment) return <Rail name="Stripe" tail={`...${stripePayment[1].slice(-5)}`} />;
+  return destination.split(" ").slice(0, 3).join(" ");
+}
+
+function Rail({ name, tail }: { name: string; tail: string }) {
+  return (
+    <>
+      <span className="money-rail">{name}</span> {tail}
+    </>
   );
 }
 

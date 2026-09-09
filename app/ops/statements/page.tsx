@@ -5,6 +5,7 @@ import { SandboxReferences } from "@/components/disclosures";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
+import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DataTable, ExpandHead, ExpandRow, FactGrid, Num, Primary } from "@/components/ui/table";
@@ -14,7 +15,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { collectedFigures } from "@/lib/statements/compute";
 import { brokersForStatements, listStatementRuns, type StatementRunRow } from "@/lib/statements/read";
-import { pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
+import { toastsFromQuery, type Query } from "@/lib/ui/views";
 
 // /ops/statements: run a broker's monthly statement, and read every run ever made.
 //
@@ -27,9 +28,15 @@ import { pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/view
 // Running the same month again with the same cutoff produces the same content hash, which the
 // list shows as "identical to the previous revision".
 
-const PATH = "/ops/statements";
-const VIEWS = ["runs", "new"] as const;
 const HOW_MANY_RUNS_SHOWN = 30;
+
+// What the two chips of a row mean, said once under the table instead of once per row.
+const STATUS_LEGEND = [
+  { term: "provisional", meaning: "produced before its month was over; a run made after the month ends is the next revision" },
+  { term: "identical", meaning: "the same content hash as the revision before it, so nothing changed" },
+  { term: "format changed", meaning: "written in a newer statement format than the revision before it, so the two hashes cannot be compared" },
+  { term: "format v1", meaning: "an old format whose premium column held the cash collected; the commission base was not stored" },
+];
 
 export default async function OpsStatementsPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
@@ -47,42 +54,36 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
   ]);
   const now = new Date();
 
-  const view = pickView(query.view, VIEWS);
   const provisional = runs.filter((run) => run.monthWasStillRunning).length;
-  const brokersWithARun = new Set(runs.map((run) => run.brokerId)).size;
   // `runs` arrives newest first, so the first row carries the most recent month produced.
   const latestMonth = runs[0]?.statementMonth ?? "none";
+  // The reading order of the table, and only of the table: a broker's months newest first, and
+  // inside one month its revisions newest first, so a revision chain reads down one block. By
+  // production time, "identical to revision 3" sat next to an unrelated revision 3 (round 1,
+  // MEDIUM).
+  const runsInReadingOrder = [...runs].sort(
+    (one, other) =>
+      one.brokerName.localeCompare(other.brokerName) ||
+      other.statementMonth.localeCompare(one.statementMonth) ||
+      other.revision - one.revision,
+  );
 
+  // No `ran` rule: no route sends that parameter to this screen (feedback audit of 2026-09-09).
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
-    ran: { tone: "ok", title: "Statement produced" },
   });
-
-  const views = VIEWS.map((one) => ({
-    key: one,
-    label: one === "runs" ? "Runs" : "New statement",
-    href: withParams(PATH, query, { view: one }),
-    current: one === view,
-    count: one === "runs" ? runs.length : undefined,
-  }));
 
   return (
     <PortalShell
       user={user}
       active="statements"
-      views={views}
       toasts={toasts}
       band={{
         title: "Broker statements",
-        suffix: `${runs.length} ${runs.length === 1 ? "run" : "runs"} shown`,
         meta: (
-          <>
-            {provisional > 0 ? <Chip tone="warn">{provisional} provisional</Chip> : <Chip tone="ok">none provisional</Chip>}
-            {/* Every movement on a statement is premium collected, commission on it, a clawback or
-                a refund, and all four are Stripe money: the slot is named here in the same words
-                as the reconciliation screen (AF-02, review finding F-B13-34). */}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-          </>
+          // One chip: what is provisional and still owes a final run. The AF-02 words are in the
+          // top bar of every screen (cycle 2, decision 1).
+          provisional > 0 ? <Chip tone="warn">{provisional} provisional</Chip> : <Chip tone="ok">none provisional</Chip>
         ),
       }}
     >
@@ -94,51 +95,49 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
         </div>
       ) : null}
 
-      {view === "runs" ? (
-        <>
-          <Stats>
-            <Stat label="Runs" value={runs.length} note={`newest ${HOW_MANY_RUNS_SHOWN}`} />
-            <Stat label="Brokers" value={brokersWithARun} note={`of ${brokers.length} with a commission account`} />
-            <Stat label="Latest month" value={latestMonth} note="business month of the newest run" />
-            <Stat
-              label="Provisional"
-              value={provisional}
-              tone={provisional > 0 ? "warn" : "ok"}
-              note="produced before the month was over"
-            />
-          </Stats>
+      {/* Two figures (cycle 2, decision 2): what is still provisional, and the newest month that
+          has been produced at all. How many runs and how many brokers are counts of records. */}
+      <Stats>
+        <Stat
+          label="Provisional"
+          value={provisional}
+          tone={provisional > 0 ? "warn" : "ok"}
+          note="produced before the month was over"
+          hint="A provisional run stays as it is. The run made after the month ends is the next revision and the definitive one."
+        />
+        <Stat label="Latest month" value={latestMonth} note="business month of the newest run" />
+      </Stats>
 
-          <DataTable ariaLabel="Statement runs">
-            <thead>
+      {/* The table and the form that feeds it, side by side (round 1, MEDIUM: the form was a whole
+          view holding one small card in a 1450 px row). */}
+      <div className="layout-2">
+        <DataTable ariaLabel="Statement runs" legend={<Legend items={STATUS_LEGEND} />}>
+          <thead>
+            <tr>
+              <ExpandHead />
+              <th>Broker</th>
+              <th className="nowrap">Month</th>
+              <th className="num">Revision</th>
+              <th className="num">Net due</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          {runs.length === 0 ? (
+            <tbody>
               <tr>
-                <ExpandHead />
-                <th>Broker</th>
-                <th className="nowrap">Month</th>
-                <th className="num">Revision</th>
-                <th className="num">Net due</th>
-                <th className="nowrap">Produced</th>
-                <th>Status</th>
+                <td colSpan={6} className="dt-empty">
+                  <EmptyState illustration="open-ledger" action={undefined}>
+                    No statement has ever been run. Pick a broker and a month beside this table.
+                  </EmptyState>
+                </td>
               </tr>
-            </thead>
-            {runs.length === 0 ? (
-              <tbody>
-                <tr>
-                  <td colSpan={7} className="dt-empty">
-                    <EmptyState illustration="open-ledger" action={undefined}>
-                      No statement has ever been run. Open New statement and pick a broker.
-                    </EmptyState>
-                  </td>
-                </tr>
-              </tbody>
-            ) : (
-              runs.map((run) => <RunRow key={run.runId} run={run} now={now} />)
-            )}
-          </DataTable>
-        </>
-      ) : null}
+            </tbody>
+          ) : (
+            runsInReadingOrder.map((run) => <RunRow key={run.runId} run={run} now={now} />)
+          )}
+        </DataTable>
 
-      {view === "new" ? (
-        <div className="card money-form-card">
+        <div className="card">
           <h2>Run a statement</h2>
           {/* Same action, same three field names as before; only the button became a SubmitButton
               (F-YA-09), so a slow close shows it is working instead of inviting a second press. */}
@@ -152,8 +151,11 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
               ))}
             </select>
 
-            <label htmlFor="month">Month (business dates)</label>
-            <input id="month" name="month" type="month" placeholder="2028-03" required />
+            {/* The month field is a native month picker, which draws its own empty value: a
+                placeholder attribute does nothing on it and left the field looking broken, so the
+                format is in the label (round 1, MEDIUM). */}
+            <label htmlFor="month">Month, business dates, as 2028-03</label>
+            <input id="month" name="month" type="month" required />
 
             <label htmlFor="knowledgeCutoff">Knowledge cutoff (UTC, optional)</label>
             <input id="knowledgeCutoff" name="knowledgeCutoff" type="text" placeholder="2028-04-01T00:00:00Z" />
@@ -162,7 +164,7 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
           </form>
           <p className="note">Leave the cutoff empty for a fresh close. See About for what the cutoff decides.</p>
         </div>
-      ) : null}
+      </div>
 
       <About>
         <h4>What a statement is</h4>
@@ -200,27 +202,32 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
   );
 }
 
-// One run: the six columns an operator scans, and every stored figure in the expansion. The broker
-// cell is the link, stretched over the whole row by the system stylesheet, so a click anywhere but
-// the chevron opens the run.
+// One run: the five columns an operator scans, and every stored figure in the expansion. The
+// broker cell is the link, stretched over the whole row by the system stylesheet, so a click
+// anywhere but the chevron opens the run. When it was produced is a fact of the fold, not a
+// column: the table has to fit six cells (round 1, HIGH on the broker's own list).
 function RunRow({ run, now }: { run: StatementRunRow; now: Date }) {
   const collected = collectedFigures(run);
   return (
     <ExpandRow
-      columns={6}
+      columns={5}
       cells={
         <>
-          <Primary href={`/statements/${run.runId}`}>{run.brokerName}</Primary>
+          <Primary href={`/statements/${run.runId}`} sub={<When instant={run.createdAt} now={now} />}>
+            {run.brokerName}
+          </Primary>
           <td className="nowrap">{run.statementMonth}</td>
           <Num>{run.revision}</Num>
           <Num>{formatCentsAsUsd(run.netDueCents)}</Num>
-          <td className="nowrap">
-            <When instant={run.createdAt} now={now} />
-            <span className="dt-sub">{run.runByName ?? "no signed-in user"}</span>
-          </td>
+          {/* One word per chip; the legend under the table says what each one means (cycle 2,
+              decision 7 and round 1, HIGH: "identical to revision 4" was a sentence in a chip). */}
           <td>
             {run.monthWasStillRunning ? <Chip tone="warn">provisional</Chip> : <Chip tone="neutral">closed</Chip>}
-            {run.identicalToPrevious ? <Chip tone="ok">identical to revision {run.revision - 1}</Chip> : null}
+            {run.identicalToPrevious ? (
+              <span title={`The same content hash as revision ${run.revision - 1}`}>
+                <Chip tone="ok">identical</Chip>
+              </span>
+            ) : null}
             {/* Two revisions written in different formats hash different texts, so neither
                 "identical" nor "changed" is an answer about them (review finding F-B9-09). */}
             {run.previousCanonicalVersion !== null && run.previousCanonicalVersion !== run.canonicalVersion ? (
@@ -232,6 +239,7 @@ function RunRow({ run, now }: { run: StatementRunRow; now: Date }) {
     >
       <FactGrid
         items={[
+          { label: "Produced", value: `${utc(run.createdAt)} UTC${run.runByName ? `, ${run.runByName}` : ""}` },
           { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
           {
             label: "Premium collected, the commission base",
@@ -245,7 +253,9 @@ function RunRow({ run, now }: { run: StatementRunRow; now: Date }) {
           { label: "Commission clawed back", value: formatCentsAsUsd(-run.clawbackCents) },
           ...(run.adjustmentCents === 0 ? [] : [{ label: "Other adjustments", value: formatCentsAsUsd(run.adjustmentCents) }]),
           { label: "Net due to the broker", value: formatCentsAsUsd(run.netDueCents) },
-          ...(collected.formatNote ? [{ label: "Format", value: collected.formatNote }] : []),
+          // A chip, defined once in the legend: the same 34-word paragraph on every old row was a
+          // wall of repeated text (round 1, MEDIUM).
+          ...(collected.formatNote ? [{ label: "Format", value: <Chip tone="warn">format v1</Chip> }] : []),
           {
             label: "References",
             value: (

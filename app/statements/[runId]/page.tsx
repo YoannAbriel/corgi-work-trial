@@ -1,6 +1,7 @@
 import "@/app/styles/money.css";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Download } from "lucide-react";
 import { AmountExplained } from "@/components/amount-explained";
 import { Chip } from "@/components/detail-layout";
 import { SandboxReferences } from "@/components/disclosures";
@@ -23,8 +24,9 @@ import {
   statementRun,
   type RevisionChange,
   type StatementLineRow,
+  type StatementRunRow,
 } from "@/lib/statements/read";
-import { firstValue, withParams, type Query } from "@/lib/ui/views";
+import { firstValue, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 
 // /statements/{runId}: one broker statement, exactly as it was stored.
 //
@@ -130,6 +132,13 @@ export default async function StatementPage({
     adjustmentCents: run.adjustmentCents,
     netDueCents: run.netDueCents,
   };
+  // The route that produces a statement redirects here; the toast is the only thing that says a
+  // new revision was written (feedback audit of 2026-09-09).
+  const toasts = toastsFromQuery(query, {
+    error: { tone: "error", title: "Refused" },
+    produced: { tone: "ok", title: "Statement produced" },
+  });
+
   const total = (amountCents: number, label: string, key: Parameters<typeof explainStatementTotal>[0]["key"]) =>
     explainable ? (
       <AmountExplained
@@ -147,38 +156,50 @@ export default async function StatementPage({
       user={user}
       active="statements"
       trail={[{ label: "Statements", href: listHref }, { label: `${run.brokerName}, ${run.statementMonth}` }]}
+      toasts={toasts}
       band={{
-        title: `${run.brokerName}, ${run.statementMonth}`,
-        suffix: `revision ${run.revision}`,
+        // The broker names the document and the month and revision identify it. Both on the title
+        // line, the h1 wrapped to two lines at 1024 px and took the band to 175 px.
+        title: run.brokerName,
+        suffix: `${run.statementMonth}, revision ${run.revision}`,
         meta: (
           <>
-            {/* Every movement on a statement is premium collected, commission on it, a clawback
-                or a refund, and all four are Stripe money: the slot is named here in the same
-                words as the reconciliation screen (AF-02, review finding F-B13-34). No simulated
-                record reaches this page. */}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            {/* Two chips (cycle 2, decision 1): whether this document agrees with the ledger, and
+                whether its month was over when it was produced. The AF-02 words are in the top
+                bar of every screen; identical, format changed and format v1 are facts of the
+                revision card under the totals. */}
             <Chip tone={tiesToTheLedger ? "ok" : "warn"}>{tiesToTheLedger ? "ties to the ledger" : "does NOT tie to the ledger"}</Chip>
             {run.monthWasStillRunning ? <Chip tone="warn">provisional</Chip> : <Chip tone="neutral">month closed</Chip>}
-            {run.identicalToPrevious ? <Chip tone="ok">identical to revision {run.revision - 1}</Chip> : null}
-            {formatChanged ? <Chip tone="neutral">format changed</Chip> : null}
-            {collected.formatNote ? <Chip tone="warn">format v1</Chip> : null}
           </>
         ),
         actions: (
           <>
-            <Link href={`/api/statements/${run.runId}/pdf`} prefetch={false} className="button-link">
-              Download the PDF
+            {/* An icon where the action is obvious, and three words at most: at 1024 px the two
+                buttons and the title took the band to 175 px (cycle 2, decision 8). */}
+            <Link
+              href={`/api/statements/${run.runId}/pdf`}
+              prefetch={false}
+              className="button-link"
+              title="Download this statement as a PDF"
+            >
+              <Download size={15} aria-hidden="true" />
+              PDF
             </Link>
             {/* F-YA-11: the button says what it reproduces. It posts the SAME month and the SAME
                 cutoff as this revision, so it can only ever produce this document again; a new
-                month or a fresh cutoff is the form on /ops/statements?view=new. Same action, same
-                three hidden field names as before. */}
+                month or a fresh cutoff is the form beside the runs table on /ops/statements. Same
+                action, same three hidden field names as before. */}
             {isStaff ? (
               <form method="post" action="/api/statements/run" className="inline-form">
                 <input type="hidden" name="brokerId" value={run.brokerId} />
                 <input type="hidden" name="month" value={run.statementMonth} />
                 <input type="hidden" name="knowledgeCutoff" value={run.knowledgeCutoff.toISOString()} />
-                <SubmitButton className="secondary">Reproduce this revision with the same cutoff</SubmitButton>
+                <SubmitButton
+                  className="secondary"
+                  title={`Runs ${run.statementMonth} again with the same knowledge cutoff, ${utc(run.knowledgeCutoff)} UTC, so it can only produce this document again`}
+                >
+                  Reproduce this revision
+                </SubmitButton>
               </form>
             ) : null}
           </>
@@ -228,6 +249,22 @@ export default async function StatementPage({
         />
       </Stats>
 
+      {/* An empty month has no table to put beside the two cards, and the two column layout left
+          roughly 300 px of empty grey beside the empty state (round 1, MEDIUM): the empty state
+          takes the width, and the two cards read as one row under it. */}
+      {lines.length === 0 ? (
+        <>
+          <div className="dt-wrap">
+            <EmptyState illustration="open-ledger">
+              No premium and no commission moved in {run.statementMonth}. A quiet month is a real statement.
+            </EmptyState>
+          </div>
+          <div className="cards">
+            <RevisionCard run={run} />
+            {changes ? <Changes changes={changes} previousRevision={run.revision - 1} now={now} /> : null}
+          </div>
+        </>
+      ) : (
       <div className="money-columns">
         <div>
           <DataTable
@@ -241,7 +278,6 @@ export default async function StatementPage({
               />
             }
           >
-            {lines.length === 0 ? null : (
             <thead>
               <tr>
                 <ExpandHead />
@@ -253,19 +289,7 @@ export default async function StatementPage({
                 <th className="num">Premium in it</th>
               </tr>
             </thead>
-            )}
-            {lines.length === 0 ? (
-              <tbody>
-                <tr>
-                  <td colSpan={7} className="dt-empty">
-                    <EmptyState illustration="open-ledger">
-                      No premium and no commission moved in {run.statementMonth}. A quiet month is a real statement.
-                    </EmptyState>
-                  </td>
-                </tr>
-              </tbody>
-            ) : (
-              movementsOnThePage.map((line) => (
+            {movementsOnThePage.map((line) => (
                 <ExpandRow
                   key={line.journalEntryId}
                   columns={6}
@@ -304,114 +328,128 @@ export default async function StatementPage({
                     ]}
                   />
                 </ExpandRow>
-              ))
-            )}
+              ))}
           </DataTable>
         </div>
 
         <div>
-          <section className="card">
-            <h2>This revision</h2>
-            <FactGrid
-              items={[
-                { label: "Statement month", value: `${run.statementMonth}, by effective date` },
-                { label: "Revision", value: run.revision },
-                { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
-                { label: "Produced", value: `${utc(run.createdAt)} UTC${run.runByName ? `, ${run.runByName}` : ""}` },
-                ...(run.adjustmentCents === 0 ? [] : [{ label: "Other adjustments", value: formatCentsAsUsd(run.adjustmentCents) }]),
-                {
-                  label: "Supersedes",
-                  value: run.supersedesRunId ? (
-                    <Link href={`/statements/${run.supersedesRunId}`} prefetch={false}>
-                      revision {run.revision - 1}
-                    </Link>
-                  ) : (
-                    "the first run of this month"
-                  ),
-                },
-                {
-                  label: "Content hash",
-                  value: (
-                    <>
-                      reproducible
-                      <SandboxReferences
-                        inline
-                        references={[
-                          { label: "Content hash (sha256)", value: run.contentHash },
-                          { label: "Statement run id", value: run.runId },
-                          { label: "Canonical format version", value: String(run.canonicalVersion) },
-                        ]}
-                      />
-                    </>
-                  ),
-                },
-              ]}
-            />
-          </section>
-
+          <RevisionCard run={run} />
           {changes ? <Changes changes={changes} previousRevision={run.revision - 1} now={now} /> : null}
         </div>
       </div>
+      )}
 
+      {/* Four short headings (cycle 2). The edge case of a transaction that commits after a run
+          has read the ledger belongs in the documentation, not on a broker's screen; the fifth
+          heading appears only when a chip on this page needs defining. */}
       <About>
         <h4>Ties to the ledger</h4>
         <p>
-          The net due printed on the statement is compared, live, with the movement of this broker&rsquo;s commission
-          payable account in the journal, read again with the same month and the same knowledge cutoff by a second,
-          much smaller query. Two independent reads of the same ledger have to agree to the cent, and the page says so
-          either way rather than assuming it.
+          The net due is compared, live, with the movement of this broker&rsquo;s commission payable account in the
+          journal, read again with the same month and cutoff. Two reads of one ledger must agree to the cent.
         </p>
         <h4>The two collected figures</h4>
         <p>
-          The same money read twice: the cash line is what the customers paid, premium plus state premium tax plus
-          policy fee, and the premium line is the part of it commission is earned on. Commission is the premium times
-          the broker&rsquo;s rate, rounded down, and never touches tax or fee. Refunds are not netted into these two
-          figures; they are on their own lines, next to the clawback each one produced.
+          The cash line is what the customers paid: premium, state premium tax and policy fee. The premium line is the
+          part of it commission is earned on, at the broker&rsquo;s rate, rounded down.
         </p>
         <h4>Reproducing this revision</h4>
         <p>
-          The button beside the PDF posts this same month and this same knowledge cutoff, so it can only ever produce
-          this document again. For a new month, or for a fresh cutoff that reads everything the ledger knows now, use{" "}
-          <Link href="/ops/statements?view=new" prefetch={false}>
-            Statements, New statement
+          The button beside the PDF posts this same month and this same cutoff, so it can only produce this document
+          again. A new month or a fresh cutoff is the form on{" "}
+          <Link href="/ops/statements" prefetch={false}>
+            Broker statements
           </Link>
           .
         </p>
-        <h4>Why it reproduces</h4>
+        <h4>Provisional and revisions</h4>
         <p>
-          Running {run.statementMonth} again for {run.brokerName} with the cutoff above reads the same journal entries
-          and produces the same content hash, because a journal row can never change and its recording time is stamped
-          by the database. One case does not reproduce, and it is the reason a provisional run says so: an entry whose
-          database transaction started before that cutoff and committed after this run had read the ledger is absent
-          here and present in a later run with the same cutoff. Once the month is closed and quiet, it cannot happen.
+          A run made before its month was over is provisional and stays exactly as it is. A later run stores a new
+          revision that names the one it replaces; nothing is rewritten.
         </p>
-        {run.monthWasStillRunning ? (
+        {formatChanged || collected.formatNote ? (
           <>
-            <h4>Provisional</h4>
-            <p>
-              This run was produced before {run.statementMonth} was over, so more money could still be booked into it.
-              It stays exactly as it is; the run made after the month ends is the next revision and the definitive one.
-            </p>
-          </>
-        ) : null}
-        {formatChanged ? (
-          <>
-            <h4>Format changed</h4>
-            <p>
-              The statement format changed between revision {run.revision - 1} (v{run.previousCanonicalVersion}) and
-              this one (v{run.canonicalVersion}): the two documents hash different texts, so they cannot be compared by
-              hash. The journal entries still can be, and they are.
-            </p>
-          </>
-        ) : null}
-        {collected.formatNote ? (
-          <>
-            <h4>Format v1</h4>
-            <p>{collected.formatNote}</p>
+            <h4>Format</h4>
+            {formatChanged ? (
+              <p>
+                Revision {run.revision - 1} was written in format v{run.previousCanonicalVersion} and this one in v
+                {run.canonicalVersion}, so the two hash different texts and cannot be compared by hash. Their journal
+                entries can be, and they are.
+              </p>
+            ) : null}
+            {collected.formatNote ? <p>{collected.formatNote}</p> : null}
           </>
         ) : null}
       </About>
     </PortalShell>
+  );
+}
+
+// The facts of this revision: which month, which cutoff, what it replaces, and how it compares
+// with the revision before it. The three comparison chips used to sit in the band, which cannot
+// hold more than two (cycle 2, decision 1), and they belong with the revision they describe.
+function RevisionCard({ run }: { run: StatementRunRow }) {
+  const collected = collectedFigures(run);
+  const formatChanged = run.previousCanonicalVersion !== null && run.previousCanonicalVersion !== run.canonicalVersion;
+  return (
+    <section className="card">
+      <h2>This revision</h2>
+      <FactGrid
+        items={[
+          { label: "Statement month", value: `${run.statementMonth}, by effective date` },
+          { label: "Revision", value: run.revision },
+          { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
+          { label: "Produced", value: `${utc(run.createdAt)} UTC${run.runByName ? `, ${run.runByName}` : ""}` },
+          ...(run.adjustmentCents === 0 ? [] : [{ label: "Other adjustments", value: formatCentsAsUsd(run.adjustmentCents) }]),
+          {
+            label: "Supersedes",
+            value: run.supersedesRunId ? (
+              <Link href={`/statements/${run.supersedesRunId}`} prefetch={false}>
+                revision {run.revision - 1}
+              </Link>
+            ) : (
+              "the first run of this month"
+            ),
+          },
+          ...(run.identicalToPrevious || formatChanged || collected.formatNote
+            ? [
+                {
+                  label: "Against the previous revision",
+                  wide: true,
+                  value: (
+                    <>
+                      {run.identicalToPrevious ? (
+                        <span title={`The same content hash as revision ${run.revision - 1}`}>
+                          <Chip tone="ok">identical</Chip>
+                        </span>
+                      ) : null}
+                      {formatChanged ? <Chip tone="neutral">format changed</Chip> : null}
+                      {collected.formatNote ? <Chip tone="warn">format v1</Chip> : null}
+                    </>
+                  ),
+                },
+              ]
+            : []),
+          {
+            label: "Content hash",
+            wide: true,
+            value: (
+              <>
+                reproducible
+                <SandboxReferences
+                  inline
+                  references={[
+                    { label: "Content hash (sha256)", value: run.contentHash },
+                    { label: "Statement run id", value: run.runId },
+                    { label: "Canonical format version", value: String(run.canonicalVersion) },
+                  ]}
+                />
+              </>
+            ),
+          },
+        ]}
+      />
+    </section>
   );
 }
 
