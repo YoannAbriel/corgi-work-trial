@@ -57,16 +57,11 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
   const provisional = runs.filter((run) => run.monthWasStillRunning).length;
   // `runs` arrives newest first, so the first row carries the most recent month produced.
   const latestMonth = runs[0]?.statementMonth ?? "none";
-  // The reading order of the table, and only of the table: a broker's months newest first, and
-  // inside one month its revisions newest first, so a revision chain reads down one block. By
-  // production time, "identical to revision 3" sat next to an unrelated revision 3 (round 1,
-  // MEDIUM).
-  const runsInReadingOrder = [...runs].sort(
-    (one, other) =>
-      one.brokerName.localeCompare(other.brokerName) ||
-      other.statementMonth.localeCompare(one.statementMonth) ||
-      other.revision - one.revision,
-  );
+  // The reading order of the table: by age only, newest run first (Yoann, 2026-09-09). A person
+  // scans the runs that just happened, whoever the broker is; the Broker column and the broker
+  // filter say who. Not by month: a rerun of an old month is newer than the first run of a later
+  // month, and burying it under its month would hide the run someone just made.
+  const runsInReadingOrder = [...runs].sort((one, other) => other.createdAt.getTime() - one.createdAt.getTime());
 
   // No `ran` rule: no route sends that parameter to this screen (feedback audit of 2026-09-09).
   const toasts = toastsFromQuery(query, {
@@ -80,11 +75,8 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
       toasts={toasts}
       band={{
         title: "Broker statements",
-        meta: (
-          // One chip: what is provisional and still owes a final run. The AF-02 words are in the
-          // top bar of every screen (cycle 2, decision 1).
-          provisional > 0 ? <Chip tone="warn">{provisional} provisional</Chip> : <Chip tone="ok">none provisional</Chip>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): what is provisional is the first tile,
+        // and every row says it again for itself.
       }}
     >
       {query.error ? (

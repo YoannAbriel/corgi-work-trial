@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
 import { workspaceTasks } from "@/components/what-needs-you";
 import { WorkspaceOverview } from "@/components/workspace-overview";
@@ -20,9 +19,9 @@ export default async function OpsHomePage({ searchParams }: { searchParams: Prom
 
   const isApprover = user.role === "staff_approver";
   // Read once here and given to the shell (the sidebar counts), the tiles and the "what needs
-  // you" block, so the home page counts what is waiting a single time.
+  // you" block, so the home page counts what is waiting a single time. The band adds no total of
+  // its own: the sidebar badges are the count (Yoann, 2026-09-09).
   const [tasks, query] = await Promise.all([workspaceTasks(user), searchParams]);
-  const totalWaiting = tasks.reduce((total, task) => total + task.count, 0);
 
   // A refused action on another screen sends staff back here with its sentence (review finding
   // F-B13-08): the sentence has to be printed, or the refusal is silent.
@@ -36,16 +35,8 @@ export default async function OpsHomePage({ searchParams }: { searchParams: Prom
       toasts={toasts}
       band={{
         title: "Overview",
-        suffix: user.displayName,
-        // Two chips (cycle 2, decision 1): who you are, and how much is waiting. The AF-02 words
-        // are on the top bar of every workspace screen now, exact and visible, so a band that
-        // repeated them said the same thing twice within 100 px.
-        meta: (
-          <>
-            <Chip tone="neutral">{isApprover ? "Staff approver" : "Staff operations"}</Chip>
-            <Chip tone={totalWaiting > 0 ? "warn" : "ok"}>{totalWaiting === 0 ? "nothing waiting" : `${totalWaiting} waiting`}</Chip>
-          </>
-        ),
+        // Nothing but the title (Yoann, 2026-09-09): the role sits at the bottom of the sidebar,
+        // and how much is waiting is in the sidebar badges and in the tiles below.
         actions: (
           <>
             <Link href="/inbox" prefetch={false} className="button-link secondary">

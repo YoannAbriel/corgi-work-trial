@@ -81,9 +81,8 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
       band={{
         title: "Search",
         suffix: reference === "" ? undefined : reference,
-        // One chip: what shape the reference was read as, which is the fact this screen exists to
-        // state. The AF-02 modes are in the top bar (cycle 2, decision 1).
-        meta: reference === "" ? undefined : <Chip tone="neutral">read as {recogniseReference(reference)}</Chip>,
+        // No chip (Yoann, 2026-09-09): when nothing matches, the empty state below says what the
+        // reference was read as, and when something matches each card names what it found.
         actions: (
           <Link href="/ops/console" prefetch={false} className="button-link secondary">
             Back to the feed

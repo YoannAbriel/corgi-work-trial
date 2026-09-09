@@ -349,21 +349,12 @@ export default async function PolicyPage({
       band={{
         title: `Policy ${policy.policyNumber}`,
         suffix: policy.customerName,
-        // Two chips at most (cycle 2, decision 1): the policy's status, and the open claims when
-        // there are any, which is the one count on this page a person has to act on. The AF-02
-        // words did not go anywhere: they are the grey line in the top bar of every workspace
-        // screen, said once instead of as three coloured chips on every band, and every simulated
-        // row still carries LOCAL SIMULATOR itself. The broker's verification, a third chip
-        // before, is a fact of the Broker card; an endorsement in progress is the heading of its
-        // own card in the endorsements view.
-        meta: (
-          <>
-            <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>
-            {openClaims.length > 0 ? (
-              <Chip tone="warn">{openClaims.length === 1 ? "1 open claim" : `${openClaims.length} open claims`}</Chip>
-            ) : null}
-          </>
-        ),
+        // ONE chip, the policy's own state (Yoann, 2026-09-09). Open claims are counted on the
+        // Claims view of this policy, the broker's verification is a fact of the Broker card, and
+        // an endorsement in progress is the heading of its own card. The AF-02 words did not go
+        // anywhere: they are the grey line in the top bar of every workspace screen, and every
+        // simulated row still carries LOCAL SIMULATOR itself.
+        status: <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>,
         actions: (
           <>
             {policyCanBePaid && brokerMayBind ? (

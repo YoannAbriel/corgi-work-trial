@@ -256,29 +256,9 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
       }
       band={{
         title: "Reconciliation",
-        meta: (
-          <>
-            {/* Two chips at most (cycle 2, decision 1). The AF-02 words are said once in the top
-                bar of every screen and again on every simulated row; they are not repeated here.
-                Breaks to act on and probes are counted separately and never added up: this build
-                plants one more probe at the provider on every check run, and reading "28 breaks"
-                when they are 28 planted payments is the confusion finding F-YA-10 recorded. */}
-            <Chip tone={!openRead.ok || openPage.totalOpen > 0 ? "warn" : "ok"}>
-              {!openRead.ok
-                ? "breaks unreadable"
-                : openPage.totalOpen === 0
-                  ? "no break to act on"
-                  : `${openPage.totalOpen} ${openPage.totalOpen === 1 ? "break" : "breaks"} to act on`}
-            </Chip>
-            {/* The second chip is the more urgent of the two facts: a run that failed found
-                nothing because it could not look, and that outranks the probe count. */}
-            {sourcesWhoseLatestRunFailed.length > 0 ? (
-              <Chip tone="warn">latest run failed</Chip>
-            ) : probes.totalProbes > 0 ? (
-              <Chip tone="neutral">{probes.totalProbes} probes from check runs</Chip>
-            ) : null}
-          </>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): the breaks to act on are the first tile
+        // and the sidebar badge, the probes are the second tile, and a failed latest run keeps
+        // its own sentence in the notices below, which no dismissed toast can hide.
         actions: (
           <form method="post" action="/api/jobs/reconcile" className="inline-form">
             <SubmitButton className="orange">Reconcile both sources now</SubmitButton>

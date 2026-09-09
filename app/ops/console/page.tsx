@@ -222,16 +222,9 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
       band={{
         title: "Operations console",
         suffix: reading,
-        // Two chips, both counts of something a person acts on. The AF-02 modes are in the top bar
-        // of every screen now and are no longer repeated here (cycle 2, decision 1).
-        meta: (
-          <>
-            <Chip tone={toLookAt > 0 ? "warn" : "ok"}>
-              {toLookAt >= MOST_PROBLEM_ROWS ? `${MOST_PROBLEM_ROWS} or more to look at` : `${toLookAt} to look at`}
-            </Chip>
-            <Chip tone={checking.length > 0 ? "warn" : "neutral"}>{checking.length} being checked</Chip>
-          </>
-        ),
+        // The window this screen is reading stays in the suffix, because nothing else on the page
+        // says it. No chip: a feed is a list, and what is to look at is the Problems view and its
+        // count in the section navigation (Yoann, 2026-09-09).
         actions: (
           <>
             <form method="get" action={PATH} className="inline-form">

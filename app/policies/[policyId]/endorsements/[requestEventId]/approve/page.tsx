@@ -63,7 +63,7 @@ export default async function ApproveEndorsementPage({
         active="policies"
         trail={trail}
         views={views}
-        band={{ title: "Endorsement approval", suffix: `Policy ${policy.policyNumber}`, meta: <Chip tone="warn">unknown</Chip> }}
+        band={{ title: "Endorsement approval", suffix: `Policy ${policy.policyNumber}`, status: <Chip tone="warn">unknown</Chip> }}
       >
         <div className="notices">
           <p className="error" role="alert">
@@ -88,23 +88,18 @@ export default async function ApproveEndorsementPage({
       band={{
         title: "Approve the change",
         suffix: `Policy ${policy.policyNumber}`,
-        meta: (
-          <>
-            <Chip
-              tone={
-                standing.state === "applied" ? "ok" : standing.state === "superseded" ? "warn" : standing.approvedEventId ? "ok" : "warn"
-              }
-            >
-              {standing.state === "applied"
-                ? "in force"
-                : standing.state === "superseded"
-                  ? "superseded"
-                  : standing.approvedEventId
-                    ? "approved"
-                    : "waiting for you"}
-            </Chip>
-            <Chip tone="neutral">effective {figures.effectiveAt}</Chip>
-          </>
+        // ONE chip, the state of the request being approved (Yoann, 2026-09-09). The effective
+        // date is a figure of the request and has its own tile below.
+        status: (
+          <Chip tone={standing.state === "applied" ? "ok" : standing.state === "superseded" ? "warn" : standing.approvedEventId ? "ok" : "warn"}>
+            {standing.state === "applied"
+              ? "in force"
+              : standing.state === "superseded"
+                ? "superseded"
+                : standing.approvedEventId
+                  ? "approved"
+                  : "waiting for you"}
+          </Chip>
         ),
       }}
     >

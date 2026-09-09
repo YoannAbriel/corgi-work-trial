@@ -56,19 +56,17 @@ export default async function BrokerStatementsPage() {
 
   const runs = await listStatementRuns(sql, { brokerId: user.brokerId, limit: HOW_MANY_RUNS_SHOWN });
   const now = new Date();
-  // The broker's own name as the statements themselves record it; the session only carries the
-  // person's name, which is not the same thing.
-  const brokerName = runs[0]?.brokerName ?? user.displayName;
-  const provisional = runs.filter((run) => run.monthWasStillRunning).length;
+  // The broker firm's own name as the statements themselves record it. No fallback to the signed-in
+  // person's name: that is a different thing, and the sidebar already says who is signed in
+  // (Yoann, 2026-09-09). With no run yet there is no firm name to show, and the band drops it.
+  const brokerName = runs[0]?.brokerName;
   // The newest revision's own figure, not a total: adding the net due of several revisions of the
   // same month would count the same money once per revision.
   const latestRun = runs[0] ?? null;
-  // The reading order of the table: months newest first, and inside one month its revisions
-  // newest first, so the revisions of one month stay together and "identical to revision 1" sits
-  // under revision 1 (round 1, MEDIUM). `runs` itself stays in production order for the tile.
-  const runsInReadingOrder = [...runs].sort(
-    (one, other) => other.statementMonth.localeCompare(one.statementMonth) || other.revision - one.revision,
-  );
+  // The reading order of the table: by age only, newest run first (Yoann, 2026-09-09). Sorting by
+  // month put a rerun of an old month below a newer month's run, which hides the run that just
+  // happened; the Month and Revision columns say which statement each row is.
+  const runsInReadingOrder = [...runs].sort((one, other) => other.createdAt.getTime() - one.createdAt.getTime());
 
   return (
     <PortalShell
@@ -77,16 +75,8 @@ export default async function BrokerStatementsPage() {
       band={{
         title: "Your statements",
         suffix: brokerName,
-        meta: (
-          <>
-            {/* Two chips (cycle 2, decision 1): how many statements there are, and how many of
-                them are still provisional. The AF-02 words are in the top bar of every screen. */}
-            <Chip tone="neutral">
-              {runs.length} {runs.length === 1 ? "statement" : "statements"}
-            </Chip>
-            {provisional > 0 ? <Chip tone="warn">{provisional} provisional</Chip> : null}
-          </>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): how many statements there are is the
+        // length of the table, and each row says on its own line whether it is provisional.
       }}
     >
       {/* One tile: the figure a broker opens this screen for. The month and the revision it
@@ -101,13 +91,15 @@ export default async function BrokerStatementsPage() {
         />
       </Stats>
 
-      {/* Five columns and the fold. When it was produced is a fact of the expansion: at seven
-          columns the table was one over what the system allows (round 1, HIGH). */}
+      {/* Six columns and the fold, the most the system allows. Produced was a fact of the fold
+          until 2026-09-09: the table sorts by age now, and an order the reader cannot see is an
+          order they will read as arbitrary. */}
       <DataTable ariaLabel="Your statements" legend={<Legend items={STATUS_LEGEND} />}>
         <thead>
           <tr>
             <ExpandHead />
             <th className="nowrap">Month</th>
+            <th className="nowrap">Produced</th>
             <th className="num">Revision</th>
             <th className="num">Commission</th>
             <th className="num">Net due</th>
@@ -117,7 +109,7 @@ export default async function BrokerStatementsPage() {
         {runs.length === 0 ? (
           <tbody>
             <tr>
-              <td colSpan={6} className="dt-empty">
+              <td colSpan={7} className="dt-empty">
                 <EmptyState illustration="open-ledger">No statement has been produced for you yet.</EmptyState>
               </td>
             </tr>
@@ -148,16 +140,21 @@ export default async function BrokerStatementsPage() {
   );
 }
 
-// One statement: the five columns a broker scans, everything else in the expansion, and the PDF
+// One statement: the six columns a broker scans, everything else in the expansion, and the PDF
 // beside the figures it prints.
 function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
   const collected = collectedFigures(run);
   return (
     <ExpandRow
-      columns={5}
+      columns={6}
       cells={
         <>
           <Primary href={`/statements/${run.runId}`}>{run.statementMonth}</Primary>
+          {/* The age at a glance, the exact UTC instant on hover: this is the column the table is
+              sorted by, so it has to be readable without opening the fold. */}
+          <td className="nowrap">
+            <When instant={run.createdAt} now={now} />
+          </td>
           <Num>{run.revision}</Num>
           <Num>{formatCentsAsUsd(run.commissionEarnedCents)}</Num>
           <Num>{formatCentsAsUsd(run.netDueCents)}</Num>
@@ -176,7 +173,6 @@ function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
     >
       <FactGrid
         items={[
-          { label: "Produced", value: `${utc(run.createdAt)} UTC` },
           { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
           {
             label: "Premium collected, the commission base",

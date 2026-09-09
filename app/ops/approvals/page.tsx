@@ -101,21 +101,8 @@ export default async function ApprovalsPage({ searchParams }: { searchParams: Pr
       toasts={toasts}
       band={{
         title: "Money-out approvals",
-        meta: (
-          <>
-            {/* Two chips (cycle 2, decision 1): what is waiting, and the rule that put it there.
-                The AF-02 words are in the top bar of every screen and on every simulated row, and
-                a viewer who cannot decide is told so in the Decision cell of each row. */}
-            <Chip tone={waiting.length > 0 ? "warn" : "ok"}>
-              {waiting.length === 0 ? "nothing waiting" : `${waiting.length} waiting, ${formatCentsAsUsd(waitingCents)}`}
-            </Chip>
-            {/* The human-in-the-loop rule, in the band, with the whole rule on hover (cycle 2,
-                decision 15). */}
-            <span title={MAKER_CHECKER_RULE}>
-              <Chip tone="neutral">second person above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}</Chip>
-            </span>
-          </>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): what is waiting and its amount are the
+        // first two tiles, and the second-person rule is spelled out in About this screen.
       }}
     >
       {query.error ? (

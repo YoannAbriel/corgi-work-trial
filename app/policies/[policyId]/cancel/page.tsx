@@ -69,7 +69,7 @@ export default async function CancelPolicyPage({
             { label: "Cancellation preview" },
           ]}
           views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
-          band={{ title: "Cancellation preview", meta: <Chip tone="warn">refused</Chip> }}
+          band={{ title: "Cancellation preview", status: <Chip tone="warn">refused</Chip> }}
         >
           <div className="notices">
             <p className="error" role="alert">
@@ -97,12 +97,9 @@ export default async function CancelPolicyPage({
       band={{
         title: "Cancellation preview",
         suffix: `Policy ${plan.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone="warn">nothing recorded yet</Chip>
-            <Chip tone="neutral">cover stops {plan.effectiveAt}</Chip>
-          </>
-        ),
+        // ONE chip, the state of this preview: nothing is booked until the form below is sent
+        // (Yoann, 2026-09-09). The day cover stops is a figure of the preview, not a state.
+        status: <Chip tone="warn">nothing recorded yet</Chip>,
       }}
     >
       <Stats>
@@ -309,13 +306,8 @@ async function CancellationForm({
       band={{
         title: "Cancel the policy",
         suffix: `Policy ${policy.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone="neutral">
-              term {policy.effectiveAt} to {policy.termEnd}
-            </Chip>
-          </>
-        ),
+        // No chip: a form screen has no state of its own, and the term is printed in the form
+        // below (Yoann, 2026-09-09).
       }}
     >
       <div className="layout-2">
