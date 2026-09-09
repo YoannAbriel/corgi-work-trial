@@ -101,31 +101,40 @@ that would mean nothing.
 
 ## Evidence
 
-`docs/evidence/b12-4/`, 16 PNG frames captured with Playwright driving Chrome against `next dev`,
-plus the measurements below taken in the same runs. Re-recorded after the review fixes, so every
+`docs/evidence/b12-4/`, 18 PNG frames captured with Playwright driving Chrome against `next dev`,
+with the measurements below taken in the same runs. Re-recorded after every review fix, so each
 frame shows the corrected behaviour.
 
-**The reveal, both ends of the connector on screen** (900x940, journal entries visible):
+**The count-up value is read immediately before AND immediately after each frame is taken, and the
+bracket is what is recorded** (review finding F-B12-14): the number in the frame is inside its
+bracket, and no row can claim a digit the frame does not show. `motion-0560ms.png` shows
+`$0,456.43`, inside `[$0,278.76 .. $0,456.43]`.
 
-| Moment | data-reveal | operand rows lit | result cell | connector | proving entry | page scrolled |
-|---|---|---|---|---|---|---|
-| 140 ms | 1 | 0 | `$2,380.44` | 0 | 0 | no |
-| 280 ms | 2-3 | 2 | `$2,380.44` | 0 | 0 | no |
-| 560 ms | 4 | 2 | `$1,787.10` | 0 | 0 | no |
-| 760 ms | 4 | 2 | `$2,371.22` | 0 | 0 | no |
-| 1000 ms | 4 | 2 | `$2,380.44` | 0 | 0 | no |
-| 1400 ms (viewport 1500 px tall) | 4 | 2 | `$2,380.44` | **1** | **1** | no |
-| reduced motion, 140 ms | 4 | 2 | `$2,380.44` | 0 | 0 | no |
+**The reveal** (900x940, `motion-*.png`). `focusable` is how many of the panel's three focusable
+controls are actually visible, out of three:
 
-`visible-1400ms-connector-drawn.png`. The count-up frames are the browser's; the frame it stops on
-is the server's `data-final-amount`, `$2,380.44`.
+| Moment | data-reveal | rows lit | result cell | connector | proving | scrolled | focusable |
+|---|---|---|---|---|---|---|---|
+| 140 ms | 1 | 0 | `$2,380.44` | 0 | 0 | no | **0/3** |
+| 280 ms | 2 | 2 | `$2,380.44` | 0 | 0 | no | 1/3 |
+| 420 ms | 3 | 2 | `$2,380.44` | 0 | 0 | no | 1/3 |
+| 560 ms | 4 | 2 | `[$0,278.76 .. $0,456.43]` | 0 | 0 | no | 3/3 |
+| 760 ms | 4 | 2 | `[$1,938.43 .. $2,000.02]` | 0 | 0 | no | 3/3 |
+| 1000 ms | 4 | 2 | `[$2,375.65 .. $2,379.60]` | 0 | 0 | no | 3/3 |
+| 1400 ms | 4 | 2 | `$2,380.44` | 0 | 0 | no | 3/3 |
 
-**F-B12-11, the entry behind the journal's "show all" fold** (`hidden-1400ms-reveal-opened-nothing.png`,
+No control is reachable while it is invisible (F-B12-17), and the count stops on the cell's own
+`data-final-amount`, `$2,380.44`.
+
+**Both ends of the connector on screen** (900x1500, `visible-1400ms.png`): connector 1, proving 1,
+page not scrolled. This is the only case in which the reveal points at the ledger by itself.
+
+**F-B12-11, the entry behind the journal's "show all" fold** (`hidden-1400ms.png`,
 `hidden-after-trace-to-the-ledger.png`):
 
-| After | show-all fold open | connector | proving entry | scrollY |
+| After | show-all fold open | connector | proving | scrollY |
 |---|---|---|---|---|
-| the whole reveal, 1400 ms | **0** | **0** | **0** | **0** |
+| the whole reveal | **0** | **0** | **0** | **0** |
 | following "Trace to the ledger" | 1 | 0, the figure scrolled off screen | 1 | 450 |
 
 The reveal opened nothing, drew nothing and moved nothing. Only the link acted.
@@ -134,7 +143,10 @@ The reveal opened nothing, drew nothing and moved nothing. Only the link acted.
 (`fragment-arrival-opens-the-fold.png`): the fold opened, the entry was lit and the connector drawn,
 with the explanation fold itself still closed (`data-reveal=0`).
 
-**F-B12-18, ids unique per panel:** the two blocks of the journal panel render as
+**F-B12-16, reduced motion** (900x1500, `reduced-*.png`): everything at once at 140 ms, no count-up,
+no connector, and the proving entry marked (`proving=1`) with the flat colour.
+
+**F-B12-18, ids unique per panel:** the journal panel's blocks render as
 `journal-entry-policy-1111...` and `journal-entry-policy-2222...`.
 
 **These frames were captured on a fixture page, not on real trial data.** This worktree carries no
@@ -162,17 +174,17 @@ in the frames is a real policy, and no claim is made about the deployed applicat
   The first thing to check on the next deploy is that fold: that the reveal leaves the journal
   alone when the proving entry is behind the "show all" fold, and that "Trace to the ledger"
   reaches the cancellation entry.
-- **The review record was not in the tree.** `docs/reviews/inbox-and-motion.md` is not on
-  `origin/main` at `8a775f1`, and no `F-B12-11` appears anywhere under `docs/`. The four findings
-  above were closed from the coordinator's description of them; the remaining LOW findings of that
-  record could not be read and are **not addressed**.
+- **All eight findings of `docs/reviews/inbox-and-motion.md` on the animation are closed**:
+  F-B12-11 (MEDIUM) and F-B12-12 to F-B12-18. The record reached this branch on the second merge of
+  `origin/main`; the first four were closed from the coordinator's description before it arrived
+  and were rechecked against the record afterwards.
 - **No check script was run**, by instruction and because nothing here writes to a database.
 - **No independent review yet** (`REVIEWER.md`). The reviewer should look hardest at two things:
   the count-up writing into a server-rendered cell, and whether the connector can ever be drawn to
   an element the reader cannot see.
-- **The count-up shows leading zeros** (`$0,609.18` on the way to `$2,380.44`). Deliberate: the
-  width never changes, so the row does not jitter while it counts, and the number shown is the
-  count's own value at that instant, not a wrong figure. It is worth a sentence at the debrief.
+- **The count-up shows leading zeros** (`$0,456.43` on the way to `$2,380.44`). Deliberate: the
+  width never changes, so the row does not jitter while it counts, and the string shown is a frame
+  of the count and not a figure the application states. It is worth a sentence at the debrief.
 - **Only the folds that already existed are animated.** The reconciliation screen, the approvals
   queue and the broker and staff lists still have no folds at all, exactly as B12-2 left them.
 - **No recording, only frames.** A video would need a screen recorder this worktree does not have.
