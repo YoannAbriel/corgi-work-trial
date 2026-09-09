@@ -461,10 +461,17 @@
 .navigation-collapsed .context-nav {
   display: none;
 }
-.topbar {
+/* The bar and the band are one sticky block (components/portal-frame.tsx). Neither pins on its
+   own any more: the band used to offset itself by --top-h, and a bar that wrapped to a third row
+   on a narrow screen was 29 px taller than the token said, so the band was drawn under it and its
+   title was cut (review finding F-EV2-02, 2026-09-09). A wrapper is always exactly as tall as
+   what it holds. --top-h survives for the inspector drawer, which is fixed and cannot ask. */
+.portal-sticky {
   position: sticky;
   top: 0;
   z-index: 5;
+}
+.topbar {
   min-height: var(--top-h);
   display: flex;
   flex-wrap: nowrap;
@@ -563,10 +570,12 @@ button.sidebar-toggle:hover {
   align-items: center;
   gap: 6px;
   /* 220 px, and a shrink factor of 8 against the breadcrumb's 1: the field gives up its room
-     first and the trail keeps its words. It stops at 150 px, which still shows the whole "Find a
-     reference" placeholder, so it never becomes a box nobody can read (2026-09-09). */
+     first and the trail keeps its words. It stops at 160 px, which is the width the whole "Find a
+     reference" placeholder needs: screenshotted at 150, 160, 170 and 180, the 150 px box read
+     "Find a referenc" and 160 was the first that fitted (review finding F-EV2-04, corrected from
+     the 150 px this comment used to claim). */
   flex: 0 8 220px;
-  min-width: 150px;
+  min-width: 160px;
   margin: 0;
   padding: 0 10px;
   height: 28px;
@@ -650,9 +659,6 @@ button.sidebar-toggle:hover {
 /* The band is aligned with the content under it: above 1480 px the page stops growing, so the
    band has to stop with it or its title and its buttons sit off the grid (round 1, HIGH). */
 .page-band {
-  position: sticky;
-  top: var(--top-h);
-  z-index: 4;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -2501,8 +2507,24 @@ button.secondary.is-working::after {
     order: 3;
     margin-right: 0;
   }
+  /* Here the current screen gives way too: on a narrow window an ellipsis on a policy number
+     costs less than another row of top bar (F-EV2-02). */
+  .breadcrumb li:last-child {
+    flex-shrink: 1;
+  }
   .layout-2 {
     grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}
+/* Under 1000 px a four-level trail, the search field and the Sandbox badge stop fitting on one
+   row, so the bar can take a third row. The band follows it whatever happens, because the two are
+   one sticky block now; the inspector drawer cannot, being fixed and offset by --top-h. Below
+   this width it takes the whole height rather than start halfway up the bar, which is what it
+   already does on a phone (review finding F-EV2-02, 2026-09-09). */
+@media (max-width: 1000px) {
+  .drawer {
+    top: 0;
+    height: 100dvh;
   }
 }
 /* At 1100 px the sidebar used to fold itself to icons. It does not any more: the reader folds
@@ -2633,8 +2655,12 @@ button.secondary.is-working::after {
   .portal-body {
     border-left: 0;
   }
-  .topbar {
+  /* On a phone nothing pins: the bar and the band scroll away with the page, which is what the
+     small screen needs its height for. The wrapper is what carries the stickiness now. */
+  .portal-sticky {
     position: static;
+  }
+  .topbar {
     flex-wrap: wrap;
     padding-top: 6px;
     padding-bottom: 6px;
@@ -2658,7 +2684,6 @@ button.secondary.is-working::after {
     height: 100dvh;
   }
   .page-band {
-    position: static;
     flex-wrap: wrap;
     gap: 10px 12px;
     padding: 10px var(--content-x);
