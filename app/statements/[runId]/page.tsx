@@ -136,12 +136,13 @@ export default async function StatementPage({
   // new revision was written (feedback audit of 2026-09-09).
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
-    // POST /api/statements/run redirects here with ?produced=<revision>. Same fallback as the
-    // policy page: a hand-typed "1" is read as a bare flag and the body stays the plain words.
+    // POST /api/statements/run redirects here with ?produced=<revision>, always a real revision
+    // number, and a first run legitimately produces revision 1. So every integer is printed, and
+    // only a value that is not one (a hand-typed URL) falls back to the plain words.
     produced: {
       tone: "ok",
       title: "Statement produced",
-      text: (revision) => (revision === "1" ? "Statement produced" : `Revision ${revision} produced`),
+      text: (revision) => (/^\d+$/.test(revision) ? `Revision ${revision} produced` : "Statement produced"),
     },
   });
 
