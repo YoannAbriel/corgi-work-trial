@@ -324,6 +324,16 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 - The integration review REVIEWER.md requires (docs/reviews/integration.md) launched at 08:35Z on 0b92476: one policy through its whole life on the deployed data with every figure compared across screens, the same pure function for preview, execution and explanation, ledger invariants read on production, maker-checker traced from the MCP tool to the trigger, role boundaries probed per role, statements and reconciliation checks once each on corgi_test, the AF gate for the whole tree, and the known gaps stated. Findings F-INT-nn.
 - Note from the builder: the repository has no lint script and no ESLint configuration; typecheck and the test runner are the automated gates.
 
+## 2026-09-09T08:40:00+00:00 | Console fix cycle merged (d786644), deploy in progress, re-review requested
+
+- The console builder closed F-B13-21 (the since cursor is clamped to ten years back and says so, one database-free assertion added), F-B13-22 to F-B13-27 and F-B13-29, plus F-RC-08 (an integration-mode line on all seven console screens and a rail field on every money row, LOCAL SIMULATOR printed on every non-Stripe one) and F-RC-09 (infra wording quoted from the providers). Nine files, no migration, no write path. check:console 49 of 49 on corgi_test, typecheck clean, 455 tests (454 pass, 1 skipped) on the merged tree.
+- Merged with --no-ff at d786644 and pushed as code alone; deployed and confirmed by /api/health at 08:40Z. Re-review by the console reviewer requested at that revision; new findings, if any, from F-B13-50.
+
+## 2026-09-09T08:41:00+00:00 | Compliance matrix refreshed (F-RC-12): 51 rows in six sections
+
+- docs/COMPLIANCE-MATRIX.md now has one row per control: the general non-negotiables, the AUTOMATIC-FAILS safeguards, the Track 1 gauntlet and live slots, the seven live-fire items with who performed each, the build's own additions (endorsements, cancellation, corrections, statements with format 3 and migration 0020, the B12 items, change requests, inbox, console, MCP demo, animated explanation) and the delivery controls. Each row cites its record and the reviewed SHA; 25 rows say "re-review of later changes in progress" and name the pending post-PASS record; four requirements have no evidence at all yet: structured logs (decision pending), the integration review (running), the five screen states (review running), as-of between two endorsements (no production policy carries two).
+- Drafted by a sub-agent at 9e839bf, merged by the coordinator with three rows brought up to date (console fix deployed at d786644, integration review launched, screens review running).
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
