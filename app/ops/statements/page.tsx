@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
 import { SandboxReferences } from "@/components/disclosures";
 import { PortalShell } from "@/components/portal-shell";
-import { EarlierRevisions, groupRunsByBrokerAndMonth, type StatementMonthGroup } from "@/components/statement-revisions";
+import { EarlierRevisions } from "@/components/statement-revisions";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
@@ -15,6 +15,7 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { collectedFigures } from "@/lib/statements/compute";
+import { groupRunsByBrokerAndMonth, type StatementMonthGroup } from "@/lib/statements/group-runs";
 import { brokersForStatements, listStatementRuns } from "@/lib/statements/read";
 import { toastsFromQuery, type Query } from "@/lib/ui/views";
 
@@ -111,7 +112,19 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
       {/* The table and the form that feeds it, side by side (round 1, MEDIUM: the form was a whole
           view holding one small card in a 1450 px row). */}
       <div className="layout-2">
-        <DataTable ariaLabel="Statement runs" legend={<Legend items={STATUS_LEGEND} />}>
+        {/* The cap said out loud (review finding F-ST-02): the rows are built from the 30 runs
+            this page read, so "5 earlier" is a count of that window and not of the month's whole
+            history. Widening the query is a reader change and is not tonight's work. */}
+        <DataTable
+          ariaLabel="Statement runs"
+          legend={<Legend items={STATUS_LEGEND} />}
+          footer={
+            <p className="money-cap">
+              This table reads the {HOW_MANY_RUNS_SHOWN} most recent runs. Earlier revisions of a month beyond them
+              are not counted here; each run page names the revision it supersedes.
+            </p>
+          }
+        >
           <thead>
             <tr>
               <ExpandHead />
@@ -200,8 +213,11 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
         <h4>One row per broker and month</h4>
         <p>
           Each row is the newest revision of one broker&rsquo;s month, and the revisions it replaced are inside its
-          fold, newest first, each one a link to the run it was. Nothing is hidden: the rows are ordered by the age of
-          the revision they show, so the month somebody has just run is the first row.
+          fold, newest first, each one a link to the run it was, with the same chips it would carry as a row. The rows
+          are ordered by the age of the revision they show, so the month somebody has just run is the first row. The
+          fold holds the revisions inside the {HOW_MANY_RUNS_SHOWN} runs this page reads and no more: on an old month
+          it can be fewer than the month has, and the way past that window is the run page of a revision, which names
+          the one it supersedes.
         </p>
       </About>
     </PortalShell>
@@ -227,8 +243,13 @@ function MonthRow({ month, now }: { month: StatementMonthGroup; now: Date }) {
           </Primary>
           <td className="nowrap">{run.statementMonth}</td>
           {/* The revision this row shows, and how many earlier ones the fold holds: without that
-              count the fold looks like the ordinary row detail and the history stays hidden. */}
-          <Num sub={month.earlier.length === 0 ? undefined : `${month.earlier.length} earlier`}>{run.revision}</Num>
+              count the fold looks like the ordinary row detail and the history stays hidden.
+              "shown" and not "earlier" (review finding F-ST-02): it counts the revisions inside
+              the 30 run window this page read, which on an old month can be fewer than the month
+              has. The sentence under the table says so in full. */}
+          <Num sub={month.earlier.length === 0 ? undefined : `${month.earlier.length} earlier shown`}>
+            {run.revision}
+          </Num>
           <Num>{formatCentsAsUsd(run.netDueCents)}</Num>
           {/* One word per chip; the legend under the table says what each one means (cycle 2,
               decision 7 and round 1, HIGH: "identical to revision 4" was a sentence in a chip). */}
@@ -283,7 +304,7 @@ function MonthRow({ month, now }: { month: StatementMonthGroup; now: Date }) {
           },
         ]}
       />
-      <EarlierRevisions revisions={month.earlier} now={now} />
+      <EarlierRevisions revisions={month.earlier} now={now} windowSize={HOW_MANY_RUNS_SHOWN} />
     </ExpandRow>
   );
 }
