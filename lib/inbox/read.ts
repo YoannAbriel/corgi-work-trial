@@ -8,6 +8,7 @@ import { correctionsOfPolicy } from "@/lib/policy/correction-read";
 import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
 import { endorsementsPaidButNotApplied, policiesOfBroker, policiesPaidButNotBound } from "@/lib/policy/read";
 import { openBreaks } from "@/lib/reconciliation/read";
+import { statementsProducedByTheJob } from "@/lib/statements/read";
 import {
   brokerSections,
   customerSections,
@@ -21,6 +22,7 @@ import {
   type InboxSection,
   type LiveEndorsementFacts,
   type StaffFacts,
+  type StatementReadyFacts,
 } from "./sections";
 
 export type { InboxItem, InboxSection } from "./sections";
@@ -87,8 +89,10 @@ async function sectionsFor(
   if (user.role === "broker" && user.brokerId) {
     const read = await readBrokerPolicies(user.brokerId);
     const changeRequests = await readOpenChangeRequests(user.brokerId);
+    // The broker id comes from the session, so a broker only ever sees their own statements.
+    const statements = await readStatementsProducedThisMonth(user.brokerId);
     return {
-      sections: brokerSections(read.policies, changeRequests),
+      sections: brokerSections(read.policies, changeRequests, statements),
       unreadablePolicies: read.unreadablePolicies,
     };
   }
@@ -265,12 +269,27 @@ async function readCorrections(policyId: string, question: "to_approve" | "to_co
   return facts;
 }
 
+// The statements the monthly close produced this month, through the same reader the counts use
+// (lib/inbox/tasks.ts), so a badge and its panel can never tell two different stories. No broker
+// asked for means every broker, which is the staff list.
+async function readStatementsProducedThisMonth(brokerId?: string): Promise<StatementReadyFacts[]> {
+  const runs = await statementsProducedByTheJob(sql, brokerId ? { brokerId } : {});
+  return runs.map((run) => ({
+    runId: run.runId,
+    brokerName: run.brokerName,
+    statementMonth: run.statementMonth,
+    netDueCents: run.netDueCents,
+    producedAt: run.createdAt,
+  }));
+}
+
 async function readStaffFacts(): Promise<StaffFacts> {
-  const [requests, paidNotBound, paidNotApplied, breaks] = await Promise.all([
+  const [requests, paidNotBound, paidNotApplied, breaks, statements] = await Promise.all([
     approvalRequests(sql),
     policiesPaidButNotBound(),
     endorsementsPaidButNotApplied(),
     openBreaks(sql),
+    readStatementsProducedThisMonth(),
   ]);
 
   return {
@@ -290,6 +309,7 @@ async function readStaffFacts(): Promise<StaffFacts> {
       amountCents: endorsement.amountCents,
       paidAt: endorsement.paidAt,
     })),
+    statements,
     claimPayments: await readClaimPaymentsStillToMove(),
     breaks: breaks.map((openBreak) => ({
       source: openBreak.source,

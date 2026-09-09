@@ -36,6 +36,10 @@ export type ApprovalRequestDraft = {
   intent: MoneyOutIntent;
   destinationDescription: string; // what the approver reads: "simulated bank account ...6789"
   requestedByUserId: string;
+  // The MCP API key this request came in through, when it came in through one. Null for a person
+  // on a screen. It is the key's row id, not its prefix: migration 0024's trigger joins on it to
+  // refuse a decision by the person who created that key (review finding F-INT-01).
+  raisedThroughKeyId?: string | null;
   // Anything else worth showing on the approval screen. Kept to plain JSON scalars so what is
   // stored is exactly what is displayed.
   payload?: Record<string, string | number | boolean | null>;
@@ -49,10 +53,10 @@ export async function createApprovalRequest(
   draft: ApprovalRequestDraft,
 ): Promise<string> {
   const [request] = await transaction<{ id: string }[]>`
-    insert into approval_requests (kind, subject_kind, subject_id, amount_cents, intent_hash, destination, requested_by, payload)
+    insert into approval_requests (kind, subject_kind, subject_id, amount_cents, intent_hash, destination, requested_by, raised_through_key_id, payload)
     values (${draft.intent.kind}, ${draft.intent.subjectKind}, ${draft.intent.subjectId},
             ${draft.intent.amountCents}, ${intentHash(draft.intent)}, ${draft.destinationDescription},
-            ${draft.requestedByUserId},
+            ${draft.requestedByUserId}, ${draft.raisedThroughKeyId ?? null},
             ${transaction.json({
               // The exact bytes that were hashed, kept so the approvals screen can show an
               // approver what they are approving instead of only a hash they cannot check.
@@ -183,6 +187,20 @@ export async function approvalRequests(database: Queryable = sql): Promise<Appro
 // Deciding
 // ---------------------------------------------------------------------------
 
+// The staff member who created the MCP key a request was raised through, or null when the request
+// was raised on a screen, when the key was created by a script (created_by is null there), or when
+// the request does not exist. One question, one query, the same join the trigger of migration 0024
+// makes at the database boundary.
+async function creatorOfTheKeyThatRaised(database: Queryable, requestId: string): Promise<string | null> {
+  const [row] = await database<{ created_by: string | null }[]>`
+    select key.created_by
+      from approval_requests request
+      join mcp_api_keys key on key.id = request.raised_through_key_id
+     where request.id = ${requestId}
+  `;
+  return row?.created_by ?? null;
+}
+
 export type ApprovalDecisionRequest = {
   requestId: string;
   decidedByUserId: string;
@@ -215,6 +233,19 @@ export async function decideApprovalRequest(
   }
   if (existing.decision !== null) {
     throw new ApprovalRefused(`this request was already ${existing.decision}; a new intent needs a new request`);
+  }
+
+  // THE FOURTH REFUSAL (review finding F-INT-01, migration 0024). A money-out raised through an
+  // MCP key was really raised by whoever holds that key, and the person who MINTED the key holds
+  // it too: they were handed the secret once, on the page that created it. So they are the maker
+  // here, whatever user id the request carries, and a maker never decides. Same sentence as the
+  // database trigger, raised before it so an operator reads a sentence instead of a Postgres
+  // exception.
+  const keyCreatorUserId = await creatorOfTheKeyThatRaised(database, request.requestId);
+  if (keyCreatorUserId !== null && keyCreatorUserId === request.decidedByUserId) {
+    throw new ApprovalRefused(
+      "maker-checker: the person who created the key that raised this request cannot decide it",
+    );
   }
 
   try {

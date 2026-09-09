@@ -24,6 +24,7 @@ import {
 const QUOTED_AT = new Date("2026-09-01T10:00:00Z");
 const REQUESTED_AT = new Date("2026-09-02T10:00:00Z");
 const APPROVED_AT = new Date("2026-09-03T10:00:00Z");
+const PRODUCED_AT = new Date("2026-09-01T06:00:00Z");
 
 function brokerPolicy(fields: Partial<BrokerPolicyFacts> = {}): BrokerPolicyFacts {
   return {
@@ -51,6 +52,7 @@ test("a broker sees a policy to pay only while it is not bound", () => {
       brokerPolicy({ policyId: "a", policyNumber: "COR-A", status: "awaiting_payment" }),
       brokerPolicy({ policyId: "b", policyNumber: "COR-B", status: "bound" }),
     ],
+    [],
     [],
   );
   const toPay = section(sections, "policies");
@@ -90,6 +92,7 @@ test("an approved endorsement is the broker's delta to pay, an unapproved one is
     }),
     ],
     [],
+    [],
   );
 
   const deltas = section(sections, "endorsement-deltas");
@@ -106,10 +109,17 @@ test("an approved endorsement is the broker's delta to pay, an unapproved one is
 });
 
 test("every broker section exists when nothing is waiting, with its empty sentence", () => {
-  const sections = brokerSections([], []);
+  const sections = brokerSections([], [], []);
   assert.deepEqual(
     sections.map((one) => one.anchor),
-    ["policies", "endorsement-deltas", "correction-differences", "change-requests", "waiting-for-the-customer"],
+    [
+      "policies",
+      "endorsement-deltas",
+      "correction-differences",
+      "change-requests",
+      "waiting-for-the-customer",
+      "statements",
+    ],
   );
   for (const one of sections) {
     assert.equal(one.items.length, 0);
@@ -142,7 +152,15 @@ test("a customer's approval links carry the event that is being approved", () =>
 });
 
 function staffFacts(fields: Partial<StaffFacts> = {}): StaffFacts {
-  return { approvals: [], paidNotBound: [], paidNotApplied: [], claimPayments: [], breaks: [], ...fields };
+  return {
+    approvals: [],
+    paidNotBound: [],
+    paidNotApplied: [],
+    claimPayments: [],
+    breaks: [],
+    statements: [],
+    ...fields,
+  };
 }
 
 test("two payments still to move on one claim make one line, with their total", () => {
@@ -234,17 +252,48 @@ test("the sections holding work are shown before the empty ones, in their declar
 
   assert.deepEqual(
     sectionsWithWorkFirst(declared).map((one) => one.anchor),
-    ["claims", "reconciliation", "approvals", "policies", "endorsements"],
+    ["claims", "reconciliation", "approvals", "policies", "endorsements", "statements"],
   );
   // Nothing is dropped and nothing is emptied: the same sections come back, reordered.
   assert.equal(sectionsWithWorkFirst(declared).length, declared.length);
 });
 
-test("the five staff sections exist in order, empty or not", () => {
+test("the six staff sections exist in order, empty or not", () => {
   assert.deepEqual(
     staffSections(staffFacts(), "staff_ops").map((one) => one.anchor),
-    ["approvals", "policies", "endorsements", "claims", "reconciliation"],
+    ["approvals", "policies", "endorsements", "claims", "reconciliation", "statements"],
   );
+});
+
+test("a statement the monthly close produced is announced to the broker and to staff", () => {
+  const august = {
+    runId: "run-8",
+    brokerName: "Redwood Brokers",
+    statementMonth: "2026-08",
+    netDueCents: 18000,
+    producedAt: PRODUCED_AT,
+  };
+
+  // The broker reads their own document: the month is in the title, and the link opens the run.
+  const broker = section(brokerSections([], [], [august]), "statements");
+  assert.equal(broker.title, "Your statement for 2026-08 is ready");
+  assert.equal(broker.items.length, 1);
+  assert.equal(broker.items[0].subject, "2026-08");
+  assert.equal(broker.items[0].amountCents, 18000);
+  assert.equal(broker.items[0].since, PRODUCED_AT);
+  assert.equal(broker.items[0].href, "/statements/run-8");
+
+  // Staff read the same run, named by the broker it belongs to, in a section spanning all of them.
+  const staff = section(staffSections(staffFacts({ statements: [august] }), "staff_ops"), "statements");
+  assert.equal(staff.title, "Statements produced this month");
+  assert.equal(staff.items[0].subject, "Redwood Brokers");
+  assert.equal(staff.items[0].href, "/statements/run-8");
+
+  // An approver sees it too: a published statement is not an operations queue.
+  assert.equal(section(staffSections(staffFacts({ statements: [august] }), "staff_approver"), "statements").items.length, 1);
+
+  // With nothing produced, the section still exists, with a title that promises no month.
+  assert.equal(section(brokerSections([], [], []), "statements").title, "Your monthly statement");
 });
 
 test("a change request nobody answered is the broker's to answer", () => {
@@ -260,6 +309,7 @@ test("a change request nobody answered is the broker's to answer", () => {
         recordedAt: REQUESTED_AT,
       },
     ],
+    [],
   );
   const requests = section(sections, "change-requests");
   assert.equal(requests.items.length, 1);
@@ -275,7 +325,7 @@ test("every anchor a task can name is an anchor some section actually has", () =
   // is the weak half of the promise: the anchor exists SOMEWHERE. The per-role half is the test
   // below (review finding F-B13-60), which is the one that matters.
   const rendered = new Set([
-    ...brokerSections([], []).map((one) => one.anchor),
+    ...brokerSections([], [], []).map((one) => one.anchor),
     ...customerSections([]).map((one) => one.anchor),
     ...staffSections(staffFacts(), "staff_ops").map((one) => one.anchor),
   ]);
@@ -286,7 +336,7 @@ test("every anchor a task can name is an anchor some section actually has", () =
 
 test("each role renders exactly the anchors its own kinds of work name", () => {
   // The direction the test above cannot reach (review finding F-B13-60): the anchor type is the
-  // union of the twelve VALUES, so a broker task typed `anchor: "claims"` compiles and sends a
+  // union of the values above, so a broker task typed `anchor: "claims"` compiles and sends a
   // broker to a section only staff have. INBOX_ANCHOR_OWNER says whose work each kind is; here
   // each role's sections are compared with it, both ways, so an anchor moved to another role or a
   // section dropped from one fails.
@@ -300,7 +350,7 @@ test("each role renders exactly the anchors its own kinds of work name", () => {
   // Empty facts on purpose: every section exists even with nothing waiting, which is what makes a
   // sidebar count safe to link at any hour.
   const rendered: Record<"broker" | "customer" | "staff", Set<string>> = {
-    broker: new Set(brokerSections([], []).map((one) => one.anchor)),
+    broker: new Set(brokerSections([], [], []).map((one) => one.anchor)),
     customer: new Set(customerSections([]).map((one) => one.anchor)),
     staff: new Set(staffSections(staffFacts(), "staff_ops").map((one) => one.anchor)),
   };

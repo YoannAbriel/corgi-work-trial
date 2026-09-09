@@ -188,3 +188,17 @@ Yoann at 09:47 Europe/Zurich: yes to bumping the canonical statement format to v
 26. MCP key minting (F-INT-01): the one-line fix only for this build, keys are created and revoked by staff_ops alone (deployed at a1e525d). The trigger-level rule "the creator of a key cannot decide a request raised through it" goes to the week-two plan.
 
 27. Parked money without a refund path (F-B4-01, rule 14): disclosed, not built. The README, the cut list and the debrief map say it in one sentence: money received after a loss of eligibility sits in unapplied_customer_cash (example: 125320 cents) and returning it is a money-out that would need the approval queue, which this build does not offer for that account.
+
+## 2026-09-09T13:05:00+00:00 | Explicit user decisions | Backend track while the interface is redone in a separate session
+
+28. The honest breaks board, both mechanisms: the reconciliation classifier recognises probe payments (the check scripts plant a real 4242-cent PaymentIntent in the shared Stripe sandbox on every run; from now on with a probe metadata) as their own classification, listed apart and not counted as breaks to act on; and an operator can explain a break with an append-only note (migration 0022, who, why, when), which keeps the break listed under "explained" and removes it from the count to act on. Nothing here repairs money. Example: the production board reads "28 open breaks" today; after this it reads "0 to act on, 28 probes from check runs", and a stray $12.61 test payment explained by ops stays visible with its note.
+
+29. Two more read-only MCP tools: explain_amount (the explanation lines of a figure, computed by the same functions as the fold) and list_my_activity (the calling key's own activity rows). The never-delegated list is unchanged.
+
+30. Automatic monthly statements: on the first day of a month the daily job produces the previous month's statement for every active broker, once, with the knowledge cutoff at that moment; staff and brokers see it in their inbox.
+
+31. Corrections follow decision 24: the customer-approval decision of a correction difference uses the same predicate and the same cumulative running total as endorsements (premium before tax, strictly above $500 per policy and term). Example: an endorsement of $300.00 needed no approval; a correction adding $250.00 of premium brings the term to $550.00, the customer approves before the difference is collected.
+
+32. Decision 26 amended: the second layer on MCP keys is built now, not in week two: keys record who created them (migration 0024, new nullable column) and the maker-checker trigger refuses a decision by the person who created the key through which the request was raised. Guards on the rate tables (migration 0023) built now too.
+
+Yoann's words at 15:02 local: "on peut partir sur le tableau des écarts ... Le MCP, OK ... Le relevé automatique ... Correction alignée sur ta règle 24, OK, et garde sur les tableaux de taux, trigger créateur. Vas-y, envoie." Built as five slices in parallel worktrees with an adversarial reviewer each (ultracode, his authorisation), merged by the coordinator after the guards are re-proven on an ephemeral database migrated to 0024.
