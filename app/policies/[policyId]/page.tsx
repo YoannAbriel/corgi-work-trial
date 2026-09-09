@@ -66,6 +66,7 @@ import {
   REFUNDS_ANCHOR,
   pendingEndorsementNotice,
   pendingEndorsementState,
+  withoutTrailingStop,
   type PolicyAudience,
   correctionHref,
   correctionViews,
@@ -238,6 +239,9 @@ export default async function PolicyPage({
   // of an endorsement and the difference of a correction. The issuance payment of the policy
   // itself is still the band's own "Pay with Stripe", where it has always been.
   const billingHref = `${path}?view=billing`;
+  // The band names one correction when it offers one, and the card that holds them all otherwise.
+  // F-BL-12: the second branch is not dead code — the card carries `id={COLLECT_ANCHOR}` below,
+  // which is also where an inbox row rendered before F-EV2-05 lands.
   const collectHref = collectableNow
     ? `${billingHref}#${collectAnchorFor(collectableNow.correction.rebookEventId)}`
     : `${billingHref}#${COLLECT_ANCHOR}`;
@@ -431,7 +435,7 @@ export default async function PolicyPage({
       // them, and the reversal entries are visible in the journal.
       <div key="voided" className="error" role="alert">
         Voided by a correction on {voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC:{" "}
-        {voidCorrection.reason}.{" "}
+        {withoutTrailingStop(voidCorrection.reason)}.{" "}
         {voidCorrection.reversedEntryCount > 0 ? `${voidCorrection.reversedEntryCount} entries were reversed. ` : ""}
         Nothing was deleted: the original entries and their reversals are both in the journal, and this policy can no
         longer be paid. A replacement needs a new draft.
@@ -1497,7 +1501,11 @@ export default async function PolicyPage({
               difference this card was a heading over nothing. Its reason is beside the owed row
               in "What is owed" instead, where the amount it explains is. */}
           {deltaIsPayableHere || collectable ? (
-            <section className="card">
+            // F-BL-12: the bare `collect` anchor lives here. Every link written since F-EV2-05
+            // names one correction (`collect-<rebookEventId>`), but the inbox rows that were
+            // rendered before this deploys still say `#collect`, and this is where they should
+            // land: the card that holds every difference waiting to be taken.
+            <section className="card" id={COLLECT_ANCHOR}>
               <h2>What needs paying now</h2>
               {liveEndorsement && liveEndorsement.standing.state === "approved" && isOwningBroker &&
               !liveEndorsement.collection?.applicationRefusedReason ? (
@@ -1559,7 +1567,8 @@ export default async function PolicyPage({
             <p>
               What is owed is read from the policy&apos;s own status, from the endorsements that are approved and not
               yet collected, and from the corrections whose difference is still open. What was paid and what is being
-              refunded are the money operations themselves. Every amount here is also in the journal on the Money view.
+              refunded are the money operations themselves, and a payment a correction reversed is struck through.
+              Every amount here is also in the journal on the Money view.
             </p>
           </About>
         </>
