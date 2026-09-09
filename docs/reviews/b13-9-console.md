@@ -766,3 +766,132 @@ cycle with no open finding of my own; the AF-06 reading-map recommendation of se
 only outstanding item, and it is a recommendation, not a defect.
 
 Candidate walkthrough status: **NOT REVIEWED WITH YOANN**.
+
+---
+
+## R.8 Confirmation of the F-INT-03 fix at `a1e525d`
+
+Written 2026-09-09 between 09:50Z and 10:25Z UTC by the independent re-reviewer of the integration
+fix cycle, own git worktree `.claude/worktrees/agent-af5ec98e04bd49ddb`, branch
+`worktree-agent-af5ec98e04bd49ddb`. The four other findings of the same cycle (F-INT-01, 02, 05, 07
+and 10) are confirmed in `docs/reviews/integration.md`, section 11, which also carries the startup
+receipt, the full check list and the new findings. This section is only F-INT-03, because the
+finding is about this console.
+
+**Revision `a1e525ddd02e412cc1dd1e0d338d4d62d747d64c` (`a1e525d`, the merge of the builder commit
+`5fc56cb`)**, reported by production `/api/health` at **09:51:30Z** before every measurement below
+and again at **10:07:48Z** after the last one. Signed in as `ops@example.com`. Every production
+request behind this section is a GET.
+
+### F-INT-03: **FIXED**
+
+**What the finding said.** `/ops/console` listed the live-paid CGP-01707 as "unknown outcome,
+accepted and unconfirmed", 824 minutes old, because the readers took the last
+`money_operation_events` row by sequence number and that operation carries a late
+`provider_accepted` after its `succeeded`. The policy page called the same operation succeeded.
+
+**What I measured on the deployed console**, at the three windows the assignment names:
+
+| Window | Errors panel | Unknown-outcome rows | "Being checked" chip | CGP-01707 in either list |
+|---|---|---|---|---|
+| default, 60 minutes | "Nothing failed, was refused, or is unresolved in this window." | **0** | 0 | **no** |
+| `?since=24h` | 61 rows rendered, cap reached | **0** | 0 | **no** |
+| `?since=7d` | 61 rows rendered, cap reached | **0** | 0 | **no** |
+
+The string "accepted and unconfirmed" appears **nowhere** on any of the three renders except in the
+two explanatory notes that define the family. The three occurrences of "unknown outcome" on each
+render are all prose: the errors panel's disclosure, the "being checked" note and the legend.
+Neither CGP-01707 nor CGP-01062 appears on the errors panel at any window.
+
+**The operations that really are unresolved are still there**, which is the half of this
+measurement that matters, because a fix that emptied the panel by hiding rows would be worse than
+the defect. They are not the two operations R.7 counted: those two were the false positives this
+finding removes. At 24h and 7d the errors panel still lists the two failed claim payouts, both
+`money` family, both labelled `LOCAL SIMULATOR`:
+
+- `2026-09-08 19:15:20, 14 h, claim_payout failed, "B12-1 rehearsal: agent-raised request rejected
+  on purpose"`;
+- `2026-09-08 15:41:56, 18 h, claim_payout failed, "Independent re-review probe: raised only to
+  prove the per-claim threshold; not needed"`.
+
+Both are older than the 60-minute default window, and the panel says so rather than implying there
+is nothing: the disclosure sentence and the cap sentence are both on the screen.
+
+**The 360 pages agree with the policy pages now.** `/ops/console/policy/3c3697b7...` (CGP-01707)
+prints **succeeded** for both operations, the $1,253.20 issuance (the one the finding named) and the
+$1,127.24 endorsement delta, with their durations and provider references.
+`/ops/console/policy/31509261...` (CGP-01062), the second out-of-order history, prints **succeeded**
+for its $3,556.84 checkout too. That was the other half of the required correction.
+
+**The feed is untouched, event by event.** The activity feed at 7 days still renders all four events
+of each operation in their recorded order, so nothing was hidden to make the status right: for
+CGP-01707's issuance, `requested` and `provider_accepted` at 18:56:33 then `succeeded` and
+`provider_accepted` at 18:57:00; for the endorsement, the same shape at 06:34:07 and 06:34:34. The
+append-only history is intact and only the derived status changed. 21 feed rows name CGP-01707 at
+the 7-day window, eight of them the money events of its two operations.
+
+**The code does what the correction asked, in one place.** `statusPreferringTerminal`
+(`lib/console/read.ts:55`) is one SQL expression, `bool_or(status = 'succeeded')` then
+`bool_or(status = 'failed')` then the last row by sequence number, and it is used by all three
+readers that derive an operation's outcome: `acceptedAndUnconfirmedOperations` (the in-flight and
+unknown-outcome lists, whose CTE now groups by `operation_id` instead of `distinct on`),
+`operationsProblems` (a correlated subquery that keeps a `failed` or `unknown` row on the panel only
+while the operation still reads that way), and the 360 money table
+(`operationsOfSubject`, `lib/console/read.ts:2236`). It is the same rule
+`lib/policy/read.ts:221` applies, so the console and the policy page can no longer disagree.
+
+**`check:console`: 53 PASS, 0 FAIL, "all checks passed"** on `corgi_test`. The three assertions that
+matter here, quoted from my run:
+
+- `AN OPERATION THAT SUCCEEDED AND THEN CARRIED A LATER NON-TERMINAL EVENT IS NEITHER IN FLIGHT NOR
+  UNKNOWN (checking 0, unknown 137, none of them this operation)`;
+- `an unknown outcome that a later success resolved is not on the errors panel (141 problems, none
+  of them that operation)`;
+- `the 360 money table calls that operation succeeded, not by its last row but by its terminal one
+  (latest status succeeded)`.
+
+The fixture is the right shape: it builds `requested, provider_accepted, unknown, succeeded,
+provider_accepted` in that order, which is the shape the two production operations really have, and
+the fixture count assertion was raised from 3 to 4 operations so the "the readers created no money
+operation of their own" net still holds.
+
+**The F-B13-50 fix is not undone.** `an accepted and unconfirmed operation older than the feed
+window is still listed (the feed for that cursor shows none of the fixture's rows; the in-flight
+reader still lists it over its own 7-day floor)` still passes. Worth stating plainly for the
+debrief: on production that reader now returns zero rows at every window, so the seven-day floor is
+proved by this assertion and no longer by the screen. That is the correct outcome, not a regression:
+the two rows it used to show were the two false positives this finding removed.
+
+**Disclosure.** `npm run check:console` ran **twice**, the second time by my mistake (a command
+typed to avoid a rerun ran the script into a file). Both runs reported the same 53 PASS, 0 FAIL.
+The script commits fixture rows before it asserts, so `corgi_test` carries one extra console fixture
+set written at about 10:02Z.
+
+### One new finding, on this console
+
+**F-INT-20 (LOW), recorded in full in `docs/reviews/integration.md` section 11.10.** On the 360 money
+table of CGP-01062 the row now reads a green `succeeded` badge with, directly underneath, the note
+**"Your card was declined."**, undated and with nothing saying it belongs to an earlier attempt.
+`failure_reason` (`lib/console/read.ts:2240`) is the newest reason from any `failed` event of the
+operation, whatever came after it, so preferring the terminal status turned an odd pair into a
+contradictory one. No money is wrong and nothing is hidden; it is a line an operator reads during an
+incident and should not have to interpret. Correction: drop the reason when the derived status is
+terminal and not `failed`, or print it with its instant and the words "earlier attempt".
+
+### Checks not executed here
+
+`check:money-guards`, by instruction, cited as 184 of 184 on an ephemeral database at migration 0020
+at 08:32Z. No browser session and no width measurement: every figure above is `curl` against the
+rendered HTML. No load or concurrency profile, so the timings of R.3 are not re-measured and are not
+claimed to hold at this revision.
+
+### Verdict of this confirmation
+
+**PASS.** F-INT-03 is fixed at the deployed revision, in the three readers the correction named, by
+one shared expression rather than three copies; the two operations it used to misreport now read
+succeeded on the console exactly as they always did on the policy page; the genuinely failed
+operations are still listed; the append-only feed is unchanged event by event; and the assertion
+that protects the fix exists and passes. The console record stays closed for this cycle apart from
+the new LOW F-INT-20 above.
+
+Candidate walkthrough status: **NOT REVIEWED WITH YOANN**.

@@ -861,3 +861,388 @@ To append to `docs/reviews/FINDINGS.md` (the coordinator owns that file; I do no
 | F-INT-10 | LOW | Rule 21's fail-closed branch (lib/claims/payments.ts:484) has never been observed firing; no check builds the state and no constraint ties a claim payout to an approval request | One assertion that constructs the state and proves the refusal | OPEN |
 | F-INT-11 | LOW | requestedThrough is a parameter of requestClaimPayment rather than derived inside it from the principal; unspoofable today because only two callers exist | Derive it inside, or name the invariant in a comment | OPEN |
 | F-INT-12 | LOW | The endorsement preview and the payment gate use two different bases for the $500 customer threshold (endorse.ts:685 against endorsement-requests.ts:138); it fails safe, but the preview can promise a path the gate refuses | One shared function for the base | OPEN |
+
+---
+
+## 11. Re-review of the fix cycle: F-INT-01, 02, 05, 07 and 10 at `a1e525d`
+
+Re-reviewer: independent re-reviewer sub-agent, own git worktree
+`.claude/worktrees/agent-af5ec98e04bd49ddb`, branch `worktree-agent-af5ec98e04bd49ddb`.
+Written 2026-09-09 between 09:50Z and 10:25Z UTC. I did not write or fix any code, and the only
+files I changed are this record and `docs/reviews/b13-9-console.md`.
+
+**Reviewed revision: `a1e525ddd02e412cc1dd1e0d338d4d62d747d64c` (`a1e525d`, `main`), the merge of
+the builder commit `5fc56cb`.** Production reported that revision at `/api/health` at **09:51:30Z**,
+before any measurement below, and again at **10:07:48Z**, after the last one. It did not move while
+I measured. My worktree is that revision plus the docs commit `8e11b1a`, which differs from `main`
+(`1b1dc9b`) only in one line of `docs/STATUS.md`; no file under `app/`, `lib/`, `db/` or `scripts/`
+differs from the deployed revision.
+
+F-INT-03 is part of the same fix cycle but belongs to the console record: its confirmation is in
+`docs/reviews/b13-9-console.md`, section R.8, measured on the same revision in the same pass.
+
+### 11.1 Startup receipt (AGENTS.md)
+
+Read **in full**, in this order, before touching anything: `CLAUDE.md`, `AUTOMATIC-FAILS.md` (the
+six rules and the operating gate), `REVIEWER.md` (the assignment, the stage contracts, the section 3
+output contract and the rule that a re-review is appended and never overwrites), `AGENTS.md`
+(startup procedure, financial invariants, maker-checker and MCP, completion gates),
+`READABLE-CODE.md`, `WORKFLOW-48H.md`, then this record's sections 1 to 10 (the twelve findings,
+their citations and the figures the first pass compared), the confirmation sections R.5 to R.7 of
+`docs/reviews/b13-9-console.md`, and the F-INT block of `docs/reviews/FINDINGS.md`.
+
+Read **by targeted section**: `docs/DECISIONS.md`, headers of every entry, then in full the money
+rules of 2026-09-08 08:04Z (rule 3, the $1,000 money-out and $500 customer thresholds), the B12
+entry of 18:52Z (decision 20, "explain this amount" server-rendered from the same pure functions)
+and rule 21 of 20:38Z (an agent-raised claim payment always waits for a human approver, and the send
+gate fails closed).
+
+Read **as code**, at `a1e525d`: the whole diff `git diff a1e525d^1 a1e525d` (24 files, 547
+insertions, 88 deletions) and then, in the tree, `app/api/mcp-keys/route.ts`,
+`app/ops/mcp-keys/page.tsx`, `components/portal-shell.tsx`, `components/workspace-overview.tsx`,
+`lib/policy/terms-in-force.ts`, `app/policies/[policyId]/customer-view.tsx`,
+`app/policies/[policyId]/page.tsx`, `lib/console/read.ts` (the new
+`statusPreferringTerminal` and its three call sites), `lib/money/endorsement.ts`
+(`recheckEndorsementFigures` and `endorsementFormulaLines`), `lib/money/explain.ts`,
+`lib/policy/endorsement-read.ts`, `lib/policy/endorsement-requests.ts` (`figuresFromPayload`),
+`components/amount-explained.tsx`, `lib/documents/policy-as-of.ts`, `lib/documents/from-database.ts`,
+`lib/documents/render.tsx`, `lib/claims/payments.ts` (the rule 21 branch at `:484`),
+`scripts/check-mcp.ts`, `scripts/check-console.ts`, `scripts/check-claims-and-approvals.ts`.
+
+**Absent files:** none of the mandatory files is missing. The dead pointer the first pass recorded
+is still there: `docs/reviews/FINDINGS.md` names `docs/reviews/post-pass-changes.md` for F-RC-05 and
+that file is not in the tree at `a1e525d`.
+
+**Next acceptance criterion and its checks:** this record. Its checks were the production reads of
+section 11.8, the three check scripts of the same section, and the unit suite at the reviewed
+revision.
+
+### 11.2 What this re-review did not touch
+
+On production: **34 GET requests, three `POST /api/session/login` (approver, ops, customer) and
+exactly one deliberately refused `POST /api/mcp-keys`**, described in 11.3 and verified afterwards
+to have written nothing. No other form was submitted, so no statement was published, no
+reconciliation was run, no approval was decided and no money moved. `.worktrees/corgi-interface` and
+`.worktrees/corgi-illustrations` were not touched. `npm run check:money-guards` was not run, as
+instructed: its evidence stays the cited **184 of 184 on an ephemeral database migrated to 0020 at
+2026-09-09T08:32Z**, reproduced nowhere in this record.
+
+**Disclosure, made rather than glossed.** `npm run check:console` ran **twice**. The second
+invocation was my mistake: I typed a command whose only purpose was to avoid a rerun and it ran the
+script anyway, into a file. Both runs reported **53 PASS, 0 FAIL, "all checks passed"**, and nothing
+in this record depends on the second one. The script commits fixture rows to `corgi_test` before it
+asserts, so that shared database now carries one extra console fixture set, written at about 10:02Z.
+`npm test` also ran twice, the second time only to read back the names of three unit tests; it
+writes nothing anywhere.
+
+### 11.3 F-INT-01, an approver minting the maker's credential: **FIXED**
+
+What I measured on production, signed in as `approver@example.com` and as `ops@example.com`:
+
+| Measurement | Result |
+|---|---|
+| `GET /ops/mcp-keys` as the approver | **307** to `/ops`, no page rendered |
+| The sidebar of `/ops` as the approver | 11 links, **`/ops/mcp-keys` absent** |
+| The sidebar of `/ops` as `ops@` | 12 links, `/ops/mcp-keys` present |
+| `POST /api/mcp-keys` as the approver, `action=create`, `userId` = Sam Patel (`staff_ops`), `principalKind=human` | **303** to `/ops/mcp-keys?error=only staff operations can manage MCP API keys`, empty body |
+| The key list read as `ops@` before and after that POST | **7 keys before, 7 keys after, the same seven prefixes**, and the probe label appears nowhere |
+| `/ops/mcp-keys` as `ops@` | **200**, the page still lists the keys, their holders, their call counts and the never-delegated operations |
+
+That is the attack of F-INT-01 executed end to end with a real approver session against the
+deployed application, refused at the route and writing nothing. The refusal is not only the screen:
+`app/api/mcp-keys/route.ts:28` now admits `staff_ops` alone, **before** the form is even read, and
+it covers `revoke` as well as `create`, which is stricter than the correction I asked for and is
+right for the same reason. `app/ops/mcp-keys/page.tsx:29` carries the same allowlist, so the page
+and the route cannot drift apart, and `components/portal-shell.tsx:95` no longer offers an approver
+a link the page refuses.
+
+**No second door.** `createApiKey` has exactly two callers outside `lib/mcp/keys.ts`: this route and
+the two CLI scripts (`scripts/create-mcp-key.ts`, `scripts/check-mcp.ts`), which are not reachable
+from a browser. The route reads a signed session cookie and never an `Authorization` header, so an
+MCP key cannot mint another one, and `check:mcp` reports the five tools with no key tool among them.
+
+**The `check:mcp` assertion is real and it fired.** Line 6 of my run:
+`PASS  A STAFF APPROVER CANNOT CREATE AN MCP KEY: POST /api/mcp-keys refuses the session and writes
+no key  (303 /ops/mcp-keys?error=only staff operations can manage MCP API keys)`. It signs a session
+cookie with the server's own `signSessionCookie`, posts over HTTP with `redirect: "manual"`, and
+asserts the refusal text **and** that the maker's key count is unchanged. It is an assertion about
+the deployed route, not about a helper.
+
+**The README says it, and says why** (README.md, "MCP surface"): "A key is created by staff
+operations on `/ops/mcp-keys`", then "Only a `staff_ops` user can create or revoke a key: an
+approver who could mint a key for the maker would be both halves of the maker-checker gate, raising
+a claim payment through that key and then approving it as themselves."
+
+**What is still true and should be said at the debrief.** A `staff_ops` user can still create a
+**human** key for the approver (the holder list is every user). That direction does not defeat the
+gate: no MCP tool approves anything, `lib/mcp/jsonrpc.ts` answers "unknown tool" for
+`approve_claim_payment`, and migration `0018:113` refuses an agent key for an approver. The
+trigger-level rule "the key creator cannot decide" remains the open question the coordinator put to
+Yoann; the application-level hole is closed.
+
+### 11.4 F-INT-02, the customer's own terms panel: **FIXED**
+
+Read on production on 2026-09-09, both pages of CGP-01707 in the same pass:
+
+| Figure | Customer page (`customer@`) | Staff page (`ops@`) | Ledger, from section 4.1 |
+|---|---|---|---|
+| Panel heading | **Terms in force on 2026-09-09** | **Terms in force on 2026-09-09** | n/a |
+| Annual premium | **$1,200.00** | $1,200.00 | 120000 |
+| CA premium tax (2.35%) | **$28.20** | $28.20 | 2820 |
+| Policy fee | $25.00 | $25.00 | 2500 |
+| Full annual term at these terms | **$1,253.20** | $1,253.20 | 125320 |
+| Per occurrence | **$1,000,000.00** | $1,000,000.00 | n/a |
+| Aggregate | **$2,000,000.00** | $2,000,000.00 | n/a |
+
+The wrong figures of the first pass ($2,400.00, $56.40, $2,481.40, $2M and $4M) are gone from the
+insured's page. Both screens then name the future change in the same sentence: "An endorsement
+effective 2026-10-08 brings the annual premium to $2,400.00 ($2,000,000.00 per occurrence /
+$4,000,000.00 aggregate). It is in the schedule below with the amount it collected; the figures
+above are the ones in force on 2026-09-09."
+
+**One function, not two panels.** Both screens call `termsInForceOn`
+(`lib/policy/terms-in-force.ts:32`) on the answer of `policyAsItStoodOn(policyId, documentDate)`:
+`app/policies/[policyId]/page.tsx:168` and `app/policies/[policyId]/customer-view.tsx:66`. The staff
+page's old inline fold was deleted in the same commit, so there is no second copy left to drift. The
+no-answer branch is not theoretical: I opened CGP-01061 (its issuance was reversed) as its own
+customer and the panel printed the policy record, no date in the heading, and the honest sentence
+"Your policy cannot be rebuilt on 2028-03-01: no issued policy event effective on or before
+2028-03-01. The figures above are the ones on the policy record, not the cover in force on a date."
+One copy defect survives there and is recorded as F-INT-22.
+
+### 11.5 F-INT-05, the endorsement fold's agreement check: **FIXED**
+
+**On the deployed screen**, the endorsement fold of CGP-01707 prints, above the formula lines:
+**"Recomputed today from the same inputs: identical."** One occurrence, no disagreement alert, no
+"could not be priced again" line.
+
+**In the code, which is where this finding lived.** `recheckEndorsementFigures`
+(`lib/money/endorsement.ts:216`) calls `computeEndorsement`, the one pricing function, with ten
+inputs taken from the stored figures: `termStart`, `termEnd`, `effectiveAt`, `oldAnnualPremiumCents`,
+`newAnnualPremiumCents`, `taxRateBps`, `taxChargedSoFarCents`, `commissionRateBps`, `policyId`,
+`policyVersion`. Those come from `figuresFromPayload`
+(`lib/policy/endorsement-requests.ts:260`), which reads each of them from the immutable `endorsed`
+event payload written by `applyEndorsement` (`lib/policy/endorse.ts:374`). **So the recomputation
+is fed by the event, not by the policy record**, which is what makes it capable of failing: a
+payload written by a path that did not use the pure function would disagree with itself.
+
+The comparison covers **six figures, and they are exactly the six the fold prints**
+(`endorsementFormulaLines`, keys `annual_difference`, `delta_premium`, `delta_tax`, `delta_fee`,
+`delta_total`, `commission`): annual premium difference, prorated premium, state premium tax, policy
+fee, total collected or refunded, broker commission. A figure that cannot be priced at all (a date
+outside the term) returns `notComputable` and the fold says so instead of claiming agreement, which
+is the fail-closed shape.
+
+**Nothing is computed in the browser.** The recheck runs inside
+`endorsementScheduleOfPolicy` (`lib/policy/endorsement-read.ts:154`), a server module that opens the
+database; `components/amount-explained.tsx` carries no `"use client"` and only renders the answer;
+no arithmetic on cents appears in it beyond formatting.
+
+**The three unit tests exist and pass**, run by me at this revision: `ok 270 - figures priced from
+their own stored inputs agree with themselves`, `ok 271 - a stored figure that no longer follows
+from its inputs is named, and the check fails` (it asserts the two disagreements by name and value),
+`ok 272 - figures whose stored inputs cannot be priced at all are reported, never called identical`.
+
+**Hand check of the printed fold**, against the ledger figures of section 4.1: 240000 - 120000 =
+120000; floor(120000 x 335 / 365) = 110136; floor(110136 x 235 / 10000) = 2588; fee 0; 110136 + 2588
+= 112724; floor(110136 x 1500 / 10000) = 16520. All six agree with the screen and with the journal.
+
+**Residual, stated rather than left implicit.** The recheck proves the stored outputs follow from
+the stored **inputs**. It cannot detect an event whose inputs and outputs were both fabricated
+consistently, and `figuresFromPayload` hardcodes `deltaFeeCents: 0`, so the fee comparison is 0
+against 0 today. The README now states the distinction between this fold and the folds checked by
+their own result line, which was the other half of the finding.
+
+### 11.6 F-INT-07, the PDFs' "amount charged": **FIXED**
+
+Both documents of CGP-01707, fetched as `ops@` with `?asOf=2026-10-08` (the endorsement's effective
+date, without which the fold has no endorsement to print):
+
+- **Declarations page**, endorsements table: column heading **AMOUNT CHARGED**, row "October 8, 2026
+  ... **$1,127.24**", caption "Amount charged: the prorated premium and its California premium tax,
+  charged (positive) or credited (negative) from the effective date to the end of the term. It is
+  the amount that moved, not the change in the annual premium."
+- **Endorsement schedule**, same column heading, same **$1,127.24**, footer sentence naming premium
+  plus California premium tax.
+
+$1,127.24 = 110136 + 2588, the premium of $1,101.36 and its tax of $25.88, which is the figure the
+journal, the policy page and Stripe hold. The premium-only $1,101.36 no longer appears under a
+caption calling it the amount charged.
+
+**The sum is in the fold, not in the renderer.** `foldPolicyEvents`
+(`lib/documents/policy-as-of.ts:164`) reads `premiumDeltaCents` and `taxDeltaCents` from the event
+and sets `amountChargedCents: premiumDeltaCents + taxDeltaCents`; `lib/documents/render.tsx:227` and
+`:380` print `endorsement.amountChargedCents` and do no arithmetic (I grepped the renderer for cent
+arithmetic: nothing).
+
+**Determinism, measured rather than assumed.** Each document was fetched **twice**. The endorsement
+schedule came back **byte-identical** (sha256 equal on the extracted text and on the two renders of
+the same second). The declarations page differed in exactly one character position, its footer
+"Generated 2026-09-09 09:55:44 UTC" against "...09:55:45 UTC": the generation stamp, one second
+apart. Every figure, every caption and every line of both documents is identical between the two
+fetches.
+
+**One risk I went looking for, and its bound.** `taxDeltaCents` is now **required**: an `endorsed`
+event payload without `delta_tax_cents` makes both PDFs fail rather than print a wrong number, which
+is the right direction, but it is a new hard requirement on historical rows. Every `endorsed` payload
+is written by one function (`endorsementRequestPayload`, `lib/policy/endorsement-requests.ts:214`)
+which has carried the field since migration 0009. I fetched **both documents of all four policies**
+on production at a late as-of date: CGP-01707, CGP-01274 and CGP-01062 answer `application/pdf`
+(200), and CGP-01061 answers a clean JSON 404, "no issued policy event effective on or before
+2027-01-31", because its issuance was reversed. No PDF on production fails.
+
+### 11.7 F-INT-10, rule 21's fail-closed branch: **FIXED**
+
+`scripts/check-claims-and-approvals.ts:1011` to `:1057` builds the state the request path can no longer create:
+a `claim_payout` money operation of **$10.00**, deliberately far below the $1,000 ceiling so that
+only rule 21 can refuse it, carrying **no** `approval_request_id`, with a `payment_requested` claim
+event whose payload says `principalKind: "agent"`. It then calls the real `sendClaimPayment` with the
+restricted runtime role. The fixture is built by INSERT only, appends no journal entry, and matches
+the shape of the neighbouring section 11c.
+
+Measured in my run:
+
+```
+PASS  RULE 21 FAILS CLOSED: an agent-raised payment carrying no approval request is refused at the
+      send gate  (this payment was raised by an agent and carries no approval request; an
+      agent-raised payment never leaves without a second person (rule 21))
+PASS  and that refusal moved nothing: no transfer, and not one event appended to the operation
+      (1 event(s), was 1; 1 payment(s) sent on this claim)
+```
+
+The sentence in the refusal is the one at `lib/claims/payments.ts:488`, and the assertion matches
+both halves of it by regular expression, so a reworded guard would fail the check rather than pass
+it silently. The second assertion is the one that makes this worth having: the branch refuses
+**before** anything is appended.
+
+### 11.8 Checks actually executed, with their results
+
+| Check | Where | Result |
+|---|---|---|
+| Deployed revision, twice | `curl /api/health` | **`a1e525d...`** at 09:51:30Z and at 10:07:48Z, `database: ok` |
+| Logins | production | 3 POSTs, **3 of 3** HTTP 303 with the right landing (`/ops`, `/ops`, `/customer`) |
+| Deliberate refusal | production | **1** POST `/api/mcp-keys` as the approver: 303 with the refusal, **0 keys written** (7 before, 7 after) |
+| Screens read | production, GET only | **34 GETs**: the two policy pages of CGP-01707, both pages of CGP-01061, `/ops/policies`, `/ops` for two roles, `/ops/mcp-keys` for two roles and twice for one, `/customer`, `/ops/console` at three windows, two 360 pages, sixteen document fetches |
+| Documents | production, GET | 8 PDFs rendered (3 policies x 2 documents, plus 2 fetched twice), 1 honest JSON 404, all 200s `application/pdf` |
+| `npm test` at the reviewed revision | this worktree | **459 tests, 458 pass, 1 skipped, 0 fail**, including the three new `recheckEndorsementFigures` tests and the two changed document tests |
+| `npm run typecheck` | this worktree | **exit 0** |
+| `npm run check:mcp` | `corgi_test`, local app on port 3800 against `DATABASE_URL_TEST_APP` | **59 PASS, 0 FAIL, ALL CHECKS PASSED**, including the new approver refusal |
+| `npm run check:console` | `corgi_test` | **53 PASS, 0 FAIL, all checks passed**, including the two new terminal-status assertions and the F-B13-50 cursor assertion (ran twice, see 11.2) |
+| `npm run check:claims-and-approvals` | `corgi_test` | ran once; the **last 30 lines** captured are 30 PASS, 0 FAIL, including both rule 21 assertions. **I did not capture the whole output or the exit status**, and I did not rerun it |
+| `check:money-guards` | not run, by instruction | cited: 184 of 184 at migration 0020, ephemeral database, 08:32Z |
+
+The local application used by `check:mcp` was started with `DATABASE_URL_APP` set to the disposable
+database's runtime URL, read from `.env.local` and never printed, and **stopped afterwards: port
+3800 refuses connections** (`curl` exit 7, no listener).
+
+### 11.9 What this re-review did not verify
+
+1. **`npm run build` was not run.** `npm test` and `npm run typecheck` were, at the reviewed
+   revision, which closes most of evidence gap 1 of section 8 but not the production build.
+2. **No browser, no width.** Everything is server HTML parsed by script and PDFs read as text.
+   Section 8's point 2 stands unchanged.
+3. **The whole output of `check:claims-and-approvals` was not captured**, only its last 30 lines
+   (see 11.8). The builder's count of 74 is not reproduced here.
+4. **No production database read.** Unlike the first pass, every figure in this section comes from
+   the deployed screens, the PDFs and the check scripts. Where I say "the ledger holds 112724", I am
+   citing section 4.1 of this record, not a new SELECT.
+5. **The seven other findings of this record were not re-measured.** F-INT-04, 06, 08, 09, 11 and 12
+   are untouched by this diff, and F-INT-03 is confirmed in the console record.
+6. **No legal or regulatory conclusion.** Unchanged from section 8.
+
+### 11.10 New findings
+
+Numbered from F-INT-20 as instructed. All three are LOW: no money figure is wrong, no boundary is
+crossed, no integration is mislabelled.
+
+#### F-INT-20 (LOW) The console's 360 money table pairs a green "succeeded" badge with an older failure reason
+
+On `/ops/console/policy/31509261...` (CGP-01062) one row reads
+`succeeded` in a `badge-ok` chip with, directly underneath, the note **"Your card was declined."**,
+with no date and nothing saying it belongs to an earlier attempt. The status is now right (this is
+the F-INT-03 fix working), but `failure_reason` (`lib/console/read.ts:2240`) is still the newest
+reason from any `failed` event of the operation, whatever happened after it. Before the fix the pair
+read "provider_accepted" plus that reason, which was merely odd; it now reads as a contradiction on
+the screen an operator is told to trust during an incident. **Correction:** filter the reason out
+when the derived status is terminal and not `failed`, or print it with its instant and a word saying
+it is a past attempt.
+
+#### F-INT-21 (LOW) The operations home still offers an approver the MCP keys card
+
+`components/workspace-overview.tsx:73` renders the "MCP keys" action card for every staff user; the
+component already knows `isApprover`. Signed in as `approver@example.com`, `/ops` shows the card and
+clicking it lands on a 307 back to `/ops`. The sidebar was fixed and this second link was missed.
+Nothing is bypassed, and the refusal holds. **Correction:** the same one-line condition the sidebar
+now carries.
+
+#### F-INT-22 (LOW) The customer's terms panel keeps "on that date" when there is no date
+
+`app/policies/[policyId]/customer-view.tsx:122` always prints "These are the terms in force on that
+date", including in the branch where the fold could not rebuild the policy and the heading therefore
+carries no date. Read on CGP-01061 as its own customer: "Terms in force ... These are the terms in
+force on that date. ... Your policy cannot be rebuilt on 2028-03-01". The two sentences contradict
+each other for one paragraph, until the second explains. The staff page does not have this defect.
+**Correction:** one conditional sentence, the way the heading is already conditional.
+
+### 11.11 Register hygiene, for the coordinator
+
+`docs/reviews/FINDINGS.md` at `1b1dc9b` marks **only F-INT-01** as FIXED at `5fc56cb`. F-INT-02,
+F-INT-03, F-INT-05, F-INT-07 and F-INT-10 still read "OPEN (B13 backlog)" although the same commit
+fixed them and this section confirms all five. I do not own that file and have not edited it; the
+five lines need the same treatment as F-INT-01's.
+
+### 11.12 Verdict of the re-review
+
+**PASS for the five findings re-reviewed here, and the integration verdict of section 9 is lifted
+from FAIL to PASS at `a1e525d`, with the residual limitations below and with AF-06 still NOT
+SATISFIED.**
+
+Read that carefully, because it is two statements and neither should be blurred into the other.
+
+**The two things the FAIL rested on are gone.** F-INT-01, the maker-checker bypass that needed only
+a browser, is refused at the route, at the page and in the navigation, and I executed the attack
+against production with a real approver session: 303, no key. F-INT-02 and F-INT-07, the two screens
+that disagreed with the ledger, now print the ledger's own figures: $1,200.00 / $28.20 / $1M / $2M
+on the insured's page, $1,127.24 on both PDFs. F-INT-05 and F-INT-10, the two AF-06 shaped findings
+where a claim of protection had nothing under it, now have a check that can fail and a test that
+watched it fail.
+
+**What still blocks nothing but should be visible at the freeze.** The six remaining LOW findings of
+this record (F-INT-06, 08, 09, 11, 12 and the earlier F-INT-04, which is MEDIUM) are either
+disclosed or assigned to Yoann: F-INT-04 and F-INT-06 are two clicks on production that only Yoann
+may make (one statement run, one reconciliation run), F-INT-08, 09, 11 and 12 are disclosed
+correctness-neutral items, and my three new LOW findings are cosmetic. **Nothing in the engineering
+scope of this record blocks the submission at `a1e525d`.**
+
+**AF-06 is unchanged and it is not mine to close.** Every review record in this repository, this
+section included, still ends on NOT REVIEWED WITH YOANN. `AUTOMATIC-FAILS.md` requires all six gates
+to be supported for a final gate to pass, so the final delivery gate remains open on AF-06 whatever
+this verdict says about the code. The other five gates are unchanged from section 5; nothing in this
+diff touches a secret, a provider mode, a money row or the deployment.
+
+**Residual limitations:** section 11.9 in full, plus everything in section 8 that this pass did not
+revisit. In particular this section proves nothing about responsive rendering and nothing about US
+regulatory compliance, and it is an engineering assessment, not a certification.
+
+**Candidate walkthrough status: NOT REVIEWED WITH YOANN.**
+
+The three places I would put in front of Yoann first from this cycle, because they are where a panel
+will point: `app/api/mcp-keys/route.ts:22` next to
+`db/migrations/0008_claims_and_approvals.sql:252`, so he can explain both halves of maker-checker and
+why minting a credential is a move in that game; `lib/policy/terms-in-force.ts`, the one function two
+screens now share, and why `policy_current` is not the answer to "what is in force today"; and
+`recheckEndorsementFigures` in `lib/money/endorsement.ts`, where he should be able to say what the
+check can catch and what it cannot.
+
+### 11.13 Register lines, re-review
+
+| ID | Sev | Status after this re-review, and what was measured |
+|---|---|---|
+| F-INT-01 | HIGH | **FIXED at a1e525d, CONFIRMED.** The attack executed on production as approver@ answers 303 "only staff operations can manage MCP API keys" and writes no key (7 keys before, 7 after, same prefixes); the page 307s to /ops, the sidebar link is gone, createApiKey has no other web caller, check:mcp 59 of 59 with the new assertion |
+| F-INT-02 | MEDIUM | **FIXED at a1e525d, CONFIRMED.** The customer page of CGP-01707 prints "Terms in force on 2026-09-09", $1,200.00 / $28.20 / $1,253.20 / $1M / $2M, identical to the staff page, both through termsInForceOn; the no-answer branch checked on CGP-01061 |
+| F-INT-05 | MEDIUM | **FIXED at a1e525d, CONFIRMED.** The fold prints "Recomputed today from the same inputs: identical"; recheckEndorsementFigures reprices with computeEndorsement from the inputs stored on the endorsed event and compares the six printed figures; server-side only; the three unit tests pass inside 459 |
+| F-INT-07 | LOW | **FIXED at a1e525d, CONFIRMED.** Both PDFs print $1,127.24 under "Amount charged" with a caption naming premium plus California premium tax; the sum is in foldPolicyEvents, the renderer does none; two fetches identical apart from the generation second |
+| F-INT-10 | LOW | **FIXED at a1e525d, CONFIRMED.** check:claims-and-approvals builds a $10 agent-raised payout carrying no approval request and the send gate refuses it with the rule 21 sentence, appending nothing |
+| F-INT-20 | LOW | NEW, OPEN. The console 360 money table shows a green "succeeded" badge with an older failed event's reason underneath it ("Your card was declined." on CGP-01062), undated and unexplained. Correction: drop the reason when the derived status is terminal and not failed, or print its instant and say it is a past attempt |
+| F-INT-21 | LOW | NEW, OPEN. `/ops` still offers a staff_approver the "MCP keys" action card (components/workspace-overview.tsx:73), which the page then refuses with a 307; the sidebar was fixed, this second link was missed. Correction: the same role condition the sidebar carries |
+| F-INT-22 | LOW | NEW, OPEN. The customer terms panel prints "These are the terms in force on that date" even when the fold has no date to name (CGP-01061), one paragraph before saying the policy cannot be rebuilt. Correction: make that sentence conditional, as the heading already is |
