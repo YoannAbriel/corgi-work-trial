@@ -168,3 +168,67 @@ subtraction with the clawback line between commission and net due; one row per b
 on the statements list with earlier revisions folded (Yoann opened revision 5 instead of 6 from
 the stacked list). Decision 44 (direct bill through the same Checkout session) recorded by the
 coordinator, not built during the live-fire.
+
+Addendum LIVE-8: Yoann ran Redwood 2026-09 once more at 20:03:04Z, revision 7, identical to
+revision 6 ($437.45, same hash); one more immutable row, no effect.
+
+## LIVE-9: second endorsement on CGP-01707, the cumulative $500 threshold and three as-of dates (YOA-647)
+
+Deployed revision at the start of the step, `/api/health` at 20:04:24Z: `92379e2`. Starting
+terms on record after LIVE-8: annual premium $2,400.00 from 2026-09-22, limits $2M / $4M.
+Chosen change: annual premium $2,400.00 to $2,700.00 (+$300.00), limits unchanged, effective
+2026-10-01 (after 2026-09-22 as required), reason "Live fire day 2: second endorsement".
+
+### Click 1 and 2: broker@example.com, Endorse, preview then confirm (requested 20:11:09Z)
+
+Preview read by GET before the click (`LIVE-9/before/endorsement-preview-2700-2026-10-01.txt`),
+identical on Yoann's screen.
+
+| Figure | Expected (computeEndorsement) | Read | Agree |
+|---|---|---|---|
+| Days remaining from 2026-10-01 | 342 of 365 | 342 of 365 | agree |
+| Annual difference | 270000 - 240000 = 30000 | $300.00 | agree |
+| Prorated premium | floor(30000 x 342 / 365) = 28109 | $281.09 | agree |
+| Tax | floor(28109 x 235 / 10000) = 660 | $6.60 | agree |
+| Delta to collect | 28769 | $287.69 | agree |
+| Commission | floor(28109 x 1500 / 10000) = 4216 | $42.16 | agree |
+| Running total of additional premium (decision 24) | 115397 + 28109 = 143506, above 50000: customer approval | "this policy would carry $1,435.06 of additional premium in this term, this quote included, above $500.00: the customer approves before the delta can be paid" | agree |
+| After confirm | endorsement requested, terms unchanged | "Endorsement in progress, awaiting the customer", effective 2026-10-01, requested 20:11:09Z, delta $287.69 | agree |
+
+### Click 3: customer@example.com, approve the quote (about 20:15Z)
+
+Event `endorsement approved`, "The customer approved that quote ($287.69)". Broker inbox after
+it: "Endorsement deltas to pay 1", CGP-01707 $287.69 (`LIVE-9/after/broker-inbox-after-approval.txt`).
+
+### Click 4: broker@example.com, Pay $287.69, test card 4242 (20:17:43Z)
+
+| Figure | Expected | Read | Agree |
+|---|---|---|---|
+| Webhook | payment_intent.succeeded | received 20:17:43Z, reference pi_3UDrw9K6R3v50tIy1XjCYQsU, operation stripe_checkout succeeded | agree |
+| endorsement_premium_written | 28109 effective 2026-10-01 | $281.09, effective 2026-10-01 | agree |
+| endorsement_tax_billed | 660 effective 2026-10-01 | recorded 20:17:43Z, effective 2026-10-01 | agree |
+| endorsement_premium_collected | 28769 effective 2026-09-09 | $287.69 | agree |
+| endorsement_commission_earned | 4216 | $42.16 | agree |
+| Cash collected on the policy | 125320 + 112724 + 5384 + 28769 = 272197 | $2,721.97 | agree (the brief to Yoann said $2,722.00 by an addition slip of this session; the pure figure and the page agree) |
+| Commission payable | 18000 + 16520 + 789 + 4216 = 39525 | $395.25 | agree |
+| Unearned premium held | 120000 + 115397 + 28109 = 263506 | $2,635.06 | agree |
+| Endorsements table | two rows: 2026-09-22 corrected date, 2026-10-01 | "2026-09-22 $1,200.00 to $2,400.00 corrected date", "2026-10-01 $2,400.00 to $2,700.00" | agree |
+
+### Three "as it stood on" dates (GET as ops, `LIVE-9/after/as-it-stood-on-*.txt` and `.png`)
+
+| Date | Expected | Read | Agree |
+|---|---|---|---|
+| 2026-09-15 (before the first endorsement) | $1,200.00, tax $28.20, term $1,253.20, $1M / $2M | $1,200.00, $28.20, $1,253.20, $1,000,000.00 / $2,000,000.00 | agree |
+| 2026-09-25 (between the two) | $2,400.00, tax floor(240000 x 235 / 10000) = $56.40, term $2,481.40, $2M / $4M | $2,400.00, $56.40, $2,481.40, $2,000,000.00 / $4,000,000.00 | agree |
+| 2026-10-05 (after the second) | $2,700.00, tax floor(270000 x 235 / 10000) = $63.45, term $2,788.45, $2M / $4M | $2,700.00, $63.45, $2,788.45, $2,000,000.00 / $4,000,000.00 | agree |
+
+PDFs after as of 2026-10-05 (declarations, endorsement schedule) in `LIVE-9/after/`. Every
+figure of LIVE-9 agrees. Freeze checklist section D: evidence in
+`docs/evidence/live-fire-day2/LIVE-9/`.
+
+Interface items raised during the step, sent to the interface session (presentation only):
+the "in force today" tile read as stale next to future endorsements (a "latest terms on record"
+tile and the same pair on the policy lists); a pending endorsement absent from the customer's
+"Changes to this policy" table (a row with a state chip); no visible notification for the broker
+after the customer's approval (band action, notice line, sub-menu count); the broker home
+printing the count twice without a plural ("11 endorsement delta to pay").
