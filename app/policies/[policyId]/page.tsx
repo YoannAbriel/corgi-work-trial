@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { DataTable, ExpandHead, ExpandRow, FactGrid, Num, Primary, Ref, Row } from "@/components/ui/table";
+import { Chevron, DataTable, ExpandHead, ExpandRow, FactGrid, Num, Primary, Ref, Row } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -802,12 +802,12 @@ export default async function PolicyPage({
             <thead>
               <tr>
                 <th>Claim</th>
-                <th>Claimant</th>
                 <th className="nowrap">Loss</th>
                 <th>State</th>
                 <th className="num">Reserve</th>
                 <th className="num">Paid</th>
                 <th className="num">Incurred</th>
+                <th aria-label="Open" />
               </tr>
             </thead>
             <tbody>
@@ -821,8 +821,9 @@ export default async function PolicyPage({
                 claims.map((claim) => (
                   // Only staff work on a claim, so only staff get the link to its screen.
                   <Row key={claim.claimId} href={isStaff ? `/ops/claims/${claim.claimId}` : undefined}>
-                    <Primary href={isStaff ? `/ops/claims/${claim.claimId}` : undefined}>{claim.claimNumber}</Primary>
-                    <td>{claim.claimantName}</td>
+                    <Primary href={isStaff ? `/ops/claims/${claim.claimId}` : undefined} sub={claim.claimantName}>
+                      {claim.claimNumber}
+                    </Primary>
                     <td className="nowrap">{claim.occurredAt}</td>
                     <td>
                       <Chip tone={claim.position.isClosed ? "neutral" : "warn"}>{claim.position.isClosed ? "closed" : "open"}</Chip>
@@ -830,6 +831,7 @@ export default async function PolicyPage({
                     <Num>{formatCentsAsUsd(claim.position.reserveCents)}</Num>
                     <Num>{formatCentsAsUsd(claim.position.paidCents)}</Num>
                     <Num>{formatCentsAsUsd(claim.position.incurredCents)}</Num>
+                    <Chevron />
                   </Row>
                 ))
               )}
