@@ -8,6 +8,10 @@ import postgres from "postgres";
 //      approved nor paid;
 //   3. the customer's approval is required above $500, only the policy's customer can give it,
 //      and the delta cannot be collected without it;
+//   3b. that $500 is read against the POLICY and cumulatively over the term, on the premium
+//      before tax (decision 24): +$300 needs nothing, the next +$300 and the next +$50 both need
+//      the customer, the payment gate refuses the second before the approval, and a reduction
+//      never counts;
 //   4. the same delta payment delivered twice posts the four entries ONCE and applies the
 //      endorsement ONCE; the issuance path refuses a delta operation; a wrong amount is refused;
 //      a delta paid while the endorsement cannot be applied is parked in the suspense account
@@ -326,6 +330,110 @@ async function main() {
     return recordSuccessfulEndorsementPayment({ operationId, paymentIntentId: `pi_stale_${operationId.slice(0, 8)}`, amountReceivedCents: 89170, paidOn: DAY_100 }, runtime);
   })();
   report("a payment arriving for a superseded quote is recorded, not applied, and nothing is journaled", staleDelivery.kind === "application_refused" && (await eventTypesOfPolicy(big.policyId)).filter((type) => type === "endorsed").length === 0, staleDelivery.kind === "application_refused" ? staleDelivery.reason : staleDelivery.kind);
+
+  // ---------------------------------------------------------------------------
+  // 3b. The $500 customer threshold is cumulative per policy (decision 24, F-INT-12)
+  // ---------------------------------------------------------------------------
+  //
+  // Yoann's example, on ONE policy, with every endorsement effective on the first day of the term
+  // so the prorated premium is the annual difference itself: +$300.00, +$300.00, +$50.00 of
+  // premium. The running total is the premium BEFORE tax: $300.00, then $600.00, then $650.00.
+  // The preview, the recorded request and the payment gate all read that one total.
+
+  const cumulative = await createPaidPolicy(recordSuccessfulPayment);
+  const cumulativeBroker: Actor = { userId: cumulative.brokerUserId, role: "broker", brokerId: cumulative.brokerId, customerId: null };
+  const cumulativeCustomer: Actor = { userId: cumulative.customerUserId, role: "customer", brokerId: null, customerId: cumulative.customerId };
+  const raiseTo = (newAnnualPremiumCents: number) => ({
+    policyId: cumulative.policyId,
+    effectiveAt: TERM_START,
+    newAnnualPremiumCents,
+    newPerOccurrenceLimitCents: PER_OCCURRENCE,
+    newAggregateLimitCents: AGGREGATE,
+    reason: "cumulative customer threshold check",
+    actor: cumulativeBroker,
+  });
+  const liveQuote = async (requestEventId: string) => {
+    const quote = await readEndorsementRequest(runtime, cumulative.policyId, requestEventId);
+    if (!quote) {
+      throw new Error(`the endorsement request ${requestEventId} cannot be read back`);
+    }
+    return quote;
+  };
+  // Paying a delta without opening a real hosted page: the operation and the webhook-side
+  // function are exactly the ones Stripe's callback uses.
+  const payDelta = async (requestEventId: string, amountCents: number) => {
+    const quote = await liveQuote(requestEventId);
+    const { operationId } = await createEndorsementCheckoutOperation({ quote, userId: cumulative.brokerUserId, attempt: 1 }, runtime);
+    return recordSuccessfulEndorsementPayment(
+      { operationId, paymentIntentId: `pi_cumulative_${operationId.slice(0, 8)}`, amountReceivedCents: amountCents, paidOn: TERM_START },
+      runtime,
+    );
+  };
+
+  const step1 = await planEndorsement(raiseTo(150000), runtime);
+  report(
+    "endorsement 1 adds $300.00 of premium: running total $300.00, no customer approval",
+    step1.figures.deltaPremiumCents === 30000 && step1.additionalPremiumOfTheTermCents === 30000 && !step1.figures.customerApprovalRequired,
+    `premium ${step1.figures.deltaPremiumCents}, running total ${step1.additionalPremiumOfTheTermCents}, approval ${step1.figures.customerApprovalRequired}`,
+  );
+  const requested1 = await recordEndorsementRequest({ ...raiseTo(150000), expectedQuoteHash: step1.figures.quoteHash }, runtime);
+  const paidStep1 = await payDelta(requested1.requestEventId, step1.figures.deltaTotalCents);
+  report(
+    "its delta is collected with no approval and the endorsement is in force",
+    paidStep1.kind === "posted" && (await policyCurrent(cumulative.policyId)).annual === 150000,
+    `${paidStep1.kind}, annual now ${(await policyCurrent(cumulative.policyId)).annual}`,
+  );
+
+  const step2 = await planEndorsement(raiseTo(180000), runtime);
+  report(
+    "endorsement 2 adds $300.00 more: running total $600.00, above $500.00, the customer approves",
+    step2.figures.deltaPremiumCents === 30000 && step2.additionalPremiumOfTheTermCents === 60000 && step2.figures.customerApprovalRequired,
+    `premium ${step2.figures.deltaPremiumCents}, running total ${step2.additionalPremiumOfTheTermCents}, approval ${step2.figures.customerApprovalRequired}`,
+  );
+  const requested2 = await recordEndorsementRequest({ ...raiseTo(180000), expectedQuoteHash: step2.figures.quoteHash }, runtime);
+  const standing2 = await endorsementRequestStanding(runtime, await liveQuote(requested2.requestEventId));
+  report(
+    "the recorded request reads the same base as the preview: it stands as awaiting the customer",
+    standing2.state === "awaiting_approval" && standing2.approvalRequired,
+    `${standing2.state}, approval required ${standing2.approvalRequired}`,
+  );
+  const gateBeforeApproval = await refusal(() =>
+    startEndorsementCheckout(
+      { policyId: cumulative.policyId, requestEventId: requested2.requestEventId, quoteHash: step2.figures.quoteHash, brokerId: cumulative.brokerId, userId: cumulative.brokerUserId },
+      runtime,
+    ),
+  );
+  report("the payment gate refuses to collect endorsement 2 before the customer approves", /customer has to approve/.test(gateBeforeApproval), gateBeforeApproval);
+  report(
+    "nothing was created by the refused checkout",
+    (await deltaAttempts(requested2.requestEventId)).length === 0,
+    `${(await deltaAttempts(requested2.requestEventId)).length} attempt(s)`,
+  );
+  await approveEndorsement({ policyId: cumulative.policyId, requestEventId: requested2.requestEventId, quoteHash: step2.figures.quoteHash, actor: cumulativeCustomer }, runtime);
+  const paidStep2 = await payDelta(requested2.requestEventId, step2.figures.deltaTotalCents);
+  report(
+    "once approved, the same delta is collected and applied",
+    paidStep2.kind === "posted" && (await policyCurrent(cumulative.policyId)).annual === 180000,
+    `${paidStep2.kind}, annual now ${(await policyCurrent(cumulative.policyId)).annual}`,
+  );
+
+  const step3 = await planEndorsement(raiseTo(185000), runtime);
+  report(
+    "endorsement 3 adds only $50.00, but the running total is $650.00, so the customer approves again",
+    step3.figures.deltaPremiumCents === 5000 && step3.additionalPremiumOfTheTermCents === 65000 && step3.figures.customerApprovalRequired,
+    `premium ${step3.figures.deltaPremiumCents}, running total ${step3.additionalPremiumOfTheTermCents}, approval ${step3.figures.customerApprovalRequired}`,
+  );
+  const requested3 = await recordEndorsementRequest({ ...raiseTo(185000), expectedQuoteHash: step3.figures.quoteHash }, runtime);
+  const standing3 = await endorsementRequestStanding(runtime, await liveQuote(requested3.requestEventId));
+  report("endorsement 3 waits for the customer too, on the same total", standing3.state === "awaiting_approval", standing3.state);
+  // An open request counts in the total as well as an applied one: the reduction below is priced
+  // while endorsement 3 is still waiting, and the total stays $650.00.
+  const cumulativeReduction = await planEndorsement(raiseTo(100000), runtime);
+  report(
+    "a reduction never counts and never needs approval, whatever the policy has added",
+    cumulativeReduction.figures.deltaPremiumCents < 0 && !cumulativeReduction.figures.customerApprovalRequired && cumulativeReduction.additionalPremiumOfTheTermCents === 65000,
+    `premium ${cumulativeReduction.figures.deltaPremiumCents}, running total ${cumulativeReduction.additionalPremiumOfTheTermCents}, approval ${cumulativeReduction.figures.customerApprovalRequired}`,
+  );
 
   // ---------------------------------------------------------------------------
   // 4. Broker no longer eligible when the delta arrives: recorded, then applied by staff

@@ -128,9 +128,12 @@ export default async function EndorsePolicyPage({
       {figures.direction === "charge" ? (
         <p className="note">
           The request is recorded as a policy event carrying these figures and their hash.{" "}
+          {/* The verdict is never printed without the running total behind it: this policy's
+              additional premium over the term, before tax, applied endorsements and open
+              requests together (decision 24). */}
           {figures.customerApprovalRequired
-            ? `Because this endorsement takes what this policy is asking the customer for above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}, the customer must approve it before the delta can be paid.`
-            : `At or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}, counting anything else already waiting for this customer, no approval is needed and the delta can be paid straight away.`}{" "}
+            ? `This policy has ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium since issuance, above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: the customer approves before the delta can be paid.`
+            : `This policy has ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium since issuance, at or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: no approval is needed and the delta can be paid straight away.`}{" "}
           The endorsement takes effect only when Stripe confirms the delta was paid; until then the policy terms are
           unchanged.
         </p>
