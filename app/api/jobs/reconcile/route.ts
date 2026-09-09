@@ -77,12 +77,16 @@ function readText(value: FormDataEntryValue | null): string | null {
 
 // One sentence per source for the banner on the screen. A failed run says so first: it found no
 // breaks because it could not look, which is not the same thing as finding none.
+//
+// Probes are counted BESIDE the breaks and never inside them (review finding F-YA-10): the
+// payments our own check script plants at Stripe are money nothing in the ledger will ever
+// explain, and folding them into one number is what made the board read "28 breaks".
 function describe(summaries: ReconciliationRunSummary[]): string {
   return summaries
     .map((summary) =>
       summary.status === "failed"
         ? `${summary.source} FAILED: ${summary.fetchError}`
-        : `${summary.source}: ${summary.providerRecordCount} provider records against ${summary.ledgerRecordCount} ledger records, ${breakCount(summary)} breaks`,
+        : `${summary.source}: ${summary.providerRecordCount} provider records against ${summary.ledgerRecordCount} ledger records, ${summary.counts.probe} probes, ${breakCount(summary)} breaks to act on`,
     )
     .join(" | ");
 }

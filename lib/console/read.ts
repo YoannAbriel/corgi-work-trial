@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { centsFromDatabase } from "@/lib/money/cents";
 import {
-  A_LATER_RUN_RE_EXAMINED_IT,
+  IT_IS_A_BREAK_TO_ACT_ON,
   LATEST_REPORT_OF_EACH_BREAK,
   toBreakRow,
   type BreakRowShape,
@@ -2581,10 +2581,17 @@ export const MOST_BREAKS_ON_A_360_PAGE = 50;
 
 // The open breaks that are about this subject's money.
 //
-// It reuses the two SQL fragments of lib/reconciliation/read.ts rather than restating the rule
-// that decides whether a break is open. That rule is subtle (a break is closed only by a later
-// complete run of the same source whose window covers the record) and it must exist once, or
-// this page and the reconciliation screen would disagree about the same money.
+// It reuses the SQL fragments of lib/reconciliation/read.ts rather than restating the rule that
+// decides whether a break is open. That rule is subtle (a break is closed only by a later
+// complete run of the same source whose window covers the record, and it is neither a probe nor
+// explained by anybody) and it must exist once, or this page and the reconciliation screen would
+// disagree about the same money.
+//
+// THE SHARED RULE IS IT_IS_A_BREAK_TO_ACT_ON, and that is review finding F-BREAKSBOARD-02. This
+// reader used to ask only "has a later covering run re-examined it", which was the whole rule
+// when it was written and stopped being it when the board learned to set probes and explained
+// breaks aside. A 360 page then listed as an open break a row the board counted as zero, without
+// the note that explains it. One question, asked once.
 //
 // The references are compared IN SQL, with a limit, and that is review finding F-B13-22: this
 // reader used to call openBreaks(), which reads every open break of every broker and customer
@@ -2609,7 +2616,7 @@ export async function openBreaksOfSubject(
            difference_cents::text as difference_cents,
            record_at, first_seen_at, last_reported_at, note
       from latest_report
-     where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+     where ${database.unsafe(IT_IS_A_BREAK_TO_ACT_ON)}
        and (ledger_ref = any(${ledgerRefs}::text[]) or provider_ref = any(${providerRefs}::text[]))
      order by first_seen_at, source, break_key
      limit ${limit}

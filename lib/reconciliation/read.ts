@@ -48,6 +48,7 @@ export async function recentRuns(database: postgres.Sql, limit: number): Promise
       provider_only_count: number;
       amount_mismatch_count: number;
       stale_count: number;
+      probe_count: number | null; // null on every run stored before migration 0023
       provider_record_count: number;
       ledger_record_count: number;
       note: string | null;
@@ -56,7 +57,7 @@ export async function recentRuns(database: postgres.Sql, limit: number): Promise
   >`
     select run.id, run.source, run.status, run.fetch_error, run.window_from, run.window_to,
            run.started_at, run.finished_at, run.matched_count, run.local_only_count,
-           run.provider_only_count, run.amount_mismatch_count, run.stale_count,
+           run.provider_only_count, run.amount_mismatch_count, run.stale_count, run.probe_count,
            run.provider_record_count, run.ledger_record_count, run.note,
            operator.display_name as run_by_name
       from reconciliation_runs run
@@ -79,6 +80,10 @@ export async function recentRuns(database: postgres.Sql, limit: number): Promise
       provider_only: row.provider_only_count,
       amount_mismatch: row.amount_mismatch_count,
       stale: row.stale_count,
+      // NULL means the run was stored before the probe classification existed (migration 0023),
+      // so it classified no item as a probe: zero is what that run actually recorded, and the
+      // payments that are probes today are inside its provider_only count.
+      probe: row.probe_count ?? 0,
     },
     providerRecordCount: row.provider_record_count,
     ledgerRecordCount: row.ledger_record_count,
@@ -167,6 +172,61 @@ export const A_LATER_RUN_RE_EXAMINED_IT = `
   )
 `;
 
+// A PROBE IS NOT A BREAK TO ACT ON. It is a payment one of our own check runs planted at the
+// provider on purpose, recognised by the classifier and stored as its own classification
+// (lib/reconciliation/diff.ts, isProbeFromACheckRun). It stays reported by every run that sees
+// it, it is listed on the board under its own heading, and it is counted separately.
+export const IT_IS_A_PROBE_FROM_A_CHECK_RUN = `latest_report.classification = 'probe'`;
+
+// A NOTE EXPLAINS ONE REPORT OF A BREAK, not the break for ever, and that is the correction of
+// review finding F-BREAKSBOARD-01.
+//
+// The break key is deliberately the money and not the classification (lib/reconciliation/breaks.ts):
+// a break that gets worse keeps its key and its age. A note keyed on nothing but that key
+// therefore went on excluding the break after a later run described it differently, so a `stale`
+// refund somebody had explained stayed out of the count, the inbox, the MCP tool and the daily
+// job's window on the day it became a `provider_only` with a real difference.
+//
+// So the note carries the description it was written against: the classification and the two
+// amounts of the latest report at that moment (migration 0025). It explains that report and no
+// other. `is not distinct from` rather than `=` because either amount is legitimately null.
+//
+// A note written before migration 0025 has no recorded classification, so it matches nothing and
+// its break is work again: we cannot know what it was about, and writing a new note is one click.
+export const THE_NOTE_EXPLAINS_THE_LATEST_REPORT = `
+  note.explained_classification = latest_report.classification
+  and note.explained_provider_amount_cents is not distinct from latest_report.provider_amount_cents
+  and note.explained_ledger_amount_cents is not distinct from latest_report.ledger_amount_cents
+`;
+
+// SOMEBODY HAS EXPLAINED IT: a staff operations user wrote a note against this break key
+// (reconciliation_break_notes, migration 0022) describing the break exactly as the latest run
+// still describes it. The note repairs nothing and hides nothing. It says a human has looked at
+// this break and knows what it is, which is what takes it out of the list of things to act on and
+// out of the inbox; the break stays on the screen, under its own heading, with the note, its
+// author and its date. The day a run reports it differently, no note matches any more and the
+// break is back in the list, its notes still on file and shown beside it.
+export const SOMEBODY_HAS_EXPLAINED_IT = `
+  exists (
+    select 1 from reconciliation_break_notes note
+     where note.break_key = latest_report.break_key
+       and ${THE_NOTE_EXPLAINS_THE_LATEST_REPORT}
+  )
+`;
+
+// WHAT "OPEN" MEANS FOR THE COUNT, THE INBOX, THE MCP TOOL AND THE BOARD: still reported by the
+// latest complete run that looked, not re-examined since by a run that covered it, not a probe,
+// and not explained by anybody. Declared once, for the reason the two fragments above are: the
+// badge, the list it points at, the 360 page and the MCP tool must ask the same question.
+//
+// THE DAILY JOB DELIBERATELY ASKS A WIDER QUESTION, and it is not the same question at all
+// (oldestOpenBreakRecordDate below, review finding F-BREAKSBOARD-07).
+export const IT_IS_A_BREAK_TO_ACT_ON = `
+  not ${A_LATER_RUN_RE_EXAMINED_IT}
+  and not ${IT_IS_A_PROBE_FROM_A_CHECK_RUN}
+  and not ${SOMEBODY_HAS_EXPLAINED_IT}
+`;
+
 // The columns of one break row, qualified so the same list reads correctly in a query that
 // joins something else beside it. Shared for the ordinary reason: three readers return this shape
 // (BreakRowShape below), and a column added to one of them and not the others would give the
@@ -181,19 +241,19 @@ const THE_COLUMNS_OF_A_BREAK_ROW = `
   latest_report.note
 `;
 
-// Everything still unexplained: reported as a break by some complete run, and not re-examined
-// since by a run that covered it.
+// Everything still to act on: reported as a break by some complete run, not re-examined since by
+// a run that covered it, not a probe and not explained by anybody.
 //
 // STILL DELIBERATELY UNBOUNDED, and it is the callers that decide. The inbox, the MCP tool and
 // the daily job ask this question because they must not miss a break, so the answer is complete
-// by construction. A screen showing a page of it asks `openBreaksPage` below, which bounds the
-// read and says so on the page rather than dropping rows in silence (finding F-B10-07).
+// by construction. The board asks `openBreaksPage` below, which bounds the read and says so on
+// the page rather than dropping rows in silence (finding F-B10-07).
 export async function openBreaks(database: postgres.Sql): Promise<ReconciliationBreakRow[]> {
   const rows = await database<BreakRowShape[]>`
     with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
     select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)}
       from latest_report
-     where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+     where ${database.unsafe(IT_IS_A_BREAK_TO_ACT_ON)}
      order by first_seen_at, source, break_key
   `;
   return rows.map(toBreakRow);
@@ -241,33 +301,47 @@ const IS_THE_SAME_MONEY_AS_THE_RESOLVED_ROW = `
 // exactly as the number that matters grew. `open_report` is the same rule the open list uses,
 // declared once above, so the two lists cannot drift apart.
 export async function resolvedBreaks(database: postgres.Sql, limit: number): Promise<ReconciliationBreakRow[]> {
-  const rows = await database<(BreakRowShape & { open_break_key: string | null; open_shared_ref: string | null })[]>`
+  const rows = await database<(BreakRowShape & { open_count: number; open_breaks_named: string | null })[]>`
     with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)}),
+         -- STILL BEING REPORTED, which here is deliberately wider than "a break to act on": a
+         -- probe and an explained break are money that is still exactly where it was, so a
+         -- resolved row sharing a reference with one of them is not resolved either. The
+         -- question this list asks is about the money, not about the operator's queue.
          open_report as (
            select source, break_key, provider_ref, ledger_ref
              from latest_report
             where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
          )
     select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)},
-           still_open.break_key as open_break_key,
-           still_open.shared_ref as open_shared_ref
+           still_open.open_count,
+           still_open.open_breaks_named
       from latest_report
-      -- The open break of ANOTHER money movement that carries one of this row's references, when
-      -- there is one. It annotates the line; it never removes it.
+      -- The open breaks of ANOTHER money movement that carry one of this row's references. They
+      -- annotate the line; they never remove it.
+      --
+      -- ALL OF THEM, counted and named, and that is review finding F-LS-04: this used to take the
+      -- first by key and say "ANOTHER BREAK", which sent the operator to one of two or three real
+      -- open breaks and said nothing about the others. An aggregate with no limit always returns
+      -- exactly one row, so open_count is 0 and open_breaks_named is null when there is none.
       left join lateral (
-        select open_report.break_key,
-               case
-                 when open_report.provider_ref is not null
-                  and (open_report.provider_ref = latest_report.provider_ref
-                       or open_report.provider_ref = latest_report.ledger_ref)
-                 then open_report.provider_ref
-                 else open_report.ledger_ref
-               end as shared_ref
+        select count(*)::int as open_count,
+               string_agg(
+                 open_report.break_key || ' carrying ' ||
+                 coalesce(
+                   case
+                     when open_report.provider_ref is not null
+                      and (open_report.provider_ref = latest_report.provider_ref
+                           or open_report.provider_ref = latest_report.ledger_ref)
+                     then open_report.provider_ref
+                     else open_report.ledger_ref
+                   end,
+                   '(unnamed)'
+                 ),
+                 '; ' order by open_report.break_key
+               ) as open_breaks_named
           from open_report
          where ${database.unsafe(SHARES_A_REFERENCE_WITH_THE_RESOLVED_ROW)}
            and not (${database.unsafe(IS_THE_SAME_MONEY_AS_THE_RESOLVED_ROW)})
-         order by open_report.break_key
-         limit 1
       ) still_open on true
      where ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
        -- The same money, still open under another key, is not resolved at all (F-B10-11): that
@@ -283,28 +357,51 @@ export async function resolvedBreaks(database: postgres.Sql, limit: number): Pro
   `;
   return rows.map((row) => {
     const resolved = toBreakRow(row);
-    if (!row.open_break_key) {
+    if (row.open_count === 0 || !row.open_breaks_named) {
       return resolved;
     }
-    // Worded for THIS record: what stopped being reported is this one, and the reference it
-    // shares is still open on another break, which the reader has to be sent to.
+    // Worded for THIS record: what stopped being reported is this one, and every break still open
+    // on a reference it shares is named, so the reader is sent to all of them and not to one of
+    // them (review finding F-LS-04).
+    const heading =
+      row.open_count === 1
+        ? "ANOTHER BREAK ON THIS SOURCE IS STILL OPEN CARRYING THE SAME REFERENCE"
+        : `${row.open_count} OTHER BREAKS ON THIS SOURCE ARE STILL OPEN CARRYING THE SAME REFERENCE`;
     return {
       ...resolved,
       note:
-        `${resolved.note}; ANOTHER BREAK ON THIS SOURCE IS STILL OPEN CARRYING THE SAME REFERENCE ` +
-        `${row.open_shared_ref ?? "(unnamed)"} (break ${row.open_break_key}), so this line says that THIS record ` +
-        `stopped being reported, and nothing about the money behind that other break`,
+        `${resolved.note}; ${heading} (${row.open_breaks_named}), so this line says that THIS record ` +
+        `stopped being reported, and nothing about the money behind ${row.open_count === 1 ? "that other break" : "those other breaks"}`,
     };
   });
 }
 
-// The oldest record date among the open breaks of EVERY source, or null when nothing is open. The
-// daily job asks this so its one window reaches back far enough to re-examine what is still open
-// instead of leaving it unlooked at for ever (finding F-B10-01). One window for both sources,
-// because the job runs them on the same window and the older of the two is what decides.
+// The oldest record date among the breaks STILL BEING REPORTED, of every source, or null when
+// none is. The daily job asks this so its one window reaches back far enough to re-examine what
+// is still open instead of leaving it unlooked at for ever (finding F-B10-01). One window for
+// both sources, because the job runs them on the same window and the older of the two decides.
+//
+// WHY THIS QUESTION IS WIDER THAN IT_IS_A_BREAK_TO_ACT_ON, and it is review finding
+// F-BREAKSBOARD-07. The two readers ask two different things:
+//
+//   the count, the badge, the inbox, the MCP tool and the board ask "what is on the operator's
+//   desk today", so a probe and an explained break are correctly out of it;
+//
+//   the daily job asks "how far back must one run look", and the answer must include them,
+//   because looking is exactly how an explained break stops being explained. A note explains one
+//   report of a break (THE_NOTE_EXPLAINS_THE_LATEST_REPORT); the note stops matching only when a
+//   LATER RUN reports the break differently, and no later run can report it at all once the
+//   record falls outside the window. Narrowing this question froze every explained break older
+//   than the seven-day default: the note went on matching for ever because nothing ever looked
+//   again. A probe is included for the same mechanical reason, at no cost: it is money we planted
+//   and re-comparing it changes nothing, while leaving it out would let the window snap shut on
+//   the day the only rows left are probes and explained breaks.
+//
+// So the rule here is `not A_LATER_RUN_RE_EXAMINED_IT` alone, which is exactly the rule the
+// `open_report` CTE of resolvedBreaks already uses, and for the reason written there: a probe and
+// an explained break are money that is still exactly where it was.
 export async function oldestOpenBreakRecordDate(database: postgres.Sql): Promise<Date | null> {
-  // One aggregate, not every open row read back to take a minimum of it (finding F-B10-07). The
-  // rule is the shared one, so this date and the open list can never disagree.
+  // One aggregate, not every open row read back to take a minimum of it (finding F-B10-07).
   const [row] = await database<{ oldest: Date | null }[]>`
     with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
     select min(record_at) as oldest
@@ -324,24 +421,192 @@ export async function oldestOpenBreakRecordDate(database: postgres.Sql): Promise
 // every open break, so the screen can print the sentence instead of quietly showing a part of the
 // list as if it were the whole of it.
 export type OpenBreaksPage = {
-  rows: ReconciliationBreakRow[];
+  rows: OpenBreakRow[];
   totalOpen: number;
   capped: boolean; // totalOpen > rows.length: the screen must say so
 };
 
+// A note somebody wrote on this break that no longer explains it: the run now describes the break
+// differently, so the note is superseded and the break is work again (review finding
+// F-BREAKSBOARD-01). It is carried on the row so that the note does not simply disappear from the
+// screen the moment it stops counting: the operator reads what was said, when, about which
+// classification, and decides again.
+//
+// Only the open list needs this. A break to act on that carries a note carries no matching one,
+// by the rule above, so the latest note of the break is the superseded one.
+export type SupersededExplanation = {
+  note: string;
+  explainedByName: string;
+  recordedAt: Date;
+  explainedClassification: string | null; // null on a note written before migration 0025
+};
+
+export type OpenBreakRow = ReconciliationBreakRow & { supersededExplanation: SupersededExplanation | null };
+
 export async function openBreaksPage(database: postgres.Sql, limit: number): Promise<OpenBreaksPage> {
   const [rows, totalOpen] = await Promise.all([
-    database<BreakRowShape[]>`
+    database<
+      (BreakRowShape & {
+        superseded_note: string | null;
+        superseded_by_name: string | null;
+        superseded_recorded_at: Date | null;
+        superseded_classification: string | null;
+      })[]
+    >`
       with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
-      select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)}
+      select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)},
+             superseded.note as superseded_note,
+             superseded.explained_by_name as superseded_by_name,
+             superseded.recorded_at as superseded_recorded_at,
+             superseded.explained_classification as superseded_classification
         from latest_report
-       where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+        -- A left join: most breaks to act on carry no note at all, and those that do keep their
+        -- line unchanged with one sentence added.
+        left join lateral (
+          select note.note, note.recorded_at, note.explained_classification,
+                 author.display_name as explained_by_name
+            from reconciliation_break_notes note
+            left join users author on author.id = note.explained_by
+           where note.break_key = latest_report.break_key
+           order by note.recorded_at desc
+           limit 1
+        ) superseded on true
+       where ${database.unsafe(IT_IS_A_BREAK_TO_ACT_ON)}
        order by first_seen_at, source, break_key
        limit ${limit}
     `,
     countOpenBreaks(database),
   ]);
-  return { rows: rows.map(toBreakRow), totalOpen, capped: totalOpen > rows.length };
+  return {
+    rows: rows.map((row) => ({
+      ...toBreakRow(row),
+      supersededExplanation:
+        row.superseded_note === null || row.superseded_recorded_at === null
+          ? null
+          : {
+              note: row.superseded_note,
+              explainedByName: row.superseded_by_name ?? "a user who no longer exists",
+              recordedAt: row.superseded_recorded_at,
+              explainedClassification: row.superseded_classification,
+            },
+    })),
+    totalOpen,
+    capped: totalOpen > rows.length,
+  };
+}
+
+// The probes still being reported, for the board's own heading.
+//
+// Same shape and same bound as the page above, and the same reason for the bound: the check
+// script plants one more probe on every run, so this list grows for ever by construction and a
+// screen must never draw all of it while pretending it drew all of it.
+//
+// A probe an operator has ALSO written a note on is left out here and shown under the explained
+// breaks with its note: the three lists of the board are disjoint, so no record is read twice.
+export type ProbePage = {
+  rows: ReconciliationBreakRow[];
+  totalProbes: number;
+  capped: boolean;
+};
+
+export async function probesPage(database: postgres.Sql, limit: number): Promise<ProbePage> {
+  const [rows, [count]] = await Promise.all([
+    database<BreakRowShape[]>`
+      with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+      select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)}
+        from latest_report
+       where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+         and ${database.unsafe(IT_IS_A_PROBE_FROM_A_CHECK_RUN)}
+         and not ${database.unsafe(SOMEBODY_HAS_EXPLAINED_IT)}
+       order by first_seen_at, source, break_key
+       limit ${limit}
+    `,
+    database<{ probes: number }[]>`
+      with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+      select count(*)::int as probes
+        from latest_report
+       where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+         and ${database.unsafe(IT_IS_A_PROBE_FROM_A_CHECK_RUN)}
+         and not ${database.unsafe(SOMEBODY_HAS_EXPLAINED_IT)}
+    `,
+  ]);
+  return { rows: rows.map(toBreakRow), totalProbes: count.probes, capped: count.probes > rows.length };
+}
+
+// A break somebody has explained: the row exactly as it was reported, plus the latest note
+// written on it, who wrote it and when.
+//
+// The LATEST note, and the number of notes, because the table is append-only: a correction is a
+// new note and the earlier ones stay on file. Nothing here says the break was repaired; it says
+// a human has looked at it.
+export type BreakExplanation = {
+  note: string;
+  explainedByName: string;
+  recordedAt: Date;
+  noteCount: number;
+};
+
+export type ExplainedBreakRow = ReconciliationBreakRow & { explanation: BreakExplanation };
+
+export type ExplainedBreaksPage = {
+  rows: ExplainedBreakRow[];
+  totalExplained: number;
+  capped: boolean;
+};
+
+export async function explainedBreaksPage(database: postgres.Sql, limit: number): Promise<ExplainedBreaksPage> {
+  const [rows, [count]] = await Promise.all([
+    database<(BreakRowShape & { note_text: string; explained_by_name: string | null; note_recorded_at: Date; note_count: number })[]>`
+      with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+      select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)},
+             explanation.note as note_text,
+             explanation.explained_by_name,
+             explanation.recorded_at as note_recorded_at,
+             explanation.note_count
+        from latest_report
+        -- The latest note THAT EXPLAINS THE BREAK AS IT STANDS, with the name of whoever wrote it
+        -- and how many notes the break carries in all. An inner join, not a left join: a row
+        -- without such a note is not an explained break and has no business in this list, and
+        -- that is what keeps this list and the list to act on disjoint after a break has changed
+        -- (review finding F-BREAKSBOARD-01). The count beside it uses the same rule.
+        join lateral (
+          select note.note, note.recorded_at, author.display_name as explained_by_name,
+                 (select count(*)::int from reconciliation_break_notes all_notes
+                   where all_notes.break_key = latest_report.break_key) as note_count
+            from reconciliation_break_notes note
+            left join users author on author.id = note.explained_by
+           where note.break_key = latest_report.break_key
+             and ${database.unsafe(THE_NOTE_EXPLAINS_THE_LATEST_REPORT)}
+           order by note.recorded_at desc
+           limit 1
+        ) explanation on true
+       where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+       order by explanation.recorded_at desc
+       limit ${limit}
+    `,
+    database<{ explained: number }[]>`
+      with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+      select count(*)::int as explained
+        from latest_report
+       where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+         and ${database.unsafe(SOMEBODY_HAS_EXPLAINED_IT)}
+    `,
+  ]);
+  return {
+    rows: rows.map((row) => ({
+      ...toBreakRow(row),
+      explanation: {
+        note: row.note_text,
+        // The author is read through a left join, so a note whose user row disappeared still
+        // shows the note rather than the whole line vanishing.
+        explainedByName: row.explained_by_name ?? "a user who no longer exists",
+        recordedAt: row.note_recorded_at,
+        noteCount: row.note_count,
+      },
+    })),
+    totalExplained: count.explained,
+    capped: count.explained > rows.length,
+  };
 }
 
 export type BreakRowShape = {
@@ -387,7 +652,7 @@ export async function countOpenBreaks(database: postgres.Sql): Promise<number> {
     with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
     select count(*)::int as open_breaks
       from latest_report
-     where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+     where ${database.unsafe(IT_IS_A_BREAK_TO_ACT_ON)}
   `;
   return row.open_breaks;
 }
