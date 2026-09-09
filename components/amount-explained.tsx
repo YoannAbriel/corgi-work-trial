@@ -61,6 +61,16 @@ export function AmountExplained({
   // lines), and then neither the connector nor the link exists.
   const traceEntryId = explanation.evidence?.find((entry) => entry.entryId)?.entryId;
 
+  // THE SIGN CONVENTION INSIDE A FOLD (Yoann, 2026-09-09). A fold explains many different kinds of
+  // figure: a tax, a fee, a claim reserve, a broker statement. The only direction that means the
+  // same thing in all of them is a line that TAKES AWAY: a clawback, a refund, a reversal. Those
+  // lines are printed in the danger ink, with the minus lib/money/cents.ts already writes, so THE
+  // TEXT OF EVERY CELL IS UNCHANGED and only the colour is added. Nothing else is coloured here:
+  // a positive line is a step of the arithmetic, not a movement, and a fold must never claim a
+  // direction its explanation does not carry. No line is muted either, for the same reason: every
+  // line of a fold produces the figure, none of them is a reference beside it.
+  const linesThatTakeAway = explanation.lines.filter((line) => line.cents < 0).map((line) => line.key);
+
   return (
     <AmountExplainedMotion
       finalText={formatCentsAsUsd(amountCents)}
@@ -111,7 +121,12 @@ export function AmountExplained({
         </>
       }
       formula={
-        <FormulaLinesTable lines={explanation.lines} highlightKey={explanation.resultKey} subtotalTexts={subtotalTexts} />
+        <FormulaLinesTable
+          lines={explanation.lines}
+          highlightKey={explanation.resultKey}
+          subtotalTexts={subtotalTexts}
+          signedKeys={linesThatTakeAway}
+        />
       }
       rounding={
         <p className="amount-explain-rounding">
