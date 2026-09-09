@@ -73,6 +73,20 @@ function percentOfBasisPoints(basisPoints: number): string {
   return `${(basisPoints / 100).toFixed(2)}%`;
 }
 
+// Signed cents written out as a sum a person would write: "34680 - 30499", never
+// "34680 + -30499" (review finding F-B12-05). A negative first term keeps its sign, and a zero
+// prints as "0" and never as "-0", which is what `-${0}` in a template used to produce.
+function joinSignedCents(amounts: number[]): string {
+  if (amounts.length === 0) {
+    return "0";
+  }
+  return amounts
+    .map((amount, position) =>
+      position === 0 ? String(amount) : amount < 0 ? ` - ${Math.abs(amount)}` : ` + ${amount}`,
+    )
+    .join("");
+}
+
 // ---------------------------------------------------------------------------
 // The policy's terms in force: tax, fee, total
 // ---------------------------------------------------------------------------
@@ -429,7 +443,7 @@ export function explainAccountSum(input: {
   lines.push({
     key: "total",
     label: input.totalLabel,
-    formula: lines.length === 0 ? nothingYet : lines.map((line) => line.cents).join(" + "),
+    formula: lines.length === 0 ? nothingYet : joinSignedCents(lines.map((line) => line.cents)),
     cents: accountSumCents(input.entries, input.accountId, input.rule),
   });
   return {
@@ -517,7 +531,7 @@ export function explainStatementTotal(input: {
         {
           key: "clawback",
           label: "Commission clawed back on refunded premium",
-          formula: `-${input.clawbackCents}`,
+          formula: String(-input.clawbackCents),
           cents: -input.clawbackCents,
         },
         {
@@ -529,7 +543,7 @@ export function explainStatementTotal(input: {
         {
           key: "net_due",
           label: "Net due to the broker",
-          formula: `${input.commissionEarnedCents} - ${input.clawbackCents} + ${input.adjustmentCents}`,
+          formula: joinSignedCents([input.commissionEarnedCents, -input.clawbackCents, input.adjustmentCents]),
           cents: input.commissionEarnedCents - input.clawbackCents + input.adjustmentCents,
         },
       ],
@@ -553,7 +567,7 @@ export function explainStatementTotal(input: {
   lines.push({
     key: "total",
     label: TOTAL_LABEL[key],
-    formula: lines.length === 0 ? "no line of this kind this month" : lines.map((line) => line.cents).join(" + "),
+    formula: lines.length === 0 ? "no line of this kind this month" : joinSignedCents(lines.map((line) => line.cents)),
     cents: total,
   });
   return {

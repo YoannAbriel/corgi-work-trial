@@ -302,6 +302,53 @@ test("each statement total ends on the figure the run stored", () => {
   assertExplains(explainStatementTotal({ ...totals, key: "net_due" }), 4932);
 });
 
+// Review finding F-B12-05: a negative contribution is written as a subtraction.
+test("a sum of signed cents reads as a person would write it", () => {
+  const reversed: JournalEntryForExplanation[] = [
+    ...JOURNAL,
+    {
+      entryType: "reversal_of_premium_collected",
+      effectiveAt: "2026-09-08",
+      recordedAt: new Date("2026-09-08T12:00:00.000Z"),
+      lines: [
+        { accountId: "cash_stripe", accountName: "cash_stripe", debitCents: 0, creditCents: 125320 },
+        { accountId: "premium_receivable", accountName: "premium_receivable", debitCents: 125320, creditCents: 0 },
+      ],
+    },
+  ];
+  const balance = explainAccountSum({
+    entries: reversed,
+    accountId: "cash_stripe",
+    rule: "credits_minus_debits",
+    totalLabel: "Cash balance",
+  });
+  const total = balance.lines[balance.lines.length - 1];
+  assert.equal(total.formula, "-125320 + 89172 + 125320");
+  assert.equal(total.cents, 89172);
+
+  // An empty month prints a zero clawback line, never "-0".
+  const netDue = explainStatementTotal({
+    lines: [],
+    key: "net_due",
+    commissionEarnedCents: 0,
+    clawbackCents: 0,
+    adjustmentCents: 0,
+    netDueCents: 0,
+  });
+  assert.equal(netDue.lines.find((line) => line.key === "clawback")?.formula, "0");
+  assert.equal(netDue.lines.find((line) => line.key === "net_due")?.formula, "0 + 0 + 0");
+
+  const withClawback = explainStatementTotal({
+    lines: [],
+    key: "net_due",
+    commissionEarnedCents: 18000,
+    clawbackCents: 13068,
+    adjustmentCents: 0,
+    netDueCents: 4932,
+  });
+  assert.equal(withClawback.lines.find((line) => line.key === "net_due")?.formula, "18000 - 13068 + 0");
+});
+
 test("the commission fold names the rounding rule the ledger posted with", () => {
   const explanation = explainStatementTotal({
     lines: STATEMENT_LINES,
