@@ -357,6 +357,69 @@ function summarise(eventType: string, payload: Record<string, unknown>): string 
 }
 
 // ---------------------------------------------------------------------------
+// The dates the "as it stood on" control steps through (slice B12-3)
+// ---------------------------------------------------------------------------
+
+export type PolicyAsOfStep = {
+  date: string; // "YYYY-MM-DD", the value the ?asOf link carries
+  label: string; // what happened that day, in the reader's words
+};
+
+// An event type that changes what the policy IS on a date, and the word the step wears. A
+// correction_reversal is deliberately absent: it carries the WRONG date, the one being put right,
+// and offering it as a step would invite a reader to rebuild the policy on a date the correction
+// exists to erase. The re-book carries the corrected date and is the step.
+const STEP_LABEL: Record<string, string> = {
+  endorsed: "endorsement",
+  correction_rebook: "corrected endorsement",
+  cancelled: "cancellation",
+};
+
+// The dates worth asking about on one policy: the term start, every effective date of an event
+// still in force, and today. Superseded events are skipped, exactly as the timeline strikes them
+// through: the fold no longer applies them, so rebuilding the policy on their date would answer a
+// question about a fact that was put right.
+//
+// Two steps on the same day become one step with both words, so the row never shows the same date
+// twice and the highlight can be decided by date alone.
+export async function policyAsOfSteps(
+  policyId: string,
+  termStart: string,
+  today: string,
+  database: Queryable = sql,
+): Promise<PolicyAsOfStep[]> {
+  const rows = await policyTimeline(policyId, database);
+
+  const labelsByDate = new Map<string, string[]>();
+  const addStep = (date: string, label: string): void => {
+    const labels = labelsByDate.get(date);
+    if (!labels) {
+      labelsByDate.set(date, [label]);
+      return;
+    }
+    if (!labels.includes(label)) {
+      labels.push(label);
+    }
+  };
+
+  addStep(termStart, "term start");
+  for (const row of rows) {
+    if (row.supersededByEventId) {
+      continue; // struck through on the timeline: the fold no longer applies it
+    }
+    const label = STEP_LABEL[row.eventType];
+    if (label) {
+      addStep(row.effectiveAt, label);
+    }
+  }
+  addStep(today, "today");
+
+  return [...labelsByDate.entries()]
+    .map(([date, labels]) => ({ date, label: labels.join(", ") }))
+    .sort((first, second) => (first.date < second.date ? -1 : first.date > second.date ? 1 : 0));
+}
+
+// ---------------------------------------------------------------------------
 // The policy as it stood on a business date
 // ---------------------------------------------------------------------------
 

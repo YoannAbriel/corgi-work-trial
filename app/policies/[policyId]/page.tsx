@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { AmountExplained } from "@/components/amount-explained";
 import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Facts, Panel } from "@/components/detail-layout";
 import { JournalTable } from "@/components/journal-table";
@@ -12,6 +13,15 @@ import { claimsWithPositions } from "@/lib/claims/read";
 import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
+import {
+  accountSumCents,
+  evidenceFromJournal,
+  explainAccountSum,
+  explainCancellationFigure,
+  explainPolicyFee,
+  explainStateTax,
+  explainTotalCharge,
+} from "@/lib/money/explain";
 import { endorsementScheduleOfPolicy, endorsementsOfPolicy, type EndorsementView } from "@/lib/policy/endorsement-read";
 import {
   cancellationOfPolicy,
@@ -262,10 +272,55 @@ export default async function PolicyPage({
                   { label: "Annual premium", value: formatCentsAsUsd(policy.annualPremiumCents) },
                   {
                     label: `${policy.stateCode} premium tax (${(policy.taxRateBps / 100).toFixed(2)}%)`,
-                    value: formatCentsAsUsd(policy.taxCents),
+                    // Slice B12-2: the fold recomputes the tax with the same pure function the
+                    // issuance used, so a stored figure that no longer matches its own premium
+                    // and rate would be said out loud instead of explained away.
+                    value: (
+                      <AmountExplained
+                        amountCents={policy.taxCents}
+                        label={`${policy.stateCode} premium tax on the annual premium in force`}
+                        explanation={{
+                          ...explainStateTax({
+                            stateCode: policy.stateCode,
+                            annualPremiumCents: policy.annualPremiumCents,
+                            taxRateBps: policy.taxRateBps,
+                            evidence: evidenceFromJournal(entries, "premium_tax_payable"),
+                          }),
+                          evidenceLabel:
+                            "The premium tax entries booked on this policy so far (issuance, and any endorsement or cancellation).",
+                        }}
+                      />
+                    ),
                   },
-                  { label: "Policy fee, once at issuance", value: formatCentsAsUsd(policy.feeCents) },
-                  { label: "Full annual term at these terms", value: formatCentsAsUsd(policy.totalChargeCents), emphasis: true },
+                  {
+                    label: "Policy fee, once at issuance",
+                    value: (
+                      <AmountExplained
+                        amountCents={policy.feeCents}
+                        label="Flat policy fee"
+                        explanation={explainPolicyFee({
+                          feeCents: policy.feeCents,
+                          evidence: evidenceFromJournal(entries, "fee_income"),
+                        })}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Full annual term at these terms",
+                    value: (
+                      <AmountExplained
+                        amountCents={policy.totalChargeCents}
+                        label="What a full annual term at the terms in force costs the customer"
+                        explanation={explainTotalCharge({
+                          stateCode: policy.stateCode,
+                          annualPremiumCents: policy.annualPremiumCents,
+                          taxCents: policy.taxCents,
+                          feeCents: policy.feeCents,
+                        })}
+                      />
+                    ),
+                    emphasis: true,
+                  },
                   { label: "Per-occurrence limit", value: formatCentsAsUsd(policy.perOccurrenceLimitCents) },
                   { label: "Aggregate limit", value: formatCentsAsUsd(policy.aggregateLimitCents) },
                   { label: "Broker commission rate", value: `${(policy.commissionRateBps / 100).toFixed(2)}%` },
@@ -323,8 +378,31 @@ export default async function PolicyPage({
                               ) : null}
                             </td>
                             <td className="amount">
-                              {formatCentsAsUsd(row.figures.deltaTotalCents)}
-                              <br />
+                              {/* Slice B12-2: the fold reuses the endorsement's OWN formula lines,
+                                  the ones stored on the event and posted to the journal, and points
+                                  at their total line. Nothing is recomputed for display. */}
+                              <AmountExplained
+                                amountCents={row.figures.deltaTotalCents}
+                                size="inline"
+                                label={`Prorated delta of the endorsement effective ${row.effectiveAt}`}
+                                explanation={{
+                                  lines: row.lines,
+                                  resultKey: "delta_total",
+                                  rounding:
+                                    row.figures.direction === "refund"
+                                      ? "Rounded up (ceil) on the premium given back and its tax: the customer receives this, so the fraction of a cent goes their way. Commission is rounded down."
+                                      : "Rounded down (floor) on the premium charged and its tax: the customer pays this, so the insurer absorbs the fraction of a cent.",
+                                  note: `${row.figures.daysRemaining} of ${row.figures.termDays} days remained from ${row.effectiveAt}. The delta is the money that moved, not the change in the annual premium.`,
+                                  evidence: row.stripeReferences.map((reference) => ({
+                                    entryType: "Stripe reference",
+                                    effectiveAt: row.effectiveAt,
+                                    recordedAt: row.recordedAt,
+                                    detail: reference,
+                                  })),
+                                  evidenceLabel:
+                                    "The Stripe references of the money that moved for this endorsement (the journal entries are in the journal panel below).",
+                                }}
+                              />
                               <span className="note">
                                 {formatCentsAsUsd(row.figures.deltaPremiumCents)} premium, {formatCentsAsUsd(row.figures.deltaTaxCents)} tax
                               </span>
@@ -435,41 +513,117 @@ export default async function PolicyPage({
                   method {cancellation.calculationMethod}. Every figure is the one stored on the cancellation event and
                   posted to the journal.
                 </p>
+                {/* Slice B12-2: every figure of this panel carries its own fold. All seven show
+                    the SAME table of lines, built once from the figures the cancellation event
+                    stored (lib/money/explain.ts, cancellationFormulaLines), each pointing at a
+                    different line of it, so the seven folds cannot tell seven different stories. */}
                 <div className="table-scroll" role="region" aria-label="Cancellation amounts" tabIndex={0}>
                   <table className="amounts">
                     <tbody>
                       <tr>
                         <th>Written premium</th>
-                        <td className="amount">{formatCentsAsUsd(cancellation.writtenPremiumCents)}</td>
+                        <td className="amount">
+                          <AmountExplained
+                            amountCents={cancellation.writtenPremiumCents}
+                            size="inline"
+                            label="Written premium on this policy"
+                            explanation={explainCancellationFigure(cancellation, "written_premium")}
+                          />
+                        </td>
                       </tr>
                       <tr>
                         <th>Earned over {cancellation.earnedDays} of {cancellation.termDays} days, kept by the insurer</th>
-                        <td className="amount">{formatCentsAsUsd(cancellation.earnedPremiumCents)}</td>
+                        <td className="amount">
+                          <AmountExplained
+                            amountCents={cancellation.earnedPremiumCents}
+                            size="inline"
+                            label="Premium earned up to the cancellation date"
+                            explanation={{
+                              ...explainCancellationFigure(
+                                cancellation,
+                                "earned_premium",
+                                evidenceFromJournal(entries, "earned_premium"),
+                              ),
+                              evidenceLabel: "The entries that moved premium from unearned to earned.",
+                            }}
+                          />
+                        </td>
                       </tr>
                       <tr>
                         <th>Unearned premium, refunded</th>
-                        <td className="amount">{formatCentsAsUsd(cancellation.unearnedPremiumCents)}</td>
+                        <td className="amount">
+                          <AmountExplained
+                            amountCents={cancellation.unearnedPremiumCents}
+                            size="inline"
+                            label="Unearned premium given back to the customer"
+                            explanation={explainCancellationFigure(cancellation, "unearned_premium")}
+                          />
+                        </td>
                       </tr>
                       <tr>
                         <th>
                           {policy.stateCode} premium tax on the refunded premium ({(cancellation.taxRateBps / 100).toFixed(2)}%)
                         </th>
-                        <td className="amount">{formatCentsAsUsd(cancellation.refundedTaxCents)}</td>
+                        <td className="amount">
+                          <AmountExplained
+                            amountCents={cancellation.refundedTaxCents}
+                            size="inline"
+                            label={`${policy.stateCode} premium tax given back with the refunded premium`}
+                            explanation={explainCancellationFigure(cancellation, "refunded_tax")}
+                          />
+                        </td>
                       </tr>
                       <tr>
                         <th>Policy fee, earned at issuance, never refunded</th>
-                        <td className="amount">{formatCentsAsUsd(cancellation.refundedFeeCents)}</td>
+                        <td className="amount">
+                          <AmountExplained
+                            amountCents={cancellation.refundedFeeCents}
+                            size="inline"
+                            label="Policy fee given back"
+                            explanation={explainCancellationFigure(cancellation, "refunded_fee")}
+                          />
+                        </td>
                       </tr>
                       <tr className="total">
                         <th>Total refunded</th>
-                        <td className="amount">{formatCentsAsUsd(cancellation.totalRefundCents)}</td>
+                        <td className="amount">
+                          <AmountExplained
+                            amountCents={cancellation.totalRefundCents}
+                            size="inline"
+                            label="Total refunded to the customer through Stripe"
+                            explanation={{
+                              ...explainCancellationFigure(
+                                cancellation,
+                                "total_refund",
+                                evidenceFromJournal(entries, "refund_payable"),
+                              ),
+                              evidenceLabel:
+                                "The entries that opened the refund and, once Stripe confirmed it, sent the cash back.",
+                            }}
+                          />
+                        </td>
                       </tr>
                       <tr>
                         <th>
                           Commission clawed back from the broker ({(cancellation.commissionRateBps / 100).toFixed(2)}% of the
                           refunded premium, rounded down)
                         </th>
-                        <td className="amount">{formatCentsAsUsd(cancellation.commissionClawbackCents)}</td>
+                        <td className="amount">
+                          <AmountExplained
+                            amountCents={cancellation.commissionClawbackCents}
+                            size="inline"
+                            label="Broker commission clawed back on the refunded premium"
+                            explanation={{
+                              ...explainCancellationFigure(
+                                cancellation,
+                                "commission_clawback",
+                                evidenceFromJournal(entries, "commission_payable"),
+                              ),
+                              evidenceLabel:
+                                "Every entry that moved this broker's commission payable on this policy: the commission earned at collection, then the clawback.",
+                            }}
+                          />
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -686,10 +840,77 @@ export default async function PolicyPage({
                       "not started"
                     ),
                   },
-                  { label: "Collected at Stripe", value: formatCentsAsUsd(ledger.collectedCents) },
-                  { label: "Refunded from Stripe", value: formatCentsAsUsd(ledger.refundedCents) },
-                  { label: "Commission owed to the broker, net", value: formatCentsAsUsd(ledger.commissionNetCents) },
-                  { label: "Unearned premium held", value: formatCentsAsUsd(ledger.unearnedPremiumCents) },
+                  // Slice B12-2: each of these four folds lists the journal lines that were
+                  // summed, and its total comes from the same accountSumCents call that produced
+                  // the figure beside the label.
+                  {
+                    label: "Collected at Stripe",
+                    value: (
+                      <AmountExplained
+                        amountCents={ledger.collectedCents}
+                        size="inline"
+                        label="Money that arrived on the Stripe cash account for this policy"
+                        explanation={explainAccountSum({
+                          entries,
+                          accountId: "cash_stripe",
+                          rule: "debits",
+                          totalLabel: "Collected at Stripe, all debits added",
+                          note: "Every debit of cash_stripe on this policy: the premium collection and any endorsement or correction difference the customer paid.",
+                        })}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Refunded from Stripe",
+                    value: (
+                      <AmountExplained
+                        amountCents={ledger.refundedCents}
+                        size="inline"
+                        label="Money that left the Stripe cash account for this policy"
+                        explanation={explainAccountSum({
+                          entries,
+                          accountId: "cash_stripe",
+                          rule: "credits",
+                          totalLabel: "Refunded from Stripe, all credits added",
+                          note: "Every credit of cash_stripe on this policy. A refund appears here only once Stripe's webhook confirms the money left.",
+                        })}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Commission owed to the broker, net",
+                    value: (
+                      <AmountExplained
+                        amountCents={ledger.commissionNetCents}
+                        size="inline"
+                        label="Balance of this broker's commission payable on this policy"
+                        explanation={explainAccountSum({
+                          entries,
+                          accountId: "commission_payable",
+                          rule: "credits_minus_debits",
+                          totalLabel: "Commission payable, credits minus debits",
+                          note: "Commission earned when premium was collected, less every clawback on premium given back.",
+                        })}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Unearned premium held",
+                    value: (
+                      <AmountExplained
+                        amountCents={ledger.unearnedPremiumCents}
+                        size="inline"
+                        label="Balance of unearned premium on this policy"
+                        explanation={explainAccountSum({
+                          entries,
+                          accountId: "unearned_premium",
+                          rule: "credits_minus_debits",
+                          totalLabel: "Unearned premium, credits minus debits",
+                          note: "Premium written and not yet earned: what would be owed back if the policy stopped today.",
+                        })}
+                      />
+                    ),
+                  },
                   {
                     label: "Open claims",
                     value: openClaims.length === 0 ? "none" : `${openClaims.length}, reserve ${formatCentsAsUsd(openClaimReserveCents)}`,
@@ -766,26 +987,17 @@ export default async function PolicyPage({
 // Debits on the Stripe cash account are money that arrived, credits are money that left; the
 // commission payable and unearned premium balances are credits minus debits. No proration, no
 // rounding: a reader can check each figure against the journal table.
+//
+// Slice B12-2: the four sums and the four folds that explain them call the SAME function
+// (accountSumCents, lib/money/explain.ts), so a fold listing the lines cannot come to a different
+// total from the figure it sits under.
 function ledgerSoFar(entries: JournalEntryView[]) {
-  let collectedCents = 0;
-  let refundedCents = 0;
-  let commissionNetCents = 0;
-  let unearnedPremiumCents = 0;
-  for (const entry of entries) {
-    for (const line of entry.lines) {
-      if (line.accountId === "cash_stripe") {
-        collectedCents += line.debitCents;
-        refundedCents += line.creditCents;
-      }
-      if (line.accountId === "commission_payable") {
-        commissionNetCents += line.creditCents - line.debitCents;
-      }
-      if (line.accountId === "unearned_premium") {
-        unearnedPremiumCents += line.creditCents - line.debitCents;
-      }
-    }
-  }
-  return { collectedCents, refundedCents, commissionNetCents, unearnedPremiumCents };
+  return {
+    collectedCents: accountSumCents(entries, "cash_stripe", "debits"),
+    refundedCents: accountSumCents(entries, "cash_stripe", "credits"),
+    commissionNetCents: accountSumCents(entries, "commission_payable", "credits_minus_debits"),
+    unearnedPremiumCents: accountSumCents(entries, "unearned_premium", "credits_minus_debits"),
+  };
 }
 
 // The endorsement that is neither applied nor superseded: where it stands and what to do next.

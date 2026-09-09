@@ -1795,3 +1795,118 @@ button.orange:hover {
   color: var(--ink-2);
   letter-spacing: 0.01em;
 }
+
+/* --- Slice B12-2: "explain this amount". A figure and, under it, a native fold that says how it
+       was produced. It appears inside a facts grid (.fact dd), inside a table cell and inside the
+       side list, so it inherits the figure's type size rather than setting one, and it expands in
+       place: a floating panel would be clipped by the horizontal scroll containers the tables
+       live in, exactly like the row actions above. --- */
+.amount-explained {
+  display: block;
+  min-width: 0;
+}
+.amount-explained-figure {
+  display: block;
+}
+details.amount-explain {
+  margin-top: 2px;
+}
+details.amount-explain > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+details.amount-explain > summary::-webkit-details-marker {
+  display: none;
+}
+details.amount-explain > summary:hover {
+  color: var(--accent);
+}
+details.amount-explain > div {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+  font-weight: 400;
+  white-space: normal;
+}
+.amount-explain-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+details.amount-explain .note,
+details.amount-explain .error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+details.amount-explain table.formula {
+  font-size: 12px;
+}
+/* Inside a table cell or the side list the figure and its fold stay on the same right edge as
+   every other amount in the column. */
+.amount-explained.inline .amount-explained-figure {
+  display: inline;
+}
+.amount-explained.inline details.amount-explain > div {
+  min-width: 260px;
+}
+.aside-list dd .amount-explained,
+td.amount .amount-explained {
+  text-align: right;
+}
+.aside-list dd details.amount-explain > div,
+td.amount details.amount-explain > div {
+  text-align: left;
+}
+/* The side column is narrow: the fold there takes the width it is given and lets its table
+   scroll, rather than pushing the column out of the page. */
+.aside-list dd details.amount-explain > div {
+  min-width: 0;
+}
+
+/* --- Slice B12-3: the steps of "as it stood on a date". Every step is a plain link carrying
+       ?asOf in the address: the page is rendered again on the server for that date, so there is
+       no slider, no client state and nothing to get out of step with the figures. --- */
+.as-of-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+a.as-of-step {
+  display: grid;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  text-decoration: none;
+  color: var(--ink);
+}
+a.as-of-step:hover {
+  border-color: var(--ink-2);
+}
+a.as-of-step.current {
+  border-color: #f4cdb5;
+  background: #fff1e8;
+}
+.as-of-step-date {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.as-of-step-label {
+  font-size: 11px;
+  color: var(--ink-2);
+}
