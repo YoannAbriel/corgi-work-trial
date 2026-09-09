@@ -89,19 +89,21 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
   const tasks = await workspaceTasks(user);
 
   // The toast says a sentence, not the bare value the redirect carried: `?approved=1` used to
-  // show a toast whose body was "1" (feedback audit of 2026-09-09). `toastsFromQuery` puts the
-  // parameter's value in the body, so the two success notices get their wording here.
+  // show a toast whose body was "1" (feedback audit of 2026-09-09). Each rule writes its own
+  // body; the route sends `already` when the decision had been recorded before this click.
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
-    approved: { tone: "ok", title: "Endorsement approved" },
-    correctionApproved: { tone: "ok", title: "Correction approved" },
-  }).map((notice) =>
-    notice.param === "approved"
-      ? { ...notice, text: notice.text === "already" ? "It was already approved." : "Your broker collects the delta." }
-      : notice.param === "correctionApproved"
-        ? { ...notice, text: notice.text === "already" ? "It was already approved." : "Your broker collects the difference." }
-        : notice,
-  );
+    approved: {
+      tone: "ok",
+      title: "Endorsement approved",
+      text: (outcome) => (outcome === "already" ? "It was already approved." : "Your broker collects the delta."),
+    },
+    correctionApproved: {
+      tone: "ok",
+      title: "Correction approved",
+      text: (outcome) => (outcome === "already" ? "It was already approved." : "Your broker collects the difference."),
+    },
+  });
 
   const bound = rows.filter((policy) => policy.status === "bound").length;
   const waitingForYou = rows.filter((policy) => policy.live?.standing.state === "awaiting_approval" || policy.correctionsToApprove.length > 0).length;

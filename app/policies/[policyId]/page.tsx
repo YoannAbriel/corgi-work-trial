@@ -225,7 +225,17 @@ export default async function PolicyPage({
   const changeRequestOutcome = firstValue(query.changeRequest);
 
   const toasts: ToastNotice[] = [
-    ...toastsFromQuery(query, { error: { tone: "error", title: "Refused" } }),
+    ...toastsFromQuery(query, {
+      error: { tone: "error", title: "Refused" },
+      // POST /api/policies redirects here with ?created=<policy number>; before this rule the
+      // draft appeared and nothing said it had been created (feedback audit of 2026-09-09).
+      // A hand-typed "1" carries no number, so the body falls back to the plain words.
+      created: {
+        tone: "ok",
+        title: "Draft created",
+        text: (policyNumber) => (policyNumber === "1" ? "Draft created" : `Policy ${policyNumber} created as a draft`),
+      },
+    }),
     ...toast("bound", boundOutcome, "ok", "Bound", boundOutcome === "already" ? "It was already bound." : "The issuance entries are in the journal."),
     ...toast("cancelled", cancelledOutcome, "ok", "Cancelled", "The refunds it opened are in the money view."),
     ...toast("payment", paymentOutcome, "info", "Stripe", paymentOutcome === "cancelled" ? "The page was left without paying." : "Bound when the webhook confirms it."),

@@ -77,7 +77,17 @@ export type ToastNotice = {
   href?: string;
   hrefLabel?: string;
 };
-export type ToastRule = { tone: ToastTone; title: string; href?: (value: string) => string; hrefLabel?: string };
+export type ToastRule = {
+  tone: ToastTone;
+  title: string;
+  // The body of the toast. Without it the body is the raw query value, which is right when the
+  // route sends a sentence and wrong when it sends a bare flag (`?revoked=1` showed a toast whose
+  // body was "1", feedback audit of 2026-09-09). A string replaces the value; a function receives
+  // the value and returns the sentence, which is how a number becomes "Revision 3 produced".
+  text?: string | ((value: string) => string);
+  href?: (value: string) => string;
+  hrefLabel?: string;
+};
 
 export function toastsFromQuery(query: Query, rules: Record<string, ToastRule>): ToastNotice[] {
   const notices: ToastNotice[] = [];
@@ -87,7 +97,7 @@ export function toastsFromQuery(query: Query, rules: Record<string, ToastRule>):
     notices.push({
       tone: rule.tone,
       title: rule.title,
-      text: value,
+      text: typeof rule.text === "function" ? rule.text(value) : (rule.text ?? value),
       param,
       href: rule.href?.(value),
       hrefLabel: rule.hrefLabel,

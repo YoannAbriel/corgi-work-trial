@@ -63,12 +63,11 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
   const calls = keys.reduce((total, key) => total + key.callCount, 0);
 
   // The revocation toast says a sentence: `?revoked=1` used to show a toast whose body was the
-  // bare value "1" (feedback audit of 2026-09-09). `toastsFromQuery` puts the parameter's value
-  // in the body, so the wording is set here.
+  // bare value "1" (feedback audit of 2026-09-09). The rule's own `text` replaces that value.
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
-    revoked: { tone: "ok", title: "Key revoked" },
-  }).map((notice) => (notice.param === "revoked" ? { ...notice, text: "It answers 401 from now on." } : notice));
+    revoked: { tone: "ok", title: "Key revoked", text: "It answers 401 from now on." },
+  });
   const inspected = inspectedReference(query.inspect);
 
   return (

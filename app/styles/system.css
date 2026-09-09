@@ -78,8 +78,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 18px 20px 14px;
-  min-height: 64px;
+  padding: 11px 20px 8px;
+  min-height: 52px;
   text-decoration: none;
   color: var(--ink);
 }
@@ -106,14 +106,15 @@
   line-height: 1.3;
 }
 .navigation-label {
-  padding: 10px 20px 4px;
+  padding: 6px 20px 2px;
   font-size: 11px;
+  line-height: 14px;
   letter-spacing: 0.02em;
   color: var(--ink-2);
 }
 .sidebar-nav {
   display: grid;
-  gap: 2px;
+  gap: 1px;
   padding: 0 12px;
 }
 /* An entry of the sidebar: its own line (icon, label, count), and under it the views of the
@@ -137,8 +138,8 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 7px 10px;
-  min-height: 34px;
+  padding: 6px 10px;
+  min-height: 32px;
   line-height: 20px;
   border-radius: 8px;
   text-decoration: none;
@@ -182,7 +183,11 @@
 }
 .sidebar-account {
   margin-top: auto;
-  padding: 16px 20px 20px;
+  padding: 10px 20px 12px;
+}
+.sidebar-account .quiet-button {
+  margin-top: 2px;
+  min-height: 24px;
 }
 .account-identity {
   display: flex;
@@ -272,7 +277,7 @@
 .sidebar-views {
   display: grid;
   gap: 2px;
-  margin: 2px 0 6px 21px;
+  margin: 2px 0 4px 21px;
   padding-left: 9px;
   border-left: 1px solid #e2e2e6;
 }
@@ -280,8 +285,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 10px;
-  min-height: 30px;
+  padding: 4px 10px;
+  min-height: 28px;
+  line-height: 20px;
   border-radius: 8px;
   font-size: 13px;
   color: #40414d;
@@ -312,7 +318,7 @@
   display: none;
 }
 .sidebar-views details.context-fold + details.context-fold {
-  margin-top: 2px;
+  margin-top: 1px;
 }
 /* Folded to icons: the same list, as a flyout on hover of the entry, and on focus so the
    keyboard reaches it too. */
@@ -443,6 +449,9 @@
   display: flex;
   align-items: center;
   gap: 7px;
+  padding: 3px 10px;
+  min-height: 22px;
+  line-height: 16px;
 }
 .sidebar-views summary.context-group::before {
   content: "";
@@ -785,10 +794,15 @@ main:focus {
 /* A tile is never wider than 360 px: two tiles at 1920 px used to stretch to 700 px each and
    put one "0" in a half-screen box (round 1, MEDIUM). The cap is on the tile, not on the track:
    `minmax(168px, 360px)` counts its tracks at 360 px and left four tiles in one column at
-   1024 px (measured 2026-09-09 on /ops/console/ledger). */
+   1024 px (measured 2026-09-09 on /ops/console/ledger).
+   A grid cannot both count its tracks from 168 px and stop one at 360 px, so this is a wrapping
+   flex row instead: a tile asks for 168 px, grows to share the line, and stops at 360 px. Two
+   tiles on a 1440 px screen therefore sit side by side on the left with the free space after
+   them, where the grid left a hole between them (/ops/mcp-keys, 2026-09-09). */
 .stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: start;
   gap: 12px;
   margin: 0 0 16px;
 }
@@ -796,6 +810,7 @@ main:focus {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex: 1 1 168px;
   min-height: 92px;
   max-width: 360px;
   padding: 14px 16px;
@@ -1711,17 +1726,6 @@ table.entry-lines > thead > tr > th.amount {
    (cycle 2, decisions 5 and 6). One panel, one way of opening it, three ways out: the cross,
    a click outside (the backdrop is a link back to the page) and Escape.
    --------------------------------------------------------------------------- */
-/* Kept defined and unused: the two-column layout the inspector had before the drawer. A page
-   or a stylesheet that still names it keeps working. */
-.with-inspector {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
-}
-.with-inspector > * {
-  min-width: 0;
-}
 .drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -2640,8 +2644,10 @@ button.secondary.is-working::after {
   main {
     padding: 16px var(--content-x) 32px;
   }
-  .stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* Two per line, and an odd last tile keeps its half instead of growing across the line. */
+  .stat {
+    flex: 0 1 calc(50% - 6px);
+    max-width: none;
   }
   .stat-value {
     font-size: 21px;
@@ -2665,8 +2671,8 @@ button.secondary.is-working::after {
   }
 }
 @media (max-width: 580px) {
-  .stats {
-    grid-template-columns: 1fr;
+  .stat {
+    flex-basis: 100%;
   }
   .hbar-row {
     grid-template-columns: 110px minmax(0, 1fr) 88px;

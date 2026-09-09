@@ -136,7 +136,13 @@ export default async function StatementPage({
   // new revision was written (feedback audit of 2026-09-09).
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
-    produced: { tone: "ok", title: "Statement produced" },
+    // POST /api/statements/run redirects here with ?produced=<revision>. Same fallback as the
+    // policy page: a hand-typed "1" is read as a bare flag and the body stays the plain words.
+    produced: {
+      tone: "ok",
+      title: "Statement produced",
+      text: (revision) => (revision === "1" ? "Statement produced" : `Revision ${revision} produced`),
+    },
   });
 
   const total = (amountCents: number, label: string, key: Parameters<typeof explainStatementTotal>[0]["key"]) =>

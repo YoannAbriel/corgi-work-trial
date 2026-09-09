@@ -160,8 +160,10 @@ const BASIS_POINTS = /^(-?\d+) bps$/;
 
 // One fact reads one way on one screen (round 1, MEDIUM): the drawer prints an instant as the
 // age the table beside it prints, and a commission rate as the percentage the table prints. The
-// stored value is unchanged; only its presentation is shared.
-function factValue(fact: { label: string; value: string; sensitive?: boolean }, now: Date): ReactNode {
+// stored value is unchanged; only its presentation is shared. Exported because the search screen
+// lays out the SAME facts, from the same reader, in a card: it prints them through this too, so
+// the card and the drawer over it can never say the same fact two ways (2026-09-09).
+export function factValue(fact: { label: string; value: string; sensitive?: boolean }, now: Date): ReactNode {
   if (fact.sensitive) return <Masked value={fact.value} what={fact.label} />;
   if (ISO_INSTANT.test(fact.value)) {
     const instant = new Date(fact.value);
