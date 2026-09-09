@@ -1,0 +1,38 @@
+# UI cycle 2: Yoann's decisions of 2026-09-09 evening, and the round-1 review findings
+
+Read after `AUTOMATIC-FAILS.md`, `READABLE-CODE.md` and `docs/handoffs/ui-system-brief.md` (whose rules still apply). Yoann reviewed every screen of the deployed rework on 2026-09-09 between 17:30 and 18:30 Europe/Zurich and decided the changes below. In the same window an adversarial screenshot review (four desktop widths, hostile URLs) produced 122 HIGH and MEDIUM findings; each builder receives the ones in its files inside its assignment. The golden rule of this cycle, in Yoann's words: **remove rather than add**. When a block does not earn its place, it goes.
+
+## Decisions that apply to every screen
+
+1. **Mode labels, once, discreetly.** The AF-02 words stay exact and visible, but no longer as three coloured chips in every band: one small grey line in the top bar of every workspace screen reads `Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR`, and a simulated record keeps its `LOCAL SIMULATOR` word on its own row. The band's meta line keeps at most two chips (a status, a count that matters). The `IntegrationModes` line disappears from the console screens (the top bar carries it).
+2. **Fewer figures, read once.** Stat tiles are not a reflex: a screen keeps only the two to four figures a reader acts on; a tile carries a big figure and a short label; the provider, the window or the rule goes in a tooltip (`title`) on a small info icon, not in a third line. Lists (policies, claims, brokers, statements, inbox) keep at most two tiles or none.
+3. **Counts are not notifications.** The section navigation shows a count only for something a person must act on (open breaks, waiting approvals). Counts of records (runs, entries, endorsements, journal lines, webhooks, activity) are removed from the section navigation and the 360 views; a panel says "empty" in its own body when it is empty.
+4. **No chart that restates a table.** A chart stays only when the figure has a shape a table does not show (flows by day). The events histogram of the console feed, the two latency bar charts, the ledger balances bars, the account sparkline, the runs comparison bars and the single-slice donut go.
+5. **Every reference is clickable, nowhere is copy-paste needed.** A policy or claim number opens the record; a Stripe or operation reference opens the inspector; no "open" link beside a code token, no reference printed twice. The inspector becomes a **drawer** over the content, from the right, at every width, closed by its cross, by Escape or by a click outside; when a reference has no operation (a provider-only payment) the drawer shows the row's own facts and says so in one sentence instead of "nothing matches".
+6. **The amount explanation is the same drawer.** "Explain this amount" opens the drawer over the content on the right, with the formula and the reveal, and closes on a click outside. No popover inside the page.
+7. **Tokens and chips never break mid-word.** A status chip stays on one line; a long reference is shown on one line with an ellipsis and its full value in `title`, in the expansion row and in the drawer.
+8. **Buttons: three words at most, an icon where the action is obvious** (a download icon for a PDF, a chevron for "open"). No button wraps to two lines at 1280 px or wider.
+9. **Plain titles.** Every panel title is the noun a person would say: "Account balances", "Entries", "Flows by day", "Runs", not a generated sentence. Every explanation paragraph leaves the reading flow for `About`, on every screen, including the customer's.
+10. **Journal lines are a table.** Wherever journal lines are drawn (policy money view, claim journal, 360 journal, statement), the lines of an entry read as aligned columns Account | Debit | Credit under the entry's header row, bounded to a readable width at 1920 px.
+11. **One navigation for the console.** The console's section navigation holds three groups, Console (Feed, Problems, Latency), Ledger (Balances, Account, Entries, Flows), Tools (Search, Infrastructure), and every console and ledger screen shows the same navigation. The main sidebar can be expanded back from the rail with a button while a section navigation is open.
+12. **The overview fits one screen** at 1440 × 900: tiles, the work waiting as compact lines, the section cards with an icon only (no tinted tile behind the icon; the whole card turns orange on hover), the landscape footer at 120 px.
+13. **The inbox is filterable**: one row of filter chips at the top, one per section, with its count; one shape for every section (a card with a bounded table); the sentence a section repeats on every row is said once in the section header; the object column is the clickable reference, never an internal composite key.
+14. **Latency says when it is slow**: a row whose p95 is above the threshold the page states (5 s for a provider step, 1 s for a route) gets a warn chip; p50 and p95 headers carry a tooltip that says what they are in one sentence.
+15. **Human in the loop is visible**: the approvals screen states the rule ("money out above $1,000 needs a second person, never the requester") in its band tooltip and in the row of a waiting request.
+16. **Cuts.** The Documents view of a policy is folded into the overview card (two icon buttons). The endorsement date correction is an inline field with a save button, not a block. The endorse form's two fields sit on one line. The claim's actions are one compact panel, not a view of three forms.
+
+## What does not change
+
+The rules of `docs/handoffs/ui-system-brief.md`: forms keep action, method, field names and hidden inputs; refusals stay above markup; figures print the same; nothing under `lib/`, `db/`, `app/api`, `scripts/`; no em dash; AF-02 words exact and visible (now in the top bar and on simulated rows); the inbox anchors; the five demo logins; the sandbox sentence on `/` and `/login`.
+
+## Owners of this cycle
+
+| Group | Files | Also carries |
+|---|---|---|
+| system | `app/styles/system.css`, `app/globals.css`, `components/shell/*`, `components/ui/*`, `components/portal-*`, `components/decorative-illustration.tsx`, `app/layout.tsx` | decisions 1, 3, 5 (drawer), 7, 10 (a shared `EntryLines` table), 11, 12 (styles) and the round-1 findings in those files |
+| console | `app/ops/console/**` (page, search, infra, ledger, ledger-views), `components/console-parts.tsx`, `app/styles/console.css` | decisions 4, 5, 9, 11, 14 |
+| money | `app/ops/reconciliation`, `app/ops/approvals`, `app/ops/statements`, `app/broker/statements`, `app/statements/[runId]`, `app/styles/money.css` | decisions 4, 5, 9, 15 |
+| policy | `app/policies/**`, `app/ops/claims/[claimId]`, `components/amount-explained*`, `components/journal-table.tsx`, `components/formula-lines.tsx`, `app/styles/policy-detail.css` | decisions 6, 8, 9, 10, 16 |
+| lists | `app/ops/page.tsx`, `app/ops/policies`, `app/inbox`, `app/broker/page.tsx`, `app/customer`, `app/ops/brokers`, `app/ops/claims/page.tsx`, `app/ops/mcp-keys`, `app/broker/kyb`, `app/broker/policies/new`, `components/console-360.tsx`, the four 360 pages, `components/what-needs-you.tsx`, `components/workspace-overview.tsx`, `components/money-amount-input.tsx` (an optional prop only), `app/login/page.tsx`, `app/styles/lists.css` | decisions 2, 3, 12, 13 |
+
+The system builder goes first for the shared pieces the others need (the drawer, the top-bar mode line, the section-navigation groups and expand button, the shared journal-lines table, the chip and token rules) and commits them within the first thirty minutes so the other four can merge them; until then the others build against the current blocks and switch when the system commit lands.
