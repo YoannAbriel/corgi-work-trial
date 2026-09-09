@@ -448,6 +448,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - The console failure line now goes through the sanitiser, so a driver error carrying a connection string prints its credentials masked (asserted in check:console); the eleven business imports and the instanceof table are gone from the wrapper, replaced by a closed rule union each route declares, applied only where it is true (a refusal before the route's gate reads "sign in", a 400 names no rule); the stored status code is the response's own and a throw records 500 as error; the clock starts on the wrapper's first line and stops when the answer is ready, the insert alone stays outside. README and the console disclosure updated. 466 tests on the builder's tree, 473 on the merged one, check:console 68 of 68, check:mcp 59 of 59. Merged with --no-ff behind UI cycle A, pushed as code alone, deployed and confirmed by /api/health at 11:18Z; a confirmation by a reviewer follows with the UI review.
 
+## 2026-09-09T11:23:00+00:00 | check:inbox-counts gate repaired (22babed)
+
+- F-IL-08: the pure task-building code (workspaceTasks and its types) moved byte for byte into lib/inbox/tasks.ts, which imports nothing from components or app; the what-needs-you component re-exports it; the check script imports the lib module. check:inbox-counts runs again from the repository with no stub: 53 of 53 (staff_ops 1596 counted and 1596 listed, approver 1533 and 1533, 50 of 1004 owners). Five pages still reach workspaceTasks through the component's re-export, a follow-up. 473 tests, build clean. Merged with --no-ff, pushed as code alone, deployed and confirmed by /api/health at 11:23Z.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
