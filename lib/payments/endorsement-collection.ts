@@ -320,6 +320,11 @@ export async function retryEndorsementApplication(
   return postDeltaAndApply(database, link, request, payment, input.actorUserId);
 }
 
+// The quote stopped being applicable between the checks before the lock and the lock itself.
+// Thrown inside the posting transaction so that nothing is journaled, and caught just outside it
+// so the money can be parked.
+class EndorsementNoLongerApplicable extends Error {}
+
 // THE QUOTE THIS PAYMENT WAS BOUND TO, CHECKED AT POSTING TIME (review finding F-B4-07).
 //
 // Migration 0009 says of endorsement_collections.quote_hash: "Recomputed and compared at posting
@@ -355,6 +360,26 @@ async function postDeltaAndApply(
 ): Promise<EndorsementCollectionOutcome> {
   try {
     await database.begin(async (transaction) => {
+      // ONE ENDORSEMENT AT A TIME PER POLICY, the same lock recordEndorsementRequest takes
+      // (review finding F-B4-12). Without it, the checks above ran outside any lock: a new
+      // request could commit between the standing check and the 'endorsed' insert, and this
+      // payment would apply a quote that had just been superseded. From here until this
+      // transaction ends, no new request on this policy can commit.
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.policyId}))`;
+      // And the standing is read AGAIN, under the lock, because the lock cannot undo a request
+      // that committed a moment before it was taken. 'applied' is deliberately not handled here:
+      // it is the unique-violation branch below, which can tell an already-posted delta from a
+      // delta another attempt applied.
+      const standingUnderLock = await endorsementRequestStanding(transaction, request);
+      if (standingUnderLock.state === "superseded") {
+        throw new EndorsementNoLongerApplicable(
+          `the quote was superseded by a later ${standingUnderLock.supersededByEventType ?? "event"} while the payment was being applied`,
+        );
+      }
+      if (standingUnderLock.state === "awaiting_approval") {
+        throw new EndorsementNoLongerApplicable("the customer has not approved this endorsement");
+      }
+
       const { terms } = await foldPolicyEvents(transaction, link.policyId);
       // Was this delta parked in the suspense account at receipt (rule 14)? Then the cash is
       // applied, not booked a second time.
@@ -391,6 +416,14 @@ async function postDeltaAndApply(
     });
     return { kind: "posted" };
   } catch (error) {
+    if (error instanceof EndorsementNoLongerApplicable) {
+      // The transaction rolled back, so nothing of the endorsement was applied. The money is
+      // real all the same, so it is parked exactly as the checks before the lock park it
+      // (review finding F-B4-05). Parking is idempotent, so a payment already parked by an
+      // earlier delivery stays parked once.
+      await parkPaymentWithoutApplying(database, link, payment, error.message);
+      return { kind: "application_refused", reason: error.message };
+    }
     if (isUniqueViolation(error)) {
       // Either the journal key (this operation already posted the delta) or the
       // one-endorsement-per-request index (another attempt applied it). The proof of a posting
