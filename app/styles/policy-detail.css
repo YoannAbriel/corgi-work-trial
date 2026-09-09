@@ -60,21 +60,36 @@
   margin: 0;
   font-size: 13px;
 }
+/* Label on the left, value on the right, and anything else the row carries (the sandbox
+   references of a payment) on a full-width row of its own UNDER them. Inside the value column a
+   disclosure broke the row apart: the label wrapped to two lines, the dark (i) toggle was
+   orphaned under "succeeded" and the open panel took the value column over (round 1, MEDIUM). */
 .pd-facts > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  grid-template-areas:
+    "label value"
+    "refs refs";
+  align-items: baseline;
+  gap: 4px 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid #f0f0f2;
+}
+.pd-facts > div > details.sandbox-reference {
+  grid-area: refs;
+  justify-self: start;
+  margin-left: 0;
 }
 .pd-facts > div:last-child {
   border-bottom: 0;
   padding-bottom: 0;
 }
 .pd-facts dt {
+  grid-area: label;
   color: var(--ink-2);
 }
 .pd-facts dd {
+  grid-area: value;
   margin: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -92,3 +107,311 @@
   margin-top: 0;
 }
 
+
+/* --- The amount explanation, as the drawer (cycle 2, decision 6) -----------------------------
+   The panel is the inspector's drawer now, and its classes are the shared ones
+   (`.drawer`, `.drawer-head`, `.drawer-body` in app/styles/system.css). Three things it needs on
+   top, all of them consequences of WHERE the markup sits: the details element is written inside
+   the cell or the tile whose figure it explains, so the summary has to look like that figure and
+   the panel has to stop inheriting that cell's type. */
+details.amount-explained-drawer {
+  display: inline;
+}
+/* The figure IS the control that opens the drawer, so the summary loses its marker and keeps the
+   type of the cell it sits in. The dotted underline is the only thing that says it can be opened.
+   Same rules as `button.amount-explained-figure` in system.css, for the element that replaced it. */
+summary.amount-explained-figure {
+  display: inline;
+  list-style: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: #b9bcc4;
+  /* A money figure never breaks across two lines, whatever the column it sits in. */
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+summary.amount-explained-figure::-webkit-details-marker {
+  display: none;
+}
+summary.amount-explained-figure:hover {
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+summary.amount-explained-figure:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+/* A fixed panel still INHERITS from the cell it was written in: a figure tile is 24 px, a money
+   cell is right aligned and tabular. The panel is prose and a table, so every one of those is set
+   back here, once, exactly as the popover it replaces had to. */
+.amount-explained-drawer > .drawer {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  font-variant-numeric: normal;
+  color: var(--ink);
+}
+/* The arithmetic needs more room than a list of facts: this drawer is wider than the inspector's,
+   as the popover it replaces was (520 px). */
+.amount-explained-drawer > .drawer {
+  width: min(540px, calc(100vw - 24px));
+}
+/* The three columns keep a readable width and the box scrolls sideways rather than squeezing the
+   label column, whose words the shared `overflow-wrap: anywhere` of app/globals.css would
+   otherwise break in half ("premiu / m the / tax is / charge / d on", measured 2026-09-09). A
+   token never breaks mid-word (cycle 2, decision 7). */
+.amount-explain-panel table.formula {
+  min-width: 460px;
+  font-size: 12px;
+}
+.amount-explain-panel table.formula td:first-child,
+.amount-explain-panel table.formula th {
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+/* The formula itself is the one thing that may break anywhere: it is one long expression and
+   there is no word in it to keep whole. */
+.amount-explain-panel table.formula code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.amount-explain-panel .table-scroll {
+  margin: 10px 0 0;
+}
+/* The backdrop and the cross are buttons here, not links (there is no address to go back to: the
+   drawer is the open state of a details element). They lose the button style of app/globals.css
+   and keep the shared drawer classes for everything else. */
+.pd-drawer-backdrop,
+button.pd-drawer-close {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  cursor: pointer;
+}
+.pd-drawer-backdrop {
+  display: block;
+}
+button.pd-drawer-close {
+  min-height: 28px;
+}
+
+/* --- Four cards that never leave one alone ---------------------------------------------------
+   The shared `.cards` track is `auto-fit, minmax(280px, 1fr)`, which at 1440 px counts three
+   columns and left the fourth card alone on a second row with two thirds of it empty (round 1,
+   MEDIUM). Four cards are one row of four when there is room for four readable columns, and a
+   2x2 that fills its row when there is not. Two classes deep, so it wins over `.cards`. */
+.cards.pd-cards-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (min-width: 1701px) {
+  .cards.pd-cards-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .cards.pd-cards-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- A form that is one line ------------------------------------------------------------------
+   The date correction and the "as it stood on" question are one field and a button, and each was
+   a card with a heading, stacked labels and a full-width black button (cycle 2, decision 16).
+   `form.card` in app/globals.css is the block shape; these are the line shape. */
+.pd-inline-form,
+.pd-asof {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-block);
+  font-size: 13px;
+}
+.pd-inline-form > label,
+.pd-asof > label {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.pd-inline-form input,
+.pd-asof input {
+  font: inherit;
+  font-size: 13px;
+  min-height: 32px;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  width: auto;
+}
+/* The date keeps its own width; the reason takes what is left rather than a fixed 220 px. */
+.pd-inline-form input[type="date"],
+.pd-asof input[type="date"] {
+  flex: 0 0 auto;
+}
+.pd-inline-form input:not([type="date"]) {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.pd-inline-form button,
+.pd-asof button {
+  margin: 0;
+  min-height: 32px;
+  padding: 4px 14px;
+  font-size: 13px;
+  border-radius: 8px;
+  box-shadow: 0 2px 0 #e1e1e1;
+}
+
+/* --- The two documents, as buttons -----------------------------------------------------------
+   The Documents view is folded into this card (cycle 2, decision 16): one line per document, the
+   as-of date beside the button that opens it. The labels are two words, so neither wraps at any
+   desktop width (round 1: both wrapped to two lines at every width). */
+.pd-doc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.pd-doc-row + .pd-doc-row {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f2;
+}
+.pd-doc-row input[type="date"] {
+  font: inherit;
+  font-size: 13px;
+  min-height: 32px;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  width: auto;
+}
+.pd-doc-row button {
+  margin: 0;
+  min-height: 32px;
+  padding: 4px 12px;
+  font-size: 13px;
+  border-radius: 8px;
+  box-shadow: 0 2px 0 #e1e1e1;
+  white-space: nowrap;
+}
+/* The date a browser prints in its own locale (09/09/2026) beside dates the rest of the product
+   prints as 2026-09-09: the resolved date is said again, once, in the product's own format
+   (round 1, MEDIUM). */
+.pd-doc-asof {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+/* --- The claim's actions, one compact panel --------------------------------------------------
+   They were a view of their own holding three tall cards (cycle 2, decision 16). They are now one
+   panel at the bottom of the overview: the three decisions side by side, each a small form with a
+   two-word button, and the simulated bank controls in the row menu beside the title. */
+.pd-actions {
+  display: grid;
+  /* A field for an amount is 280 px wide, not half a screen: the tracks are capped and the row
+     starts at the left rather than stretching two forms over 1128 px. */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 280px));
+  justify-content: start;
+  align-items: start;
+  gap: 16px 24px;
+}
+.pd-actions > form.card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: none;
+}
+.pd-actions > form.card > label:first-child {
+  margin-top: 0;
+}
+.pd-actions input,
+.pd-actions button {
+  width: 100%;
+}
+.pd-actions button {
+  margin-top: 12px;
+}
+/* The title line of the panel: the heading, then the menu that holds the bank-account form. */
+.pd-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.pd-panel-head h2 {
+  margin: 0;
+}
+.pd-panel-head > .pd-panel-menu {
+  margin-left: auto;
+}
+/* A form inside the row menu is a column of fields, not a menu line. Scoped by its own class,
+   so nothing here reaches another screen's menus. */
+form.pd-menu-form input {
+  width: 100%;
+}
+
+/* One short line under the tiles, where the reading flow is allowed exactly one: the fact a
+   reader needs before the cards, never the paragraph that explains it (cycle 2, decision 9). */
+.pd-lead {
+  margin: -4px 0 16px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* The references of a fact row, on the full-width third row the grid above keeps for them. */
+.pd-facts-refs {
+  grid-area: refs;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+  min-width: 0;
+}
+
+/* --- Two short fields on one line -------------------------------------------------------------
+   Two limits, or a date and its method: one decision, two short fields, one line (cycle 2,
+   decision 16). Each half keeps its own label above its own field, so the pair is still two
+   labelled fields and not a row of boxes. */
+.pd-field-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+.pd-field-pair > span {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.pd-field-pair label {
+  display: block;
+}
+.pd-field-pair input,
+.pd-field-pair select {
+  width: 100%;
+}

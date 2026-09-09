@@ -8,9 +8,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { Toolbar, ToolbarCount, ToolbarGroup, ToolbarSpacer } from "@/components/ui/toolbar";
 import { DataTable, ExpandHead, ExpandRow, FactGrid, Num } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
-import { sql } from "@/db/client";
 import type { SignedInUser } from "@/lib/auth/current-user";
-import { claimsWithPositions } from "@/lib/claims/read";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
 import {
@@ -27,7 +25,7 @@ import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
 import type { PolicyDetail } from "@/lib/policy/read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { firstValue, pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
-import { PolicyTimeline } from "./correction-sections";
+import { PolicyDocuments, PolicyTimeline } from "./correction-sections";
 
 // The customer's own view of their policy, and the change requests that go with it (slice B13-6,
 // decided by Yoann on 2026-09-08 at 20:35 UTC).
@@ -65,13 +63,10 @@ export async function CustomerPolicyView({
   // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
   const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
 
-  const [query, schedule, requests, claims, termsToday] = await Promise.all([
+  const [query, schedule, requests, termsToday] = await Promise.all([
     searchParams,
     endorsementScheduleOfPolicy(policy.policyId),
     changeRequestsOfPolicy(policy.policyId),
-    // F-LU-04: the mode chips of this page are the staff page's, and the claim rail chip only
-    // appears when this policy really carries a claim, so the claims are counted here too.
-    claimsWithPositions(sql, policy.policyId),
     // THE TERMS IN FORCE ON THIS DATE, not the latest terms on the policy record (review finding
     // F-INT-02). policy_current applies every event whatever its effective date, so this page was
     // printing a future endorsement's premium, tax and LIMITS as the cover in force today, to the
@@ -129,13 +124,12 @@ export async function CustomerPolicyView({
       band={{
         title: `Policy ${policy.policyNumber}`,
         suffix: policy.customerName,
+        // Two chips, the same rule as the staff page (cycle 2, decision 1): the status and the
+        // term this policy runs for. The AF-02 words are the grey line in the top bar of every
+        // signed-in screen, this one included, said once instead of on every band.
         meta: (
           <>
             <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>
-            {/* F-LU-04: the same mode chips as the staff page. The premium and every change on
-                this policy are Stripe; a claim on it is paid on the simulated rail (AF-02). */}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            {claims.length > 0 ? <Chip tone="neutral">claim payout rail: LOCAL SIMULATOR</Chip> : null}
             <Chip tone="neutral">
               {policy.effectiveAt} to {policy.termEnd}
             </Chip>
@@ -174,20 +168,19 @@ export async function CustomerPolicyView({
               </p>
             </div>
           ) : null}
-          {/* The same sentence the staff page prints (F-YA-07, F-INT-02): what the policy is
-              today, and separately what it becomes. The figures come from the endorsement's own
-              stored event; nothing is recomputed. */}
+          {/* The same line the staff page prints (F-YA-07, F-INT-02): what the policy is today,
+              and separately what it becomes. One short line here, the rest under its own heading
+              in About (round 1: a 40 word paragraph in the reading flow). The figures come from
+              the endorsement's own stored event; nothing is recomputed. */}
           {endorsementsNotYetInForce.length > 0 ? (
-            <div className="notices">
+            <p className="pd-lead">
               {endorsementsNotYetInForce.map((row) => (
-                <p key={`not-yet-${row.endorsedEventId}`} className="note">
-                  An endorsement effective {row.effectiveAt} brings the annual premium to{" "}
-                  {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}
-                  {row.newLimitLabel ? ` (${row.newLimitLabel})` : ""}. It is in the schedule below with the amount it
-                  collected; the figures above are the ones in force on {terms.onDate}.
-                </p>
+                <span key={`not-yet-${row.endorsedEventId}`}>
+                  From {row.effectiveAt} your annual premium becomes{" "}
+                  {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}.{" "}
+                </span>
               ))}
-            </div>
+            </p>
           ) : null}
 
           {/* The form is tall and the facts beside it are short: `.layout-2` lets the short card
@@ -213,9 +206,10 @@ export async function CustomerPolicyView({
                   placeholder="we have moved to 214 Bryant Street and the aggregate limit should cover the new workshop"
                 />
                 <SubmitButton className="orange">Request a change</SubmitButton>
+                {/* The rule the field enforces stays beside the field; what asking means is in
+                    About (cycle 2, decision 9). */}
                 <p className="pd-note">
-                  Between {COMMENT_MINIMUM_CHARACTERS} and {COMMENT_MAXIMUM_CHARACTERS} characters. This asks for a
-                  change; it does not make one, and no money moves until your broker prices it.
+                  Between {COMMENT_MINIMUM_CHARACTERS} and {COMMENT_MAXIMUM_CHARACTERS} characters.
                 </p>
               </form>
             </section>
@@ -230,10 +224,6 @@ export async function CustomerPolicyView({
                   { label: "Written by", value: policy.brokerName },
                 ]}
               />
-              <p className="pd-note">
-                Your broker writes every change to this policy. Asking beside is the way to reach them about it, and
-                their answer stays on this page.
-              </p>
             </section>
           </div>
 
@@ -252,7 +242,7 @@ export async function CustomerPolicyView({
               <Legend
                 items={[
                   { term: "Charged", meaning: "the money that moved at the time, priced over the days left in the year" },
-                  { term: "Annual premium", meaning: "the yearly rate after the change" },
+                  { term: "New annual premium", meaning: "the yearly rate after the change, not the money that moved" },
                 ]}
               />
             }
@@ -262,7 +252,7 @@ export async function CustomerPolicyView({
                 <th className="nowrap">Effective</th>
                 <th>Change</th>
                 <th className="num">Charged</th>
-                <th className="num">Annual premium</th>
+                <th className="num">New annual premium</th>
               </tr>
             </thead>
             <tbody>
@@ -289,36 +279,35 @@ export async function CustomerPolicyView({
             </tbody>
           </DataTable>
 
-          <DataTable
-            ariaLabel="Your change requests"
-            toolbar={
-              <Toolbar>
-                <ToolbarGroup>
-                  <span className="toolbar-label">Your requests</span>
-                </ToolbarGroup>
-                <ToolbarSpacer />
-                <ToolbarCount>{requests.length}</ToolbarCount>
-              </Toolbar>
-            }
-          >
-            <thead>
-              <tr>
-                <ExpandHead />
-                <th className="nowrap">Asked</th>
-                <th>About</th>
-                <th>Answer</th>
-              </tr>
-            </thead>
-            {requests.length === 0 ? (
-              <tbody>
+          {/* Nothing asked, nothing to head: the empty state stands on its own rather than under
+              a row of column names describing rows that do not exist (round 1, MEDIUM). */}
+          {requests.length === 0 ? (
+            <section className="card">
+              <h2>Your requests</h2>
+              <EmptyState illustration="in-tray">You have not asked for anything on this policy yet.</EmptyState>
+            </section>
+          ) : (
+            <DataTable
+              ariaLabel="Your change requests"
+              toolbar={
+                <Toolbar>
+                  <ToolbarGroup>
+                    <span className="toolbar-label">Your requests</span>
+                  </ToolbarGroup>
+                  <ToolbarSpacer />
+                  <ToolbarCount>{requests.length}</ToolbarCount>
+                </Toolbar>
+              }
+            >
+              <thead>
                 <tr>
-                  <td colSpan={4} className="dt-empty">
-                    <EmptyState illustration="in-tray">You have not asked for anything on this policy yet.</EmptyState>
-                  </td>
+                  <ExpandHead />
+                  <th className="nowrap">Asked</th>
+                  <th>About</th>
+                  <th>Answer</th>
                 </tr>
-              </tbody>
-            ) : (
-              requests.map((request) => (
+              </thead>
+              {requests.map((request) => (
                 <ExpandRow
                   key={request.requestId}
                   columns={3}
@@ -359,9 +348,9 @@ export async function CustomerPolicyView({
                     ]}
                   />
                 </ExpandRow>
-              ))
-            )}
-          </DataTable>
+              ))}
+            </DataTable>
+          )}
 
           {/* The customer audience: the same events, the same two dates and the same amounts,
               without the free text a staff operator writes into a correction reason for
@@ -369,6 +358,25 @@ export async function CustomerPolicyView({
           <PolicyTimeline policyId={policy.policyId} now={now} audience="customer" />
 
           <About>
+            {endorsementsNotYetInForce.length > 0 ? (
+              <>
+                <h4>Why two premiums</h4>
+                {endorsementsNotYetInForce.map((row) => (
+                  <p key={`about-not-yet-${row.endorsedEventId}`}>
+                    An endorsement effective {row.effectiveAt} brings the annual premium to{" "}
+                    {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}
+                    {row.newLimitLabel ? ` (${row.newLimitLabel})` : ""}. It is in the schedule above with the amount it
+                    collected; the figures in the tiles are the ones in force on {terms.onDate}.
+                  </p>
+                ))}
+              </>
+            ) : null}
+            <h4>Who writes a change</h4>
+            <p>
+              Your broker writes every change to this policy. Asking on this page is the way to reach them about it, and
+              their answer stays here. Asking for a change does not make one, and no money moves until your broker
+              prices it.
+            </p>
             <h4>This page only reads</h4>
             <p>
               Nothing here changes your policy. Your broker writes the changes, and the timeline records every one of
@@ -392,28 +400,18 @@ export async function CustomerPolicyView({
 
       {view === "documents" ? (
         <>
-          <div className="cards">
-            <section className="card pd-form-card">
-              <h2>Declarations page</h2>
-              <form method="get" action={`/api/policies/${policy.policyId}/documents/declarations`} className="card">
-                <label htmlFor="asOfDeclarations">As of</label>
-                <input id="asOfDeclarations" name="asOf" type="date" defaultValue={documentDate} min={policy.effectiveAt} required />
-                <button type="submit" className="secondary">
-                  Open the declarations page (PDF)
-                </button>
-              </form>
-            </section>
-            <section className="card pd-form-card">
-              <h2>Endorsement schedule</h2>
-              <form method="get" action={`/api/policies/${policy.policyId}/documents/endorsement-schedule`} className="card">
-                <label htmlFor="asOfSchedule">As of</label>
-                <input id="asOfSchedule" name="asOf" type="date" defaultValue={documentDate} min={policy.effectiveAt} required />
-                <button type="submit" className="secondary">
-                  Open the endorsement schedule (PDF)
-                </button>
-              </form>
-            </section>
-          </div>
+          {/* One card, two lines, the same block the staff overview uses: a two-word button that
+              cannot wrap (round 1: both labels ran to two lines at 1024 px) and the date said
+              again in the ISO format the rest of the product prints, because a browser draws a
+              date field in its own locale (round 1: 09/09/2026 beside 2026-09-08). */}
+          <section className="card">
+            <h2>Documents</h2>
+            <PolicyDocuments
+              policyId={policy.policyId}
+              documentDate={documentDate}
+              termStart={policy.effectiveAt}
+            />
+          </section>
 
           <About>
             <h4>Rebuilt on the date you pick</h4>

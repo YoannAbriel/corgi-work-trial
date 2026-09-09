@@ -9,9 +9,9 @@ import { explanationResultLine, runningSubtotals, type AmountExplanation } from 
 // rounding rule by name, and the journal entries that prove it when there are any.
 //
 // Yoann's display decision of 2026-09-09 08:20 local: the explanation is opened from the figure
-// ON THE SCREENS, not in the PDFs. The PDFs keep their own printed schedules. Since the interface
-// system of 2026-09-09 the panel opens in the browser's top layer (a native popover) rather than
-// inside the cell, where a table's scroll container clipped it.
+// ON THE SCREENS, not in the PDFs. The PDFs keep their own printed schedules. Since cycle 2 the
+// panel opens in the drawer, over the content on the right, the same panel the inspector uses
+// (decision 6), rather than inside the cell where a table's scroll container clipped it.
 //
 // THIS COMPONENT IS STILL THE SERVER COMPONENT, and it still renders every word and every cent.
 // Slice B12-4 (YOA-637) only wrapped its output in a client shell that decides WHEN each part
@@ -29,7 +29,8 @@ export function AmountExplained({
   // number above it can never be formatted from two different values.
   amountCents: number;
   explanation: AmountExplanation;
-  // What the figure is, repeated inside the fold's summary so that "Explain" is never on its own.
+  // What the figure is: it names the drawer that opens on it, so a panel is never a table of
+  // arithmetic with nothing saying which amount it explains.
   label: string;
   // "figure" in a facts grid or a panel, "inline" inside a table cell or a side list.
   size?: "figure" | "inline";
@@ -69,7 +70,8 @@ export function AmountExplained({
       hasTicker={subtotalTexts !== undefined}
       inWords={
         <>
-          <p className="amount-explain-title">{label}</p>
+          {/* The label is not repeated here: the drawer's own head prints it (cycle 2, decision
+              6). What is left in the first step of the reveal is what qualifies the figure. */}
           {agrees ? null : (
             <p className="error" role="alert">
               This explanation does not end on the figure above it ({formatCentsAsUsd(amountCents)}
