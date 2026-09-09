@@ -351,7 +351,7 @@ async function main() {
   report(
     "A STAFF APPROVER CANNOT CREATE AN MCP KEY: POST /api/mcp-keys refuses the session and writes no key",
     mintedByAnApprover.status === 303 &&
-      /only staff operations can manage MCP API keys/.test(refusalToTheApprover) &&
+      /only staff operations can manage access tokens/.test(refusalToTheApprover) &&
       (await apiKeyCountOf(people.opsId)) === keysBeforeTheApproverTried,
     `${mintedByAnApprover.status} ${refusalToTheApprover}`,
   );

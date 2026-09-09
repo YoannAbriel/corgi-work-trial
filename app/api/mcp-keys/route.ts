@@ -46,7 +46,7 @@ async function handlePost(request: Request): Promise<Response> {
   // claim payment through that key, then approve it as themselves. Revocation is refused here
   // too, for the same reason: taking the maker's key away is also a move in that game.
   if (user.role !== "staff_ops") {
-    return backToKeys("only staff operations can manage MCP API keys");
+    return backToKeys("only staff operations can manage access tokens");
   }
 
   const form = await request.formData();
