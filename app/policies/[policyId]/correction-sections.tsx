@@ -7,6 +7,8 @@ import { DataTable, ExpandHead, ExpandRow, FactGrid } from "@/components/ui/tabl
 import { SubmitButton } from "@/components/ui/submit-button";
 import { When } from "@/components/ui/time";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import type { NavView } from "@/components/shell/app-shell";
+import type { UserRole } from "@/lib/auth/current-user";
 import {
   correctionsOfPolicy,
   policyAsItStoodOn,
@@ -58,6 +60,43 @@ export function customerPolicyViews(policyId: string, formLabel: string, formHre
   ];
 }
 
+// Where the backdated correction lives, named once so the band and every navigation that offers
+// it point at the same address.
+export function correctionHref(policyId: string) {
+  return `/policies/${policyId}/corrections/new`;
+}
+
+// The correction as an entry of the policy's navigation, for the one role allowed to make one.
+//
+// Finding F-LIVE-01: the screen had no visible way in. The band offered Endorse, Cancel and Open
+// a claim, the navigation listed the five views, and the only link was the one-line form under
+// the Endorsements table, which reads as a filter; the word "Correct" appeared only once the
+// reader was already on the screen.
+//
+// Operations only, because correcting the record is their job and the screen itself refuses
+// anybody else (app/policies/[policyId]/corrections/new/page.tsx redirects every other role back
+// to the policy). Listed whether or not the policy has an endorsement, because that screen says
+// so in its own words: "This policy has no endorsement in force, so there is no effective date to
+// correct."
+//
+// It returns no entry or one, so a caller spreads it into its own list and the role test is
+// written here instead of on every screen.
+export function correctionViews({
+  policyId,
+  role,
+  current = false,
+}: {
+  policyId: string;
+  role: UserRole;
+  // True on the correction screen itself, so the entry is the one the reader is standing on.
+  current?: boolean;
+}): NavView[] {
+  if (role !== "staff_ops") {
+    return [];
+  }
+  return [{ key: "correct", label: "Correct", href: correctionHref(policyId), current }];
+}
+
 // The same navigation, for a form opened on top of a policy (endorse, cancel, correct, open a
 // claim, the two approvals): the policy's own views, then the form itself as the entry the reader
 // is on. Without it the sidebar emptied the moment a form opened and the reader lost the record
@@ -66,13 +105,18 @@ export function policyFormViews({
   policyId,
   formLabel,
   formHref,
+  role,
 }: {
   policyId: string;
   // What the form is, in one or two words: "Endorse", "Cancel", "Correct".
   formLabel: string;
   // Where the reader is, so the current entry is a link to the page they are on.
   formHref: string;
-}) {
+  // The reader's role, when the screen wants the correction listed here too. Optional: the
+  // correction's own screen draws itself as the current entry below and needs no second copy, and
+  // a caller that passes nothing simply lists no correction.
+  role?: UserRole;
+}): NavView[] {
   return [
     ...POLICY_VIEWS.map((one) => ({
       key: one,
@@ -80,19 +124,20 @@ export function policyFormViews({
       href: one === "overview" ? `/policies/${policyId}` : `/policies/${policyId}?view=${one}`,
       current: false,
     })),
+    ...(role ? correctionViews({ policyId, role }) : []),
     { key: "form", label: formLabel, href: formHref, current: true },
   ];
 }
 
-// The two documents of a policy, in the Documents card of the overview: one line each, the date
-// they are rebuilt on beside the button that opens them (cycle 2, decision 16 folded the
-// Documents view into this card). Same action, same method, same field name as before: the route
-// reads `asOf` and rebuilds the PDF from the events effective on or before it.
+// The two documents of a policy, in the Documents card of the overview: one compact line each,
+// the name on the left, the date they are rebuilt on in the middle, the download on the right
+// (cycle 2, decision 16 folded the Documents view into this card). Same action, same method, same
+// field name as before: the route reads `asOf` and rebuilds the PDF from the events effective on
+// or before it.
 //
-// The label of a button is two words, so neither wraps at any desktop width (round 1: both ran to
-// two lines everywhere), and the icon says what pressing it does. The date the browser draws in
-// its own locale is said again underneath in the ISO format the rest of the product prints, so
-// one screen never shows a date two ways (round 1).
+// The name is plain text and the button is the icon alone, because a button carrying the name of
+// the document repeated it and made the row as wide as the card for no gain (Yoann, 2026-09-09).
+// What pressing it does is said once, under the list, instead of once per row.
 export function PolicyDocuments({
   policyId,
   documentDate,
@@ -120,6 +165,7 @@ export function PolicyDocuments({
         documentDate={documentDate}
         termStart={termStart}
       />
+      <p className="pd-note">PDF as of the chosen date, opens in a new tab.</p>
     </>
   );
 }
@@ -143,13 +189,15 @@ function DocumentRow({
 }) {
   return (
     // The PDF is reached through this GET form, so the new tab is asked for on the form
-    // rather than on a link: same action, same method, same field name.
+    // rather than on a link: same action, same method, same field name. One row is one form,
+    // because the date field belongs to the document it rebuilds and to no other.
     <form
       method="get"
       action={`/api/policies/${policyId}/documents/${endpoint}`}
       className="pd-doc-row"
       target="_blank"
     >
+      <span className="pd-doc-name">{label}</span>
       <input
         id={fieldId}
         name="asOf"
@@ -159,11 +207,16 @@ function DocumentRow({
         required
         aria-label={`${label} as of`}
       />
-      <button type="submit" className="secondary">
-        <Download size={14} aria-hidden="true" />
-        {label}
+      {/* The icon alone, so the name is not printed twice on one row. The label a screen reader
+          and a hover both get says which document and what comes back. */}
+      <button
+        type="submit"
+        className="secondary pd-doc-download"
+        aria-label={`Download ${label} as PDF`}
+        title={`Download ${label} as PDF`}
+      >
+        <Download size={15} aria-hidden="true" />
       </button>
-      <span className="pd-doc-asof">as of {documentDate}, PDF</span>
     </form>
   );
 }

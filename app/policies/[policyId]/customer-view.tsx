@@ -394,10 +394,9 @@ export async function CustomerPolicyView({
 
       {view === "documents" ? (
         <>
-          {/* One card, two lines, the same block the staff overview uses: a two-word button that
-              cannot wrap (round 1: both labels ran to two lines at 1024 px) and the date said
-              again in the ISO format the rest of the product prints, because a browser draws a
-              date field in its own locale (round 1: 09/09/2026 beside 2026-09-08). */}
+          {/* One card, two rows, the same block the staff overview uses: the document's name, the
+              date it is rebuilt on, and the download as an icon on the right. Same component, so
+              the customer's documents and the broker's cannot drift apart. */}
           <section className="card">
             <h2>Documents</h2>
             <PolicyDocuments

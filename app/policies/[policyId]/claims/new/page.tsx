@@ -45,7 +45,13 @@ export default async function NewClaimPage({ params }: { params: Promise<{ polic
         { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Open a claim" },
       ]}
-      views={policyFormViews({ policyId, formLabel: "New claim", formHref: `/policies/${policyId}/claims/new` })}
+      views={policyFormViews({
+        policyId,
+        formLabel: "New claim",
+        formHref: `/policies/${policyId}/claims/new`,
+        // F-LIVE-01: the correction stays in reach while this form is open, for operations only.
+        role: user.role,
+      })}
       band={{
         title: "Open a claim",
         suffix: `Policy ${policy.policyNumber}`,
