@@ -1,3 +1,4 @@
+import "@/app/styles/ops-tables.css";
 import { PortalShell } from "@/components/portal-shell";
 import { AmountExplained } from "@/components/amount-explained";
 import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
@@ -124,6 +125,11 @@ export default async function ClaimPage({
 
       {notices.length > 0 ? <div className="notices">{notices}</div> : null}
 
+      {/* UI-006: the payment state, the approval sentence and the rail controls have to be read
+          on one line, and the simulator fold has to open without pushing the amount it acts on
+          out of view. In the 736 px left-hand card they did not fit, so the page stacks: the
+          actions and the claimant panels move under the tables. */}
+      <div className="ops-stacked">
       <DetailGrid
         main={
           <>
@@ -219,15 +225,15 @@ export default async function ClaimPage({
                 <Empty>Nothing has been paid on this claim.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Claim payments" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
                         <th className="amount">Amount</th>
-                        <th>Rail status</th>
-                        <th>Approval</th>
-                        <th>Requested by</th>
-                        <th>Transfer</th>
-                        <th></th>
+                        <th className="col-label">Rail status</th>
+                        <th className="col-text">Approval</th>
+                        <th className="col-name">Requested by</th>
+                        <th className="col-ref">Transfer</th>
+                        <th className="col-controls"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -236,7 +242,7 @@ export default async function ClaimPage({
                         return (
                           <tr key={payment.operationId}>
                             <td className="amount">{formatCentsAsUsd(payment.amountCents)}</td>
-                            <td>
+                            <td className="col-label">
                               <Chip tone={payment.railStatus === "settled" ? "ok" : payment.railStatus === "returned" || payment.railStatus === "refused" ? "warn" : "neutral"}>
                                 {payment.railStatus}
                               </Chip>
@@ -250,7 +256,7 @@ export default async function ClaimPage({
                                 </>
                               ) : null}
                             </td>
-                            <td>
+                            <td className="col-text">
                               {approval === null || approval === undefined ? (
                                 <span className="note">below {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}: no approver needed</span>
                               ) : (
@@ -264,7 +270,7 @@ export default async function ClaimPage({
                                 </>
                               )}
                             </td>
-                            <td>
+                            <td className="col-name">
                               {payment.requestedByName ?? "unknown"}
                               {/* A request raised through the MCP endpoint says so here too, not only
                                   on the approvals queue: below the threshold nobody else would be
@@ -279,7 +285,7 @@ export default async function ClaimPage({
                                 </>
                               ) : null}
                             </td>
-                            <td>
+                            <td className="col-ref">
                               {payment.transferRef ? "on the rail" : <span className="note">not sent yet</span>}
                               <SandboxReferences
                                 references={[
@@ -289,7 +295,7 @@ export default async function ClaimPage({
                                 ]}
                               />
                             </td>
-                            <td>
+                            <td className="col-controls">
                               {user.role === "staff_ops" ? (
                                 <PaymentActions claimId={claim.claimId} operationId={payment.operationId} railStatus={payment.railStatus} />
                               ) : (
@@ -310,26 +316,26 @@ export default async function ClaimPage({
                 <Empty>No reserve has been set yet. Nothing can be paid until one is.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Reserve history" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>Decision</th>
+                        <th className="col-label">Decision</th>
                         <th className="amount">From</th>
                         <th className="amount">To</th>
                         <th className="amount">Booked</th>
-                        <th>Recorded (UTC)</th>
-                        <th>By</th>
+                        <th className="col-when">Recorded (UTC)</th>
+                        <th className="col-text">By</th>
                       </tr>
                     </thead>
                     <tbody>
                       {reserves.map((reserve) => (
                         <tr key={reserve.claimEventId}>
-                          <td>{reserve.eventType.replace("_", " ")}</td>
+                          <td className="col-label">{reserve.eventType.replace("_", " ")}</td>
                           <td className="amount">{formatCentsAsUsd(reserve.previousReserveCents)}</td>
                           <td className="amount">{formatCentsAsUsd(reserve.newReserveCents)}</td>
                           <td className="amount">{reserve.deltaCents === 0 ? "no entry" : formatCentsAsUsd(reserve.deltaCents)}</td>
-                          <td>{reserve.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
-                          <td>
+                          <td className="col-when">{reserve.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
+                          <td className="col-text">
                             {reserve.recordedByName ?? "unknown"}
                             {reserve.note ? <span className="note"> ({reserve.note})</span> : null}
                           </td>
@@ -450,6 +456,7 @@ export default async function ClaimPage({
           </>
         }
       />
+      </div>
     </PortalShell>
   );
 }
