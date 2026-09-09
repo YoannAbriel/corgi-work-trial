@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
 import { JournalTable } from "@/components/journal-table";
-import { FailureLine, IntegrationModes, Masked, formatSeconds, utc } from "@/components/console-parts";
+import { FailureLine, Masked, formatSeconds, utc } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Inspector } from "@/components/ui/inspector";
@@ -112,7 +112,7 @@ export async function Console360({ kind, id, searchParams }: { kind: ConsoleSubj
           ),
         }}
       >
-        <IntegrationModes />
+        {/* The top bar carries the AF-02 mode line here too (cycle 2, decision 1). */}
         <section className="card">
           <h2>What failed</h2>
           <FailureLine attempted={subjectRead} />
@@ -192,26 +192,16 @@ export async function Console360({ kind, id, searchParams }: { kind: ConsoleSubj
     ...(hasParties ? (["mcp-calls"] as PanelView[]) : []),
   ];
   const view = pickView(query.view, availableViews);
-  const countOf: Record<PanelView, number | undefined> = {
-    overview: breaks.length,
-    operations: operations.length,
-    webhooks: webhooks.length,
-    journal: journal.length,
-    policies: policies.length,
-    claims: claims.length,
-    timeline: timeline.length,
-    approvals: approvals.length,
-    statements: statements.length,
-    activity: activity.length,
-    "change-requests": changeRequests.length,
-    "mcp-calls": mcpCalls.length,
-  };
+  // NO COUNT IN THE NAVIGATION (cycle 2, decision 3: counts are not notifications). A number
+  // beside a view was the number of records behind it, which nobody has to act on, and it also
+  // made "empty" and "not counted" the same thing to read: a panel with no rows showed no number
+  // at all, so "Claims" read as uncounted beside "Money 2" (round 1, MEDIUM). Every panel now
+  // prints its own count in its heading, zero included, where the rows are.
   const views = availableViews.map((one) => ({
     key: one,
     label: PANEL_LABEL[one],
     href: withParams(subject.consoleHref, query, { view: one, inspect: null }),
     current: one === view,
-    count: countOf[one],
   }));
 
   const inspected = inspectedReference(query.inspect);
@@ -255,34 +245,40 @@ export async function Console360({ kind, id, searchParams }: { kind: ConsoleSubj
       band={{
         title: bandKind ? `${bandKind} ${subject.title}` : subject.title,
         suffix: subject.lead,
+        // TWO CHIPS, and the AF-02 words said nowhere here (cycle 2, decision 1). They were
+        // printed twice within 100 px, as two band chips and again in the IntegrationModes strip
+        // under the band, and the two lists disagreed: the band never mentioned the bank check
+        // (round 1, MEDIUM). The top bar of every workspace screen carries the three slots now,
+        // and a simulated record still says LOCAL SIMULATOR on its own row below. The kind is
+        // dropped too: the title already reads "Broker Redwood Commercial Brokers".
         meta: (
           <>
-            <Chip tone="neutral">{subject.kind}</Chip>
             <Chip tone={breaks.length > 0 ? "warn" : "ok"}>
               {breaks.length === 0 ? "no open break" : `${breaks.length} open break${breaks.length === 1 ? "" : "s"}`}
             </Chip>
             <Chip tone="neutral">{operations.length} money operations</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
           </>
         ),
+        // Two actions of two words, side by side (cycle 2, decision 8).
         actions: (
           <>
             {subject.existingHref ? (
               <Link href={subject.existingHref} prefetch={false} className="button-link secondary">
-                The ordinary screen
+                Ordinary screen
               </Link>
             ) : null}
             <Link href="/ops/console" prefetch={false} className="button-link">
-              Back to the feed
+              Console feed
             </Link>
           </>
         ),
       }}
     >
-      {/* AF-02, recheck finding F-RC-08: which integrations are real, on every console screen,
-          above the fold and never inside one. */}
-      <IntegrationModes />
+      {/* AF-02 is said once, in the top bar of this and every workspace screen, exact and
+          visible: "Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL
+          SIMULATOR" (cycle 2, decision 1). The IntegrationModes strip that used to sit here
+          repeated it a third time on the same screen. Every simulated row still carries its own
+          LOCAL SIMULATOR, in the "kind" cell of the money table below. */}
 
       {view === "overview" ? (
         <>

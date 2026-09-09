@@ -21,6 +21,25 @@ import { toastsFromQuery, type Query } from "@/lib/ui/views";
 // The customer's own policies: what is in force, the documents, and any endorsement waiting for
 // their approval. A customer only ever sees the policies of the customer their user account is
 // attached to: the list is queried by customer_id from the session, never by an id in the URL.
+// What each status means, said to the person who holds the policy. The legend prints only the
+// ones their own rows show.
+const STATUS_MEANING: Record<string, string> = {
+  draft: "quoted by your broker, not paid yet",
+  awaiting_payment: "waiting for the payment",
+  payment_failed: "the payment was refused; the cover has not started",
+  paid_not_bound: "paid, and waiting on a check before the cover starts",
+  bound: "in force, on the terms this row shows",
+  cancelled: "cover stopped, the unearned premium was refunded",
+  voided: "a correction reversed the issuance; this policy never took effect",
+};
+
+// The statuses on the screen, once each, in the order the rows use them.
+function statusesOnScreen(rows: { status: string }[]): string[] {
+  const seen: string[] = [];
+  for (const row of rows) if (!seen.includes(row.status) && STATUS_MEANING[row.status]) seen.push(row.status);
+  return seen;
+}
+
 export default async function CustomerPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
   if (!user) {
@@ -69,11 +88,20 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
   // What is waiting for this customer, read once for the sidebar count and for the block below.
   const tasks = await workspaceTasks(user);
 
+  // The toast says a sentence, not the bare value the redirect carried: `?approved=1` used to
+  // show a toast whose body was "1" (feedback audit of 2026-09-09). `toastsFromQuery` puts the
+  // parameter's value in the body, so the two success notices get their wording here.
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
     approved: { tone: "ok", title: "Endorsement approved" },
     correctionApproved: { tone: "ok", title: "Correction approved" },
-  });
+  }).map((notice) =>
+    notice.param === "approved"
+      ? { ...notice, text: notice.text === "already" ? "It was already approved." : "Your broker collects the delta." }
+      : notice.param === "correctionApproved"
+        ? { ...notice, text: notice.text === "already" ? "It was already approved." : "Your broker collects the difference." }
+        : notice,
+  );
 
   const bound = rows.filter((policy) => policy.status === "bound").length;
   const waitingForYou = rows.filter((policy) => policy.live?.standing.state === "awaiting_approval" || policy.correctionsToApprove.length > 0).length;
@@ -87,13 +115,14 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
       band={{
         title: "Your policies",
         suffix: user.displayName,
+        // Two chips (cycle 2, decision 1): what is in force, and what waits on you. The AF-02
+        // words are on the top bar of every signed-in screen.
         meta: (
           <>
             <Chip tone={bound > 0 ? "ok" : "neutral"}>{bound} in force</Chip>
             <Chip tone={waitingForYou > 0 ? "warn" : "ok"}>
               {waitingForYou === 0 ? "nothing waiting for you" : `${waitingForYou} waiting for you`}
             </Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
           </>
         ),
       }}
@@ -113,25 +142,25 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
         </div>
       ) : null}
 
+      {/* Two tiles (cycle 2, decision 2). What waits on the customer is the band's second chip
+          and the block right under here; a third tile said the same zero a third time. */}
       <Stats>
         <Stat label="Policies" value={rows.length} note="attached to your account" />
         <Stat label="In force" value={bound} tone={bound > 0 ? "ok" : "neutral"} note="bound today" />
-        <Stat
-          label="Waiting for you"
-          value={waitingForYou}
-          tone={waitingForYou > 0 ? "warn" : "ok"}
-          note="an endorsement or a correction to accept"
-        />
       </Stats>
 
-      <WhatNeedsYou tasks={tasks} showEmptyIllustration={false} />
+      <WhatNeedsYou tasks={tasks} />
 
       <DataTable
         ariaLabel="Your policies"
+        // The column, then only the statuses the rows below print, in the customer's words: a
+        // chip reading "voided" with nothing defining it is a word nobody outside the office
+        // knows (cycle 2: a legend names the statuses on screen, and no others).
         legend={
           <Legend
             items={[
               { term: "Annual premium", meaning: "the premium in force today, before state tax and the policy fee" },
+              ...statusesOnScreen(rows).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),
               { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
             ]}
           />
@@ -143,7 +172,9 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
             <th className="nowrap">Term</th>
             <th>Status</th>
             <th className="num">Annual premium</th>
-            <th>Waiting for you</th>
+            {/* No "Waiting for you" column: it said "nothing" on every row while the band chip
+                and the block above already said the same zero (round 1, MEDIUM). What is waiting,
+                when something is, is the button in the cell below. */}
             <th>Documents</th>
             <th aria-label="Open" />
           </tr>
@@ -151,7 +182,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={7} className="dt-empty">
+              <td colSpan={6} className="dt-empty">
                 <EmptyState illustration="coverage-corgi">No policy is attached to your account yet.</EmptyState>
               </td>
             </tr>
@@ -178,7 +209,10 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
                 <Num sub={policy.terms.onDate === null ? "on the policy record" : undefined}>
                   {formatCentsAsUsd(policy.terms.annualPremiumCents)}
                 </Num>
-                <td>
+                {/* The documents, and the one decision waiting on this policy when there is one.
+                    Every link is a DIRECT child of the cell, so the stylesheet lifts them above
+                    the row-wide link and a click on any of them does its own thing (F-B13-25). */}
+                <td className="nowrap">
                   {policy.live?.standing.state === "awaiting_approval" ? (
                     <Link
                       href={`/policies/${policy.policy_id}/endorsements/${policy.live.request.eventId}/approve`}
@@ -187,8 +221,6 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
                     >
                       Approve {formatCentsAsUsd(policy.live.request.figures.deltaTotalCents)}
                     </Link>
-                  ) : policy.live ? (
-                    <span className="dt-muted">delta awaited from the broker</span>
                   ) : null}
                   {policy.correctionsToApprove.map((correction) => (
                     <Link
@@ -199,12 +231,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
                     >
                       Approve {formatCentsAsUsd(correction.collection!.amountCents)}
                     </Link>
-                  ))}
-                  {!policy.live && policy.correctionsToApprove.length === 0 ? <span className="dt-muted">nothing</span> : null}
-                </td>
-                {/* Both links are DIRECT children of the cell, so the stylesheet lifts them above
-                    the row-wide link and a click on either opens the document (F-B13-25). */}
-                <td className="nowrap">
+                  ))}{" "}
                   <a href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}>Declarations</a>
                   {" "}
                   <a href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}>Schedule</a>
@@ -228,7 +255,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
         </p>
         <h4>Waiting for you</h4>
         <p>
-          An endorsement or a correction that charges more than $500 needs your acceptance before your broker may collect it. Nothing is collected until you accept.
+          An endorsement or a correction that charges more than $500 needs your acceptance before your broker may collect it. Nothing is collected until you accept. When one is waiting, its Approve button is on the policy&apos;s own row; an endorsement whose delta your broker has not paid yet needs nothing from you.
         </p>
         <h4>Documents</h4>
         <p>The declarations and the endorsement schedule are rebuilt for today&apos;s date every time you open them.</p>

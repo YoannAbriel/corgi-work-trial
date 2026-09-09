@@ -59,6 +59,27 @@
   text-align: left;
   gap: 0;
 }
+/* Nothing waiting: the block is one grey line, not a card around a paragraph (cycle 2). The
+   illustration beside it is small on purpose; a 300 px drawing to say "nothing" is the block
+   taking more room empty than full (round 1, MEDIUM). */
+.lists-needs-empty {
+  gap: 4px 12px;
+  padding: 8px 16px;
+}
+.lists-needs-empty h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.lists-needs-empty img {
+  width: 44px;
+  height: 30px;
+  object-fit: contain;
+  margin: 0;
+  align-self: center;
+}
 
 /* ---------------------------------------------------------------------------
    /inbox: one card per section, an empty section on one line
@@ -118,6 +139,15 @@
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
+/* A PANEL WITH NO ROWS DRAWS ITS EMPTY STATE AND NOTHING ELSE. Column headers over nothing, with
+   the empty state pushed into a cell below them, is a table pretending to have content: at 1920 px
+   the two right-hand headers floated with 350 px of blank header beside them (round 1, MEDIUM, on
+   the inbox; the same shape is on every 360 panel). `td.dt-empty` is the cell the empty state
+   sits in, so the rule fires exactly when there is no row. */
+.lists-panel table.dt:has(td.dt-empty) > thead {
+  display: none;
+}
+
 /* A sentence a panel prints instead of its table: a read that failed, a cap that was reached. */
 .lists-note {
   margin: 8px 0 0;
@@ -143,4 +173,152 @@
 .card > form.card.lists-form label:first-of-type,
 .lists-form.card label:first-of-type {
   margin-top: 0;
+}
+/* The card AROUND such a form is capped too. Left full width, it drew a 1100 px box with its
+   fields stopping at 520 px and half of it empty on every desktop (round 1, MEDIUM). */
+.card.lists-form-card {
+  max-width: 620px;
+}
+
+/* ---------------------------------------------------------------------------
+   The staff overview: eight section cards on two rows at 1440 x 900
+   --------------------------------------------------------------------------- */
+/* The shared `.cards` grid asks for 280 px tracks, which puts eight cards on three rows and takes
+   the overview past one screen (cycle 2, decision 12). These cards hold an icon, two words and a
+   short line, so they read at 232 px, and eight of them fit on two rows at 1440 px. */
+.cards.lists-sections {
+  grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+  gap: 10px;
+}
+.cards.lists-sections a.section-card {
+  padding: 11px 14px;
+  gap: 11px;
+}
+/* The icon is 26 px wide, not a column of its own. `a.section-card > span { flex: 1 }` in
+   app/styles/system.css is written after `.section-card-icon { width: 26px }` and catches the
+   icon's span too, so its flex-basis of 0 beat that width and the icon took an equal third of
+   the card: the section's name and its line were left with 103 px and cut mid-word (measured
+   2026-09-09 at 1440 px). Reported to the system builder; scoped here meanwhile. */
+.cards.lists-sections a.section-card > .section-card-icon {
+  flex: 0 0 26px;
+}
+/* One line, cut with an ellipsis: the blurb says what the section is, the section says the rest. */
+.cards.lists-sections a.section-card small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------------------------
+   /inbox: the filter row, and the object of a row
+   --------------------------------------------------------------------------- */
+/* The filter chips sit above the sections, in the shared toolbar box, with nothing else in it.
+   `Toolbar` draws the bar that normally sits inside a table's frame, so the frame is here. */
+.lists-filters {
+  margin: 0 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-block);
+  overflow: hidden;
+}
+.lists-filters .toolbar {
+  border-bottom: 0;
+}
+/* The source of a break ("stripe") under its reference: the key itself is the link. */
+.lists-section .dt-primary .ref {
+  max-width: 260px;
+}
+
+/* ---------------------------------------------------------------------------
+   A search field wide enough for the sentence in it
+   --------------------------------------------------------------------------- */
+/* `.toolbar input[type="search"]` is `flex: 1 1 220px` inside a form that is itself a flex item,
+   so both shrink and the placeholder was cut mid-word ("Policy number, custon", round 1). The
+   form takes its own basis here and the field never goes under the width of its placeholder. */
+.toolbar form.lists-search {
+  flex: 1 1 340px;
+  min-width: 0;
+}
+.toolbar form.lists-search input[type="search"] {
+  min-width: 240px;
+}
+
+/* ---------------------------------------------------------------------------
+   /ops/brokers: an Actions column that still fits with the drawer open
+   --------------------------------------------------------------------------- */
+/* The visible button is the one action of the row; everything else is in its menu, so the column
+   is a button plus 30 px whatever the width (cycle 2). */
+td.dt-actions.lists-row-actions {
+  white-space: nowrap;
+}
+td.dt-actions.lists-row-actions > * + * {
+  margin-left: 4px;
+}
+/* A connected account id in a narrow column: one line, cut, whole value in `title`. */
+.lists-ref-tight .ref {
+  max-width: 132px;
+}
+
+/* ---------------------------------------------------------------------------
+   The 360 pages: a masked value that is revealed REPLACES its mask
+   --------------------------------------------------------------------------- */
+/* `Masked` (components/console-parts.tsx) is a native disclosure: open, it printed the mask AND
+   the value one under the other, so the same fact was on the screen twice and one of the two was
+   wrong by construction. The summary keeps its click target and becomes the way back. */
+.lists-panel details.row-actions[open] > summary {
+  font-size: 0;
+  min-height: 0;
+  padding: 0;
+}
+.lists-panel details.row-actions[open] > summary::after {
+  content: "hide";
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.lists-panel details.row-actions[open] > div {
+  padding-top: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   /ops/mcp-keys: connecting a client
+   --------------------------------------------------------------------------- */
+/* The command a reader copies. It is long and it is one line: it scrolls inside its own box
+   rather than wrapping in the middle of a URL. */
+.lists-snippet {
+  display: block;
+  overflow-x: auto;
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  background: #f5f6f7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre;
+}
+.lists-facts {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.lists-facts b {
+  color: var(--ink);
+  font-weight: 500;
+}
+/* A free-text label under a reference: one line, cut, whole value in `title`. A hyphen is a break
+   opportunity no CSS property removes, so a date inside a label was printed as "2026-" and
+   "09-08" on two lines (round 1, MEDIUM). */
+.lists-one-line {
+  display: block;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* In a six-column table at 1024 px there is less room: a provider's error code is a glance, its
+   whole value stays in `title`. */
+td .lists-one-line {
+  max-width: 150px;
 }

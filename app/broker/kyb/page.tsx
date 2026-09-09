@@ -7,7 +7,7 @@ import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
-import { DataTable, FactGrid, Row } from "@/components/ui/table";
+import { DataTable, ExpandHead, ExpandRow, FactGrid } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import { currentUser } from "@/lib/auth/current-user";
 import { bindingIsAllowed, KYB_NOT_LIVE_LABEL } from "@/lib/broker/eligibility";
@@ -24,6 +24,21 @@ import { pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/view
 const PATH = "/broker/kyb";
 const VIEWS = ["status", "submit", "history"] as const;
 const VIEW_LABEL: Record<(typeof VIEWS)[number], string> = { status: "Status", submit: "Submit", history: "History" };
+
+// The provider, as a person would name it. The column of the table stores a machine value,
+// which is what an operator saw on the screen (round 1, MEDIUM).
+function providerInWords(provider: string): string {
+  if (provider === "stripe_connect") return "Stripe Connect";
+  if (provider === "seed") return "seed script";
+  return provider;
+}
+
+// The two or three words of a reason that fit in a cell. Stripe's whole sentence is in the row's
+// expansion, never cut: this is a glance, not the record.
+function shortReason(reason: string): string {
+  const words = reason.replace(/\.$/, "").split(" ");
+  return words.length <= 3 ? words.join(" ") : `${words.slice(0, 3).join(" ")}...`;
+}
 
 export default async function BrokerKybPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
@@ -48,7 +63,9 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
     label: VIEW_LABEL[one],
     href: withParams(PATH, query, { view: one }),
     current: one === view,
-    count: one === "history" ? history.length : undefined,
+    // No count on a view: a number in the navigation is for something a person must act on, and
+    // the number of statuses ever recorded is not that (cycle 2, decision 3). The history says
+    // how many rows it holds in its own heading.
   }));
 
   const verificationIsRunning = kyb.provider === "stripe_connect" && kyb.status === "pending";
@@ -71,16 +88,14 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
       band={{
         title: "Business verification",
         suffix: user.displayName,
-        meta: (
-          <>
-            <Chip tone={kyb.status === "approved" ? "ok" : kyb.status === "failed" ? "warn" : "neutral"}>{statusWord}</Chip>
-            {kyb.providerAccountId ? <Chip tone="neutral">connected account at Stripe</Chip> : null}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-          </>
-        ),
+        // ONE CHIP, ONE ACTION of three words. At 1024 px the three chips wrapped to a second
+        // line and the button wrapped inside itself, and the band was 113 px tall against the
+        // 100 it is allowed (round 1, MEDIUM). The AF-02 words are on the top bar; whether a
+        // connected account exists is spelled out in "Where it stands" below.
+        meta: <Chip tone={kyb.status === "approved" ? "ok" : kyb.status === "failed" ? "warn" : "neutral"}>{statusWord}</Chip>,
         actions: kyb.providerAccountId ? (
           <form method="post" action={`/api/brokers/${user.brokerId}/kyb/recheck`} className="inline-form">
-            <SubmitButton className="secondary">Check the status at Stripe</SubmitButton>
+            <SubmitButton className="secondary">Check at Stripe</SubmitButton>
           </form>
         ) : undefined,
       }}
@@ -96,7 +111,7 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
           {query.submitted ? (
             <p className="note" role="status">
               Sent to Stripe. Connected account {query.submitted}. Stripe answers in about a minute; the status stays pending
-              for at least two minutes, then use &quot;Check the status at Stripe&quot;.
+              for at least two minutes, then use &quot;Check at Stripe&quot;.
             </p>
           ) : null}
           {query.rechecked ? (
@@ -109,13 +124,9 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
 
       {view === "status" ? (
         <>
+          {/* Two tiles (cycle 2, decision 2): what the server will do, and whether the settling
+              window is holding it. The status itself is the band's chip. */}
           <Stats>
-            <Stat
-              label="Verification"
-              value={statusWord}
-              tone={kyb.status === "approved" ? "ok" : kyb.status === "failed" ? "danger" : "warn"}
-              note={kyb.provider === "stripe_connect" ? "Stripe Connect, test mode" : `recorded by ${kyb.provider}`}
-            />
             <Stat
               label="Binding"
               value={bindingIsAllowed(kyb.status) ? "allowed" : "refused"}
@@ -136,9 +147,12 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
             {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
               <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
             )}
+            {/* The provider in words, and every instant through `When`: an age at a glance, the
+                full UTC instant on hover and in the markup. These four facts were raw machine
+                values, "stripe_connect" and "2026-09-08 12:10:34" (round 1, MEDIUM). */}
             <FactGrid
               items={[
-                { label: "Provider", value: kyb.provider },
+                { label: "Provider", value: providerInWords(kyb.provider) },
                 {
                   label: "Connected account",
                   value: (
@@ -148,8 +162,8 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
                     </>
                   ),
                 },
-                { label: "Recorded", value: <When instant={kyb.recordedAt} now={now} mode="utc" /> },
-                { label: "Submitted", value: <When instant={kyb.submittedAt} now={now} mode="utc" /> },
+                { label: "Recorded", value: <When instant={kyb.recordedAt} now={now} /> },
+                { label: "Submitted", value: <When instant={kyb.submittedAt} now={now} /> },
               ]}
             />
           </section>
@@ -166,15 +180,11 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
                     value: `${submission.addressLine1}, ${submission.addressCity} ${submission.addressState} ${submission.addressPostalCode}`,
                   },
                   { label: "Business website", value: submission.businessUrl },
-                  { label: "Submitted", value: <When instant={submission.recordedAt} now={now} mode="utc" /> },
-                  {
-                    label: "Agreement accepted",
-                    value: (
-                      <>
-                        <When instant={submission.termsAcceptedAt} now={now} mode="utc" /> from {submission.termsAcceptedIp}
-                      </>
-                    ),
-                  },
+                  { label: "Submitted", value: <When instant={submission.recordedAt} now={now} /> },
+                  // The instant and the address of the acceptance are two facts, so they are two
+                  // rows: run together they read as one sentence ending in "from ::1" (round 1).
+                  { label: "Agreement accepted", value: <When instant={submission.termsAcceptedAt} now={now} /> },
+                  { label: "Accepted from", value: submission.termsAcceptedIp },
                 ]}
               />
             </section>
@@ -316,41 +326,65 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
       ) : null}
 
       {view === "history" ? (
-        <DataTable ariaLabel="Verification history">
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Provider</th>
-              <th>Reason</th>
-              <th className="nowrap">Recorded</th>
-            </tr>
-          </thead>
-          <tbody>
-            {history.length === 0 ? (
+        <section className="card lists-section">
+          <h2>
+            Every status recorded <span className="count-chip">{history.length}</span>
+          </h2>
+          {/* The Reason cell holds two or three words; Stripe's own sentence and its requirement
+              codes are in the row's expansion (round 1, MEDIUM: three sentences in a column, and
+              the provider printed as "stripe_connect"). */}
+          <DataTable ariaLabel="Verification history">
+            <thead>
               <tr>
-                <td colSpan={4} className="dt-empty">
-                  <EmptyState illustration="shield-leaf">No status recorded yet.</EmptyState>
-                </td>
+                <ExpandHead />
+                <th>Status</th>
+                <th>Provider</th>
+                <th>Reason</th>
+                <th className="nowrap">Recorded</th>
               </tr>
+            </thead>
+            {history.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td colSpan={5} className="dt-empty">
+                    <EmptyState illustration="shield-leaf">No status recorded yet.</EmptyState>
+                  </td>
+                </tr>
+              </tbody>
             ) : (
               history.map((event) => (
-                <Row key={event.id}>
-                  <td>
-                    <Chip tone={event.status === "approved" ? "ok" : event.status === "failed" ? "warn" : "neutral"}>{event.status}</Chip>
-                  </td>
-                  <td>{event.provider}</td>
-                  <td>
-                    {event.reason ?? <span className="dt-muted">none</span>}
-                    {event.requirementErrorCodes.length > 0 ? <span className="dt-sub">{event.requirementErrorCodes.join(", ")}</span> : null}
-                  </td>
-                  <td className="nowrap">
-                    <When instant={event.recordedAt} now={now} mode="utc" />
-                  </td>
-                </Row>
+                <ExpandRow
+                  key={event.id}
+                  columns={4}
+                  cells={
+                    <>
+                      <td>
+                        <Chip tone={event.status === "approved" ? "ok" : event.status === "failed" ? "warn" : "neutral"}>{event.status}</Chip>
+                      </td>
+                      <td>{providerInWords(event.provider)}</td>
+                      <td>{event.reason ? shortReason(event.reason) : <span className="dt-muted">none</span>}</td>
+                      <td className="nowrap">
+                        <When instant={event.recordedAt} now={now} />
+                      </td>
+                    </>
+                  }
+                >
+                  <FactGrid
+                    items={[
+                      { label: "What the provider said", value: event.reason ?? "nothing", wide: true },
+                      {
+                        label: "Requirement codes",
+                        value: event.requirementErrorCodes.length > 0 ? event.requirementErrorCodes.join(", ") : "none",
+                        wide: true,
+                      },
+                      { label: "Recorded", value: <When instant={event.recordedAt} now={now} mode="both" /> },
+                    ]}
+                  />
+                </ExpandRow>
               ))
             )}
-          </tbody>
-        </DataTable>
+          </DataTable>
+        </section>
       ) : null}
 
       <About>
@@ -360,10 +394,14 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
         </p>
         <h4>Pending, approved, failed</h4>
         <p>
-          The status stays pending for at least two minutes after a submission (a settling window), then &quot;Check the status at Stripe&quot; reads it again. A failed check names Stripe&apos;s own requirement codes.
+          The status stays pending for at least two minutes after a submission (a settling window), then &quot;Check at Stripe&quot; reads it again. A failed check names Stripe&apos;s own requirement codes.
         </p>
         <h4>Every status is a row</h4>
-        <p>A status is appended when observed, never edited. The history view is that table, newest first.</p>
+        <p>A status is appended when observed, never edited. The history view is that table, newest first; each row unfolds on Stripe&apos;s own sentence and its requirement codes.</p>
+        <h4>address_full_match</h4>
+        <p>
+          A registered address reading <code>address_full_match</code> is Stripe&apos;s published test token, not a street: it tells the sandbox to answer as though the address matched the business records exactly. It is what was submitted, so it is what this screen shows.
+        </p>
         <h4>What is stored</h4>
         <p>
           The registered name, the address, the website, the last four digits of the EIN, the connected account id, and the instant and IP address of the agreement acceptance. The EIN itself is never stored.

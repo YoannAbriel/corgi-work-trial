@@ -37,12 +37,13 @@ export default async function OpsHomePage({ searchParams }: { searchParams: Prom
       band={{
         title: "Overview",
         suffix: user.displayName,
+        // Two chips (cycle 2, decision 1): who you are, and how much is waiting. The AF-02 words
+        // are on the top bar of every workspace screen now, exact and visible, so a band that
+        // repeated them said the same thing twice within 100 px.
         meta: (
           <>
             <Chip tone="neutral">{isApprover ? "Staff approver" : "Staff operations"}</Chip>
             <Chip tone={totalWaiting > 0 ? "warn" : "ok"}>{totalWaiting === 0 ? "nothing waiting" : `${totalWaiting} waiting`}</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
           </>
         ),
         actions: (
