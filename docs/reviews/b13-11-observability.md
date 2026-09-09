@@ -479,3 +479,315 @@ features the parallel UI work is changing.
 | F-OB-05 | LOW | `duration_ms` is computed before the `currentUser()` lookup and before the activity insert, so the two costs the slice itself adds to every response are invisible in every figure on the latency panel | OPEN |
 | F-OB-06 | INFO | The JSON line's `recordedAt` is the application clock, the row's `recorded_at` is the database clock; the same request carries two timestamps. The correlation id is the join key | OPEN |
 | F-OB-07 | INFO | `Masked` keeps the full name in the HTML inside a closed `<details>`, so the activity rows are decluttered and not redacted on screen. As decided (rule 23) and as stated in the v1 record; the stored rows and the log lines are genuinely redacted | OPEN, accepted |
+
+---
+
+# Re-review of F-OB-01, F-OB-02, F-OB-03 and F-OB-05
+
+**Scope of this re-review.** Only the four findings the builder claims fixed: F-OB-01 (the `rule`
+column), F-OB-02 (the invented status code), F-OB-03 (the console failure line without the
+sanitiser) and F-OB-05 (the duration excluding what the wrapper adds). F-OB-04 was disclosed
+rather than fixed and F-OB-06 and F-OB-07 were accepted, so they are not reopened. Everything
+above this line stands as written; nothing in it was edited.
+
+**Re-reviewer.** Independent re-reviewer sub-agent, own worktree
+`.claude/worktrees/agent-ae9f6803369919f5b`, branch `worktree-agent-ae9f6803369919f5b`. No code
+was changed, no other document was edited, nothing was pushed.
+
+**Timestamp.** 2026-09-09T11:38:26Z (UTC, machine clock, `date -u`). Every instant below is UTC.
+The production walk ran between 11:33:53Z and 11:33:55Z, the console panels were read at 11:34Z
+and 11:37Z, and `check:console` ran from 11:34:40Z to 11:36:25Z.
+
+**Reviewed revision.** `06166cb7e068df1b2f7ca756e3c22a3f82d155b1`, the worktree HEAD, working
+tree clean (`git status --porcelain` empty). The fix is commit `2c7da4e`, merged to main as
+`37cd5d1`, and `06166cb` contains that merge. **Production runs the same revision**:
+`GET /api/health` answered
+`{"ok":true,"database":"ok","revision":"06166cb7e068df1b2f7ca756e3c22a3f82d155b1"}` at
+2026-09-09T11:31:52Z, before any check below was run, and again on every one of the three health
+calls inside the walk.
+
+## 12.1 Startup receipt
+
+**Read in full, in this order:** `CLAUDE.md`, `AUTOMATIC-FAILS.md` (AF-01 to AF-06 and the
+mandatory operating gate), `REVIEWER.md` (including the re-review contract: append, never
+overwrite), `AGENTS.md`, `READABLE-CODE.md`.
+
+**Then:** this record's sections 1 to 11 in full, including the four findings' citations and
+measurements; the register lines F-OB-01 to F-OB-07 in `docs/reviews/FINDINGS.md` and the exact
+claim the builder attached to the four.
+
+**Code read in full:** the merge diff `git diff 37cd5d1^1 37cd5d1` (35 files, 279 added lines):
+`lib/observability/log.ts` (the whole rewritten classifier, the descriptor's new `rule` field,
+the moved clock), `lib/console/safe-read.ts`, `scripts/check-console.ts` section 9, `README.md`
+line 81, `app/ops/console/page.tsx` lines 285 to 296, and the one-line rule declaration on each
+of the 31 route files it touches. Then, at the reviewed revision rather than in the diff:
+`lib/observability/redact.ts` in full, `lib/auth/current-user.ts`, the descriptor line of all 37
+exported handlers, the refusal branches of `app/api/policies/route.ts`,
+`app/api/brokers/kyb/route.ts`, `app/api/mcp-keys/route.ts`,
+`app/api/policies/[policyId]/documents/[document]/route.ts`,
+`app/api/statements/[runId]/pdf/route.ts` and `app/api/webhooks/stripe/route.ts`, and the
+latency panel's disclosure in `app/ops/console/page.tsx` lines 244 to 256.
+
+**Absent files:** none of the mandatory kit. `.env.local` is not present in a worktree; it was
+symlinked from the main checkout for the duration of the checks and removed afterwards, and no
+value from it was printed. `node_modules` was installed here with `npm ci`.
+
+**What was to be verified and how:** the four findings, by measurement on the deployed revision
+and not by reading the builder's claim. Planned: a production walk inside the rules (GET
+requests, the login POST, exactly two deliberately refused calls that write nothing but an
+activity row), the rows read back both through the console panels and read-only as the runtime
+role, one run of `check:console` on `corgi_test`, and a deliberate driver error to test the
+console's failure line.
+
+## 12.2 The production walk
+
+14 HTTP calls between 11:33:53Z and 11:33:55Z, all inside the rules: eleven GET requests, one
+login POST, one deliberately refused POST, and two page renders. They left **12 activity rows**.
+The two missing rows are the two page renders: pages are not wrapped, which is F-OB-04, disclosed
+and not reopened here.
+
+| Correlation id | Request | Received | Stored status | Stored outcome | Stored rule | Duration |
+|---|---|---|---|---|---|---|
+| `obrr2-health-1/2/3` | GET `/api/health`, anonymous | 200 | 200, 200, 200 | ok | none named | 3, 3, 3 ms |
+| `obrr2-docs-anon` | GET `/api/policies/{id}/documents/declarations`, no session | 401 | 401 | refused | **sign in** | 1 ms |
+| `obrr2-cron-anon-1/2/3` | GET `/api/jobs/daily`, no bearer token, no session | 401 | 401, 401, 401 | refused | **cron secret** | 1, 0, 0 ms |
+| `obrr2-login` | POST `/api/session/login`, approver | 303 to `/ops` | 303 | ok | none named | 6 ms |
+| `obrr2-cron-session-1/2/3` | GET `/api/jobs/daily`, no bearer token, approver session | 401 | 401, 401, 401 | refused | **cron secret** | 6, 5, 6 ms |
+| `obrr2-mcpkeys` | POST `/api/mcp-keys`, approver | 303 to `/ops/mcp-keys?error=...` | 303 | refused | **maker-checker** | 10 ms |
+| `obrr2-page-anon` | GET `/ops/console`, no session | 307 to `/login` | no row | no row | no row | no row |
+| `obrr2-page-console` | GET `/ops/console`, approver | 200 | no row | no row | no row | no row |
+
+The `/api/jobs/daily` calls ran nothing: both answered 401 before the job body, and no
+reconciliation, recovery or settlement was started. The `/api/mcp-keys` POST was refused at the
+role check before the form was read, so no key was created or revoked.
+
+**Nothing was written but activity rows.** Read-only as `app_runtime` over the trial database,
+counting rows created since 11:33:00Z: `journal_entries` **0**, `policy_events` **0**,
+`approval_requests` **0**, `money_operations` **0**, `mcp_api_keys` **0**. AF-03 and AF-04 hold
+for this walk.
+
+## 12.3 Per-finding verdict
+
+### F-OB-01, the `rule` column: **FIXED**
+
+**What changed.** The eleven `instanceof` entries and their eleven business-module imports are
+gone from `lib/observability/log.ts`. The rule is now a closed union of 18 names
+(`ActivityRule`), declared by the route in its descriptor, and applied by `classify` on exactly
+three shapes that mean "this route's own gate said no": a redirect carrying `?error=` that does
+not go to `/login`, a 403, and a 401 on a route whose actor is `cron`. A 401 anywhere else reads
+`sign in`, and a 400 or a 404 names nothing.
+
+**Measured on production, at the deployed revision.**
+
+- `POST /api/mcp-keys` as the approver: the row reads `refused, HTTP 303, rule maker-checker`,
+  reason `only staff operations can manage MCP API keys`. The console's **Refused and failed
+  actions** panel renders that row with `maker-checker` in its Rule column, which is the exact
+  question the previous verdict said a panel would ask.
+- `GET /api/jobs/daily` with no cron secret: **6 rows, 6 reading `cron secret`**, three of them
+  as `cron` and three as `human/staff_approver`.
+- `GET /api/policies/{id}/documents/declarations` with no session: `refused, HTTP 401, rule
+  sign in`, and the panel renders it as `sign in` beside the others.
+- Across the whole trial database, 14 rows are not `ok`. **8 of them were written after the fix,
+  and 8 of 8 name their rule.** The 6 older rows are unchanged: five read `none named` and one
+  reads `MCP key`. The console shows the pre-fix `POST /api/mcp-keys` row still reading
+  `none named` directly beneath the new one reading `maker-checker`, which is the correct
+  behaviour for a log that can never be corrected, and worth showing a panel rather than hiding.
+
+**Also confirmed:** the previous finding's second half, the eleven modules bundled into every
+serverless function for a path nothing reached, is closed by deletion.
+
+### F-OB-02, the invented status code: **FIXED**
+
+`classify` no longer decides a status. It reads `response.status`, and on the throw branch it
+records 500, which is what the framework answers.
+
+**Measured:** for all 12 rows the walk produced, the stored `status_code` equals the status the
+caller received: 200 three times, 401 seven times, 303 twice. **12 of 12 match.**
+
+Two honest limits. The **307** the anonymous page render received (`GET /ops/console` to
+`/login`) has no stored counterpart to compare, because a page leaves no row at all (F-OB-04, as
+disclosed); the 307 was observed on the wire only. And the **throw branch was not measured on
+production**, because no shipped route lets anything escape; it is proven on a real row by
+`check:console`, whose new assertion reads `a failure is recorded as an error, HTTP 500, with a
+sanitised sentence and no rule (error, HTTP 500, rule null)`.
+
+### F-OB-03, the console failure line: **FIXED**
+
+`attempt` in `lib/console/safe-read.ts` now builds its sentence with
+`sanitisedSentence(error)` from `lib/observability/redact.ts`, the same function the log lines
+use. The hand-rolled `replace/slice` is gone. `sanitisedSentence` reads `error.message` and never
+`error.stack`, redacts, and caps the length, so the previous behaviour is preserved and the
+credential path is closed.
+
+**The new assertion in `check:console` passes** on the real function:
+`a panel that could not read prints its reason with the connection password masked (the money
+operations could not be read: connect ECONNREFUSED postgres://****:****@db.example.invalid/corgi)`.
+
+**Three probes of my own, all read-only, none writing a row.**
+
+1. **A real postgres.js connection failure**, on a connection string whose password was a
+   deliberate fake so the raw message could be inspected and quoted. The raw driver message is
+   `connect ECONNREFUSED 127.0.0.1:1` and **carries no connection string at all**. Through
+   `attempt` it renders `the money operations could not be read: connect ECONNREFUSED
+   127.0.0.1:1`. So the original finding's premise, that this driver's connection error carries
+   the string, **was not reproduced for that error class**, and the finding's severity was, on
+   that evidence alone, slightly overstated. That does not change the verdict: the fix is right
+   whether or not this particular driver version happens to be discreet, because the discretion
+   now belongs to the application and not to the library.
+2. **A real error raised by the real `corgi_test` server**, over a real connection as the
+   restricted runtime role: `select * from a_table_that_does_not_exist`, which reads nothing,
+   writes nothing and takes no lock. Raw message: `relation "a_table_that_does_not_exist" does
+   not exist`. No credential, and through `attempt` it renders unchanged, which is the wanted
+   behaviour: an operator still gets the diagnosis.
+3. **The exact shape the finding is about**, a message carrying a connection string with a
+   password, an email and a bearer token, through the real `attempt`: it renders
+   `the ledger could not be read: write CONNECT_TIMEOUT postgres://****:****@ep-demo...neon.tech/corgi
+   for user ops**** with Authorization: Bearer ****`. All three masked, the host and the database
+   name left readable, which is what an incident needs.
+
+### F-OB-05, the duration: **FIXED**
+
+`const startedAtMs = Date.now()` is now the first statement of the wrapper, and `durationMs` is
+computed after the `currentUser()` lookup, immediately before the insert. So the figure covers
+the correlation id, the path parameters, the handler and the session lookup, and excludes only
+the insert, deliberately and for a stated reason.
+
+**Measured with a controlled comparison**, the same route and the same handler path, the only
+difference being whether the wrapper's session lookup does a database query. `GET
+/api/jobs/daily` with no bearer token answers 401 immediately in both cases.
+
+| Request | Wrapper session lookup | Stored durations |
+|---|---|---|
+| `/api/jobs/daily`, no cookie | `currentUser()` returns with no query | **1, 0, 0 ms** |
+| `/api/jobs/daily`, approver cookie | `currentUser()` runs one `select` on `users` | **6, 5, 6 ms** |
+
+The 5 ms difference is one Neon round trip, and it is precisely the cost the old figure excluded.
+Cross-checks on the same walk: `/api/health`, whose descriptor is `anonymous` so the wrapper
+never looks a session up, records **3 ms** three times; `POST /api/mcp-keys`, where the handler
+and the wrapper each look the session up, records **10 ms**. Every figure is plausible for what
+the request actually did.
+
+## 12.4 Checks actually executed, with counts
+
+| Check | Command | Result |
+|---|---|---|
+| Deployed revision | `GET /api/health`, four times | `06166cb7e068df1b2f7ca756e3c22a3f82d155b1` every time, first at 11:31:52Z before any other check |
+| Production walk | 14 calls inside the rules | 12 activity rows, statuses as tabulated in 12.2. No form submitted beyond the login, no money moved |
+| Rows read back | read-only `SELECT` as `app_runtime` on the trial database | **60 rows, 60 distinct correlation ids**, 0 duplicates. 12 of them this walk's |
+| Leak grep | the ten shapes of the original review over `correlation_id`, `route`, `rule` and `message` of all 60 rows | **0 hits** on every one of the ten (email, bearer, password field, `sk_`, `rk_`, `whsec_`, connection-string password, full `cmk_`, stack frame, newline). Only shape names were ever printed |
+| Console panels | `/ops/console` and `/ops/console/search?reference=obrr2-mcpkeys`, signed in as the approver | the refused panel renders the rules `maker-checker`, `cron secret` and `sign in`; the search resolves the correlation id and shows `Rule maker-checker`, `refused, HTTP 303, in 10 ms`. `DEMO_PASSWORD` does not appear anywhere in the 142 KB of page HTML |
+| Console readers and the activity log | `npm run check:console`, **once**, on `corgi_test` | `all checks passed`, **exit code 0**, and the script exits non-zero if any assertion fails (`failures` counter, `scripts/check-console.ts:945`). The captured tail holds **53 PASS and 0 FAIL**, including all six rewritten activity-log assertions and the new F-OB-03 assertion. The exact total was not captured because the run was piped through `tail` and the instruction is to run it once on a shared database; the script has 55 `report(...)` call sites, two of them inside loops, so the emitted total is above 55 |
+| Shared database contention | the same run | **none observed**: the run completed in about 105 seconds with no lock wait and no deadlock |
+| Types | `npm run typecheck` | clean, exit code 0. The closed `ActivityRule` union means a mistyped rule is now a compile error, and this run proves the 31 declarations type-check |
+| Driver error through the console's failure line | three probes, read-only, described in 12.3 | the real connection error carries no credential; the shape the finding is about is masked |
+| No money row written | read-only counts since 11:33:00Z | `journal_entries` 0, `journal_lines` (no timestamp column, covered by `journal_entries`), `money_operations` 0, `policy_events` 0, `approval_requests` 0, `mcp_api_keys` 0 |
+| Secret scan of the fix | the 279 added lines of `37cd5d1^1..37cd5d1` grepped for `sk_test_`, `sk_live_`, `whsec_`, `rk_`, and a connection string with a password | **1 hit**, `scripts/check-console.ts:912`, a fabricated fixture on a `.invalid` host used as the input of the new redaction assertion. No credential. AF-05 holds |
+| Money guards | **not run**, as instructed | cited: coordinator, **192 of 192** on an ephemeral database migrated 0001 to 0021 at 10:42Z. Not reproduced here |
+
+**Not verified.** The throw branch on production (no shipped route throws). The Stripe webhook
+and the authorised cron path, for the same reasons as the original review. Any route that needs a
+form submission: 31 of the 37 handlers were not exercised in this walk, and their rule
+declarations are assessed by reading, not by observed rows. No load was applied, so the p95
+figures on the panel remain a handful of samples. Other agents are writing to the same trial
+database during this session, so the totals above move.
+
+## 12.5 New findings
+
+### F-OB-10 (LOW) A refusal answered by a bare redirect is recorded as `ok`
+
+**Location.** `app/api/policies/route.ts:17-19` and `app/api/brokers/kyb/route.ts:17-19`; the
+classifier branch is `lib/observability/log.ts`, `classify`, where a 3xx whose location carries
+no `error=` falls through to `ok`.
+
+**Trigger.** Both routes refuse a caller who is not a broker with
+`return redirectTo("/broker")`, a 303 with no `?error=` in the location. The classifier only
+reads a redirect as a refusal when it carries `error=`, so the row says `outcome ok, HTTP 303,
+rule none named`. The gate itself holds: nothing is created. What is wrong is the record.
+
+**Consequence.** The console's refused-actions panel filters on `outcome <> 'ok'`, so a customer
+or a staff member repeatedly posting to `/api/policies` is invisible on the panel an operator
+opens to see who is being refused, and the latency panel counts those requests in its `Not ok`
+column as successes. It is the same class of defect F-OB-01 named, one layer lower: the fix made
+the rule honest on the refusals the classifier recognises, and these two are not recognised at
+all. Both routes now declare a rule (`policy draft`, `broker verification`) that this branch
+never reaches.
+
+**Required correction (small).** Give those two redirects an `?error=` sentence like every other
+refusal in the application, which is one edit per line and also improves the screen the user
+lands on. Do not widen the classifier to call every redirect a refusal: the successful paths of
+these same routes are redirects too.
+
+### F-OB-11 (LOW) Two declared rules can never appear, because their route refuses with a status the classifier deliberately leaves unnamed
+
+**Location.** `app/api/webhooks/stripe/route.ts:56` declares `rule: "webhook signature"` and
+answers every authentication refusal with **400** (`:62` missing header, `:71` invalid signature,
+`:76` a live-mode event). `app/api/statements/[runId]/pdf/route.ts:21` declares
+`rule: "ownership"` and answers the ownership refusal with **404**, deliberately, so an outsider
+learns nothing about which statements exist.
+
+**Trigger.** `classify` names a rule on a redirect carrying `?error=`, a 403, or a 401 on a cron
+route. A 400 and a 404 name nothing, which is the right default and is exactly why these two
+declarations are dead.
+
+**Consequence.** No incorrect row is ever written, so this is weaker than F-OB-10. Two costs
+remain. First, a rejected webhook signature is the single refusal an operator most wants named
+during an incident, and it will read `none named` next to `HTTP 400`. Second, a declaration that
+can never fire is a false promise inside the code: a reader of `app/api/webhooks/stripe/route.ts`
+concludes the log names that rule, and it does not. The same argument the builder used to delete
+`RULE_OF_REFUSAL` applies to these two lines.
+
+**Required correction.** Either extend the named branches to the webhook (a signature refusal is
+a gate refusal whatever its status, and the route's actor is `stripe`, so the addition is narrow
+and cannot affect a session route), or remove the two declarations and say in the README that a
+400 and a 404 name no rule. As the previous review put it: do not leave both halves half-true.
+
+### F-OB-12 (INFO) The latency panel still describes the old measurement
+
+**Location.** `app/ops/console/page.tsx:246-251`, the disclosure under **Latency by route**: the
+figures are still described as "the time this application spent inside the handler".
+
+**Trigger.** F-OB-05's fix widened the figure to the whole wrapper minus the insert. The README
+was updated in the same commit and now says so precisely; this sentence, which is the one an
+operator actually reads while looking at the numbers, was not. Verified on the rendered
+production page at 11:34Z.
+
+**Consequence.** The screen understates what it measures, which is the safe direction, but the
+two documents of record now disagree. One sentence closes it.
+
+## 12.6 Verdict of this re-review
+
+**PASS.**
+
+**F-OB-01 FIXED, F-OB-02 FIXED, F-OB-03 FIXED, F-OB-05 FIXED**, each measured on the deployed
+revision `06166cb` rather than accepted from the builder's claim: 8 of 8 refusals recorded since
+the fix name their rule and the three the finding named are `maker-checker`, `cron secret` and
+`sign in`, on the row and on the panel; 12 of 12 rows store the status the caller received; the
+console's failure line goes through the sanitiser, asserted by `check:console` and confirmed on a
+real driver error and on the exact shape the finding described; and the duration now shows the
+session lookup, measured as 5 ms of difference on one route whose handler path is identical.
+
+The fix is also smaller than what it replaced: eleven business-module imports deleted from every
+serverless bundle, a closed union in their place, and the rule named by the route that knows it.
+`npm run typecheck` proves the 31 declarations. That is a good trade and it reads better than the
+code it replaces.
+
+The three new findings are LOW, LOW and INFO. **F-OB-10** is the one worth an edit before the
+debrief, because a refusal recorded as `ok` is the one kind of wrong row this table cannot
+correct later. None of the three blocks the slice.
+
+**Walkthrough status: NOT REVIEWED WITH YOANN.** Nothing in this fix has been explained back by
+Yoann in his own words, and this re-review cannot establish that it has. AF-06 is not satisfied
+here. Two things to put in front of him first: why the rule is now declared by the route instead
+of derived from the exception (a route knows its gate, an exception does not know which door it
+came through), and why the duration deliberately stops before the insert.
+
+This is a scoped engineering assessment of one fix at one revision. It is not a certification, it
+says nothing about the console under load, and it does not revisit F-OB-04, F-OB-06 or F-OB-07.
+
+## 12.7 Register lines for the new findings
+
+| ID | Severity | One line | Status |
+|---|---|---|---|
+| F-OB-10 | LOW | `app/api/policies/route.ts:18` and `app/api/brokers/kyb/route.ts:18` refuse a non-broker with a bare 303 to `/broker` carrying no `?error=`, so the classifier records `ok` and the refused-actions panel, which filters on `outcome <> 'ok'`, never shows them. The gate holds; the record is wrong. One `?error=` sentence per line fixes it | OPEN |
+| F-OB-11 | LOW | `rule: "webhook signature"` on the Stripe webhook and `rule: "ownership"` on the statement PDF can never be recorded: those routes refuse with 400 and 404, which `classify` deliberately leaves unnamed. No wrong row is written, but a rejected webhook signature reads `none named`, and a declaration that cannot fire is the same half-truth that justified deleting `RULE_OF_REFUSAL` | OPEN |
+| F-OB-12 | INFO | The latency panel's disclosure (`app/ops/console/page.tsx:248`) still says the figure is "the time this application spent inside the handler" after F-OB-05 widened it to the whole wrapper minus the insert. The README was updated in the same commit, the screen was not | OPEN |
