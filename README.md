@@ -124,6 +124,8 @@ Known facts about the demo data: policy CGP-01061 was bound during development o
 
 ## Cut list v0 and week-two plan
 
+The ordered week-two plan, with what each item closes and why it waited, is in [docs/WEEK-TWO-PLAN.md](docs/WEEK-TWO-PLAN.md).
+
 Deliberately not built: renewals, a public REST API (MCP is the machine surface), a customer portal beyond approvals and documents, ACH collection, installment billing, e-signature, USDC payout, a second product line, reinsurance, broker API keys. Production-only work recorded as limitations rather than built: a real KYB policy, real tax filings, real bank rails, Stripe fee accounting, revocable sessions. Week two, in order: a dedicated KYB vendor behind the same interface, ACH collection, Plaid bank verification and Increase payout rail live, renewals, installment billing, then the public API.
 
 Parked money (decision 27): money received after a broker lost eligibility sits in the suspense account unapplied_customer_cash (rule 14; example: 125320 cents received while the Checkout page was open). Returning it is a money-out that would need the approval queue, and this build offers no refund action for that account; the balance is visible on the ledger and disclosed here rather than hidden.
