@@ -13,10 +13,12 @@ table.endorsement-schedule {
   table-layout: fixed;
   min-width: 620px;
 }
+/* 1 effective date, 2 what changed, 3 prorated delta, 4 new annual premium, 5 Stripe.
+   Column 2 is deliberately left unset: under a fixed layout it takes everything the others do
+   not, which is what the sentence a reader is here for needs. */
 table.endorsement-schedule th:nth-child(1) {
   width: 15%;
 }
-/* The change column takes what is left: it is the sentence a reader is here for. */
 table.endorsement-schedule th:nth-child(3) {
   width: 20%;
 }
