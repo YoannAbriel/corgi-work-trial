@@ -118,8 +118,8 @@ const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const CORRELATION_ID_SHAPE = /^[A-Za-z0-9._:-]{8,200}$/;
 
 // What the text looks like, before the database is asked anything. Null means the shape is not on
-// the closed list, which is an ANSWER ("nothing matches, and here is what I do accept") and never
-// an error: an agent holding the wrong string must be able to read what the right ones look like.
+// the closed list, which is an ANSWER ("nothing matches") and never an error: an agent holding the
+// wrong string must be able to tell an empty result from a broken tool.
 function shapeOf(reference: string): ReferenceShape | null {
   if (STRIPE_OBJECT_SHAPE.test(reference)) return "stripe_object";
   if (CONNECTED_ACCOUNT_SHAPE.test(reference)) return "connected_account";
@@ -529,15 +529,21 @@ export const inspectReference: McpTool = {
 
 // A reference nothing matched. It is an ANSWER: an agent must be able to tell "I looked and there
 // is nothing" from "the tool broke", and a refusal would read as the second.
+//
+// ONE SENTENCE AND NOTHING ELSE (decision 53, Yoann). This answer used to repeat the closed list
+// of accepted shapes, which is already published twice for anyone who needs it: in the tool
+// description and in the `reference` schema, both read at tools/list before any call. Repeating it
+// here made the one thing the caller asked ("is there a row?") the shortest part of the answer.
+// The list stays where it belongs; this stays the answer to the question.
+const NOTHING_MATCHES_SENTENCE = "Nothing in this database matches that reference.";
+
 function nothingMatches(reference: string, recognisedAs: string) {
   return {
     reference,
     recognisedAs,
     resolvedTo: "nothing",
     found: false,
-    whatThisMeans:
-      "Nothing in this system matches that reference. The shapes this tool opens are: " +
-      `${ACCEPTED_SHAPES_SENTENCE}. Nothing was refused and nothing is hidden by this answer: no row was found.`,
+    whatThisMeans: NOTHING_MATCHES_SENTENCE,
   };
 }
 
