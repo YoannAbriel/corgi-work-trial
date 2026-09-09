@@ -1,4 +1,11 @@
+import "@/app/styles/policy-detail.css";
 import { PortalShell } from "@/components/portal-shell";
+import { Chip } from "@/components/detail-layout";
+import { About } from "@/components/ui/about";
+import { EmptyState } from "@/components/ui/empty";
+import { Stat, Stats } from "@/components/ui/stat";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { DataTable, FactGrid, Num } from "@/components/ui/table";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
@@ -61,9 +68,24 @@ export default async function CorrectEndorsementDatePage({
       // A refusal is part of the preview: the operator sees why and changes the input. Nothing
       // was written, so there is nothing to undo.
       return (
-        <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: "Policy", href: `/policies/${policyId}` }, { label: "Correction preview" }]}>
-          <h1>Correct the effective date</h1>
-          <p className="error" role="alert">{error.message}</p>
+        <PortalShell
+          user={user}
+          active="policies"
+          trail={[
+            ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+            { label: "Policy", href: `/policies/${policyId}` },
+            { label: "Correction preview" },
+          ]}
+          band={{ title: "Correction preview", meta: <Chip tone="warn">refused</Chip> }}
+        >
+          <div className="notices">
+            <p className="error" role="alert">
+              {error.message}
+            </p>
+          </div>
+          <Link href={`/policies/${policyId}/corrections/new`} className="button-link secondary">
+            Back to the correction form
+          </Link>
         </PortalShell>
       );
     }
@@ -79,119 +101,136 @@ export default async function CorrectEndorsementDatePage({
         : "No money moves: the corrected date prices the same amount";
 
   return (
-    <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: "Policy", href: `/policies/${policyId}` }, { label: "Correction preview" }]}>
-
-      <h1>Correct an endorsement date on policy {plan.policyNumber}</h1>
-      <p className="lead">
-        Nothing has happened yet. The endorsement is in force from <strong>{money.wrongEffectiveAt}</strong> and would be
-        put right to <strong>{money.correctedEffectiveAt}</strong>, which leaves {money.after.daysRemaining} of{" "}
-        {money.after.termDays} days of the term instead of {money.before.daysRemaining}.
-      </p>
-
-      <h2>What changes</h2>
-      {/* UI-024: the three cells below hold sentences and dates, not amounts. Carrying the amount
-          class gave them white-space: nowrap, so the endorsement's description held the table
-          open on one 942 px line, the label column was squeezed to 44 px, and "Endorsement"
-          came out one letter per line. Only the money rows keep the class. */}
-      <div className="table-scroll" role="region" aria-label="What changes" tabIndex={0}>
-<table className="amounts">
-        <tbody>
-          <tr>
-            <th>Endorsement</th>
-            <td>{plan.description}</td>
-          </tr>
-          <tr>
-            <th>Effective date</th>
-            <td>
+    <PortalShell
+      user={user}
+      active="policies"
+      trail={[
+        ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+        { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
+        { label: "Correction preview" },
+      ]}
+      band={{
+        title: "Correction preview",
+        suffix: `Policy ${plan.policyNumber}`,
+        meta: (
+          <>
+            <Chip tone="warn">nothing recorded yet</Chip>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            <Chip tone="neutral">
               {money.wrongEffectiveAt} to {money.correctedEffectiveAt}
-            </td>
-          </tr>
-          <tr>
-            <th>Prorated premium and tax as booked</th>
-            <td className="amount">{formatCentsAsUsd(money.before.deltaTotalCents)}</td>
-          </tr>
-          <tr>
-            <th>Prorated premium and tax at the corrected date</th>
-            <td className="amount">{formatCentsAsUsd(money.after.deltaTotalCents)}</td>
-          </tr>
-          <tr className="total">
-            <th>Difference</th>
-            <td className="amount">{formatCentsAsUsd(money.differenceTotalCents)}</td>
-          </tr>
-          <tr>
-            <th>Reason that will be written on every entry</th>
-            <td>{plan.reason}</td>
-          </tr>
-        </tbody>
-      </table>
-</div>
+            </Chip>
+          </>
+        ),
+      }}
+    >
+      <Stats>
+        <Stat label="Booked" value={formatCentsAsUsd(money.before.deltaTotalCents)} note={`for ${money.before.daysRemaining} days`} />
+        <Stat
+          label="Corrected"
+          value={formatCentsAsUsd(money.after.deltaTotalCents)}
+          note={`for ${money.after.daysRemaining} of ${money.after.termDays} days`}
+        />
+        <Stat label="Difference" tone="accent" value={formatCentsAsUsd(money.differenceTotalCents)} note={money.settlement} />
+      </Stats>
 
-      <h2>Impact, line by line</h2>
-      <p className="note">{direction}. Each line shows the integer-cent formula that produced it.</p>
-      <FormulaLinesTable lines={plan.lines} />
+      <div className="layout-2">
+        <div className="stack">
+          <section className="card">
+            <h2>What changes</h2>
+            <FactGrid
+              items={[
+                { label: "Endorsement", value: plan.description },
+                { label: "Effective date", value: `${money.wrongEffectiveAt} to ${money.correctedEffectiveAt}` },
+                { label: "Reason on every entry", value: plan.reason },
+              ]}
+            />
+          </section>
 
-      <h2>The entries that will be reversed</h2>
-      <p className="note">
-        Only what the customer was BILLED is reversed. The cash entries stay exactly as they are: Stripe really does hold
-        that money, and reversing them would make the ledger claim it left. The originals below stay in the journal for
-        ever; a mirrored entry is appended beside each of them, on the same effective date, recorded now.
-      </p>
-      <div className="table-scroll" role="region" aria-label="Entries that will be reversed" tabIndex={0}>
-<table>
-        <thead>
-          <tr>
-            <th>Entry</th>
-            <th>Effective</th>
-            <th>Recorded (UTC)</th>
-            <th className="amount">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {plan.entriesToReverse.map((entry) => (
-            <tr key={entry.entryId}>
-              <td>{entry.entryType}</td>
-              <td>{entry.effectiveAt}</td>
-              <td>{entry.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
-              <td className="amount">{formatCentsAsUsd(entry.amountCents)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-</div>
+          <section className="card">
+            <h2>Impact, line by line</h2>
+            <p className="pd-note">{direction}. Each line shows the integer-cent formula that produced it.</p>
+            <FormulaLinesTable lines={plan.lines} />
+          </section>
 
-      <h2>What happens on confirm</h2>
-      <p className="note">
-        In one transaction: a dated correction event superseding the endorsement that was wrong, one reversal entry per
-        line above, the endorsement re-booked on {money.correctedEffectiveAt} with fresh premium and tax entries, and the
-        difference opened as a money operation. Nothing is deleted and nothing is updated.
-        {money.settlement === "collect"
-          ? ` The ${formatCentsAsUsd(money.differenceTotalCents)} difference is then collected through a hosted Stripe page.`
-          : money.settlement === "refund"
-            ? ` The ${formatCentsAsUsd(-money.differenceTotalCents)} goes back through the Stripe Refunds API on the original payment.`
-            : ""}
-      </p>
-      {/* The verdict on each threshold, always with the total it was read against: both are
-          cumulative over the policy, so the amount of this correction alone does not answer
-          them (review finding F-B8-02). */}
-      {plan.approvalSentences.customer ? <p className="note">Customer approval: {plan.approvalSentences.customer}.</p> : null}
-      {plan.approvalSentences.refund ? <p className="note">Second approver: {plan.approvalSentences.refund}.</p> : null}
+          <DataTable ariaLabel="Entries that will be reversed">
+            <thead>
+              <tr>
+                <th>Entry</th>
+                <th className="nowrap">Effective</th>
+                <th className="nowrap">Recorded (UTC)</th>
+                <th className="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {plan.entriesToReverse.map((entry) => (
+                <tr key={entry.entryId} className="dt-row">
+                  <td>
+                    <Chip tone="neutral">{entry.entryType.replace(/_/g, " ")}</Chip>
+                  </td>
+                  <td className="nowrap">{entry.effectiveAt}</td>
+                  <td className="nowrap">{entry.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
+                  <Num>{formatCentsAsUsd(entry.amountCents)}</Num>
+                </tr>
+              ))}
+            </tbody>
+          </DataTable>
+        </div>
 
-      <form method="post" action={`/api/policies/${policyId}/corrections`} className="card">
-        <input type="hidden" name="endorsedEventId" value={plan.correctedEventId} />
-        <input type="hidden" name="correctedEffectiveAt" value={money.correctedEffectiveAt} />
-        <input type="hidden" name="reason" value={plan.reason} />
-        {/* The policy as it stood when this preview was computed. The server recomputes it under
-            a lock and refuses the confirmation if the policy changed in between. */}
-        <input type="hidden" name="expectedPolicyVersion" value={String(plan.policyVersion)} />
-        <button type="submit">
-          Correct the effective date to {money.correctedEffectiveAt}
-          {money.settlement === "collect"
-            ? ` and ask for ${formatCentsAsUsd(money.differenceTotalCents)}`
-            : money.settlement === "refund"
-              ? ` and give back ${formatCentsAsUsd(-money.differenceTotalCents)}`
-              : ""}
-        </button>
-      </form>
+        <section className="card pd-form-card">
+          <h2>Confirm</h2>
+          <p className="pd-note">
+            In one transaction: a dated correction event superseding the endorsement that was wrong, one reversal entry
+            per line beside, the endorsement re-booked on {money.correctedEffectiveAt} with fresh premium and tax
+            entries, and the difference opened as a money operation. Nothing is deleted and nothing is updated.
+            {money.settlement === "collect"
+              ? ` The ${formatCentsAsUsd(money.differenceTotalCents)} difference is then collected through a hosted Stripe page.`
+              : money.settlement === "refund"
+                ? ` The ${formatCentsAsUsd(-money.differenceTotalCents)} goes back through the Stripe Refunds API on the original payment.`
+                : ""}
+          </p>
+          {/* The verdict on each threshold, always with the total it was read against: both are
+              cumulative over the policy, so the amount of this correction alone does not answer
+              them (review finding F-B8-02). */}
+          {plan.approvalSentences.customer ? <p className="pd-note">Customer approval: {plan.approvalSentences.customer}.</p> : null}
+          {plan.approvalSentences.refund ? <p className="pd-note">Second approver: {plan.approvalSentences.refund}.</p> : null}
+
+          <form method="post" action={`/api/policies/${policyId}/corrections`} className="card">
+            <input type="hidden" name="endorsedEventId" value={plan.correctedEventId} />
+            <input type="hidden" name="correctedEffectiveAt" value={money.correctedEffectiveAt} />
+            <input type="hidden" name="reason" value={plan.reason} />
+            {/* The policy as it stood when this preview was computed. The server recomputes it
+                under a lock and refuses the confirmation if the policy changed in between. */}
+            <input type="hidden" name="expectedPolicyVersion" value={String(plan.policyVersion)} />
+            <SubmitButton>
+              Correct the effective date to {money.correctedEffectiveAt}
+              {money.settlement === "collect"
+                ? ` and ask for ${formatCentsAsUsd(money.differenceTotalCents)}`
+                : money.settlement === "refund"
+                  ? ` and give back ${formatCentsAsUsd(-money.differenceTotalCents)}`
+                  : ""}
+            </SubmitButton>
+          </form>
+        </section>
+      </div>
+
+      <About>
+        <h4>Only what was billed is reversed</h4>
+        <p>
+          The cash entries stay exactly as they are: Stripe really does hold that money, and reversing them would make
+          the ledger claim it left. What the correction changes is what the customer was billed, and the difference sits
+          in premium receivable until it is settled.
+        </p>
+        <h4>Nothing is deleted</h4>
+        <p>
+          The originals stay in the journal for ever; a mirrored entry is appended beside each of them, on the same
+          effective date, recorded now.
+        </p>
+        <h4>Re-priced from the corrected date</h4>
+        <p>
+          The endorsement is priced again from the corrected effective date with every other input unchanged, so a
+          correction can never quietly re-price a policy at today&apos;s rates.
+        </p>
+      </About>
     </PortalShell>
   );
 }
@@ -224,18 +263,32 @@ async function CorrectionForm({
     { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
     { label: "Correct" },
   ];
+  const band = {
+    title: "Correct a date",
+    suffix: `Policy ${policy.policyNumber}`,
+    meta: (
+      <>
+        <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+        <Chip tone="neutral">
+          term {policy.effectiveAt} to {policy.termEnd}
+        </Chip>
+      </>
+    ),
+  };
 
   if (schedule.length === 0) {
     return (
-      <PortalShell user={user} active="policies" trail={trail}>
-        <h1>Correct an endorsement date on policy {policy.policyNumber}</h1>
-        <p className="note">
-          This policy has no endorsement in force, so there is no effective date to correct. A correction puts right an
-          endorsement that was entered with the wrong date.
-        </p>
-        <Link href={`/policies/${policyId}`} className="button-link secondary">
-          Back to the policy
-        </Link>
+      <PortalShell user={user} active="policies" trail={trail} band={band}>
+        <EmptyState
+          illustration="closed-folder"
+          action={
+            <Link href={`/policies/${policyId}`} className="button-link secondary">
+              Back to the policy
+            </Link>
+          }
+        >
+          This policy has no endorsement in force, so there is no effective date to correct.
+        </EmptyState>
       </PortalShell>
     );
   }
@@ -247,52 +300,71 @@ async function CorrectionForm({
   const mostRecentlyRecorded = schedule.reduce((latest, row) => (row.recordedAt > latest.recordedAt ? row : latest));
 
   return (
-    <PortalShell user={user} active="policies" trail={trail}>
-      <h1>Correct an endorsement date on policy {policy.policyNumber}</h1>
-      <p className="lead">
-        Pick the endorsement that was keyed with the wrong effective date and the date it should have carried, inside the
-        term ({policy.effectiveAt} to {policy.termEnd}). The next screen shows the exact money the correction moves, line
-        by line, before anything is recorded. Nothing is ever deleted: what was booked is reversed and the endorsement is
-        re-booked on the corrected date.
-      </p>
-      <form method="get" action={`/policies/${policyId}/corrections/new`} className="card">
-        <label htmlFor="endorsedEventId">Endorsement to correct</label>
-        <select id="endorsedEventId" name="endorsedEventId" defaultValue={mostRecentlyRecorded.endorsedEventId}>
-          {schedule.map((row) => (
-            <option key={row.endorsedEventId} value={row.endorsedEventId}>
-              {`Effective ${row.effectiveAt}, recorded ${row.recordedAt.toISOString().slice(0, 10)}: ${row.description || "endorsement"}`}
-            </option>
-          ))}
-        </select>
-        <p className="note">
-          Only the endorsement recorded most recently can be corrected, and it is the one selected. Any endorsement
-          entered after it was priced against it, so that one has to be put right first; the preview refuses the others
-          and says so.
+    <PortalShell user={user} active="policies" trail={trail} band={band}>
+      <div className="layout-2">
+        <section className="card pd-form-card">
+          <h2>The date it should have carried</h2>
+          <form method="get" action={`/policies/${policyId}/corrections/new`} className="card">
+            <label htmlFor="endorsedEventId">Endorsement to correct</label>
+            <select id="endorsedEventId" name="endorsedEventId" defaultValue={mostRecentlyRecorded.endorsedEventId}>
+              {schedule.map((row) => (
+                <option key={row.endorsedEventId} value={row.endorsedEventId}>
+                  {`Effective ${row.effectiveAt}, recorded ${row.recordedAt.toISOString().slice(0, 10)}: ${row.description || "endorsement"}`}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="correctedEffectiveAt">Effective date it should have carried</label>
+            <input
+              id="correctedEffectiveAt"
+              name="correctedEffectiveAt"
+              type="date"
+              required
+              defaultValue={mostRecentlyRecorded.effectiveAt}
+              min={policy.effectiveAt}
+              max={policy.termEnd}
+            />
+            <label htmlFor="reason">Why (written on the correction and on every entry)</label>
+            <input
+              id="reason"
+              name="reason"
+              required
+              minLength={10}
+              maxLength={300}
+              placeholder="the broker's email asked for June 9, the endorsement was keyed as July 9"
+            />
+            <button type="submit">Preview the correction</button>
+          </form>
+        </section>
+
+        <section className="card">
+          <h2>The endorsement in force</h2>
+          <FactGrid
+            items={[
+              { label: "Effective", value: mostRecentlyRecorded.effectiveAt },
+              { label: "Recorded", value: mostRecentlyRecorded.recordedAt.toISOString().slice(0, 10) },
+              { label: "Prorated delta", value: formatCentsAsUsd(mostRecentlyRecorded.figures.deltaTotalCents) },
+              { label: "Annual premium after it", value: formatCentsAsUsd(mostRecentlyRecorded.figures.newAnnualPremiumCents) },
+            ]}
+          />
+          <p className="pd-note">
+            Only the endorsement recorded most recently can be corrected. Any endorsement entered after it was priced
+            against it, so that one has to be put right first; the preview refuses the others and says so.
+          </p>
+        </section>
+      </div>
+
+      <About>
+        <h4>What the next screen shows</h4>
+        <p>
+          The exact money the correction moves, line by line, before anything is recorded. Nothing is ever deleted: what
+          was booked is reversed and the endorsement is re-booked on the corrected date.
         </p>
-        <label htmlFor="correctedEffectiveAt">Effective date it should have carried</label>
-        <input
-          id="correctedEffectiveAt"
-          name="correctedEffectiveAt"
-          type="date"
-          required
-          defaultValue={mostRecentlyRecorded.effectiveAt}
-          min={policy.effectiveAt}
-          max={policy.termEnd}
-        />
-        <label htmlFor="reason">Why (written on the correction and on every entry)</label>
-        <input
-          id="reason"
-          name="reason"
-          required
-          minLength={10}
-          maxLength={300}
-          placeholder="the broker's email asked for June 9, the endorsement was keyed as July 9"
-        />
-        <button type="submit">Preview the correction</button>
-        <Link href={`/policies/${policyId}`} className="button-link secondary">
-          Back to the policy
-        </Link>
-      </form>
+        <h4>Inside the term</h4>
+        <p>
+          The corrected date has to be inside the term ({policy.effectiveAt} to {policy.termEnd}); the preview refuses
+          anything else and says why.
+        </p>
+      </About>
     </PortalShell>
   );
 }

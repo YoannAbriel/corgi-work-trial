@@ -1,74 +1,94 @@
-/* The rules that belong to the policy screens alone (UI cycle B: UI-019, UI-021).
-   app/globals.css keeps the shared building blocks; anything that only the endorsement schedule
-   and its provider references need lives here, imported by app/policies/[policyId]/page.tsx.
-   Same split as the other sheets in this folder (ops-tables.css, shell.css). */
+/* The rules the policy screens, the claim screen and the amount explanation need on top of the
+   interface system (app/styles/system.css) and the shared blocks (app/globals.css).
 
-/* --- UI-019: the endorsement schedule reads across ---------------------------------------
-   The schedule used the browser's automatic table layout inside a horizontal scroll container.
-   Every amount column is nowrap, so the only column that could give way was the one that says
-   WHAT CHANGED: it collapsed to 97 px and broke "Annual premium $1,200.00 to $1,800.00" into
-   fragments. The widths below are fixed shares of the table, so the change column keeps the
-   room it needs and the amounts keep theirs; under 620 px the container scrolls sideways rather
-   than squeezing anything, exactly as it did before. */
-table.endorsement-schedule {
-  table-layout: fixed;
-  min-width: 620px;
+   Imported by app/policies/[policyId]/page.tsx and app/ops/claims/[claimId]/page.tsx. Every class
+   below is prefixed `pd-`, so nothing here can reach another screen by accident. The rules of the
+   amount explanation and of the journal lines moved to system.css on 2026-09-09. */
+
+/* --- The steps of "as it stood on a date" ---------------------------------------------------
+   One link per date the policy changed. The shared `.as-of-steps` rules of app/globals.css draw
+   them; this only keeps them from touching the block above inside a card. */
+.pd-steps {
+  margin-bottom: 12px;
 }
-/* 1 effective date, 2 what changed, 3 prorated delta, 4 new annual premium, 5 Stripe.
-   Column 2 is deliberately left unset: under a fixed layout it takes everything the others do
-   not, which is what the sentence a reader is here for needs. */
-table.endorsement-schedule th:nth-child(1) {
-  width: 14%;
+
+/* --- A form that is a card inside a card ----------------------------------------------------
+   The form pages put one form in the left column of `.layout-2`. `form.card` carries its own
+   border in app/globals.css, which would draw a second frame inside the block. */
+.pd-form-card form.card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: none;
 }
-table.endorsement-schedule th:nth-child(3) {
-  width: 18%;
+.pd-form-card form.card > label:first-child {
+  margin-top: 0;
 }
-table.endorsement-schedule th:nth-child(4) {
-  width: 16%;
+
+/* The answer a form gives inside its own card: it starts below the button, and its table is a
+   block of its own rather than the full-width footer `.card > .dt-wrap` would make of it. */
+.pd-answer {
+  margin-top: 20px;
 }
-/* Two points more than the 17% it had: the provider column holds the references fold, and at 17%
-   (125 px) the fold was 93 px, narrow enough to break the word REFERENCES in its own title
-   (review finding F-UA-03). The two points come from the date and the delta columns, which print
-   a date and an amount and had room to spare. */
-table.endorsement-schedule th:nth-child(5) {
-  width: 21%;
+.pd-answer > * + * {
+  margin-top: 14px;
 }
-/* Review finding F-UA-03: app/globals.css keeps every table header on one line, and under the
-   fixed layout above "New annual premium" is 121 px of nowrap text in a column that is 118 px at
-   a 1512 px window, so the label overflowed 19 px into "Stripe" with no gutter between the two.
-   A header of three words wraps instead, which is the repair ops-tables.css:66 already applies to
-   the operations tables. Wrapping a header changes no column width: the fixed shares above still
-   decide them, and the amounts under the headers keep their own nowrap. */
-table.endorsement-schedule > thead > tr > th {
-  white-space: normal;
+.pd-answer > h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
 }
-/* The recording time, under the business date it belongs to: two clocks, one column. */
-.schedule-recorded {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
+
+/* The endorsement in progress, the corrections and the claim actions put several forms in one
+   column; they are separated by a line rather than by nothing. */
+.pd-stack {
+  display: grid;
+  gap: 14px;
+}
+.pd-stack > * + * {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* A short definition list inside a card, when a FactGrid would be too wide for the column. */
+* + .pd-facts {
+  margin-top: 12px;
+}
+.pd-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+.pd-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f2;
+}
+.pd-facts > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.pd-facts dt {
   color: var(--ink-2);
-  line-height: 1.35;
 }
-/* The split of a delta into premium and tax sits under the amount and wraps, rather than
-   holding the whole column open on one nowrap line. */
-td.amount .schedule-split {
-  display: block;
-  margin-top: 2px;
-  white-space: normal;
+.pd-facts dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* The one sentence a card is allowed to carry under its figures. */
+.pd-note {
+  margin: 10px 0 0;
   font-size: 12px;
+  line-height: 1.55;
   color: var(--ink-2);
 }
+.pd-note:first-child {
+  margin-top: 0;
+}
 
-/* --- UI-021: provider references that open where they are --------------------------------
-   The default popover is a 220 px box next to the little "i". Inside a table cell that box
-   widens the table, and the horizontal scroll container then cuts it off, so the title and the
-   Stripe reference could not be read in their open position. As an inline fold the panel takes
-   the width of its own cell and wraps its identifiers, so nothing is ever clipped. */
-details.sandbox-reference.inline-fold {
-  display: block;
-  margin-left: 0;
-}
-details.sandbox-reference.inline-fold > div {
-  min-width: 0;
-}

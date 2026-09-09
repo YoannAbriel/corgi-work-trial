@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./styles/system.css";
 
 // THERE IS NO loading.tsx IN THIS APPLICATION, AND THAT IS THE LOADING DESIGN (review findings
 // F-B13-31 and F-UI-01). It is written here because this is where the next person will think of

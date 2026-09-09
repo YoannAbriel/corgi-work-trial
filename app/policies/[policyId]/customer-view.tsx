@@ -1,7 +1,16 @@
 import { PortalShell } from "@/components/portal-shell";
-import { Disclosure, RowActions } from "@/components/disclosures";
-import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Facts, Panel } from "@/components/detail-layout";
+import { Chip } from "@/components/detail-layout";
+import { About } from "@/components/ui/about";
+import { EmptyState } from "@/components/ui/empty";
+import { Legend } from "@/components/ui/legend";
+import { Stat, Stats } from "@/components/ui/stat";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Toolbar, ToolbarCount, ToolbarGroup, ToolbarSpacer } from "@/components/ui/toolbar";
+import { DataTable, ExpandHead, ExpandRow, FactGrid, Num } from "@/components/ui/table";
+import { When } from "@/components/ui/time";
+import { sql } from "@/db/client";
 import type { SignedInUser } from "@/lib/auth/current-user";
+import { claimsWithPositions } from "@/lib/claims/read";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
 import {
@@ -17,6 +26,7 @@ import { policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
 import type { PolicyDetail } from "@/lib/policy/read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
+import { firstValue, pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 import { PolicyTimeline } from "./correction-sections";
 
 // The customer's own view of their policy, and the change requests that go with it (slice B13-6,
@@ -26,7 +36,7 @@ import { PolicyTimeline } from "./correction-sections";
 //
 //   CustomerPolicyView       what the customer sees at /policies/{id}: their policy, read-only,
 //                            plus the form that asks the broker for a change.
-//   CustomerChangeRequestsPanel  the panel the owning broker and staff see on the same page,
+//   CustomerChangeRequestsPanel  the card the owning broker and staff see on the same page,
 //                            with the requests waiting for them and the box to answer one.
 //
 // WHAT THE CUSTOMER DOES NOT SEE, deliberately: the journal, the ledger sums, the broker's
@@ -36,6 +46,8 @@ import { PolicyTimeline } from "./correction-sections";
 // are before rendering a single line of it (app/policies/[policyId]/page.tsx), and every route
 // they can reach checks it again.
 
+const VIEWS = ["overview", "documents"] as const;
+
 export async function CustomerPolicyView({
   user,
   policy,
@@ -43,21 +55,23 @@ export async function CustomerPolicyView({
 }: {
   user: SignedInUser;
   policy: PolicyDetail;
-  // The page's own searchParams, passed through: this component reads the two notices its own
-  // forms produce and ignores everything else. A repeated parameter arrives as an array, which is
-  // why the values are typed with one (review finding F-B13-32); the two this component reads are
-  // printed through `oneValue` below.
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  // The page's own searchParams, passed through: this component reads the notices its own forms
+  // produce and the view being read, and ignores everything else. A repeated parameter arrives as
+  // an array, which is why every value is taken through `firstValue` (review finding F-B13-32).
+  searchParams: Promise<Query>;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   // A date field cannot start on a date it would refuse: on a policy whose term has not begun,
   // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
   const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
 
-  const [query, schedule, requests, termsToday] = await Promise.all([
+  const [query, schedule, requests, claims, termsToday] = await Promise.all([
     searchParams,
     endorsementScheduleOfPolicy(policy.policyId),
     changeRequestsOfPolicy(policy.policyId),
+    // F-LU-04: the mode chips of this page are the staff page's, and the claim rail chip only
+    // appears when this policy really carries a claim, so the claims are counted here too.
+    claimsWithPositions(sql, policy.policyId),
     // THE TERMS IN FORCE ON THIS DATE, not the latest terms on the policy record (review finding
     // F-INT-02). policy_current applies every event whatever its effective date, so this page was
     // printing a future endorsement's premium, tax and LIMITS as the cover in force today, to the
@@ -72,11 +86,18 @@ export async function CustomerPolicyView({
   const statusTone =
     policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "warn" : "neutral";
 
-  // One value out of a query parameter, whatever the address carries: a repeated parameter is an
-  // array, and React would print its entries run together (review finding F-B13-32).
-  const oneValue = (parameter: string | string[] | undefined) =>
-    Array.isArray(parameter) ? parameter[0] : parameter;
-  const refusal = oneValue(query.error);
+  const path = `/policies/${policy.policyId}`;
+  const view = pickView(query.view, VIEWS);
+  const now = new Date();
+  const refusal = firstValue(query.error);
+  const sent = firstValue(query.changeRequest) === "sent";
+
+  const toasts = [
+    ...toastsFromQuery(query, { error: { tone: "error" as const, title: "Refused" } }),
+    ...(sent
+      ? [{ tone: "ok" as const, title: "Request sent", text: "Your broker answers it on this page.", param: "changeRequest" }]
+      : []),
+  ];
 
   const notices = [
     refusal ? (
@@ -84,7 +105,7 @@ export async function CustomerPolicyView({
         {refusal}
       </p>
     ) : null,
-    oneValue(query.changeRequest) === "sent" ? (
+    sent ? (
       <p key="sent" className="note" role="status">
         Your request is with your broker. It is on this page below, and it appears on their own screen as work waiting
         for them. Nothing on the policy has changed yet: your broker answers first.
@@ -96,55 +117,68 @@ export async function CustomerPolicyView({
     <PortalShell
       active="policies"
       user={user}
+      toasts={toasts}
+      viewsSubtitle={policy.policyNumber}
+      views={VIEWS.map((one) => ({
+        key: one,
+        label: one === "overview" ? "Overview" : "Documents",
+        href: withParams(path, query, { view: one }),
+        current: one === view,
+      }))}
       trail={[{ label: "Your policies", href: "/customer" }, { label: `Policy ${policy.policyNumber}` }]}
+      band={{
+        title: `Policy ${policy.policyNumber}`,
+        suffix: policy.customerName,
+        meta: (
+          <>
+            <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>
+            {/* F-LU-04: the same mode chips as the staff page. The premium and every change on
+                this policy are Stripe; a claim on it is paid on the simulated rail (AF-02). */}
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            {claims.length > 0 ? <Chip tone="neutral">claim payout rail: LOCAL SIMULATOR</Chip> : null}
+            <Chip tone="neutral">
+              {policy.effectiveAt} to {policy.termEnd}
+            </Chip>
+          </>
+        ),
+      }}
     >
-      <DetailHeading
-        title={`Policy ${policy.policyNumber}`}
-        lead={`${policy.customerName} · ${policy.stateCode} · ${policy.effectiveAt} to ${policy.termEnd} · written by ${policy.brokerName}`}
-        chips={<Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>}
-      />
-
       {notices.length > 0 ? <div className="notices">{notices}</div> : null}
 
-      <DetailGrid
-        main={
-          <>
-            {/* UI-036: a voided policy cannot be rebuilt on a date, so the figures below are the
-                ones on the policy record. The section used to be headed "Terms in force", open on
-                "These are the terms in force on that date", and then warn underneath that they
-                were nothing of the kind. The heading and the sentence now follow the fold. */}
-            <Panel title={terms.onDate ? `Terms in force on ${terms.onDate}` : "Figures on your policy record"}>
-              <Facts
-                items={[
-                  { label: "Annual premium", value: formatCentsAsUsd(terms.annualPremiumCents) },
-                  {
-                    label: `${policy.stateCode} premium tax (${(terms.taxRateBps / 100).toFixed(2)}%)`,
-                    value: formatCentsAsUsd(terms.taxCents),
-                  },
-                  { label: "Policy fee, once at issuance", value: formatCentsAsUsd(terms.feeCents) },
-                  {
-                    label: "Full annual term at these terms",
-                    value: formatCentsAsUsd(terms.totalChargeCents),
-                    emphasis: true,
-                  },
-                  ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
-                ]}
-              />
-              {terms.onDate !== null ? (
-                <p className="note">
-                  These are the terms in force on that date. What you were charged over the life of the policy is in the
-                  endorsement schedule below and on your declarations page.
-                </p>
-              ) : (
-                <p className="note">
-                  Your policy cannot be rebuilt on {documentDate}: {"error" in termsToday ? termsToday.error : "no answer"}.
-                  The figures above are the ones written on your policy record. They are not cover in force on a date,
-                  and this policy is {policy.status.replace(/_/g, " ")}.
-                </p>
-              )}
-              {/* The same sentence the staff page prints (F-YA-07, F-INT-02): what the policy is
-                  today, and separately what it becomes. The figures come from the endorsement's
-                  own stored event; nothing is recomputed. */}
+      {view === "overview" ? (
+        <>
+          <Stats>
+            <Stat
+              label="Annual premium"
+              value={formatCentsAsUsd(terms.annualPremiumCents)}
+              note={terms.onDate ? `in force on ${terms.onDate}` : "on your policy record"}
+            />
+            <Stat
+              label={`${policy.stateCode} premium tax`}
+              value={formatCentsAsUsd(terms.taxCents)}
+              note={`${(terms.taxRateBps / 100).toFixed(2)}% of the premium`}
+            />
+            <Stat label="Policy fee" value={formatCentsAsUsd(terms.feeCents)} note="once at issuance" />
+            <Stat label="Full annual term" tone="accent" value={formatCentsAsUsd(terms.totalChargeCents)} note="premium, tax and fee" />
+          </Stats>
+
+          {/* UI-036: a voided policy cannot be rebuilt on a date, so the figures above are the
+              ones on the policy record. The page used to promise "the terms in force on that
+              date" and warn underneath that they were nothing of the kind. */}
+          {terms.onDate === null ? (
+            <div className="notices">
+              <p className="note">
+                Your policy cannot be rebuilt on {documentDate}: {"error" in termsToday ? termsToday.error : "no answer"}.
+                The figures above are the ones written on your policy record. They are not cover in force on a date, and
+                this policy is {policy.status.replace(/_/g, " ")}.
+              </p>
+            </div>
+          ) : null}
+          {/* The same sentence the staff page prints (F-YA-07, F-INT-02): what the policy is
+              today, and separately what it becomes. The figures come from the endorsement's own
+              stored event; nothing is recomputed. */}
+          {endorsementsNotYetInForce.length > 0 ? (
+            <div className="notices">
               {endorsementsNotYetInForce.map((row) => (
                 <p key={`not-yet-${row.endorsedEventId}`} className="note">
                   An endorsement effective {row.effectiveAt} brings the annual premium to{" "}
@@ -153,55 +187,15 @@ export async function CustomerPolicyView({
                   collected; the figures above are the ones in force on {terms.onDate}.
                 </p>
               ))}
-            </Panel>
+            </div>
+          ) : null}
 
-            <Panel title="Endorsement schedule">
-              {schedule.length === 0 ? (
-                <Empty>No change has been made to this policy since it was written.</Empty>
-              ) : (
-                <div className="table-scroll" role="region" aria-label="Endorsement schedule" tabIndex={0}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Effective</th>
-                        <th>Change</th>
-                        <th className="amount">Charged at the time</th>
-                        <th className="amount">Annual premium after it</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {schedule.map((row) => (
-                        <tr key={row.endorsedEventId}>
-                          <td>{row.effectiveAt}</td>
-                          <td>
-                            {row.description}
-                            <br />
-                            <span className="note">{row.newLimitLabel}</span>
-                          </td>
-                          <td className="amount">{formatCentsAsUsd(row.figures.deltaTotalCents)}</td>
-                          <td className="amount">{formatCentsAsUsd(row.figures.newAnnualPremiumCents)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <Disclosure title="Why a change costs less than a full year">
-                <p>
-                  A change made in the middle of the term is priced over the days that remain from its effective date to
-                  the end of the year, plus the state premium tax on that amount, rounded in your favour. The last column
-                  is the new yearly rate; the column before it is the money that actually moved at the time.
-                </p>
-              </Disclosure>
-            </Panel>
-
-            <Panel title="Ask for a change">
+          {/* The form is tall and the facts beside it are short: `.layout-2` lets the short card
+              keep its own height instead of stretching to the form's. */}
+          <div className="layout-2">
+            <section className="card pd-form-card">
+              <h2>Ask for a change</h2>
               <form method="post" action={`/api/policies/${policy.policyId}/change-requests`} className="card">
-                <p className="note">
-                  Tick what the request is about and say what you would like changed. Your broker reads it on their own
-                  screen and answers it here. This asks for a change; it does not make one, and no money moves until
-                  your broker prices it and you accept the quote.
-                </p>
                 {CHANGE_REQUEST_LINES.map((line) => (
                   <label key={line} htmlFor={`line-${line}`} className="checkbox-label">
                     <input type="checkbox" id={`line-${line}`} name="lines" value={line} />
@@ -218,114 +212,218 @@ export async function CustomerPolicyView({
                   maxLength={COMMENT_MAXIMUM_CHARACTERS}
                   placeholder="we have moved to 214 Bryant Street and the aggregate limit should cover the new workshop"
                 />
-                <span className="note">
-                  Between {COMMENT_MINIMUM_CHARACTERS} and {COMMENT_MAXIMUM_CHARACTERS} characters. The server checks
-                  the lines and the length again when you send it.
-                </span>
-                <button type="submit" className="orange">
-                  Request a change
-                </button>
+                <SubmitButton className="orange">Request a change</SubmitButton>
+                <p className="pd-note">
+                  Between {COMMENT_MINIMUM_CHARACTERS} and {COMMENT_MAXIMUM_CHARACTERS} characters. This asks for a
+                  change; it does not make one, and no money moves until your broker prices it.
+                </p>
               </form>
-            </Panel>
+            </section>
 
-            <Panel title="Your change requests">
-              {requests.length === 0 ? (
-                <Empty illustration="in-tray">You have not asked for anything on this policy yet.</Empty>
-              ) : (
-                <div className="table-scroll" role="region" aria-label="Your change requests" tabIndex={0}>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Asked</th>
-                        <th>About</th>
-                        <th>What you asked</th>
-                        <th>Answer</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requests.map((request) => (
-                        <tr key={request.requestId}>
-                          <td>{instant(request.recordedAt)}</td>
-                          <td>{linesOf(request)}</td>
-                          <td>{request.comment}</td>
-                          <td>
-                            {request.reply ? (
-                              <>
-                                {request.reply.text}
-                                <br />
-                                <span className="note">
-                                  {request.reply.repliedByName}, {instant(request.reply.recordedAt)}
-                                  {request.reply.outcome === "done" ? ", and the change has been made" : ""}
-                                </span>
-                              </>
-                            ) : (
-                              <span className="note">Waiting for your broker. Nothing has changed on the policy.</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </Panel>
-
-            {/* The customer audience: the same events, the same two dates and the same amounts,
-                without the free text a staff operator writes into a correction reason for
-                operations (F-B13-06). */}
-            <PolicyTimeline policyId={policy.policyId} audience="customer" />
-          </>
-        }
-        aside={
-          <>
-            <Panel title="Your broker">
-              <AsideList items={[{ label: "Written by", value: policy.brokerName }]} />
-              <p className="note">
-                Your broker writes every change to this policy. Asking here is the way to reach them about it, and their
-                answer stays on this page.
+            <section className="card">
+              <h2>Your cover</h2>
+              <FactGrid
+                items={[
+                  ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
+                  { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
+                  { label: "State", value: policy.stateCode },
+                  { label: "Written by", value: policy.brokerName },
+                ]}
+              />
+              <p className="pd-note">
+                Your broker writes every change to this policy. Asking beside is the way to reach them about it, and
+                their answer stays on this page.
               </p>
-            </Panel>
+            </section>
+          </div>
 
-            <Panel title="Documents as of a date">
+          <DataTable
+            ariaLabel="Endorsement schedule"
+            toolbar={
+              <Toolbar>
+                <ToolbarGroup>
+                  <span className="toolbar-label">Changes to this policy</span>
+                </ToolbarGroup>
+                <ToolbarSpacer />
+                <ToolbarCount>{schedule.length}</ToolbarCount>
+              </Toolbar>
+            }
+            legend={
+              <Legend
+                items={[
+                  { term: "Charged", meaning: "the money that moved at the time, priced over the days left in the year" },
+                  { term: "Annual premium", meaning: "the yearly rate after the change" },
+                ]}
+              />
+            }
+          >
+            <thead>
+              <tr>
+                <th className="nowrap">Effective</th>
+                <th>Change</th>
+                <th className="num">Charged</th>
+                <th className="num">Annual premium</th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedule.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="dt-empty">
+                    <EmptyState illustration="closed-folder">No change has been made since this policy was written.</EmptyState>
+                  </td>
+                </tr>
+              ) : (
+                schedule.map((row) => (
+                  <tr key={row.endorsedEventId} className="dt-row">
+                    <td className="nowrap">{row.effectiveAt}</td>
+                    <td>
+                      {formatCentsAsUsd(row.figures.oldAnnualPremiumCents)} to{" "}
+                      {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}
+                      <span className="dt-sub">{row.newLimitLabel}</span>
+                    </td>
+                    <td className="num">{formatCentsAsUsd(row.figures.deltaTotalCents)}</td>
+                    <td className="num">{formatCentsAsUsd(row.figures.newAnnualPremiumCents)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </DataTable>
+
+          <DataTable
+            ariaLabel="Your change requests"
+            toolbar={
+              <Toolbar>
+                <ToolbarGroup>
+                  <span className="toolbar-label">Your requests</span>
+                </ToolbarGroup>
+                <ToolbarSpacer />
+                <ToolbarCount>{requests.length}</ToolbarCount>
+              </Toolbar>
+            }
+          >
+            <thead>
+              <tr>
+                <ExpandHead />
+                <th className="nowrap">Asked</th>
+                <th>About</th>
+                <th>Answer</th>
+              </tr>
+            </thead>
+            {requests.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td colSpan={4} className="dt-empty">
+                    <EmptyState illustration="in-tray">You have not asked for anything on this policy yet.</EmptyState>
+                  </td>
+                </tr>
+              </tbody>
+            ) : (
+              requests.map((request) => (
+                <ExpandRow
+                  key={request.requestId}
+                  columns={3}
+                  cells={
+                    <>
+                      <td className="nowrap">
+                        <When instant={request.recordedAt} now={now} />
+                      </td>
+                      <td>{linesOf(request)}</td>
+                      <td>
+                        {request.reply ? (
+                          <Chip tone={request.reply.outcome === "done" ? "ok" : "neutral"}>
+                            {request.reply.outcome === "done" ? "change made" : "answered"}
+                          </Chip>
+                        ) : (
+                          <Chip tone="warn">waiting</Chip>
+                        )}
+                      </td>
+                    </>
+                  }
+                >
+                  <FactGrid
+                    items={[
+                      { label: "What you asked", value: request.comment },
+                      {
+                        label: "Answer",
+                        value: request.reply ? (
+                          <>
+                            {request.reply.text}
+                            <span className="dt-sub">
+                              {request.reply.repliedByName}, {instant(request.reply.recordedAt)}
+                            </span>
+                          </>
+                        ) : (
+                          "Waiting for your broker. Nothing has changed on the policy."
+                        ),
+                      },
+                    ]}
+                  />
+                </ExpandRow>
+              ))
+            )}
+          </DataTable>
+
+          {/* The customer audience: the same events, the same two dates and the same amounts,
+              without the free text a staff operator writes into a correction reason for
+              operations (F-B13-06). */}
+          <PolicyTimeline policyId={policy.policyId} now={now} audience="customer" />
+
+          <About>
+            <h4>This page only reads</h4>
+            <p>
+              Nothing here changes your policy. Your broker writes the changes, and the timeline records every one of
+              them with the date it applies from and the moment it was written down.
+            </p>
+            <h4>What happens to a request</h4>
+            <p>
+              It reaches your broker as work waiting for them. They answer it once, either with an answer or by making
+              the change. A change that costs money is quoted first, and once this term&apos;s changes add more than{" "}
+              {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} of premium you accept the quote yourself before
+              anything is collected.
+            </p>
+            <h4>Why a change costs less than a full year</h4>
+            <p>
+              A change made in the middle of the term is priced over the days that remain from its effective date to the
+              end of the year, plus the state premium tax on that amount, rounded in your favour.
+            </p>
+          </About>
+        </>
+      ) : null}
+
+      {view === "documents" ? (
+        <>
+          <div className="cards">
+            <section className="card pd-form-card">
+              <h2>Declarations page</h2>
               <form method="get" action={`/api/policies/${policy.policyId}/documents/declarations`} className="card">
-                <label htmlFor="asOfDeclarations">Declarations page as of</label>
+                <label htmlFor="asOfDeclarations">As of</label>
                 <input id="asOfDeclarations" name="asOf" type="date" defaultValue={documentDate} min={policy.effectiveAt} required />
                 <button type="submit" className="secondary">
                   Open the declarations page (PDF)
                 </button>
               </form>
+            </section>
+            <section className="card pd-form-card">
+              <h2>Endorsement schedule</h2>
               <form method="get" action={`/api/policies/${policy.policyId}/documents/endorsement-schedule`} className="card">
-                <label htmlFor="asOfSchedule">Endorsement schedule as of</label>
+                <label htmlFor="asOfSchedule">As of</label>
                 <input id="asOfSchedule" name="asOf" type="date" defaultValue={documentDate} min={policy.effectiveAt} required />
                 <button type="submit" className="secondary">
                   Open the endorsement schedule (PDF)
                 </button>
               </form>
-              <p className="note">
-                Rebuilt from the events effective on or before the date you pick: between two changes, the declarations
-                page shows the premium and the limits that were in force that day.
-              </p>
-            </Panel>
+            </section>
+          </div>
 
-            <Panel title="How to read this page">
-              <Disclosure title="This page only reads">
-                <p>
-                  Nothing here changes your policy. Your broker writes the changes, and the timeline below records every
-                  one of them with the date it applies from and the moment it was written down.
-                </p>
-              </Disclosure>
-              <Disclosure title="What happens to a request">
-                <p>
-                  It reaches your broker as work waiting for them. They answer it once, either with an answer or by
-                  making the change. A change that costs money is quoted first, and once this term&apos;s changes add
-                  more than {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} of premium you accept the quote yourself
-                  before anything is collected.
-                </p>
-              </Disclosure>
-            </Panel>
-          </>
-        }
-      />
+          <About>
+            <h4>Rebuilt on the date you pick</h4>
+            <p>
+              Both documents are rebuilt from the events effective on or before the date: between two changes, the
+              declarations page shows the premium and the limits that were in force that day.
+            </p>
+          </About>
+        </>
+      ) : null}
     </PortalShell>
   );
 }
@@ -334,100 +432,133 @@ export async function CustomerPolicyView({
 // The broker's side of the same conversation
 // ---------------------------------------------------------------------------
 
-// The panel on the policy page for the owning broker and for staff: what the customer has asked
-// on this policy, and the box to answer one request. Read-only for a staff approver, whose job is
-// deciding money out, not writing policies.
-export async function CustomerChangeRequestsPanel({ policyId, canReply }: { policyId: string; canReply: boolean }) {
+// The card on the policy page for the owning broker and for staff: what the customer has asked on
+// this policy, and the box to answer one request. Read-only for a staff approver, whose job is
+// deciding money out, not writing policies. Nothing is drawn when nothing was asked.
+export async function CustomerChangeRequestsPanel({
+  policyId,
+  canReply,
+  now,
+}: {
+  policyId: string;
+  canReply: boolean;
+  now: Date;
+}) {
   const requests = await changeRequestsOfPolicy(policyId);
+  if (requests.length === 0) {
+    return null;
+  }
   const waiting = requests.filter((request) => request.reply === null).length;
 
   return (
-    <Panel title="Customer requests">
-      {/* The anchor the reply route comes back to, so the broker lands on their own answer. */}
-      <div id="customer-requests" />
-      {requests.length === 0 ? (
-        <Empty>The customer has not asked for anything on this policy.</Empty>
-      ) : (
-        <>
-          <div className="table-scroll" role="region" aria-label="Customer change requests" tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Asked</th>
-                  <th>About</th>
-                  <th>What the customer says</th>
-                  <th>Your answer</th>
-                </tr>
-              </thead>
-              <tbody>
-                {requests.map((request) => (
-                  <tr key={request.requestId}>
-                    <td>
-                      {instant(request.recordedAt)}
-                      <br />
-                      <span className="note">{request.requestedByName}</span>
-                    </td>
-                    <td>{linesOf(request)}</td>
-                    <td>{request.comment}</td>
-                    <td>
-                      {request.reply ? (
-                        <>
-                          {request.reply.text}
-                          <br />
-                          <span className="note">
-                            {request.reply.repliedByName}, {instant(request.reply.recordedAt)}
-                            {request.reply.outcome === "done" ? ", change made" : ""}
-                          </span>
-                        </>
-                      ) : canReply ? (
-                        <RowActions label="Answer this request">
-                          <form
-                            method="post"
-                            action={`/api/policies/${policyId}/change-requests/${request.requestId}/reply`}
-                            className="card"
-                          >
-                            <p className="note">
-                              Answering does not change the policy. When you agree to the change, make it through
-                              Endorse on this page, then say so here.
-                            </p>
-                            <label htmlFor={`outcome-${request.requestId}`}>What this is</label>
-                            <select id={`outcome-${request.requestId}`} name="outcome" defaultValue="answered" required>
-                              <option value="answered">An answer, no change made</option>
-                              <option value="done">Done: the change has been made</option>
-                            </select>
-                            <label htmlFor={`text-${request.requestId}`}>What the customer reads</label>
-                            <textarea
-                              id={`text-${request.requestId}`}
-                              name="text"
-                              rows={3}
-                              required
-                              maxLength={REPLY_MAXIMUM_CHARACTERS}
-                              placeholder="the aggregate limit is now $2,000,000 from June 9, endorsed today"
-                            />
-                            <button type="submit" className="orange">
-                              Send the answer
-                            </button>
-                          </form>
-                        </RowActions>
-                      ) : (
-                        <span className="note">Waiting for the broker who writes this policy.</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="note">
-            {waiting === 0
-              ? "Every request on this policy has been answered."
-              : `${waiting === 1 ? "1 request is" : `${waiting} requests are`} waiting for an answer.`}{" "}
-            A request is a message, not a change: it moves no money and writes nothing on the policy. An answer is one
-            row, written once, and neither side can edit what was said.
-          </p>
-        </>
-      )}
-    </Panel>
+    // The anchor the reply route comes back to, so the broker lands on their own answer.
+    <div id="customer-requests">
+      <DataTable
+        ariaLabel="Customer change requests"
+        toolbar={
+          <Toolbar>
+            <ToolbarGroup label="Customer requests">
+              <Chip tone={waiting > 0 ? "warn" : "ok"}>{waiting === 0 ? "all answered" : `${waiting} waiting`}</Chip>
+            </ToolbarGroup>
+            <ToolbarSpacer />
+            <ToolbarCount>{requests.length}</ToolbarCount>
+          </Toolbar>
+        }
+        legend={
+          <Legend
+            items={[
+              { term: "waiting", meaning: "the customer is waiting for an answer from the broker" },
+              { term: "answered", meaning: "answered once, in writing; neither side can edit what was said" },
+              { term: "change made", meaning: "the broker says the change itself has been endorsed" },
+            ]}
+          />
+        }
+      >
+        <thead>
+          <tr>
+            <ExpandHead />
+            <th className="nowrap">Asked</th>
+            <th>By</th>
+            <th>About</th>
+            <th>Answer</th>
+          </tr>
+        </thead>
+        {requests.map((request) => (
+          <ExpandRow
+            key={request.requestId}
+            columns={4}
+            cells={
+              <>
+                <td className="nowrap">
+                  <When instant={request.recordedAt} now={now} />
+                </td>
+                <td>{request.requestedByName}</td>
+                <td>{linesOf(request)}</td>
+                <td>
+                  {request.reply ? (
+                    <Chip tone={request.reply.outcome === "done" ? "ok" : "neutral"}>
+                      {request.reply.outcome === "done" ? "change made" : "answered"}
+                    </Chip>
+                  ) : (
+                    <Chip tone="warn">waiting</Chip>
+                  )}
+                </td>
+              </>
+            }
+          >
+            <FactGrid
+              items={[
+                { label: "What the customer says", value: request.comment },
+                ...(request.reply
+                  ? [
+                      {
+                        label: "Your answer",
+                        value: (
+                          <>
+                            {request.reply.text}
+                            <span className="dt-sub">
+                              {request.reply.repliedByName}, {instant(request.reply.recordedAt)}
+                            </span>
+                          </>
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+            {request.reply === null && canReply ? (
+              <form
+                method="post"
+                action={`/api/policies/${policyId}/change-requests/${request.requestId}/reply`}
+                className="card"
+              >
+                <label htmlFor={`outcome-${request.requestId}`}>What this is</label>
+                <select id={`outcome-${request.requestId}`} name="outcome" defaultValue="answered" required>
+                  <option value="answered">An answer, no change made</option>
+                  <option value="done">Done: the change has been made</option>
+                </select>
+                <label htmlFor={`text-${request.requestId}`}>What the customer reads</label>
+                <textarea
+                  id={`text-${request.requestId}`}
+                  name="text"
+                  rows={3}
+                  required
+                  maxLength={REPLY_MAXIMUM_CHARACTERS}
+                  placeholder="the aggregate limit is now $2,000,000 from June 9, endorsed today"
+                />
+                <SubmitButton className="orange">Send the answer</SubmitButton>
+                <p className="pd-note">
+                  Answering does not change the policy. Make the change through Endorse, then say so here.
+                </p>
+              </form>
+            ) : null}
+            {request.reply === null && !canReply ? (
+              <p className="pd-note">Waiting for the broker who writes this policy.</p>
+            ) : null}
+          </ExpandRow>
+        ))}
+      </DataTable>
+    </div>
   );
 }
 

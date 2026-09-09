@@ -1,12 +1,15 @@
+import "@/app/styles/lists.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
+import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
+import { EmptyState } from "@/components/ui/empty";
+import { DataTable, Num, Primary, Row } from "@/components/ui/table";
+import { When } from "@/components/ui/time";
 import { currentUser } from "@/lib/auth/current-user";
 import { workspaceInbox, type InboxSection } from "@/lib/inbox/read";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-// UI-016: the gutter between the sections and the one-line shape of an empty one.
-import "@/app/styles/shell.css";
+import { toastsFromQuery, type Query } from "@/lib/ui/views";
 
 // The notification centre: one screen listing everything waiting for the signed-in person, each
 // line with the link that does the work.
@@ -18,30 +21,58 @@ import "@/app/styles/shell.css";
 //
 // The role decides what is shown, and the role comes from the session: a broker sees their own
 // broker's work, a customer their own, staff the operations queues. Nothing is read from the
-// URL, and this page never changes anything: every link leads to a screen that asks the identity
-// question again for itself and enforces its own rules.
+// URL beyond the notice a redirect left there, and this page never changes anything: every link
+// leads to a screen that asks the identity question again for itself and enforces its own rules.
+//
+// GENERIC OVER THE SECTIONS. This file names no section and no anchor. It renders whatever
+// lib/inbox/read.ts returns, in the order lib/inbox/sections.ts put them, so a section added
+// there appears here with no change to this page.
 //
 // Server component: plain HTML, no JavaScript of ours, and every amount arrives in integer cents
 // from lib/inbox/read.ts and is only formatted here.
-export default async function InboxPage() {
+export default async function InboxPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
   if (!user) {
     redirect("/login");
   }
 
-  const inbox = await workspaceInbox(user);
+  const [inbox, query] = await Promise.all([workspaceInbox(user), searchParams]);
+  // One clock for the whole screen, so every age on it is measured from the same instant.
+  const now = new Date();
+  const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
+  // A refused action elsewhere sends the person back here with its sentence (F-B13-08).
+  const toasts = toastsFromQuery(query, { error: { tone: "error", title: "Refused" } });
 
   return (
-    <PortalShell active="inbox" user={user}>
-      <DetailHeading
-        title="Inbox"
-        lead={`${user.displayName} · everything waiting for you, with the link that does the work.`}
-        chips={
-          <Chip tone={inbox.totalWaiting > 0 ? "warn" : "ok"}>
-            {inbox.totalWaiting === 0 ? "nothing waiting" : `${inbox.totalWaiting} waiting`}
-          </Chip>
-        }
-      />
+    <PortalShell
+      active="inbox"
+      user={user}
+      toasts={toasts}
+      band={{
+        title: "Inbox",
+        suffix: user.displayName,
+        meta: (
+          <>
+            <Chip tone={inbox.totalWaiting > 0 ? "warn" : "ok"}>
+              {inbox.totalWaiting === 0 ? "nothing waiting" : `${inbox.totalWaiting} waiting`}
+            </Chip>
+            {/* AF-02. The rows below name Stripe payments, and the staff inbox also names claim
+                payments on the simulated rail, so both modes are said here, in the band, where a
+                reader meets them before the first reference. */}
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            {isStaff ? <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip> : null}
+          </>
+        ),
+      }}
+    >
+      {/* The inline sentence stays beside the toast: the review scripts read this block. */}
+      {query.error ? (
+        <div className="notices">
+          <p className="error" role="alert">
+            {query.error}
+          </p>
+        </div>
+      ) : null}
 
       {inbox.unreadablePolicies.length > 0 ? (
         <div className="notices">
@@ -56,17 +87,19 @@ export default async function InboxPage() {
       ) : null}
 
       {inbox.sections.length === 0 ? (
-        <Panel title="Nothing to do here">
-          <Empty illustration="in-tray">
+        <div className="card lists-section">
+          <h2>Nothing to do here</h2>
+          <EmptyState illustration="in-tray">
             This account has no workspace of its own. Sign in as a broker, a customer or a member
             of staff to see what is waiting.
-          </Empty>
-        </Panel>
+          </EmptyState>
+        </div>
       ) : (
         inbox.sections.map((section, index) => (
-          <InboxPanel
+          <InboxSectionCard
             key={section.anchor}
             section={section}
+            now={now}
             showEmptyIllustration={inbox.totalWaiting === 0 && index === 0}
           />
         ))
@@ -76,80 +109,72 @@ export default async function InboxPage() {
 }
 
 // One section. The anchor is on the wrapper, so the count chip in the sidebar (/inbox#approvals)
-// lands on the section that holds exactly the items it counted.
+// lands on the section that holds exactly the items it counted, and scripts/check-inbox-counts.ts
+// checks that pairing.
 //
 // A section with nothing in it folds to a single line (UI-016): it keeps its anchor, its title
 // and its sentence, so the link still lands somewhere that answers "there is nothing here", but
-// it no longer costs a whole panel of the first screen. lib/inbox/read.ts has already put the
+// it no longer costs a whole card of the first screen. lib/inbox/read.ts has already put the
 // sections holding work first.
-function InboxPanel({
+function InboxSectionCard({
   section,
+  now,
   showEmptyIllustration = false,
 }: {
   section: InboxSection;
+  now: Date;
   showEmptyIllustration?: boolean;
 }) {
   if (section.items.length === 0 && !showEmptyIllustration) {
     return (
-      <div className="inbox-block inbox-empty-line" id={section.anchor}>
+      <div className="lists-section lists-empty-line" id={section.anchor}>
         <h2>{section.title}</h2>
-        <p className="note">{section.emptySentence}</p>
+        <p>{section.emptySentence}</p>
       </div>
     );
   }
   return (
-    <div className="inbox-block" id={section.anchor}>
-      <Panel
-        title={
-          <>
-            {section.title}
-            <span className="count-chip">{section.items.length}</span>
-          </>
-        }
-        className="list-panel"
-      >
-        {section.items.length === 0 ? (
-          <Empty illustration={showEmptyIllustration ? "in-tray" : undefined}>{section.emptySentence}</Empty>
-        ) : (
-          <div className="table-scroll" role="region" aria-label={section.title} tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Object</th>
-                  <th>What is waiting</th>
-                  <th className="amount">Amount</th>
-                  <th>{section.sinceHeading} (UTC)</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {section.items.map((item, index) => (
-                  <tr key={`${section.anchor}-${index}`}>
-                    <td>
-                      <strong>{item.subject}</strong>
-                    </td>
-                    <td>{item.what}</td>
-                    <td className="amount">
-                      {item.amountCents === null ? "" : formatCentsAsUsd(item.amountCents)}
-                    </td>
-                    <td>{item.since === null ? "" : asUtcText(item.since)}</td>
-                    <td>
-                      <Link href={item.href} className="button-link orange small" prefetch={false}>
-                        {item.actionLabel}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
-    </div>
+    <section className="card lists-section" id={section.anchor}>
+      <h2>
+        {section.title}
+        <span className="count-chip">{section.items.length}</span>
+      </h2>
+      <DataTable ariaLabel={section.title}>
+        <thead>
+          <tr>
+            <th>Object</th>
+            <th>What is waiting</th>
+            <th className="num">Amount</th>
+            <th className="nowrap">{section.sinceHeading}</th>
+            <th aria-label="Action" />
+          </tr>
+        </thead>
+        <tbody>
+          {section.items.length === 0 ? (
+            <tr>
+              <td colSpan={5} className="dt-empty">
+                <EmptyState illustration={showEmptyIllustration ? "in-tray" : undefined}>{section.emptySentence}</EmptyState>
+              </td>
+            </tr>
+          ) : (
+            section.items.map((item, index) => (
+              <Row key={`${section.anchor}-${index}`}>
+                <Primary>{item.subject}</Primary>
+                <td>{item.what}</td>
+                <Num>{item.amountCents === null ? "" : formatCentsAsUsd(item.amountCents)}</Num>
+                <td className="nowrap">
+                  <When instant={item.since} now={now} />
+                </td>
+                <td className="dt-actions">
+                  <Link href={item.href} className="button-link orange" prefetch={false}>
+                    {item.actionLabel}
+                  </Link>
+                </td>
+              </Row>
+            ))
+          )}
+        </tbody>
+      </DataTable>
+    </section>
   );
-}
-
-// Timestamps are persisted in UTC and printed in UTC, as everywhere else in the workspace.
-function asUtcText(instant: Date): string {
-  return instant.toISOString().replace("T", " ").slice(0, 19);
 }

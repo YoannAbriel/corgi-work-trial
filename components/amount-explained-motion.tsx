@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight } from "lucide-react";
+import { PopoverButton, PopoverPanel } from "@/components/ui/popover";
 
 // The animated shell of "explain this amount" (slice B12-4, Linear YOA-637, asked for by Yoann on
 // 2026-09-09: an explanation you can watch being built, from the figure down to the ledger line).
@@ -21,11 +21,15 @@ import { ChevronRight } from "lucide-react";
 // lib/money/amount-explained-motion.test.ts asserts this against the source of this file: one
 // number, read from those digits, and nowhere else.
 //
-// WITH JAVASCRIPT OFF nothing here runs and nothing is hidden: the shell server-renders as a
-// native <details> with a plain <summary>, the panel carries no data-reveal attribute, and the CSS
-// only ever hides a line inside a panel that HAS that attribute (app/globals.css). The figure is a
-// <span>; it is promoted to role="button" after hydration, so a control that cannot work is never
-// advertised. Nothing changes size when that happens, so the page at rest does not move.
+// WITH JAVASCRIPT OFF nothing here runs and nothing is hidden: the figure is a real button that
+// opens a native popover (components/ui/popover.tsx), which the browser opens and closes on its
+// own, and the panel carries no data-reveal attribute, so the CSS that hides a line before its
+// turn never applies (app/globals.css hides only inside a panel that HAS that attribute).
+//
+// THE PANEL MOVED OUT OF THE CELL on 2026-09-09 (interface system): it used to be a <details>
+// expanding inside the table cell it sits in, where the horizontal scroll container of the table
+// clipped it. A popover is drawn in the browser's top layer, so nothing on the page can cut it,
+// and it closes on a click outside or on Escape without a line of script of ours.
 
 // The four lines of the reveal, in order, one every 120 ms.
 const STEP_INTERVAL_MS = 120;
@@ -44,6 +48,7 @@ type ConnectorGeometry = { fromX: number; fromY: number; toX: number; toY: numbe
 
 export function AmountExplainedMotion({
   finalText,
+  label,
   size,
   traceEntryElementId,
   hasTicker,
@@ -55,6 +60,8 @@ export function AmountExplainedMotion({
   // The figure, already formatted by the server (lib/money/cents.ts). It is shown as-is and is the
   // text the count-up ends on.
   finalText: string;
+  // What the figure is, so the button that opens the panel is named by more than its digits.
+  label: string;
   size: "figure" | "inline";
   // The id of the journal entry block on this page that proves the figure, when there is one.
   // The connector is drawn to it and the "Trace to the ledger" link jumps to it.
@@ -68,10 +75,12 @@ export function AmountExplainedMotion({
   rounding: ReactNode;
   evidence: ReactNode;
 }) {
-  const panelId = useId();
+  // The id of the popover and of its anchor, unique per figure on the page. React's own id can
+  // carry punctuation, and the anchor is a CSS custom property name, so only its letters and
+  // digits are kept.
+  const popoverId = useId().replace(/[^A-Za-z0-9]/g, "");
   // False until hydration: the server-rendered HTML must be the version that works without us.
   const [enhanced, setEnhanced] = useState(false);
-  const [open, setOpen] = useState(false);
   // 0 = nothing revealed yet, 4 = the whole panel. The CSS reads it from data-reveal.
   const [revealStep, setRevealStep] = useState(0);
   // What the running-total line says right now. Always a string taken from a data-subtotal
@@ -79,11 +88,12 @@ export function AmountExplainedMotion({
   const [tickerText, setTickerText] = useState<string | null>(null);
   const [connector, setConnector] = useState<ConnectorGeometry | null>(null);
 
+  // The figure itself, inside the button that opens the panel: the connector starts from its box.
   const figureRef = useRef<HTMLSpanElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   // This fold's own element, so it can tell whether it is the first fold on the page pointing at
   // its journal entry. See the hash effect below (review finding F-B12-20).
-  const foldRef = useRef<HTMLDivElement>(null);
+  const foldRef = useRef<HTMLSpanElement>(null);
   // Every timer and animation frame this component started, so closing the fold or leaving the
   // page stops all of them. Without this a half-finished count-up would keep writing into a cell.
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -310,14 +320,23 @@ export function AmountExplainedMotion({
     if (resultCell?.dataset.finalAmount) resultCell.textContent = resultCell.dataset.finalAmount;
   }
 
-  function setFoldOpen(shouldBeOpen: boolean) {
-    setOpen(shouldBeOpen);
-    if (shouldBeOpen) runReveal();
-    else closeReveal();
-  }
+  // THE BROWSER OWNS THE PANEL. It opens and closes the popover; this component only watches it,
+  // so the reveal runs when a reader opens the explanation, whichever way they opened it (a
+  // click, the keyboard, or Escape and a click outside to close it).
+  useEffect(() => {
+    const popover = panelRef.current?.closest("[popover]");
+    if (!(popover instanceof HTMLElement)) return;
+    const onToggle = () => {
+      if (popover.matches(":popover-open")) runReveal();
+      else closeReveal();
+    };
+    popover.addEventListener("toggle", onToggle);
+    return () => popover.removeEventListener("toggle", onToggle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <div
+    <span
       ref={foldRef}
       className={size === "inline" ? "amount-explained inline" : "amount-explained"}
       // The entry this fold points at, readable from the DOM: it is how the folds of a page tell
@@ -325,46 +344,18 @@ export function AmountExplainedMotion({
       // for a figure.
       data-trace-entry={traceEntryElementId}
     >
-      <span
-        ref={figureRef}
-        className="amount-explained-figure"
-        // The final text, in the HTML whether the browser runs anything or not. The count-up ends
-        // on it and the reviewer can read it in the page source.
-        data-final-amount={finalText}
-        role={enhanced ? "button" : undefined}
-        tabIndex={enhanced ? 0 : undefined}
-        aria-expanded={enhanced ? open : undefined}
-        aria-controls={enhanced ? panelId : undefined}
-        onClick={enhanced ? () => setFoldOpen(!open) : undefined}
-        onKeyDown={
-          enhanced
-            ? (event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  setFoldOpen(!open);
-                }
-              }
-            : undefined
-        }
-      >
-        {finalText}
-      </span>
-      <details
-        className="amount-explain"
-        open={open}
-        // The <summary> is still a real control: opening the fold from the keyboard or with
-        // JavaScript off goes through the browser, and this brings our state back in step.
-        onToggle={(event) => {
-          const nowOpen = event.currentTarget.open;
-          if (nowOpen !== open) setFoldOpen(nowOpen);
-        }}
-      >
-        <summary>
-          <ChevronRight size={13} aria-hidden="true" className="disclosure-chevron" />
-          <span>Explain this amount</span>
-        </summary>
+      <PopoverButton id={popoverId} className="amount-explained-figure" label={`${label}: explain this amount`}>
+        <span
+          ref={figureRef}
+          // The final text, in the HTML whether the browser runs anything or not. The count-up ends
+          // on it and the reviewer can read it in the page source.
+          data-final-amount={finalText}
+        >
+          {finalText}
+        </span>
+      </PopoverButton>
+      <PopoverPanel id={popoverId} className="pop-explain">
         <div
-          id={panelId}
           ref={panelRef}
           className="amount-explain-panel"
           // Absent until hydration, and absent for a reader with no JavaScript: the CSS that hides
@@ -401,9 +392,9 @@ export function AmountExplainedMotion({
             ) : null}
           </div>
         </div>
-      </details>
+      </PopoverPanel>
       {connector ? createPortal(<ConnectorLine geometry={connector} />, document.body) : null}
-    </div>
+    </span>
   );
 }
 

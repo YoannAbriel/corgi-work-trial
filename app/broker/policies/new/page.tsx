@@ -1,16 +1,21 @@
-import { PortalShell } from "@/components/portal-shell";
-import { MoneyAmountInput } from "@/components/money-amount-input";
+import "@/app/styles/lists.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Chip } from "@/components/detail-layout";
+import { MoneyAmountInput } from "@/components/money-amount-input";
+import { PortalShell } from "@/components/portal-shell";
+import { About } from "@/components/ui/about";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { currentUser } from "@/lib/auth/current-user";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
-import { FLAT_POLICY_FEE_CENTS } from "@/lib/policy/charge";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import { FLAT_POLICY_FEE_CENTS } from "@/lib/policy/charge";
 import { statesWithTaxRates } from "@/lib/policy/tax-rate";
+import { toastsFromQuery, type Query } from "@/lib/ui/views";
 
 // The quote form. Nothing here computes money: the server prices the draft with the
 // effective-dated tax rate on file and writes the result as an immutable 'quoted' event.
-export default async function NewPolicyPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+export default async function NewPolicyPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
   if (!user) {
     redirect("/login");
@@ -19,61 +24,104 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
     redirect("/broker");
   }
 
-  const [states, kyb, { error }] = await Promise.all([statesWithTaxRates(), brokerKybState(user.brokerId), searchParams]);
+  const [states, kyb, query] = await Promise.all([statesWithTaxRates(), brokerKybState(user.brokerId), searchParams]);
+  const toasts = toastsFromQuery(query, { error: { tone: "error", title: "Refused" } });
+  const statusWord = kyb.status === "unknown" && !kyb.providerAccountId ? "not submitted" : kyb.status;
 
   return (
-    <PortalShell active="policies" user={user} trail={[{ label: "New policy" }]}>
-      <h1>New policy</h1>
-      <p className="lead">
-        Commercial general liability, annual term. The premium tax comes from the effective-dated rate on file for
-        the state; the policy fee is a flat {formatCentsAsUsd(FLAT_POLICY_FEE_CENTS)} (assumption of this build, not a
-        filed fee).
-      </p>
-
+    <PortalShell
+      active="policies"
+      user={user}
+      trail={[{ label: "New policy" }]}
+      toasts={toasts}
+      band={{
+        title: "New policy",
+        suffix: "commercial general liability",
+        meta: (
+          <>
+            <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>business verification {statusWord}</Chip>
+            <Chip tone="neutral">annual term</Chip>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+          </>
+        ),
+      }}
+    >
+      {query.error ? (
+        <div className="notices">
+          <p className="error" role="alert">
+            {query.error}
+          </p>
+        </div>
+      ) : null}
       {kyb.status === "approved" ? null : (
-        <>
-          <p className="badge badge-warn">
-            KYB status: {kyb.status}. A draft can be created, but binding will be refused until the broker is approved.
-          </p>
+        <div className="notices">
           <p className="note">
-            {kyb.explanation} <Link href="/broker/kyb">Submit or check the business verification</Link>.
+            A draft can be created, but binding will be refused until the broker is approved. {kyb.explanation}{" "}
+            <Link href="/broker/kyb">Submit or check the business verification</Link>.
           </p>
-        </>
+          {kyb.isProviderEvidence ? null : <p className="note">{KYB_NOT_LIVE_LABEL}: the status is a seeded placeholder.</p>}
+        </div>
       )}
-      {kyb.isProviderEvidence ? null : <p className="note">{KYB_NOT_LIVE_LABEL}: the KYB status is a seeded placeholder.</p>}
 
-      {error ? <p className="error" role="alert">{error}</p> : null}
+      <div className="layout-2">
+        <section className="card">
+          <h2>The quote</h2>
+          <form method="post" action="/api/policies" className="card lists-form">
+            <label htmlFor="customerName">Customer name</label>
+            <input id="customerName" name="customerName" autoComplete="organization" required maxLength={120} />
 
-      <form method="post" action="/api/policies" className="card">
-        <label htmlFor="customerName">Customer name</label>
-        <input id="customerName" name="customerName" autoComplete="organization" required maxLength={120} />
+            <label htmlFor="customerEmail">Customer email</label>
+            <input id="customerEmail" name="customerEmail" autoComplete="email" spellCheck={false} type="email" required maxLength={200} />
 
-        <label htmlFor="customerEmail">Customer email</label>
-        <input id="customerEmail" name="customerEmail" autoComplete="email" spellCheck={false} type="email" required maxLength={200} />
+            <label htmlFor="stateCode">State</label>
+            <select id="stateCode" name="stateCode" required>
+              {states.map((stateCode) => (
+                <option key={stateCode} value={stateCode}>
+                  {stateCode}
+                </option>
+              ))}
+            </select>
 
-        <label htmlFor="stateCode">State</label>
-        <select id="stateCode" name="stateCode" required>
-          {states.map((stateCode) => (
-            <option key={stateCode} value={stateCode}>
-              {stateCode}
-            </option>
-          ))}
-        </select>
+            <label htmlFor="effectiveAt">Effective date (term start)</label>
+            <input id="effectiveAt" name="effectiveAt" type="date" required />
 
-        <label htmlFor="effectiveAt">Effective date (term start)</label>
-        <input id="effectiveAt" name="effectiveAt" type="date" required />
+            <label htmlFor="annualPremium">Annual premium (USD)</label>
+            <MoneyAmountInput id="annualPremium" name="annualPremium" required placeholder="1,200.00" />
 
-        <label htmlFor="annualPremium">Annual premium (USD)</label>
-        <MoneyAmountInput id="annualPremium" name="annualPremium" required placeholder="1,200.00" />
+            <label htmlFor="perOccurrenceLimit">Per-occurrence limit (USD)</label>
+            <MoneyAmountInput id="perOccurrenceLimit" name="perOccurrenceLimit" required placeholder="1,000,000" />
 
-        <label htmlFor="perOccurrenceLimit">Per-occurrence limit (USD)</label>
-        <MoneyAmountInput id="perOccurrenceLimit" name="perOccurrenceLimit" required placeholder="1,000,000" />
+            <label htmlFor="aggregateLimit">Aggregate limit (USD)</label>
+            <MoneyAmountInput id="aggregateLimit" name="aggregateLimit" required placeholder="2,000,000" />
 
-        <label htmlFor="aggregateLimit">Aggregate limit (USD)</label>
-        <MoneyAmountInput id="aggregateLimit" name="aggregateLimit" required placeholder="2,000,000" />
+            <SubmitButton>Create draft</SubmitButton>
+          </form>
+        </section>
 
-        <button type="submit">Create draft</button>
-      </form>
+        <section className="card">
+          <h2>What happens next</h2>
+          <ul>
+            <li>The draft is priced by the server and written as one immutable quoted event.</li>
+            <li>The customer pays through Stripe, in test mode.</li>
+            <li>The policy binds when the payment is confirmed and the verification is approved.</li>
+          </ul>
+        </section>
+      </div>
+
+      <About>
+        <h4>How it is priced</h4>
+        <p>
+          The premium tax comes from the effective-dated rate on file for the state chosen above. The policy fee is a flat {formatCentsAsUsd(FLAT_POLICY_FEE_CENTS)}, an assumption of this build and not a filed fee.
+        </p>
+        <h4>Where the arithmetic happens</h4>
+        <p>
+          On the server, in integer cents, when the draft is created. This form sends what you typed and computes nothing; the policy page shows the total it was given and how it was reached.
+        </p>
+        <h4>Binding</h4>
+        <p>
+          A draft can be created whatever the verification says. Binding is refused until the broker is approved, and money that arrives meanwhile sits in the suspense account until staff operations decide.
+        </p>
+      </About>
     </PortalShell>
   );
 }

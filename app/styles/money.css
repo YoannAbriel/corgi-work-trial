@@ -1,0 +1,94 @@
+/* The money screens: reconciliation, money-out approvals, broker statements.
+ *
+ * Everything here is scoped by a `money-` class of these three screens. It holds the rules the
+ * shared system (app/styles/system.css) has no opinion about, because they belong to one screen:
+ * the decision form inside an approval row, the approved text of an intent, and the two small
+ * cards that carry a form above a table. Nothing here decides a figure or a state.
+ *
+ * Imported by the pages that use it, never by the layout, so a screen that does not need these
+ * rules does not carry them. */
+
+/* The decision cell of /ops/approvals. The two buttons of the maker-checker form stay visible,
+ * side by side, with the optional reason above them: the primary action is never folded
+ * (review finding F-YA-05), and the cell stays a column of a table rather than a panel. */
+.money-decide {
+  display: grid;
+  gap: 6px;
+  min-width: 172px;
+  margin: 0;
+}
+.money-decide input[type="text"] {
+  font: inherit;
+  font-size: 12.5px;
+  min-height: 30px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+}
+.money-decide input[type="text"]:hover {
+  border-color: #a9aaae;
+}
+.money-decide-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* The exact bytes an approver approves, inside the expansion of its row. Bounded in height so a
+ * long intent cannot push the rest of the table off the screen; the text itself is untouched. */
+.money-intent {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 220px;
+  overflow: auto;
+  margin: 0 0 6px;
+  padding: 10px 12px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A form above the table it feeds: the reconciliation window and the statement generator. The
+ * card and the stacked fields come from the system; the only rule here is a width, so the two or
+ * three fields do not stretch across the whole content area and stop reading as one form. */
+.money-form-card {
+  max-width: 460px;
+}
+
+/* The two columns of the statement detail: the movements on the left, the revision facts and
+ * what changed on the right. Falls to one column with the system's own breakpoint. */
+.money-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+.money-columns > * {
+  min-width: 0;
+}
+.money-columns > div {
+  display: grid;
+  gap: 16px;
+}
+@media (max-width: 1100px) {
+  .money-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A gap in the shared system, reported to the coordinator and patched here in the meantime.
+ * components/ui/charts.tsx draws an HBars fill as a <span> inside .hbar-track, and .hbar-track is
+ * not a grid or a flex container, so the fill stays inline: width and height do nothing and every
+ * horizontal bar renders at zero size. The track itself escapes the bug only because .hbar-row is
+ * a grid and blockifies its own children. One declaration fixes it; it belongs in
+ * app/styles/system.css, which this builder does not own, so it is scoped to the charts of this
+ * screen until it lands there. */
+.money-charts .hbar-fill {
+  display: block;
+}

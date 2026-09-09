@@ -8,8 +8,10 @@ import { explanationResultLine, runningSubtotals, type AmountExplanation } from 
 // was produced: the arithmetic in integer cents, the days and the rate where they apply, the
 // rounding rule by name, and the journal entries that prove it when there are any.
 //
-// Yoann's display decision of 2026-09-09 08:20 local: the explanation is a fold under the figure
-// ON THE SCREENS, not in the PDFs. The PDFs keep their own printed schedules.
+// Yoann's display decision of 2026-09-09 08:20 local: the explanation is opened from the figure
+// ON THE SCREENS, not in the PDFs. The PDFs keep their own printed schedules. Since the interface
+// system of 2026-09-09 the panel opens in the browser's top layer (a native popover) rather than
+// inside the cell, where a table's scroll container clipped it.
 //
 // THIS COMPONENT IS STILL THE SERVER COMPONENT, and it still renders every word and every cent.
 // Slice B12-4 (YOA-637) only wrapped its output in a client shell that decides WHEN each part
@@ -61,6 +63,7 @@ export function AmountExplained({
   return (
     <AmountExplainedMotion
       finalText={formatCentsAsUsd(amountCents)}
+      label={label}
       size={size}
       traceEntryElementId={traceEntryId ? journalEntryElementId(tracePanelKey, traceEntryId) : undefined}
       hasTicker={subtotalTexts !== undefined}

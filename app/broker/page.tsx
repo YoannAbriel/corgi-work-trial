@@ -1,21 +1,51 @@
-import { PortalShell } from "@/components/portal-shell";
-import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { Disclosure } from "@/components/disclosures";
-import { WhatNeedsYou, workspaceTasks, type BlockingTask } from "@/components/what-needs-you";
-import { IllustrationBanner } from "@/components/decorative-illustration";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
-import { bindingIsAllowed } from "@/lib/broker/eligibility";
+import { Chip } from "@/components/detail-layout";
+import { DecorativeIllustration } from "@/components/decorative-illustration";
+import { PortalShell } from "@/components/portal-shell";
+import { WhatNeedsYou, workspaceTasks, type BlockingTask } from "@/components/what-needs-you";
+import { About } from "@/components/ui/about";
+import { EmptyState } from "@/components/ui/empty";
+import { Legend } from "@/components/ui/legend";
+import { Stat, Stats } from "@/components/ui/stat";
+import { Chevron, DataTable, Num, Primary, Row } from "@/components/ui/table";
+import { FilterChip, Toolbar, ToolbarCount, ToolbarGroup, ToolbarSpacer } from "@/components/ui/toolbar";
 import { currentUser } from "@/lib/auth/current-user";
+import { bindingIsAllowed } from "@/lib/broker/eligibility";
+import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { policiesOfBroker, policyDetail } from "@/lib/policy/read";
 import { policyAsItStoodOn } from "@/lib/policy/correction-read";
+import { policiesOfBroker, policyDetail } from "@/lib/policy/read";
+import type { PolicyStatus } from "@/lib/policy/status";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
+import { firstValue, pickFilter, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 
 // The broker's own policies. A broker only ever sees the policies of the broker their user
 // account is attached to: the list is queried by broker_id, never by an id from the URL.
-export default async function BrokerPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+//
+// The table is the one /ops/policies draws, with the same columns, the same filters and the same
+// figures, so the broker and the operator read the same sentence about the same policy.
+
+const PATH = "/broker";
+
+// The three states a reader sorts policies into, exactly as /ops/policies does.
+const FILTERS = ["bound", "waiting", "closed"] as const;
+type Filter = (typeof FILTERS)[number];
+const FILTER_LABEL: Record<Filter, string> = { bound: "Bound", waiting: "Waiting", closed: "Closed" };
+
+function filterOf(status: PolicyStatus): Filter {
+  if (status === "bound") return "bound";
+  if (status === "cancelled" || status === "voided") return "closed";
+  return "waiting";
+}
+
+function statusTone(status: PolicyStatus): "ok" | "warn" | "neutral" {
+  if (status === "bound") return "ok";
+  if (status === "cancelled" || status === "voided") return "neutral";
+  return "warn";
+}
+
+export default async function BrokerPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
   if (!user) {
     redirect("/login");
@@ -23,20 +53,17 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
   if (user.role !== "broker" || !user.brokerId) {
     const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
     return (
-      <PortalShell active="policies" user={user}>
-        <DetailHeading title="Your policies" />
+      <PortalShell active="policies" user={user} band={{ title: "Your policies" }}>
         <p className="error" role="alert">
           This page is the broker journey. Your account has the role &quot;{user.role}&quot;.
         </p>
-        {isStaff ? (
-          <p>
+        <p>
+          {isStaff ? (
             <Link href="/ops/brokers">Brokers and their verification</Link>
-          </p>
-        ) : (
-          <p>
+          ) : (
             <Link href="/customer">Your policies, documents and endorsement approvals</Link>
-          </p>
-        )}
+          )}
+        </p>
       </PortalShell>
     );
   }
@@ -62,137 +89,219 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
     storedPolicies.map(async (policy) => {
       // The date the policy page uses: today, or the term start when the term has not begun.
       const onDate = today > policy.effectiveAt ? today : policy.effectiveAt;
-      const [detail, asOfResult] = await Promise.all([
-        policyDetail(policy.policyId),
-        policyAsItStoodOn(policy.policyId, onDate),
-      ]);
+      const [detail, asOfResult] = await Promise.all([policyDetail(policy.policyId), policyAsItStoodOn(policy.policyId, onDate)]);
       return { ...policy, terms: detail ? termsInForceOn(detail, asOfResult) : null };
     }),
   );
 
+  // The chip says the status the SERVER acts on, in the words the other screens use. A broker who
+  // never submitted reads "not submitted" rather than "unknown", and a status that comes from the
+  // seed row rather than from Stripe carries the label that says so (AF-02).
+  const verificationWord = kyb.status === "unknown" && !kyb.providerAccountId ? "not submitted" : kyb.status;
+  const verificationChip = kyb.isProviderEvidence || !kyb.providerAccountId
+    ? `business verification ${verificationWord}`
+    : `business verification ${verificationWord}, ${KYB_NOT_LIVE_LABEL}`;
+
   // UI-031: a verification that does not allow binding is the first thing waiting on this broker.
-  // The notice below already explains the status; the block used to say "nothing is waiting for
-  // you right now" three lines under it. The rule is the one the server enforces before binding
-  // (lib/broker/eligibility.ts): unknown and pending are not permission either.
-  const verificationBlocking: BlockingTask | null = bindingIsAllowed(kyb.status)
+  // The rule is the one the server enforces before binding (lib/broker/eligibility.ts): unknown
+  // and pending are not permission either.
+  const canBind = bindingIsAllowed(kyb.status);
+  const verificationBlocking: BlockingTask | null = canBind
     ? null
     : {
-        label: `Business verification ${kyb.status}: you cannot bind a policy`,
+        label: `Business verification ${verificationWord}: you cannot bind`,
         detail: kyb.explanation,
         href: "/broker/kyb",
       };
 
+  const filter = pickFilter(query.filter, FILTERS);
+  const search = (firstValue(query.q) ?? "").trim().toLowerCase();
+  const shown = policies.filter((policy) => {
+    if (filter && filterOf(policy.status) !== filter) return false;
+    if (search === "") return true;
+    return [policy.policyNumber, policy.customerName].some((text) => text.toLowerCase().includes(search));
+  });
+
+  const countByFilter = (wanted: Filter) => policies.filter((policy) => filterOf(policy.status) === wanted).length;
+  const waitingToBePaid = policies.filter(
+    (policy) => policy.status === "draft" || policy.status === "awaiting_payment" || policy.status === "payment_failed",
+  ).length;
+  const boundPremiumCents = policies
+    .filter((policy) => policy.status === "bound" && policy.terms)
+    .reduce((total, policy) => total + (policy.terms?.annualPremiumCents ?? 0), 0);
+
+  // A refused action elsewhere sends the broker back here with its sentence (F-B13-08).
+  const toasts = toastsFromQuery(query, { error: { tone: "error", title: "Refused" } });
+
+
   return (
-    <PortalShell active="policies" user={user} tasks={tasks}>
-      <DetailHeading
-        title="Your policies"
-        lead={`${user.displayName} · ${user.email}`}
-        chips={<Chip tone={kyb.status === "approved" ? "ok" : "warn"}>business verification {kyb.status}</Chip>}
-        actions={
+    <PortalShell
+      active="policies"
+      user={user}
+      tasks={tasks}
+      toasts={toasts}
+      band={{
+        title: "Your policies",
+        suffix: user.displayName,
+        meta: (
           <>
-            <Link className="button-link orange" href="/broker/policies/new">
+            <Chip tone={canBind ? "ok" : "warn"}>{verificationChip}</Chip>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+          </>
+        ),
+        actions: (
+          <>
+            <Link className="button-link orange" href="/broker/policies/new" prefetch={false}>
               New policy
             </Link>
-            <Link className="button-link secondary" href="/broker/kyb">
+            <Link className="button-link secondary" href="/broker/kyb" prefetch={false}>
               Business verification
             </Link>
-            <Link className="button-link secondary" href="/broker/statements">
+            <Link className="button-link secondary" href="/broker/statements" prefetch={false}>
               Statements
             </Link>
           </>
-        }
-      />
-
-      {/* A refused action elsewhere sends the broker back here with its sentence (F-B13-08). */}
+        ),
+      }}
+    >
       {query.error ? (
         <div className="notices">
-          <p className="error" role="alert">{query.error}</p>
+          <p className="error" role="alert">
+            {query.error}
+          </p>
         </div>
       ) : null}
-      {kyb.status === "approved" ? null : (
-        <div className="notices">
-          <p className="note">{kyb.explanation}</p>
-          {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
-            <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
-          )}
-        </div>
-      )}
 
-      <WhatNeedsYou tasks={tasks} blocking={verificationBlocking} showEmptyIllustration={policies.length > 0} />
+      <Stats>
+        <Stat label="Policies" value={policies.length} note="every state" />
+        <Stat label="Bound" value={countByFilter("bound")} tone="ok" href={withParams(PATH, query, { filter: "bound" })} note="in force today" />
+        <Stat
+          label="Waiting to be paid"
+          value={waitingToBePaid}
+          tone={waitingToBePaid > 0 ? "warn" : "neutral"}
+          href={withParams(PATH, query, { filter: "waiting" })}
+          note="drafts, unpaid, failed payment"
+        />
+        <Stat label="Annual premium bound" value={formatCentsAsUsd(boundPremiumCents)} tone="accent" note="terms in force today, before tax and fee" />
+      </Stats>
 
-      <Panel title="Policies" className="list-panel">
-        {policies.length === 0 ? (
-          <Empty illustration="closed-folder">No policy yet. Start with &quot;New policy&quot;.</Empty>
-        ) : (
-          <div className="table-scroll" role="region" aria-label="Policies" tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Policy</th>
-                  <th>Customer</th>
-                  <th>State</th>
-                  <th>Effective</th>
-                  <th>Status</th>
-                  <th className="amount">Total charge</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {policies.map((policy) => (
-                  <tr key={policy.policyId}>
-                    <td>
-                      <Link href={`/policies/${policy.policyId}`}>{policy.policyNumber}</Link>
-                    </td>
-                    <td>{policy.customerName}</td>
-                    <td>{policy.stateCode}</td>
-                    <td>{policy.effectiveAt}</td>
-                    <td>
-                      <Chip tone={policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "neutral" : "warn"}>
-                        {policy.status.replace(/_/g, " ")}
-                      </Chip>
-                    </td>
-                    <td className="amount">
-                      {formatCentsAsUsd(policy.terms ? policy.terms.totalChargeCents : policy.totalChargeCents)}
-                      {policy.terms && policy.terms.onDate === null ? (
-                        // The fold has no answer on that date (the policy was not issued yet, or a
-                        // correction reversed its issuance), so these are the policy record's own
-                        // figures and the row says so rather than calling them cover.
-                        <>
-                          <br />
-                          <span className="note">on the policy record</span>
-                        </>
-                      ) : null}
-                    </td>
-                    <td>
-                      <Link href={`/policies/${policy.policyId}`} className="button-link secondary small">
-                        Open
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {/* The same reading help the staff list carries, so the two say the same thing about the
-            same column (F-UA-01). */}
-        <Disclosure>
-          <p>
-            <strong>Total charge</strong> is the annual premium plus the state premium tax and the flat policy fee{" "}
-            <strong>in force on the date the policy&apos;s own page shows</strong>: today, or the first day of the term
-            when the term has not begun. An endorsement dated later is not in this figure, and the policy page names it
-            under the terms. A row marked <em>on the policy record</em> could not be rebuilt on that date, so its figures
-            are the ones written on the policy. What was actually collected and refunded is on the policy page, in its
-            journal.
-          </p>
-        </Disclosure>
-      </Panel>
-      <IllustrationBanner
-        name="garden-gate"
-        title={<>Built for <em>growing businesses.</em></>}
+      <WhatNeedsYou tasks={tasks} blocking={verificationBlocking} showEmptyIllustration={false} />
+
+      <DataTable
+        ariaLabel="Policies"
+        toolbar={
+          <Toolbar>
+            <ToolbarGroup>
+              <FilterChip href={withParams(PATH, query, { filter: null })} active={filter === null} count={policies.length}>
+                All
+              </FilterChip>
+              {FILTERS.map((one) => (
+                <FilterChip key={one} href={withParams(PATH, query, { filter: one })} active={filter === one} count={countByFilter(one)}>
+                  {FILTER_LABEL[one]}
+                </FilterChip>
+              ))}
+            </ToolbarGroup>
+            <form method="get" action={PATH}>
+              {filter ? <input type="hidden" name="filter" value={filter} /> : null}
+              <input type="search" name="q" defaultValue={search} placeholder="Policy number, customer" aria-label="Search your policies" />
+              <button type="submit" className="secondary">
+                Search
+              </button>
+            </form>
+            <ToolbarSpacer />
+            <ToolbarCount>
+              {shown.length} of {policies.length}
+            </ToolbarCount>
+          </Toolbar>
+        }
+        legend={
+          <Legend
+            items={[
+              { term: "Total", meaning: "annual premium plus state tax and the flat fee, in force today or on the first day of the term" },
+              { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
+            ]}
+          />
+        }
       >
-        Coverage, records and the next customer decision stay together.
-      </IllustrationBanner>
+        <thead>
+          <tr>
+            <th>Policy</th>
+            <th>Customer</th>
+            <th className="nowrap">Effective</th>
+            <th>Status</th>
+            <th className="num">Total</th>
+            <th aria-label="Open" />
+          </tr>
+        </thead>
+        <tbody>
+          {shown.length === 0 ? (
+            <tr>
+              <td colSpan={6} className="dt-empty">
+                <EmptyState illustration="closed-folder" action={
+                  policies.length === 0 ? (
+                    <Link className="button-link orange" href="/broker/policies/new" prefetch={false}>
+                      New policy
+                    </Link>
+                  ) : undefined
+                }>
+                  {policies.length === 0 ? "No policy yet. Start with a new one." : "No policy matches this filter."}
+                </EmptyState>
+              </td>
+            </tr>
+          ) : (
+            shown.map((policy) => (
+              <Row key={policy.policyId} href={`/policies/${policy.policyId}`}>
+                <Primary href={`/policies/${policy.policyId}`}>{policy.policyNumber}</Primary>
+                <td>{policy.customerName}</td>
+                <td className="nowrap">
+                  {policy.effectiveAt}
+                  <span className="dt-sub">{policy.stateCode}</span>
+                </td>
+                <td>
+                  <Chip tone={statusTone(policy.status)}>{policy.status.replace(/_/g, " ")}</Chip>
+                </td>
+                {/* The fold has no answer on that date (the policy was not issued yet, or a
+                    correction reversed its issuance), so these are the policy record's own
+                    figures and the row says so rather than calling them cover. */}
+                <Num sub={policy.terms && policy.terms.onDate === null ? "on the policy record" : undefined}>
+                  {formatCentsAsUsd(policy.terms ? policy.terms.totalChargeCents : policy.totalChargeCents)}
+                </Num>
+                <Chevron />
+              </Row>
+            ))
+          )}
+        </tbody>
+      </DataTable>
+
+      <section className="welcome-card">
+        <div>
+          <h2>
+            Built for <em>growing businesses.</em>
+          </h2>
+          <p>Coverage, records and the next customer decision stay together.</p>
+        </div>
+        <DecorativeIllustration name="garden-gate" variant="card" />
+      </section>
+
+      <About>
+        <h4>Total</h4>
+        <p>
+          The annual premium plus the state premium tax and the flat policy fee in force on the date the policy&apos;s own page shows: today, or the first day of the term when the term has not begun. An endorsement dated later is not in this figure; the policy page names it under the terms.
+        </p>
+        <h4>On the policy record</h4>
+        <p>A row marked this way could not be rebuilt on that date, so its figures are the ones written on the policy.</p>
+        <h4>What was collected</h4>
+        <p>What was actually collected and refunded is on the policy page, in its journal. This list shows terms, not cash.</p>
+        <h4>Binding</h4>
+        <p>
+          A policy binds when Stripe confirms the payment and the business verification is approved. While it is not, the money sits in the suspense account and staff operations decide.
+        </p>
+        <h4>Your verification</h4>
+        <p>{kyb.explanation}</p>
+        {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
+          <p>{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
+        )}
+      </About>
     </PortalShell>
   );
 }

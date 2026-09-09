@@ -1,0 +1,146 @@
+/* The lists, the homes, the inbox and the 360 pages: the few rules the shared system does not
+   already carry.
+
+   Every class here starts with `lists-`, except the one that qualifies a shared block from the
+   outside (`.needs-you.lists-needs`), so nothing in this file can reach a screen that did not ask
+   for it. Layout and spacing only: no colour of a figure, no money
+   format, no state. The rules that belong in app/styles/system.css are listed as change requests
+   in the builder's report; they live here until the coordinator moves them.
+
+   Imported by the screens that need it and by components/what-needs-you.tsx, so every consumer of
+   that block gets the same density. */
+
+/* ---------------------------------------------------------------------------
+   "What needs you": a dense list, 32 px rows
+   --------------------------------------------------------------------------- */
+.needs-you.lists-needs {
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  border-radius: var(--radius-block);
+}
+.needs-you.lists-needs h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.needs-you.lists-needs h2 svg {
+  width: 15px;
+  height: 15px;
+}
+.needs-you.lists-needs .needs-you-list {
+  gap: 4px;
+}
+.needs-you.lists-needs .needs-you-list a {
+  gap: 10px;
+  min-height: 32px;
+  padding: 3px 10px;
+  border-radius: 9px;
+}
+.needs-you.lists-needs .needs-you-list strong {
+  font-size: 13px;
+}
+/* One line of detail: a task that needs a paragraph is a task the inbox lists in full. */
+.needs-you.lists-needs .needs-you-list a > span > span {
+  margin-top: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.needs-you.lists-needs .count-chip {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 7px;
+  font-size: 12.5px;
+}
+.needs-you.lists-needs .needs-you-empty {
+  justify-items: start;
+  text-align: left;
+  gap: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   /inbox: one card per section, an empty section on one line
+   --------------------------------------------------------------------------- */
+/* A block of one of these screens: a card, a folded empty section. The shared `.card` carries no
+   margin of its own (it is normally laid out by a grid), so the blocks these pages stack need
+   one. Only a block carrying this class of this area is touched. */
+.lists-section {
+  margin-bottom: 12px;
+}
+/* An empty queue folds to one line (UI-016): it keeps its anchor, its title and its sentence, so
+   a count in the sidebar still lands on the section it counted, without costing a whole card. */
+.lists-empty-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+  padding: 10px 18px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-block);
+}
+.lists-empty-line h2 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.lists-empty-line p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------------------
+   The 360 pages: panels that are one table each
+   --------------------------------------------------------------------------- */
+/* A panel of the console with nothing above its table but its heading. */
+.lists-panel {
+  margin-bottom: 16px;
+}
+.lists-panel > h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  font-weight: 500;
+}
+/* app/styles/system.css pulls a table that is the content of a card to the card's own edges,
+   with a negative bottom margin. A panel that says something under its table needs that margin
+   back, or the sentence sits on the table's last border. */
+.lists-panel.card > .dt-wrap:not(:last-child) {
+  margin-bottom: 12px;
+}
+.lists-panel > h3 .lists-count {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+/* A sentence a panel prints instead of its table: a read that failed, a cap that was reached. */
+.lists-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------------------
+   A form that is the content of a card (new policy, verification, a new key)
+   --------------------------------------------------------------------------- */
+/* The first selector has to out-rank `.card form.card` in app/styles/system.css, which sets
+   `max-width: none` on any form that is the content of a card. */
+.card > form.card.lists-form,
+.lists-form.card {
+  padding: 0;
+  border: 0;
+  margin: 0;
+  /* A field wider than this is harder to read, not easier: the card around it can be as wide as
+     the screen, the inputs stay at the width of the longest value anyone types into them. */
+  max-width: 520px;
+  background: transparent;
+}
+.card > form.card.lists-form label:first-of-type,
+.lists-form.card label:first-of-type {
+  margin-top: 0;
+}

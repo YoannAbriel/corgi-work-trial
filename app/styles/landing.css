@@ -1,0 +1,297 @@
+/* The public pages: the landing, the sign-in card, the two feedback screens.
+
+   They are outside the workspace shell, so none of the blocks of app/styles/system.css applies to
+   them and they need a layout of their own. Every rule here is prefixed `landing-` and is layout,
+   spacing or type only: the colours, the buttons and the fonts are the ones app/globals.css
+   already defines. Imported by app/page.tsx, app/login/page.tsx, app/not-found.tsx and
+   app/error.tsx, never by app/layout.tsx, so a signed-in workspace never downloads it.
+
+   Reading order: the header slot, the hero, the two card sections, the sign-in card, the
+   feedback screens, then the narrow-screen rules. */
+
+/* UI-003, carried over from app/styles/shell.css. The signed-out frame is a column flex box and
+   `main` carries `margin: 0 auto` (app/globals.css); an automatic margin on the cross axis cancels
+   the stretch, so `main` measures ITS OWN CONTENT. Opening "Demo accounts and access" then moved
+   the form sideways. A definite width takes the content out of that measurement, so the help opens
+   under the card and nothing beside it moves. One width per public page. */
+.signed-out > main:has(.landing-page),
+.signed-out > main:has(.landing-signin),
+.signed-out > main:has(.landing-feedback) {
+  width: 100%;
+}
+
+/* The white sheet stays the full width of the frame, like the header and the footer above and
+   below it; the reading column is this wrapper inside it. */
+.landing-page {
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* The right-hand side of the signed-out header: the sandbox disclosure, then the one button. */
+.signed-out-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.signed-out-actions .button-link {
+  margin: 0;
+  min-height: 36px;
+  padding: 6px 16px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+
+/* ---------------------------------------------------------------------------
+   The hero: text on the left, illustration on the right, deliberately uneven
+   --------------------------------------------------------------------------- */
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 32px;
+  padding: 18px 0 40px;
+}
+.landing-hero > div {
+  min-width: 0;
+}
+.landing-hero h1 {
+  margin: 0;
+  font-size: 46px;
+  line-height: 1.08;
+  letter-spacing: -1.4px;
+  max-width: 24ch;
+}
+.landing-hero h1 em {
+  color: var(--orange);
+  font-style: normal;
+}
+.landing-lead {
+  margin: 16px 0 0;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 46ch;
+}
+.landing-hero .button-link {
+  margin-top: 24px;
+  min-height: 44px;
+  padding: 10px 22px;
+  font-size: 15px;
+  border-radius: 12px;
+}
+.landing-hero-art {
+  display: grid;
+  place-items: center;
+}
+.landing-hero-art img {
+  width: 100%;
+  max-width: 300px;
+  height: auto;
+  mask-image: radial-gradient(ellipse, #000 52%, transparent 76%);
+}
+
+/* The sandbox sentence, on its own line under the hero, never folded away (AF-02 and F-UI-02). */
+.landing-sandbox {
+  margin: 0 0 40px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff8f3;
+  color: var(--ink);
+  font-size: 13.5px;
+}
+
+/* ---------------------------------------------------------------------------
+   The two card sections: what it does, who uses it
+   --------------------------------------------------------------------------- */
+.landing-section {
+  margin: 0 0 40px;
+}
+.landing-section > h2 {
+  margin: 0 0 4px;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+}
+.landing-section > p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.landing-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.landing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 22px 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  min-width: 0;
+}
+.landing-card img {
+  width: 96px;
+  height: 76px;
+  object-fit: contain;
+  margin-bottom: 4px;
+  mask-image: radial-gradient(ellipse, #000 54%, transparent 78%);
+}
+.landing-card h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.landing-card p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+/* The demo accounts a role maps to. The password is never printed here or anywhere else. */
+.landing-accounts {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.landing-accounts li {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #f1f1f3;
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------------------
+   Sign in: one centred card, the illustration beside it on a wide screen only
+   --------------------------------------------------------------------------- */
+.landing-signin {
+  display: grid;
+  grid-template-columns: minmax(0, 400px) minmax(0, 300px);
+  align-items: center;
+  justify-content: center;
+  gap: 48px;
+  padding: 24px 0 8px;
+}
+.landing-signin-card {
+  min-width: 0;
+}
+.landing-signin-card h1 {
+  margin: 0 0 4px;
+  font-size: 30px;
+  letter-spacing: -0.8px;
+}
+.landing-signin-card > p {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.landing-signin-card form.card {
+  max-width: none;
+  margin: 0;
+}
+.landing-signin-card details.demo-accounts {
+  margin-top: 14px;
+}
+.landing-signin-art {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.landing-signin-art img {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  mask-image: radial-gradient(ellipse, #000 52%, transparent 76%);
+}
+.landing-signin-art p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+  max-width: 30ch;
+}
+/* The sandbox sentence sits under the card, centred with it, and is not part of the grid. */
+.landing-signin-note {
+  max-width: 748px;
+  margin: 18px auto 0;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------------------
+   Not found and error: the same frame, one illustration, one sentence, one button
+   --------------------------------------------------------------------------- */
+.landing-feedback {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  max-width: 460px;
+  margin: 8vh auto;
+  padding: 8px;
+  text-align: center;
+}
+.landing-feedback img {
+  width: min(200px, 100%);
+  height: auto;
+  mask-image: radial-gradient(ellipse, #000 50%, transparent 75%);
+}
+.landing-feedback h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.6px;
+}
+.landing-feedback p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.landing-feedback .landing-feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.landing-feedback .landing-feedback-actions button,
+.landing-feedback .landing-feedback-actions .button-link {
+  margin-top: 0;
+}
+
+/* ---------------------------------------------------------------------------
+   Narrow screens
+   --------------------------------------------------------------------------- */
+@media (max-width: 1000px) {
+  .landing-hero {
+    gap: 24px;
+  }
+  .landing-hero h1 {
+    font-size: 38px;
+  }
+  .landing-signin {
+    grid-template-columns: minmax(0, 400px);
+    justify-content: center;
+  }
+  /* The illustration beside the sign-in card is a wide-screen decoration only. */
+  .landing-signin-art {
+    display: none;
+  }
+}
+@media (max-width: 720px) {
+  .landing-hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 28px;
+  }
+  .landing-hero-art {
+    display: none;
+  }
+  .landing-hero h1 {
+    font-size: 32px;
+  }
+  .signed-out-actions {
+    gap: 10px;
+  }
+}
