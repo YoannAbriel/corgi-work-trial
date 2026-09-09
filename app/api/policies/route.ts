@@ -2,11 +2,14 @@ import { currentUser } from "@/lib/auth/current-user";
 import { termEnd } from "@/lib/money/dates";
 import { parseUsdAmountToCents } from "@/lib/money/cents";
 import { createPolicyDraft, PolicyDraftRefused, type NewPolicyDraft } from "@/lib/policy/issue";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies, called by the form on /broker/policies/new.
 // Three steps, each with its own visible failure path: who is asking, is the form usable,
 // can the draft be priced.
-export async function POST(request: Request) {
+export const POST = withActivity({ route: "/api/policies" }, handlePost);
+
+async function handlePost(request: Request) {
   const user = await currentUser();
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");

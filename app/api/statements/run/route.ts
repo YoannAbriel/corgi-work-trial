@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { isUuid } from "@/lib/http/path-ids";
 import { runStatement, StatementRunRefused } from "@/lib/statements/run";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/statements/run, called by the two forms on /ops/statements and /statements/{runId}.
 //
@@ -11,7 +12,9 @@ import { runStatement, StatementRunRefused } from "@/lib/statements/run";
 // The route moves no money at all. It reads the journal and appends one run and its lines, so the
 // worst a repeated submission can do is store another revision, which is exactly what the model
 // says a re-run is: an event, not an edit.
-export async function POST(request: Request) {
+export const POST = withActivity({ route: "/api/statements/run" }, handlePost);
+
+async function handlePost(request: Request) {
   const user = await currentUser();
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");

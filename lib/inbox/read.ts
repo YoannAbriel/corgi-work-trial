@@ -11,6 +11,7 @@ import { openBreaks } from "@/lib/reconciliation/read";
 import {
   brokerSections,
   customerSections,
+  sectionsWithWorkFirst,
   staffSections,
   type BrokerPolicyFacts,
   type ChangeRequestFacts,
@@ -70,8 +71,11 @@ export async function workspaceInbox(
   user: Pick<SignedInUser, "role" | "brokerId" | "customerId">,
 ): Promise<WorkspaceInbox> {
   const inbox = await sectionsFor(user);
-  const totalWaiting = inbox.sections.reduce((total, section) => total + section.items.length, 0);
-  return { totalWaiting, ...inbox };
+  // What is waiting comes before the queues that are empty (UI-016). Only the order changes: the
+  // same sections, with the same anchors and the same items, are returned.
+  const sections = sectionsWithWorkFirst(inbox.sections);
+  const totalWaiting = sections.reduce((total, section) => total + section.items.length, 0);
+  return { totalWaiting, sections, unreadablePolicies: inbox.unreadablePolicies };
 }
 
 async function sectionsFor(

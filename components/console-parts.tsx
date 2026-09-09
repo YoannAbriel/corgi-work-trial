@@ -2,7 +2,7 @@ import "@/app/styles/ops-tables.css";
 import Link from "next/link";
 import { Chip, Empty } from "@/components/detail-layout";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import type { ConsoleEvent, ConsoleOutcome, RecoveryAction } from "@/lib/console/read";
+import type { ConsoleActivity, ConsoleEvent, ConsoleOutcome, RecoveryAction } from "@/lib/console/read";
 import type { Attempted } from "@/lib/console/safe-read";
 
 // The pieces every console screen shares. Server components only: plain HTML, no state, no
@@ -202,4 +202,82 @@ export function RecoveryCell({ recovery }: { recovery: RecoveryAction }) {
     );
   }
   return <span className="note">{recovery.why}</span>;
+}
+
+// ---------------------------------------------------------------------------
+// The activity table (console v2, migration 0021)
+// ---------------------------------------------------------------------------
+
+// One row per REQUEST the application answered: who asked, which route, how it ended, the rule
+// a refusal named, the sanitised sentence, how long it took, and the correlation id that ties
+// the row to the JSON line the server printed. Shared by the console page and the four 360
+// pages, so the same request is described the same way wherever it is read.
+//
+// The actor is masked exactly like everywhere else on the console: a person's display name shows
+// its first three characters and opens on a click; 'cron', 'stripe' and 'anonymous' are printed
+// as they are, because they are not people.
+export function ActivityTable({ rows, ariaLabel }: { rows: ConsoleActivity[]; ariaLabel: string }) {
+  return (
+    <div className="table-scroll" role="region" aria-label={ariaLabel} tabIndex={0}>
+      {/* Nine columns read together, so each one carries the minimum width its content needs
+          (app/styles/ops-tables.css), like every other table of the console. */}
+      <table className="ops-table">
+        <thead>
+          <tr>
+            <th className="col-when">When (UTC)</th>
+            <th className="col-ref">Route</th>
+            <th className="col-name">Who</th>
+            <th className="col-label">Answered</th>
+            <th className="col-name">Rule</th>
+            <th className="col-text">Reason</th>
+            <th className="amount">Took</th>
+            <th className="col-name">Object</th>
+            <th className="col-name">Correlation id</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.activityId}>
+              <td className="col-when">{utc(row.instant)}</td>
+              <td className="col-ref">
+                <code>
+                  {row.method} {row.route}
+                </code>
+              </td>
+              <td className="col-name">
+                {row.actorIsPerson ? <Masked value={row.actor} what="actor" /> : row.actor}
+                {row.actorRole ? (
+                  <>
+                    <br />
+                    <span className="note">{row.actorRole}</span>
+                  </>
+                ) : null}
+              </td>
+              <td className="col-label">
+                <Chip tone={row.outcome === "ok" ? "ok" : "warn"}>{row.outcome}</Chip>{" "}
+                <span className="note">HTTP {row.statusCode}</span>
+              </td>
+              <td className="col-name">{row.rule ?? <span className="note">none named</span>}</td>
+              <td className="col-text">{row.message ?? <span className="note">none recorded</span>}</td>
+              <td className="amount">{row.durationMs} ms</td>
+              <td className="col-name">
+                {row.consoleHref ? (
+                  <Link href={row.consoleHref} prefetch={false}>
+                    {row.subjectKind}
+                  </Link>
+                ) : (
+                  <span className="note">no object</span>
+                )}
+              </td>
+              <td className="col-name">
+                <Link href={`/ops/console/search?reference=${encodeURIComponent(row.correlationId)}`} prefetch={false}>
+                  <code>{row.correlationId.slice(0, 8)}</code>
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }

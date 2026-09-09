@@ -4,12 +4,14 @@ import { ConsoleAutoRefresh } from "./auto-refresh";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { EventTable, FailureLine, IntegrationModes, RecoveryCell, describeMinutes, formatSeconds, utc } from "@/components/console-parts";
+import { ActivityTable, EventTable, FailureLine, IntegrationModes, RecoveryCell, describeMinutes, formatSeconds, utc } from "@/components/console-parts";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import {
   CONSOLE_EVENT_KINDS,
+  MOST_ACTIVITY_ROWS,
   MOST_FEED_ROWS,
+  MOST_LATENCY_ROUTES,
   MOST_PROBLEM_ROWS,
   UNKNOWN_OUTCOME_AFTER_MINUTES,
   UNRESOLVED_OPERATIONS_FLOOR_DAYS,
@@ -17,9 +19,11 @@ import {
   acceptedAndUnconfirmedOperations,
   consoleFeed,
   isConsoleEventKind,
+  latencyByRoute,
   latencyTiles,
   operationsProblems,
   parseSince,
+  refusedAndFailedActivity,
   type ConsoleEventKind,
 } from "@/lib/console/read";
 import { attempt, valueOr } from "@/lib/console/safe-read";
@@ -86,14 +90,19 @@ export default async function OperationsConsolePage({
   const inFlight = await attempt("the operations in flight", acceptedAndUnconfirmedOperations(sql));
   const { checking, unknownOutcome } = valueOr(inFlight, { checking: [], unknownOutcome: [] });
 
-  const [feed, tiles, problems] = await Promise.all([
+  const [feed, tiles, problems, refusedActions, routeLatency] = await Promise.all([
     attempt("the feed", consoleFeed(sql, { since, kinds: selectedKinds, limit: MOST_FEED_ROWS })),
     attempt("the latency tiles", latencyTiles(sql)),
     attempt("the errors and unknowns", operationsProblems(sql, { since, unknownOutcome })),
+    // Console v2 (migration 0021): what the application refused or failed to answer, and how
+    // long each route takes. Both read activity_log and nothing else.
+    attempt("the refused and failed actions", refusedAndFailedActivity(sql, { since, limit: MOST_ACTIVITY_ROWS })),
+    attempt("the latency by route", latencyByRoute(sql)),
   ]);
 
   const events = valueOr(feed, []);
   const problemRows = valueOr(problems, []);
+  const refusedRows = valueOr(refusedActions, []);
 
   // The hidden inputs that make "Refresh now" keep the current view. The ten-second timer keeps
   // it too, for free: it re-renders this URL rather than navigating to a new one.
@@ -192,6 +201,61 @@ export default async function OperationsConsolePage({
         </Disclosure>
       </Panel>
 
+      <Panel title={`Latency by route, over the last ${LATENCY_WINDOW_HOURS} hours`}>
+        <FailureLine attempted={routeLatency} />
+        {valueOr(routeLatency, []).length === 0 ? (
+          <Empty>
+            No request has been recorded in this window. Every route handler writes one row in{" "}
+            <code>activity_log</code> as it answers, so an empty table here means the application answered nothing
+            in the last {LATENCY_WINDOW_HOURS} hours.
+          </Empty>
+        ) : (
+          <div className="table-scroll" role="region" aria-label="Latency by route" tabIndex={0}>
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th className="col-ref">Route</th>
+                  <th className="amount">p50</th>
+                  <th className="amount">p95</th>
+                  <th className="amount">max</th>
+                  <th className="amount">Requests</th>
+                  <th className="amount">Not ok</th>
+                </tr>
+              </thead>
+              <tbody>
+                {valueOr(routeLatency, []).map((route) => (
+                  <tr key={route.route}>
+                    <td className="col-ref">
+                      <code>{route.route}</code>
+                    </td>
+                    <td className="amount">{route.p50Ms === null ? "no sample" : `${Math.round(route.p50Ms)} ms`}</td>
+                    <td className="amount">{route.p95Ms === null ? "no sample" : `${Math.round(route.p95Ms)} ms`}</td>
+                    <td className="amount">{route.maxMs === null ? "no sample" : `${route.maxMs} ms`}</td>
+                    <td className="amount">{route.sampleCount}</td>
+                    <td className="amount">
+                      {route.notOkCount === 0 ? <span className="note">0</span> : <Chip tone="warn">{route.notOkCount}</Chip>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <Disclosure title="What this measures, and what it does not">
+          <p>
+            One row per <strong>route</strong>, sorted by p95 so the slowest is first. The figures are{" "}
+            <code>percentile_cont</code> computed by Postgres over <code>activity_log.duration_ms</code>, which is
+            the time this application spent inside the handler: it does not include the network, the browser, or the
+            cold start of a serverless function. The table above it measures something different, the time an{" "}
+            <strong>object</strong> took to move between two states, which includes the provider.
+          </p>
+          <p>
+            A route is the URL <strong>pattern</strong> and never a URL with an id in it, so one policy cannot become
+            its own row with one sample. Showing at most {MOST_LATENCY_ROUTES} routes.
+          </p>
+        </Disclosure>
+      </Panel>
+
       {/* UI-026: the Recovery column of the errors table, which is the whole point of the panel,
           fell outside the 736 px left-hand card of the two-column grid. The console stacks: the
           tables take the full content width and the filters and reading notes move under them. */}
@@ -199,6 +263,41 @@ export default async function OperationsConsolePage({
       <DetailGrid
         main={
           <>
+            <Panel title="Refused and failed actions">
+              <FailureLine attempted={refusedActions} />
+              {refusedRows.length === 0 ? (
+                <Empty>
+                  Nothing was refused and nothing failed in this window. A maker-checker refusal, a broker asking for
+                  something they do not own, an expired session, a job called without the cron secret and an
+                  unhandled failure would all be here.
+                </Empty>
+              ) : (
+                <ActivityTable rows={refusedRows} ariaLabel="Refused and failed actions" />
+              )}
+              {refusedRows.length >= MOST_ACTIVITY_ROWS ? (
+                <p className="note">
+                  Showing {MOST_ACTIVITY_ROWS} rows, which is the hard limit of this panel. Narrow the window to see
+                  the rest.
+                </p>
+              ) : null}
+              <Disclosure title="Where these rows come from">
+                <p>
+                  Every route handler, every job and the MCP endpoint are wrapped in one helper
+                  (<code>lib/observability/log.ts</code>) that writes one append-only row in <code>activity_log</code>{" "}
+                  and prints the same fields as one JSON line in the server log. A row is <strong>refused</strong>{" "}
+                  when a rule said no: the handler threw one of the application&apos;s refusal classes, answered a
+                  4xx, or redirected with an error message, which is how most screens here say no. It is{" "}
+                  <strong>error</strong> when something broke.
+                </p>
+                <p>
+                  <strong>No payload is ever stored</strong>: the table has no column for one. The reason is a single
+                  sanitised sentence, with emails masked to their first three characters and any bearer token,
+                  password or <code>sk_</code> secret replaced before it is written. The correlation id on the right
+                  is the same id as on the JSON log line, and it is searchable.
+                </p>
+              </Disclosure>
+            </Panel>
+
             <Panel title="Errors, refusals and unknown outcomes">
               <FailureLine attempted={problems} />
               {problemRows.length === 0 ? (
@@ -404,6 +503,8 @@ export default async function OperationsConsolePage({
                   { label: "MCP calls", value: "mcp_calls, joined to mcp_api_keys for the public prefix" },
                   { label: "broker verification", value: "broker_kyb_events" },
                   { label: "change requests", value: "policy_change_requests" },
+                  { label: "refused and failed actions", value: "activity_log, one row per request (migration 0021)" },
+                  { label: "latency by route", value: "activity_log.duration_ms, grouped by route" },
                 ]}
               />
             </Panel>

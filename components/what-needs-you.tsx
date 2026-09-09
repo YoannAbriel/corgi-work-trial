@@ -232,13 +232,27 @@ function plural(count: number, singular: string, pluralForm?: string): string {
   return `${count} ${count === 1 ? singular : (pluralForm ?? `${singular}s`)}`;
 }
 
+// A thing to do that the inbox does not list, because it is not a queue of items: business
+// verification blocking a broker from binding anything (UI-031). It comes FIRST in the block and
+// links to the screen that clears it, which is why it carries its own href instead of an inbox
+// anchor. It is deliberately not a WorkspaceTask: the tasks are counted work, compared item by
+// item against the inbox by scripts/check-inbox-counts.ts, and a count with no inbox section
+// behind it is exactly what that check exists to catch.
+export type BlockingTask = {
+  label: string;
+  detail: string;
+  href: string;
+};
+
 // The block at the top of each role's workspace home. It lists the same tasks the sidebar counts,
 // with a link to the screen where the work is done.
 export function WhatNeedsYou({
   tasks,
+  blocking = null,
   showEmptyIllustration = true,
 }: {
   tasks: WorkspaceTask[];
+  blocking?: BlockingTask | null;
   showEmptyIllustration?: boolean;
 }) {
   return (
@@ -246,7 +260,7 @@ export function WhatNeedsYou({
       <h2 id="needs-you-heading">
         <BellRing size={18} aria-hidden="true" /> What needs you
       </h2>
-      {tasks.length === 0 ? (
+      {tasks.length === 0 && !blocking ? (
         <div className="needs-you-empty">
           {showEmptyIllustration ? <DecorativeIllustration name="all-clear" variant="empty" /> : null}
           <p className="note">
@@ -256,6 +270,21 @@ export function WhatNeedsYou({
         </div>
       ) : (
         <ul className="needs-you-list">
+          {blocking ? (
+            // First, because it stops everything else on this screen: a broker whose verification
+            // does not allow binding was being told that nothing needed them, immediately under
+            // the sentence saying Stripe had refused the verification (UI-031).
+            <li key="blocking">
+              <Link href={blocking.href} prefetch={false}>
+                <span className="count-chip">1</span>
+                <span>
+                  <strong>{blocking.label}</strong>
+                  <span>{blocking.detail}</span>
+                </span>
+                <ArrowRight size={18} aria-hidden="true" />
+              </Link>
+            </li>
+          ) : null}
           {tasks.map((task) => (
             <li key={`${task.section}-${task.label}`}>
               {/*

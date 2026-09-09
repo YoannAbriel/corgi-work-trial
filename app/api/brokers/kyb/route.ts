@@ -1,12 +1,15 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { BrokerKybRefused, submitBrokerKyb } from "@/lib/broker/kyb-onboarding";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/brokers/kyb, called by the form on /broker/kyb.
 //
 // Three steps, each with its own visible failure path: who is asking, is the form usable, does
 // Stripe accept the company. The signed-in user's own broker is the only one that can be
 // submitted: the broker id comes from the session, never from the form.
-export async function POST(request: Request) {
+export const POST = withActivity({ route: "/api/brokers/kyb" }, handlePost);
+
+async function handlePost(request: Request) {
   const user = await currentUser();
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");

@@ -1,3 +1,4 @@
+import { sanitisedSentence } from "@/lib/observability/redact";
 import { hashArguments } from "./keys";
 import { NEVER_DELEGATED, NEVER_DELEGATED_SUMMARY } from "./never-delegated";
 import { findTool, MCP_TOOLS } from "./tools";
@@ -265,7 +266,11 @@ async function callTool(
     }
     // Anything else is ours. The caller gets one sentence with no detail; the server keeps the
     // real message in its own log, never in the answer and never in the call record.
-    console.error(`mcp tool ${tool.name} failed`, thrown);
+    // Recheck finding F-RC-07: this line used to print the thrown object itself, which carries a
+    // stack, and through a database driver frame the query and its values. It is now one
+    // structured line with one sanitised sentence, the same rule the request log follows
+    // (lib/observability/redact.ts). The caller still learns nothing.
+    console.error(JSON.stringify({ mcpToolFailed: tool.name, reason: sanitisedSentence(thrown) }));
     return {
       response: error(id, INTERNAL_ERROR, "this tool failed; the operations team can see why in the server log"),
       log: log("tools/call", tool.name, argumentsHash, "error", "unhandled failure, see the server log"),

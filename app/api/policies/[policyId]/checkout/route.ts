@@ -1,11 +1,14 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { CheckoutRefused, startCheckout } from "@/lib/payments/checkout";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/checkout, called by the "Pay with Stripe" button.
 // Authorisation and eligibility are checked here and again inside startCheckout: a direct
 // call to this URL goes through exactly the same gates as the button.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/checkout", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");

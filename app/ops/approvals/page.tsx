@@ -8,6 +8,9 @@ import { approvalRequests, type ApprovalRequestView } from "@/lib/approvals/appr
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser, type SignedInUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+// UI-008: the gutter between the two panels and the line break under the "raised by an AGENT"
+// badge. Presentation only; the decision form below is untouched.
+import "@/app/styles/shell.css";
 
 // The maker-checker queue: every money-out above the threshold, who asked for it, exactly what
 // they asked for, and the two buttons that decide it.
@@ -48,7 +51,7 @@ export default async function ApprovalsPage({
     <PortalShell active="approvals" user={user}>
       <DetailHeading
         title="Money-out approvals"
-        lead={`Anything above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} leaving this system, a claim payment or a cancellation refund, waits here until a staff approver who is not the person who asked says yes.`}
+        lead={`Anything above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} leaving this system, a claim payment or a cancellation refund, waits here until a staff approver who is not the person who asked says yes. So does a request an agent raised through the MCP endpoint, whatever the amount.`}
         chips={
           <>
             <Chip tone={waiting.length > 0 ? "warn" : "ok"}>
@@ -61,20 +64,29 @@ export default async function ApprovalsPage({
 
       {notices.length > 0 ? <div className="notices">{notices}</div> : null}
 
-      <Panel title="Waiting for a decision" className="list-panel">
+      <Panel title="Waiting for a decision" className="list-panel stacked-panel">
         {waiting.length === 0 ? (
-          <Empty>Nothing is waiting. A money-out below the threshold never appears here.</Empty>
+          // UI-009: "below the threshold, never" was contradicted by the $10.00 claim payment in
+          // the decided table below. Rule 21 of the decision log (2026-09-08) sends an
+          // agent-raised claim payment to a human approver whatever the amount, so a small
+          // request is exactly what a reader can find here.
+          <Empty>
+            Nothing is waiting. Below the threshold, the only request that appears here is one an
+            agent raised through the MCP endpoint.
+          </Empty>
         ) : (
           <RequestTable requests={waiting} user={user} />
         )}
       </Panel>
 
-      <Panel title="Already decided" className="list-panel">
+      <Panel title="Already decided" className="list-panel stacked-panel">
         {decided.length === 0 ? <Empty>No request has been decided yet.</Empty> : <RequestTable requests={decided} user={user} />}
         <Disclosure>
           <p>
             The threshold is an assumption of this build, decided on 2026-09-08 and recorded in the decision log. It is
-            not a regulatory figure. A money-out below it never appears here.
+            not a regulatory figure. It applies to what a person asks for: below it, the only request that appears here
+            is one an agent raised through the MCP endpoint, which waits for a human approver whatever the amount
+            (rule 21 of the decision log).
           </p>
           <p>
             Open a row to decide it. What you approve is the exact text shown there, and its sha256 is stored with the
@@ -139,7 +151,9 @@ function RequestTable({
                         that a machine asked before deciding, so this is never folded away behind a
                         disclosure; the agent itself can never decide, here or in the database. */}
                     {request.raisedByAgent ? <Chip tone="warn">raised by an AGENT</Chip> : null}
-                    <span className="note">
+                    {/* UI-008: the key that raised the request is a line of its own, under the
+                        badge, instead of running into it. */}
+                    <span className="note raised-through">
                       {request.raisedThrough}. The person named above holds that key; an agent
                       principal can never approve a money-out.
                     </span>

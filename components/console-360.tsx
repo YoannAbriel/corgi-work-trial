@@ -4,12 +4,13 @@ import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import { JournalTable } from "@/components/journal-table";
-import { EventTable, FailureLine, IntegrationModes, Masked, formatSeconds, utc } from "@/components/console-parts";
+import { ActivityTable, EventTable, FailureLine, IntegrationModes, Masked, formatSeconds, utc } from "@/components/console-parts";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { describeAge } from "@/lib/reconciliation/breaks";
 import {
+  activityOfSubject,
   approvalsOfSubject,
   changeRequestsOfSubject,
   claimsOfSubject,
@@ -18,6 +19,7 @@ import {
   journalEntriesOfSubject,
   kybEventsOfBroker,
   mcpCallsOfParty,
+  MOST_ACTIVITY_ROWS_ON_A_360_PAGE,
   MOST_BREAKS_ON_A_360_PAGE,
   openBreaksOfSubject,
   operationsOfSubject,
@@ -95,7 +97,7 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
     .map((operation) => operation.providerRef)
     .filter((reference): reference is string => reference !== null);
 
-  const [journalRead, approvalsRead, breaksRead, changeRequestsRead, mcpRead, policiesRead, claimsRead, statementsRead, kybRead, timelineRead, webhooksRead] =
+  const [journalRead, approvalsRead, breaksRead, changeRequestsRead, mcpRead, policiesRead, claimsRead, statementsRead, kybRead, timelineRead, webhooksRead, activityRead] =
     await Promise.all([
       attempt("the journal entries", journalEntriesOfSubject(sql, scope)),
       attempt("the approvals", approvalsOfSubject(sql, scope)),
@@ -108,6 +110,8 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
       attempt("the verification events", subject.kind === "broker" && subject.brokerId ? kybEventsOfBroker(sql, subject.brokerId) : Promise.resolve([])),
       attempt("the timeline", subjectTimeline(sql, scope)),
       attempt("the webhooks", webhooksTouching(sql, providerReferences)),
+      // Console v2 (migration 0021): every request this application answered about this object.
+      attempt("the activity", activityOfSubject(sql, subject)),
     ]);
 
   const breaks = valueOr(breaksRead, []);
@@ -561,6 +565,32 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                 </Panel>
               </>
             ) : null}
+
+            <Panel title="Activity">
+              <FailureLine attempted={activityRead} />
+              {valueOr(activityRead, []).length === 0 ? (
+                <Empty>
+                  No request about this object has been recorded. Every route handler writes one row as it answers,
+                  so this list starts when the activity log was added and says nothing about what happened before.
+                </Empty>
+              ) : (
+                <ActivityTable rows={valueOr(activityRead, [])} ariaLabel="Activity about this object" />
+              )}
+              {valueOr(activityRead, []).length >= MOST_ACTIVITY_ROWS_ON_A_360_PAGE ? (
+                <p className="note">
+                  Showing the newest {MOST_ACTIVITY_ROWS_ON_A_360_PAGE} requests, which is the hard limit of this panel.
+                </p>
+              ) : null}
+              <Disclosure title="Which requests count as this object's">
+                <p>
+                  A row is here when its subject is this object, or one of the {subject.policyIds.length} polic
+                  {subject.policyIds.length === 1 ? "y" : "ies"} and {subject.claimIds.length} claim
+                  {subject.claimIds.length === 1 ? "" : "s"} this page is scoped by, which is the scope every other
+                  panel here uses. A request that names no object (a sign-in, a scheduled job, a health check) is on
+                  the console feed and not here.
+                </p>
+              </Disclosure>
+            </Panel>
 
             <Panel title="Change requests">
               <FailureLine attempted={changeRequestsRead} />

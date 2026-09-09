@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse, isUuid } from "@/lib/http/path-ids";
 import { correctEndorsementDate, CorrectionRefused } from "@/lib/policy/correct-endorsement-date";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/corrections, called by the Confirm button of the preview page.
 //
@@ -9,7 +10,9 @@ import { correctEndorsementDate, CorrectionRefused } from "@/lib/policy/correct-
 // recomputed on the server under a lock, so calling this URL directly goes through the same
 // gates as the button: staff operations only, one correction per endorsement, dates inside the
 // term, and no correction on a cancelled or voided policy.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/corrections", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const { policyId } = await context.params;
   // A path id that is not a uuid is a malformed request, not a missing row: answered 400 before
   // anything reaches a query that would cast it and raise (review finding F-B8-03).

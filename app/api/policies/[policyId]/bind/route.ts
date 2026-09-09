@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { retryBindingAfterEligibility } from "@/lib/payments/collection";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/bind
 //
@@ -12,7 +13,9 @@ import { retryBindingAfterEligibility } from "@/lib/payments/collection";
 // Restricted to staff operations, and the eligibility question is asked again inside
 // retryBindingAfterEligibility, so calling this URL directly goes through the same gate as the
 // button.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/bind", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();
   const { policyId } = await context.params;
   if (!user) {

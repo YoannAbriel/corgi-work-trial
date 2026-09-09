@@ -70,6 +70,11 @@ const PROTECTED_TABLES = [
   // Added by migration 0014 (slice B8): which Stripe payment settles the difference a backdated
   // correction created.
   "correction_collections",
+  // Added by migration 0021 (decision 25): one row per request the application answered. Not a
+  // money row either, protected for the reason mcp_calls is: it records what was refused and by
+  // which rule, and an UPDATE would let a refusal be rewritten or a slow request be made fast
+  // after the fact.
+  "activity_log",
 ] as const;
 
 type ProtectedTable = (typeof PROTECTED_TABLES)[number];
@@ -344,6 +349,21 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     )
     returning id
   `;
+  // Decision 25: one request the application answered. Refused, with the rule it named, because
+  // that is the row the console panel exists to show. No payload: the table has no column for one.
+  const [activity] = await tx<{ id: string }[]>`
+    insert into activity_log (
+      correlation_id, actor_user_id, actor_role, actor_kind, route, method,
+      subject_kind, subject_id, duration_ms, outcome, rule, message, status_code
+    ) values (
+      gen_random_uuid()::text, ${maker.id}, 'staff_ops', 'human',
+      '/api/claims/[claimId]/payments/[operationId]', 'POST',
+      'policy', ${policy.id}, 42, 'refused', 'maker-checker',
+      'guard check refusal, always rolled back', 303
+    )
+    returning id
+  `;
+
   return {
     brokers: broker.id,
     policies: policy.id,
@@ -370,6 +390,7 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     mcp_calls: mcpCall.id,
     journal_entries: journalEntry.id,
     correction_collections: correctionCollection.id,
+    activity_log: activity.id,
   };
 }
 
@@ -624,6 +645,40 @@ async function main() {
   );
   // 9. Migration 0012: a broker statement has to say a coherent thing about a month.
   await runStatementShapeChecks(owner);
+
+  // 10. Migration 0021: the restricted runtime role must be able to APPEND to activity_log,
+  //     because the wrapper around every route handler writes its row with that role. UPDATE,
+  //     DELETE and TRUNCATE were proven refused for it above; this is the other half of the
+  //     grant, and without it the activity log would be silently empty on the deployed
+  //     application.
+  const activityInsert = await expectError(runtime, async (tx) => {
+    await tx`
+      insert into activity_log (correlation_id, actor_kind, route, method, duration_ms, outcome, status_code)
+      values ('guard-check-' || gen_random_uuid()::text, 'anonymous', '/api/health', 'GET', 1, 'ok', 200)
+    `;
+  });
+  report("app_runtime can INSERT into activity_log", activityInsert === null, activityInsert ?? "insert accepted, then rolled back");
+
+  //     And the recording time comes from the database, like every other append-only table here:
+  //     an activity row a caller could backdate would be worth nothing during an incident.
+  let activityClock: Date | null = null;
+  await expectError(owner, async (tx) => {
+    const [row] = await tx<{ recorded_at: Date }[]>`
+      insert into activity_log (
+        correlation_id, actor_kind, route, method, duration_ms, outcome, status_code, recorded_at
+      ) values (
+        'guard-check-clock', 'cron', '/api/jobs/daily', 'GET', 1, 'ok', 200, '2000-01-01T00:00:00Z'
+      )
+      returning recorded_at
+    `;
+    activityClock = row.recorded_at;
+  });
+  const activityTime = activityClock as Date | null;
+  report(
+    "an activity row is timed by the database, not by the caller",
+    activityTime !== null && activityTime.getTime() > Date.parse("2020-01-01T00:00:00Z"),
+    activityTime ? `stored ${activityTime.toISOString()} instead of 2000-01-01` : "no row read",
+  );
 
   await owner.end();
   await runtime.end();
@@ -1240,6 +1295,7 @@ async function runStatementShapeChecks(owner: postgres.Sql): Promise<void> {
     mcpCallTime !== null && mcpCallTime.getTime() > Date.parse("2020-01-01T00:00:00Z"),
     mcpCallTime ? `stored ${mcpCallTime.toISOString()} instead of 2000-01-01` : "no row read",
   );
+
 }
 
 main().catch((error) => {
