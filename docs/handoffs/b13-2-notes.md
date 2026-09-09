@@ -2,8 +2,18 @@
 
 One line per finding taken, with the commit and the proof, or the reason it was skipped. Branch
 `worktree-agent-a285d5858c4689d35`, opened on `main` at `62d8cc8` and merged with `origin/main`
-at `bf7fffb` before this note was written. Nothing pushed, nothing deployed, no migration, no
-UPDATE and no DELETE of any row.
+at `bd98c2f`. Nothing pushed, nothing deployed, no migration written by this batch, no UPDATE and
+no DELETE of any row.
+
+**One merge conflict, in a money-posting path, and it was resolved by keeping both sides.**
+`postDeltaAndApply` in `lib/payments/endorsement-collection.ts`: this batch added the policy
+advisory lock for F-B4-12 and `origin/main` added a money-operation advisory lock for F-B2-21, on
+the same first line of the same transaction. Both locks are now taken, **policy first, then
+operation**, with the order written down beside them: this is the only transaction that holds
+both, and everything else takes one or the other on its own, so no cycle can form. That resolution
+is the reason `check:endorsement-replay` was run a second time after the merge (80 PASS, 0 FAIL
+both times): a conflict resolved by hand inside a posting transaction is not something to hand on
+unexercised.
 
 ## Fixed
 
@@ -30,8 +40,23 @@ UPDATE and no DELETE of any row.
 | Finding | Why |
 |---|---|
 | F-UI-17 | The bare `catch` it names is `components/what-needs-you.tsx:46`, which another builder owns this morning. The one structured log line goes there and nowhere else. |
-| F-B11-07 | README only, and the README is not this batch's to edit. The line to add is in the report below. |
-| F-B10-08 | Explicitly out of scope: the acknowledgement path is not built. One README sentence is proposed in the report below instead. |
+| F-B11-07 | README only, and the README is not this batch's to edit. The line to add is below, under README lines. |
+| F-B10-08 | Explicitly out of scope: the acknowledgement path is not built. One README sentence is proposed below instead. |
+
+## README lines to add (the coordinator owns README, so they are proposed, not written)
+
+For F-B11-07, next to the rate-limiting sentence in the MCP section:
+
+> An MCP key never expires. Revoking it on /ops/mcp-keys is the only thing that ends it, and a
+> revocation is a new row, never an update. The screen shows each key's call count and the time of
+> its last call, so a key nobody uses is visible, but nothing retires it on its own.
+
+For F-B10-08, in the reconciliation section:
+
+> The open breaks on the deployed application are sandbox probe payments left by the checks and
+> reviews that created them, and there is deliberately no button to dismiss a break: nothing on
+> these screens edits or deletes a reconciliation row. A real break would therefore arrive as one
+> more line among them, so read the reference and the age rather than the length of the list.
 
 ## Two things the next builder should know
 
@@ -53,11 +78,11 @@ All on `corgi_test`, once each, no loop, no contention observed (no deadlock in 
 | Command | Result |
 |---|---|
 | `npm run typecheck` | exit 0, no output |
-| `npm test` | 416 tests, 415 pass, 0 fail, 1 skipped (the opt-in live Stripe test) |
-| `npm run build` | exit 0, every route compiled |
+| `npm test` | 428 tests, 427 pass, 0 fail, 1 skipped (the opt-in live Stripe test), after the merge; 416 before it |
+| `npm run build` | exit 0, every route compiled, before and after the merge |
 | `npm run check:statements` | ALL CHECKS PASSED, 0 FAIL, including the four new section 7b lines |
 | `npm run check:mcp` | 58 PASS, 0 FAIL (dev server on 127.0.0.1:3877 pointed at `corgi_test`) |
-| `npm run check:endorsement-replay` | 80 PASS, 0 FAIL |
+| `npm run check:endorsement-replay` | 80 PASS, 0 FAIL, run twice: once before the merge and once after it, for the two-lock conflict resolution described above. The only check script run more than once, and for that reason. |
 | `npm run check:claims-and-approvals` | 72 PASS, 0 FAIL |
 | `npm run check:reconciliation` | 39 PASS, 0 FAIL |
 | `npm run check:correction-replay` | 55 PASS, 0 FAIL |
