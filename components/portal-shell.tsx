@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   UserRound,
   WalletCards,
+  Activity,
 } from "lucide-react";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import { PortalFrame } from "./portal-frame";
@@ -20,6 +21,7 @@ import { workspaceTasks, type WorkspaceTask } from "./what-needs-you";
 
 type Section =
   | "home"
+  | "console"
   | "inbox"
   | "policies"
   | "verification"
@@ -63,6 +65,7 @@ export async function PortalShell({
   const links = isStaff
     ? [
         { href: "/ops", label: "Overview", section: "home", icon: Home },
+        { href: "/ops/console", label: "Console", section: "console", icon: Activity },
         { href: "/inbox", label: "Inbox", section: "inbox", icon: Inbox },
         { href: "/ops/policies", label: "Policies", section: "policies", icon: FileText },
         {
