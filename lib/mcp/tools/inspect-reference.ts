@@ -19,6 +19,7 @@ import { policyDetail } from "@/lib/policy/read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { describeAge } from "@/lib/reconciliation/breaks";
 import { latestBreakReportsFor } from "@/lib/reconciliation/read";
+import { brokerBookHeader, brokerBookSentence, MOST_POLICIES_OF_A_BROKER_BOOK, type FileHeader } from "./broker-book";
 import { requiredText, ToolRefused, usd, type McpTool, type ToolContext } from "./tool";
 
 // inspect_reference: one reference in, the operational file of that reference out.
@@ -37,7 +38,8 @@ import { requiredText, ToolRefused, usd, type McpTool, type ToolContext } from "
 //
 // THE FILE IT RETURNS, in the order an investigation needs it:
 //   1. what the reference resolved to, and what the shape said it was before any read;
-//   2. the policy or claim it belongs to, with the terms in force TODAY;
+//   2. the policy or claim it belongs to, with the terms in force TODAY, or, when the reference
+//      is a broker, no policy at all and the number of policies the lists were drawn from;
 //   3. the money operations, with their lifecycle instants and their terminal-preferring status;
 //   4. the provider events that touched them, with no payload, ever;
 //   5. the journal entries with their lines, account by account, in integer cents;
@@ -69,6 +71,7 @@ const MOST_WEBHOOK_EVENTS = 20;
 const MOST_JOURNAL_ENTRIES = 20;
 const MOST_RECONCILIATION_REPORTS = 20;
 const MOST_ACTIVITY_ROWS = 20;
+// The sixth bound, MOST_POLICIES_OF_A_BROKER_BOOK, is in ./broker-book with the header it shapes.
 
 // The longest reference this tool will look at. Advertised in the schema as maxLength and
 // enforced by the transport before the tool runs (lib/mcp/tools/tool.ts).
@@ -324,14 +327,26 @@ async function byCorrelationId(database: postgres.Sql, correlationId: string): P
 // The file
 // ---------------------------------------------------------------------------
 
-// The policy or claim the reference belongs to, with the terms in force TODAY. Same two functions
-// the policy screens use (lib/policy/terms-in-force.ts on lib/policy/correction-read.ts), so this
-// panel and the panel at the top of /policies/{id} cannot drift apart.
+// The header of the file: WHAT THE LISTS BELOW ARE ABOUT. There are two cases, and they do not
+// answer the same question, which is the whole of review finding F-INSPECT-01.
 //
-// It carries no customer name, no claimant name and no email: the identity band of the console
-// does, because the console is a staff screen with a fold that masks them, and this answer has no
-// fold and no reader who is looking at a screen.
-async function belongsTo(subject: ConsoleSubject, today: string, database: postgres.Sql) {
+//   A POLICY OR A CLAIM. One policy: its number, the status of its cache, its term and the terms
+//   in force TODAY, read by the same two functions the policy screens use
+//   (lib/policy/terms-in-force.ts on lib/policy/correction-read.ts), so this panel and the panel
+//   at the top of /policies/{id} cannot drift apart.
+//
+//   A BROKER (an acct_ reference, or a correlation id whose newest object-naming request named a
+//   broker). A BROKER HAS NO SINGLE POLICY: every list beside this header is read across that
+//   broker's whole book, so the header names no policy at all and says how many policies those
+//   lists were drawn from. The rule, and why it is the rule, are in ./broker-book.ts, which is
+//   pure and is therefore proved as a rule by ./broker-book.test.ts as well as over HTTP.
+//
+// No header carries a customer name, a claimant name or an email: the identity band of the
+// console does, because the console is a staff screen with a fold that masks them, and this
+// answer has no fold and no reader who is looking at a screen.
+async function belongsTo(subject: ConsoleSubject, today: string, database: postgres.Sql): Promise<FileHeader> {
+  if (subject.kind === "broker") return brokerBookHeader(subject);
+
   const policyId = subject.policyIds[0] ?? null;
   const detail = policyId ? await policyDetail(policyId, database) : null;
   const terms = detail ? termsInForceOn(detail, await policyAsItStoodOn(detail.policyId, today, database)) : null;
@@ -357,6 +372,8 @@ async function belongsTo(subject: ConsoleSubject, today: string, database: postg
           coverageLimits: terms.limits.map((limit) => ({ name: limit.label, limit: usd(limit.cents) })),
         }
       : null,
+    spansAWholeBrokerBook: false,
+    policiesTheseListsWereDrawnFrom: null,
   };
 }
 
@@ -424,6 +441,10 @@ export const inspectReference: McpTool = {
     `most ${MOST_JOURNAL_ENTRIES}), what reconciliation last reported about it including a break a human has ` +
     `explained and the note they wrote (at most ${MOST_RECONCILIATION_REPORTS}), and the last ${MOST_ACTIVITY_ROWS} ` +
     `requests this application answered about it. ` +
+    `A reference that resolves to a BROKER (acct_, or a correlation id whose request named a broker) opens that ` +
+    `broker's whole book: the lists then span every one of its policies (at most ` +
+    `${MOST_POLICIES_OF_A_BROKER_BOOK}, and the count is returned), and the file names no policy number, status or ` +
+    `term, because no single policy of a book is "the" policy of figures drawn from all of them. ` +
     `"reference" is one of: ${ACCEPTED_SHAPES_SENTENCE}. An email address is not accepted and no email is ever ` +
     "returned. An MCP key prefix (cmk_) is recognised and refused, because reading an API key is never delegated to " +
     "an agent. A reference that matches nothing answers a result saying so, not an error. A broker key opens the " +
@@ -440,6 +461,7 @@ export const inspectReference: McpTool = {
       journalEntries: MOST_JOURNAL_ENTRIES,
       reconciliationReports: MOST_RECONCILIATION_REPORTS,
       activity: MOST_ACTIVITY_ROWS,
+      policiesOfABrokerBook: MOST_POLICIES_OF_A_BROKER_BOOK,
     },
   },
   inputSchema: {
@@ -624,6 +646,7 @@ async function readTheFile(resolution: Resolution, context: ToolContext, staff: 
       journalEntries: MOST_JOURNAL_ENTRIES,
       reconciliationReports: MOST_RECONCILIATION_REPORTS,
       activity: MOST_ACTIVITY_ROWS,
+      policiesOfABrokerBook: MOST_POLICIES_OF_A_BROKER_BOOK,
     },
     // An empty list because of a rule is not an empty list because there is nothing. Said out
     // loud, so an agent never reports "no reconciliation break" when it was simply not allowed
@@ -634,22 +657,34 @@ async function readTheFile(resolution: Resolution, context: ToolContext, staff: 
           "webhookEvents: the provider inbox is staff only; no broker screen shows a provider event",
           "reconciliationReports: reconciliation is staff only, exactly as list_reconciliation_breaks is",
         ],
-    whatThisMeans: whatThisMeans(resolution, operations.length, journalEntries.length, reconciliationReports.length, staff),
+    whatThisMeans: whatThisMeans(
+      resolution,
+      header,
+      operations.length,
+      journalEntries.length,
+      reconciliationReports.length,
+      staff,
+    ),
   };
 }
 
 function whatThisMeans(
   resolution: Resolution,
+  header: FileHeader | null,
   operationCount: number,
   journalEntryCount: number,
   reportCount: number,
   staff: boolean,
 ): string {
+  // A broker file says FIRST that it is a book and not a policy: a reader who stops after one
+  // sentence must not walk away holding a policy this answer never named (F-INSPECT-01).
   const subjectSentence =
-    resolution.resolvedTo === "provider_record_only" || resolution.resolvedTo === "reconciliation_break"
-      ? "This reference matches no policy and no claim of ours: it is a record the provider has, a break our ledger " +
-        "cannot explain, or a request that named no object. That is a finding, not an empty answer."
-      : `This reference belongs to a ${resolution.resolvedTo}.`;
+    header?.spansAWholeBrokerBook === true
+      ? brokerBookSentence(header.policiesTheseListsWereDrawnFrom ?? 0)
+      : resolution.resolvedTo === "provider_record_only" || resolution.resolvedTo === "reconciliation_break"
+        ? "This reference matches no policy and no claim of ours: it is a record the provider has, a break our ledger " +
+          "cannot explain, or a request that named no object. That is a finding, not an empty answer."
+        : `This reference belongs to a ${resolution.resolvedTo}.`;
   return (
     `${subjectSentence} ` +
     `${operationCount} money operation(s), ${journalEntryCount} journal entr(ies) and ${reportCount} reconciliation ` +
