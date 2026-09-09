@@ -2,11 +2,12 @@ import "@/app/styles/lists.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MoneyAmountInput } from "@/components/money-amount-input";
+import { KybEvidenceNote } from "@/components/kyb-evidence-note";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { currentUser } from "@/lib/auth/current-user";
-import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
+import { brokerKybState } from "@/lib/broker/kyb";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { FLAT_POLICY_FEE_CENTS } from "@/lib/policy/charge";
 import { statesWithTaxRates } from "@/lib/policy/tax-rate";
@@ -53,7 +54,7 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
             A draft can be created, but binding will be refused until the broker is approved. {kyb.explanation}{" "}
             <Link href="/broker/kyb">Submit or check the business verification</Link>.
           </p>
-          {kyb.isProviderEvidence ? null : <p className="note">{KYB_NOT_LIVE_LABEL}: the status is a seeded placeholder.</p>}
+          <KybEvidenceNote kyb={kyb} className="note" />
         </div>
       )}
 
