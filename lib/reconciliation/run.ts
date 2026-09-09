@@ -41,11 +41,20 @@ export type ReconciliationRunSummary = {
   finishedAt: Date;
 };
 
+// One run's input without its source: what a caller running every source at once provides.
+export type SourcesRunInput = Omit<ReconciliationRunInput, "source">;
+
 export type ReconciliationRunInput = {
   source: ReconciliationSource;
   window: ReconciliationWindow;
   // The staff member who pressed "Run now"; null when the daily cron ran it.
   runByUserId: string | null;
+  // How the run was launched, when it was not a person on a screen. run_by names the key's
+  // holder, so a run started through the MCP surface used to read as that person's own work
+  // (review finding F-B11-03). The MCP tool puts one sentence here naming the principal kind and
+  // the key prefix, and it is stored in the run's note, which /ops/reconciliation already shows.
+  // Null for the "Run now" button and for the daily cron, which are what they look like.
+  launchedThrough?: string | null;
   // The clock the staleness rule uses. An argument, not Date.now() inside the diff, so a check
   // script can prove the rule without waiting a day.
   now: Date;
@@ -107,7 +116,7 @@ async function storeCompleteRun(
         provider_record_count, ledger_record_count
       ) values (
         ${input.source.name}, ${input.window.from}, ${input.window.to}, ${startedAt}, 'complete',
-        ${providerNote}, ${input.runByUserId},
+        ${noteWithLaunchMarker(input, providerNote)}, ${input.runByUserId},
         ${counts.matched}, ${counts.local_only}, ${counts.provider_only}, ${counts.amount_mismatch},
         ${counts.stale}, ${providerRecords.length}, ${ledgerRecords.length}
       )
@@ -168,7 +177,7 @@ async function storeCompleteRun(
       counts,
       providerRecordCount: providerRecords.length,
       ledgerRecordCount: ledgerRecords.length,
-      note: providerNote,
+      note: noteWithLaunchMarker(input, providerNote),
       finishedAt: run.finished_at,
     };
   });
@@ -208,6 +217,15 @@ async function firstSeenByBreakKey(
   return new Map(rows.map((row) => [row.break_key, row.first_seen_at]));
 }
 
+// The note as it is stored: the launch marker first when there is one, so an operator reading
+// /ops/reconciliation sees who launched the run before reading what it found.
+function noteWithLaunchMarker(input: ReconciliationRunInput, note: string): string {
+  if (!input.launchedThrough) {
+    return note;
+  }
+  return note ? `${input.launchedThrough} ${note}` : input.launchedThrough;
+}
+
 // A run that could not read one of its two sides. It carries the message and no items at all.
 async function storeFailedRun(
   input: ReconciliationRunInput,
@@ -216,9 +234,9 @@ async function storeFailedRun(
   database: postgres.Sql,
 ): Promise<ReconciliationRunSummary> {
   const [run] = await database<{ id: string; finished_at: Date }[]>`
-    insert into reconciliation_runs (source, window_from, window_to, started_at, status, fetch_error, run_by)
+    insert into reconciliation_runs (source, window_from, window_to, started_at, status, fetch_error, note, run_by)
     values (${input.source.name}, ${input.window.from}, ${input.window.to}, ${startedAt}, 'failed',
-            ${fetchError}, ${input.runByUserId})
+            ${fetchError}, ${noteWithLaunchMarker(input, "")}, ${input.runByUserId})
     returning id, finished_at
   `;
   return {
@@ -230,7 +248,7 @@ async function storeFailedRun(
     counts: { matched: 0, local_only: 0, provider_only: 0, amount_mismatch: 0, stale: 0 },
     providerRecordCount: 0,
     ledgerRecordCount: 0,
-    note: "",
+    note: noteWithLaunchMarker(input, ""),
     finishedAt: run.finished_at,
   };
 }
@@ -243,7 +261,7 @@ async function storeFailedRun(
 // The loop still moves on to the next source, and the caller is told which one could not be
 // recorded at all rather than being handed a shorter list with no explanation.
 export async function runAllSources(
-  input: { window: ReconciliationWindow; runByUserId: string | null; now: Date },
+  input: SourcesRunInput,
   database: postgres.Sql = sql,
 ): Promise<ReconciliationRunSummary[]> {
   return runSources([stripeSource, claimsRailSourceOn(database)], input, database);
@@ -253,7 +271,7 @@ export async function runAllSources(
 // guarantee above with a source built to fail instead of waiting for Stripe to have a bad day.
 export async function runSources(
   sources: ReconciliationSource[],
-  input: { window: ReconciliationWindow; runByUserId: string | null; now: Date },
+  input: SourcesRunInput,
   database: postgres.Sql = sql,
 ): Promise<ReconciliationRunSummary[]> {
   const summaries: ReconciliationRunSummary[] = [];

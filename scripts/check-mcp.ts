@@ -659,6 +659,18 @@ async function main() {
       reconciled.value.moneyMoved === false,
     `${beforeReconciliation} journal entries on this check's policies and claim, before and after`,
   );
+  // Review finding F-B11-03: run_by names the key HOLDER, so without this the reconciliation
+  // screen would print a person's name for a run no person launched. The marker rides in the
+  // note the screen already shows, and it names the public key prefix.
+  const noteOfTheFirstRun = runs.length > 0 ? await runNote(runs[0].runId) : "";
+  report(
+    "THE RUN SAYS IT CAME THROUGH THE MCP SURFACE, and names the key: run_by alone would read as the holder's own work",
+    noteOfTheFirstRun.includes("Launched through the MCP surface") &&
+      noteOfTheFirstRun.includes(staffKey.keyPrefix) &&
+      noteOfTheFirstRun.includes("human key"),
+    noteOfTheFirstRun.slice(0, 140),
+  );
+
   const brokerReconciles = await callTool(brokerKey.presentedKey, "run_reconciliation", {});
   report(
     "a broker key cannot run it",
@@ -929,6 +941,13 @@ async function approvalDecision(requestId: string): Promise<string | null> {
     select decision from approval_decisions where request_id = ${requestId}
   `;
   return row?.decision ?? null;
+}
+
+async function runNote(runId: string): Promise<string> {
+  const [row] = await owner<{ note: string | null }[]>`
+    select note from reconciliation_runs where id = ${runId}
+  `;
+  return row?.note ?? "";
 }
 
 async function runsExist(runIds: string[]): Promise<number> {
