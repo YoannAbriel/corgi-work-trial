@@ -18,7 +18,9 @@ import { principalForPresentedKey, recordMcpCall, type McpPrincipal } from "@/li
 //   3. hands it to lib/mcp/jsonrpc.ts, which owns the protocol and the tools;
 //   4. writes one row in mcp_calls, whatever happened, including the 401s. Every POST this
 //      endpoint answers has exactly one row; the GET and DELETE below are refusals of methods
-//      this transport does not use, not calls, and are not recorded.
+//      this transport does not use, not calls, and are not recorded. A call whose row CANNOT be
+//      written is refused rather than answered (review finding F-B11-05): an audited surface
+//      that answers with no record is not audited.
 //
 // Authorisation lives in the tools, not here, because every tool answers a different question
 // about a different thing (lib/mcp/scope.ts). What lives here is the identity: the key names one
@@ -33,13 +35,16 @@ export async function POST(request: Request): Promise<Response> {
   const presentedKey = bearerToken(request);
   const principal = presentedKey ? await principalForPresentedKey(presentedKey) : null;
   if (!principal || principal.revokedAt !== null) {
-    await logCall({
+    const recorded = await logCall({
       apiKeyId: principal?.keyId ?? null,
       log: { method: "unknown", tool: null, argumentsHash: null, outcome: "error", detail: null },
       outcome: "unauthorised",
       detail: principal ? "revoked key" : presentedKey ? "unknown key" : "no bearer token",
       startedAtMs,
     });
+    if (!recorded) {
+      return notRecorded();
+    }
     // One answer for all three cases. WWW-Authenticate names the scheme; this build authenticates
     // with an API key issued by staff, not with OAuth, so there is no metadata URL to point at.
     return new Response(JSON.stringify({ error: "unauthorized" }), {
@@ -58,13 +63,16 @@ export async function POST(request: Request): Promise<Response> {
     // The answer quotes the header the caller sent; the audit row does not (review finding
     // F-B11-02). mcp_calls can never be updated, deleted or truncated, so a header holding a
     // pasted credential would sit there for the life of the database.
-    await logCall({
+    const recorded = await logCall({
       apiKeyId: principal.keyId,
       log: { method: "unknown", tool: null, argumentsHash: null, outcome: "refused", detail: null },
       outcome: "refused",
       detail: "unsupported MCP-Protocol-Version header",
       startedAtMs,
     });
+    if (!recorded) {
+      return notRecorded();
+    }
     return jsonResponse({ jsonrpc: "2.0", id: null, error: { code: -32600, message } }, 400);
   }
 
@@ -73,7 +81,16 @@ export async function POST(request: Request): Promise<Response> {
     body = await request.json();
   } catch {
     const handled = unparseableBody();
-    await logCall({ apiKeyId: principal.keyId, log: handled.log, outcome: "refused", detail: handled.log.detail, startedAtMs });
+    const recorded = await logCall({
+      apiKeyId: principal.keyId,
+      log: handled.log,
+      outcome: "refused",
+      detail: handled.log.detail,
+      startedAtMs,
+    });
+    if (!recorded) {
+      return notRecorded();
+    }
     return jsonResponse(handled.response, 400);
   }
 
@@ -83,13 +100,16 @@ export async function POST(request: Request): Promise<Response> {
     database: sql,
     now: new Date(),
   });
-  await logCall({
+  const recorded = await logCall({
     apiKeyId: principal.keyId,
     log: handled.log,
     outcome: handled.log.outcome === "ok" ? "ok" : handled.log.outcome,
     detail: handled.log.detail,
     startedAtMs,
   });
+  if (!recorded) {
+    return notRecorded();
+  }
 
   // A notification is answered with 202 and no body, as the transport requires.
   if (!handled.response) {
@@ -133,15 +153,22 @@ function userOf(principal: McpPrincipal) {
   };
 }
 
-// Writing the call down must never be the reason a caller gets an error: the answer is already
-// built by the time this runs, and a failure here is logged on the server instead.
+// Writes the call down and says whether it managed to. It was best effort until review finding
+// F-B11-05: the failure was caught, written to the console and forgotten, so the surface could
+// answer a call that no row records. It is now the caller's decision, and above the caller
+// refuses the call.
+//
+// The failure line is structured and carries no caller text: an operator greps for
+// `mcp_call_not_recorded` and gets the key, the method and the tool, which is what identifies
+// the call in the middle of a request log. The reason is the database error's own message,
+// never the arguments and never the detail sentence.
 async function logCall(input: {
   apiKeyId: string | null;
   log: CallLog;
   outcome: "ok" | "refused" | "error" | "unauthorised";
   detail: string | null;
   startedAtMs: number;
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     await recordMcpCall({
       apiKeyId: input.apiKeyId,
@@ -152,9 +179,40 @@ async function logCall(input: {
       detail: input.detail,
       durationMs: Date.now() - input.startedAtMs,
     });
+    return true;
   } catch (error) {
-    console.error("mcp call could not be recorded", error);
+    console.error(
+      JSON.stringify({
+        event: "mcp_call_not_recorded",
+        apiKeyId: input.apiKeyId,
+        method: input.log.method,
+        tool: input.log.tool,
+        outcome: input.outcome,
+        reason: error instanceof Error ? error.message.slice(0, 200) : "unknown",
+      }),
+    );
+    return false;
   }
+}
+
+// The answer when the call happened but its row did not. It is deliberately not a plain 500:
+// the caller is told the work may already have been done, so a retry is a decision and not a
+// reflex. Nothing this surface exposes moves money on its own; the write tool creates an
+// approval request, which is visible on the approvals screen.
+function notRecorded(): Response {
+  return jsonResponse(
+    {
+      jsonrpc: "2.0",
+      id: null,
+      error: {
+        code: -32603,
+        message:
+          "this call could not be written to the audit log, so this surface will not answer it. " +
+          "The call may already have been carried out: check the approvals screen before retrying.",
+      },
+    },
+    500,
+  );
 }
 
 function jsonResponse(body: unknown, status: number): Response {
