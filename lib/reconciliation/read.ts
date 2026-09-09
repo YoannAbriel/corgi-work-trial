@@ -178,14 +178,39 @@ export const A_LATER_RUN_RE_EXAMINED_IT = `
 // it, it is listed on the board under its own heading, and it is counted separately.
 export const IT_IS_A_PROBE_FROM_A_CHECK_RUN = `latest_report.classification = 'probe'`;
 
+// A NOTE EXPLAINS ONE REPORT OF A BREAK, not the break for ever, and that is the correction of
+// review finding F-BREAKSBOARD-01.
+//
+// The break key is deliberately the money and not the classification (lib/reconciliation/breaks.ts):
+// a break that gets worse keeps its key and its age. A note keyed on nothing but that key
+// therefore went on excluding the break after a later run described it differently, so a `stale`
+// refund somebody had explained stayed out of the count, the inbox, the MCP tool and the daily
+// job's window on the day it became a `provider_only` with a real difference.
+//
+// So the note carries the description it was written against: the classification and the two
+// amounts of the latest report at that moment (migration 0024). It explains that report and no
+// other. `is not distinct from` rather than `=` because either amount is legitimately null.
+//
+// A note written before migration 0024 has no recorded classification, so it matches nothing and
+// its break is work again: we cannot know what it was about, and writing a new note is one click.
+export const THE_NOTE_EXPLAINS_THE_LATEST_REPORT = `
+  note.explained_classification = latest_report.classification
+  and note.explained_provider_amount_cents is not distinct from latest_report.provider_amount_cents
+  and note.explained_ledger_amount_cents is not distinct from latest_report.ledger_amount_cents
+`;
+
 // SOMEBODY HAS EXPLAINED IT: a staff operations user wrote a note against this break key
-// (reconciliation_break_notes, migration 0022). The note repairs nothing and hides nothing. It
-// says a human has looked at this break and knows what it is, which is what takes it out of the
-// list of things to act on and out of the inbox; the break stays on the screen, under its own
-// heading, with the note, its author and its date.
+// (reconciliation_break_notes, migration 0022) describing the break exactly as the latest run
+// still describes it. The note repairs nothing and hides nothing. It says a human has looked at
+// this break and knows what it is, which is what takes it out of the list of things to act on and
+// out of the inbox; the break stays on the screen, under its own heading, with the note, its
+// author and its date. The day a run reports it differently, no note matches any more and the
+// break is back in the list, its notes still on file and shown beside it.
 export const SOMEBODY_HAS_EXPLAINED_IT = `
   exists (
-    select 1 from reconciliation_break_notes note where note.break_key = latest_report.break_key
+    select 1 from reconciliation_break_notes note
+     where note.break_key = latest_report.break_key
+       and ${THE_NOTE_EXPLAINS_THE_LATEST_REPORT}
   )
 `;
 
@@ -374,24 +399,78 @@ export async function oldestOpenBreakRecordDate(database: postgres.Sql): Promise
 // every open break, so the screen can print the sentence instead of quietly showing a part of the
 // list as if it were the whole of it.
 export type OpenBreaksPage = {
-  rows: ReconciliationBreakRow[];
+  rows: OpenBreakRow[];
   totalOpen: number;
   capped: boolean; // totalOpen > rows.length: the screen must say so
 };
 
+// A note somebody wrote on this break that no longer explains it: the run now describes the break
+// differently, so the note is superseded and the break is work again (review finding
+// F-BREAKSBOARD-01). It is carried on the row so that the note does not simply disappear from the
+// screen the moment it stops counting: the operator reads what was said, when, about which
+// classification, and decides again.
+//
+// Only the open list needs this. A break to act on that carries a note carries no matching one,
+// by the rule above, so the latest note of the break is the superseded one.
+export type SupersededExplanation = {
+  note: string;
+  explainedByName: string;
+  recordedAt: Date;
+  explainedClassification: string | null; // null on a note written before migration 0024
+};
+
+export type OpenBreakRow = ReconciliationBreakRow & { supersededExplanation: SupersededExplanation | null };
+
 export async function openBreaksPage(database: postgres.Sql, limit: number): Promise<OpenBreaksPage> {
   const [rows, totalOpen] = await Promise.all([
-    database<BreakRowShape[]>`
+    database<
+      (BreakRowShape & {
+        superseded_note: string | null;
+        superseded_by_name: string | null;
+        superseded_recorded_at: Date | null;
+        superseded_classification: string | null;
+      })[]
+    >`
       with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
-      select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)}
+      select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)},
+             superseded.note as superseded_note,
+             superseded.explained_by_name as superseded_by_name,
+             superseded.recorded_at as superseded_recorded_at,
+             superseded.explained_classification as superseded_classification
         from latest_report
+        -- A left join: most breaks to act on carry no note at all, and those that do keep their
+        -- line unchanged with one sentence added.
+        left join lateral (
+          select note.note, note.recorded_at, note.explained_classification,
+                 author.display_name as explained_by_name
+            from reconciliation_break_notes note
+            left join users author on author.id = note.explained_by
+           where note.break_key = latest_report.break_key
+           order by note.recorded_at desc
+           limit 1
+        ) superseded on true
        where ${database.unsafe(IT_IS_A_BREAK_TO_ACT_ON)}
        order by first_seen_at, source, break_key
        limit ${limit}
     `,
     countOpenBreaks(database),
   ]);
-  return { rows: rows.map(toBreakRow), totalOpen, capped: totalOpen > rows.length };
+  return {
+    rows: rows.map((row) => ({
+      ...toBreakRow(row),
+      supersededExplanation:
+        row.superseded_note === null || row.superseded_recorded_at === null
+          ? null
+          : {
+              note: row.superseded_note,
+              explainedByName: row.superseded_by_name ?? "a user who no longer exists",
+              recordedAt: row.superseded_recorded_at,
+              explainedClassification: row.superseded_classification,
+            },
+    })),
+    totalOpen,
+    capped: totalOpen > rows.length,
+  };
 }
 
 // The probes still being reported, for the board's own heading.
@@ -463,9 +542,11 @@ export async function explainedBreaksPage(database: postgres.Sql, limit: number)
              explanation.recorded_at as note_recorded_at,
              explanation.note_count
         from latest_report
-        -- The latest note of this break, with the name of whoever wrote it and how many notes
-        -- the break carries in all. An inner join, not a left join: a row without a note is not
-        -- an explained break and has no business in this list.
+        -- The latest note THAT EXPLAINS THE BREAK AS IT STANDS, with the name of whoever wrote it
+        -- and how many notes the break carries in all. An inner join, not a left join: a row
+        -- without such a note is not an explained break and has no business in this list, and
+        -- that is what keeps this list and the list to act on disjoint after a break has changed
+        -- (review finding F-BREAKSBOARD-01). The count beside it uses the same rule.
         join lateral (
           select note.note, note.recorded_at, author.display_name as explained_by_name,
                  (select count(*)::int from reconciliation_break_notes all_notes
@@ -473,6 +554,7 @@ export async function explainedBreaksPage(database: postgres.Sql, limit: number)
             from reconciliation_break_notes note
             left join users author on author.id = note.explained_by
            where note.break_key = latest_report.break_key
+             and ${database.unsafe(THE_NOTE_EXPLAINS_THE_LATEST_REPORT)}
            order by note.recorded_at desc
            limit 1
         ) explanation on true

@@ -23,6 +23,7 @@ import {
   type ExplainedBreakRow,
   type ReconciliationBreakRow,
   type ReconciliationRunRow,
+  type SupersededExplanation,
 } from "@/lib/reconciliation/read";
 import { STRIPE_STALE_AFTER_HOURS } from "@/lib/reconciliation/stripe-source";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/reconciliation/window";
@@ -76,9 +77,11 @@ export default async function ReconciliationPage({
 
   // The six reads and the query string, together: the page renders once, with everything.
   //
-  // The three break lists are disjoint by construction (lib/reconciliation/read.ts): a break to
-  // act on carries no note and is not a probe, a probe carries no note, and an explained break is
-  // any break carrying one. So a record appears on this page exactly once.
+  // The three break lists are disjoint by construction (lib/reconciliation/read.ts): an explained
+  // break is one whose note describes it as the latest run still describes it, a break to act on
+  // carries no such note and is not a probe, and a probe carries no such note either. So a record
+  // appears on this page exactly once, and a break whose classification or amount moved since it
+  // was explained comes back to the list to act on, carrying its superseded note.
   const [runs, breaks, probes, explained, resolved, clearingBalances, query] = await Promise.all([
     recentRuns(sql, HOW_MANY_RUNS_SHOWN),
     openBreaksPage(sql, HOW_MANY_BREAKS_SHOWN),
@@ -235,7 +238,9 @@ export default async function ReconciliationPage({
                   row is edited or deleted. The break is still compared by every later run and it stays listed here with
                   the note, its author and its date. The only thing that changes is that it stops being counted as a
                   break to act on and leaves the operations inbox. Notes are append-only: a correction is a second note,
-                  and the latest one is shown.
+                  and the latest one is shown. A note explains <strong>the break as the latest run described it</strong>:
+                  its classification and its two amounts are recorded on it, so the day a run reports the same break
+                  differently, no note matches any more and it returns to the list above with the note beside it.
                 </p>
               </Disclosure>
             </Panel>
@@ -448,7 +453,9 @@ function BreakTable({
   ageColumn,
   explain = false,
 }: {
-  rows: ReconciliationBreakRow[];
+  // A row of the open list may carry a note that no longer explains it (review finding
+  // F-BREAKSBOARD-01); the two other tables pass rows without the field.
+  rows: (ReconciliationBreakRow & { supersededExplanation?: SupersededExplanation | null })[];
   now: Date;
   label: string;
   ageColumn: string;
@@ -503,7 +510,24 @@ function BreakTable({
             <td className="amount">{money(row.differenceCents)}</td>
             <td className="col-when">{utc(row.firstSeenAt)}</td>
             <td className="col-age">{describeAge(row.firstSeenAt, now)}</td>
-            <td className="col-text">{row.note}</td>
+            <td className="col-text">
+              {row.note}
+              {row.supersededExplanation ? (
+                <>
+                  <br />
+                  <span className="note">
+                    <strong>Explained before, and changed since.</strong>{" "}
+                    {row.supersededExplanation.explainedByName} wrote &ldquo;{row.supersededExplanation.note}&rdquo; on{" "}
+                    {utc(row.supersededExplanation.recordedAt)}
+                    {row.supersededExplanation.explainedClassification
+                      ? `, when the run reported this break as ${row.supersededExplanation.explainedClassification.replace(/_/g, " ")}`
+                      : ", before a note recorded which report it explained"}
+                    . The latest run reports it as {row.classification.replace(/_/g, " ")}, so it is work again. The
+                    note is still on file; nothing was edited or deleted.
+                  </span>
+                </>
+              ) : null}
+            </td>
             {explain ? (
               <td className="col-controls">
                 <ExplainForm breakKey={row.breakKey} />
