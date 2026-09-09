@@ -119,8 +119,6 @@ async function main() {
   // 2. Who may create a broker
   // ---------------------------------------------------------------------------
 
-  const brokersBefore = await countBrokers();
-
   const withoutSession = await createBroker(null, { name: BROKER_NAME, email: BROKER_EMAIL, commissionRateBps: COMMISSION_RATE_BPS });
   report(
     "no session is sent to the login page",
@@ -140,10 +138,12 @@ async function main() {
     );
   }
 
+  // Counted BY NAME and not over the whole table: the disposable database is shared, and another
+  // check running at the same moment must not be able to turn this line red.
   report(
     "no broker row was written by any refused attempt",
-    (await countBrokers()) === brokersBefore,
-    `${brokersBefore} brokers before, ${await countBrokers()} after`,
+    (await countBrokersNamed(BROKER_NAME)) === 0,
+    `${await countBrokersNamed(BROKER_NAME)} brokers named "${BROKER_NAME}"`,
   );
 
   // ---------------------------------------------------------------------------
@@ -167,8 +167,8 @@ async function main() {
   }
   report(
     "no broker row was written by any invalid form",
-    (await countBrokers()) === brokersBefore,
-    `${brokersBefore} brokers before, ${await countBrokers()} after`,
+    (await countBrokersNamed(BROKER_NAME)) === 0,
+    `${await countBrokersNamed(BROKER_NAME)} brokers named "${BROKER_NAME}"`,
   );
 
   // ---------------------------------------------------------------------------
@@ -310,7 +310,6 @@ async function main() {
   // 8. The duplicate email, which is what proves the one transaction
   // ---------------------------------------------------------------------------
 
-  const brokersBeforeDuplicate = await countBrokers();
   const duplicate = await createBroker(operationsSession, {
     name: `${BROKER_NAME} second try`,
     email: BROKER_EMAIL.toUpperCase(), // the route lowercases it, so this is the same account
@@ -321,15 +320,18 @@ async function main() {
     errorOf(duplicate.location) === "That email already has an account",
     errorOf(duplicate.location) ?? duplicate.location,
   );
+  // THE POINT OF THE WHOLE SLICE, in one line: the broker of the refused attempt does not exist.
+  // Its INSERT ran before the one the database refused, and the transaction took it back.
   report(
     "the refused attempt left NO half-written broker behind",
-    (await countBrokers()) === brokersBeforeDuplicate,
-    `${brokersBeforeDuplicate} brokers before, ${await countBrokers()} after`,
+    (await countBrokersNamed(`${BROKER_NAME} second try`)) === 0,
+    `${await countBrokersNamed(`${BROKER_NAME} second try`)} brokers named "${BROKER_NAME} second try"`,
   );
-  const [secondBroker] = await owner<{ id: string }[]>`
-    select id from brokers where name = ${`${BROKER_NAME} second try`}
-  `;
-  report("the second broker row does not exist", secondBroker === undefined, secondBroker ? secondBroker.id : "absent");
+  report(
+    "the broker created before it is still there, once",
+    (await countBrokersNamed(BROKER_NAME)) === 1,
+    `${await countBrokersNamed(BROKER_NAME)} brokers named "${BROKER_NAME}"`,
+  );
 
   // ---------------------------------------------------------------------------
   // 9. Consuming the reveal
@@ -446,6 +448,15 @@ async function createSeededUser(role: string): Promise<{ id: string; email: stri
   return { id: user.id, email };
 }
 
+// How many brokers of this run's name exist. Counting by name and not over the whole table is
+// what makes the "nothing was written" lines safe on a database several checks share.
+async function countBrokersNamed(name: string): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`select count(*)::text as count from brokers where name = ${name}`;
+  return Number(row.count);
+}
+
+// The whole table, used for one thing only: deciding whether /ops/brokers is small enough to be
+// read within this check's patience.
 async function countBrokers(): Promise<number> {
   const [row] = await owner<{ count: string }[]>`select count(*)::text as count from brokers`;
   return Number(row.count);

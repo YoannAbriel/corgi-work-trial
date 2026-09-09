@@ -20,9 +20,11 @@ import { closeInspectorHref, firstValue, inspectedReference, inspectHref, toasts
 
 // /ops/brokers: where the operations team sees whether a broker may bind, and why.
 //
-// Staff only, read from the append-only broker_kyb_events table. The one action on the page
-// re-reads the account at Stripe and appends a status row only if the answer changed, so
-// pressing it twice does not add a second row (POST /api/brokers/{id}/kyb/recheck).
+// Staff only, read from the append-only broker_kyb_events table. Two actions live here:
+//   - "Re-read" on a row asks Stripe again and appends a status row only if the answer changed,
+//     so pressing it twice does not add a second row (POST /api/brokers/{id}/kyb/recheck);
+//   - "New broker" (?view=new) creates a broker and its sign-in account (POST /api/brokers), and
+//     shows the account's one-time password once, on this screen.
 
 const PATH = "/ops/brokers";
 
@@ -117,9 +119,10 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
           are sub-labels on the row they belong to. A list of three rows does not need a
           dashboard above it. */}
 
-      {/* Creating a broker: the form the coordinator's route will answer (cycle 2, decision 21).
-          The button is disabled while POST /api/brokers does not exist on this branch, so the
-          card can never post into nothing; the field names are the ones the route expects. */}
+      {/* Creating a broker (cycle 2, decision 21; the route arrived with decision 52). A plain
+          HTML post to POST /api/brokers, which writes the broker and its sign-in account in one
+          transaction and sends the operator back here with ?created= and the one-time password
+          in a short-lived cookie. */}
       {view === "new" ? (
         <section className="card lists-section lists-form-card">
           <h2>New broker</h2>
