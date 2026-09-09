@@ -1,0 +1,86 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=overview] Overview
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=operations] Money
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=webhooks] Webhooks
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=journal] Journal
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=policies] Policies
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=claims] Claims
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=timeline] Timeline
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=approvals] Approvals
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=statements] Statements
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=activity] Activity
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=change-requests] Change requests
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?view=mcp-calls] MCP calls
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+[a /ops/console] Operations console
+Sierra Crest Brokerage
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Broker Sierra Crest Brokeragecommission 15.00% · verification approved
+[a /ops/brokers] Ordinary screen
+[a /ops/console] Console feed Console
+Identity
+Verification
+approved
+Connected account
+acct_1UDsS1K6R3yO7TeG
+Commission rate
+1500 bps
+Broker id
+2612b695-ffc2-4cc3-9d58-8b14564c4d2c
+Created
+2026-09-08T13:01:41.272Z
+Open reconciliation breaks 0
+|
+| | Break | Source | Open since | Difference | Reference
+|
+No open break names this object's money.
+Business verification 2
+|
+| Status | When | Reference
+| verification approved | 2 min2026-09-09 20:53:53 |
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?inspect=acct_1UDsS1K6R3yO7TeG] acct_1UDsS1K6R3yO7TeG
+| verification pending | 5 min2026-09-09 20:50:41 |
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c?inspect=acct_1UDsS1K6R3yO7TeG] acct_1UDsS1K6R3yO7TeG
+The re-read form lives on
+[a /ops/brokers] /ops/brokers.
+About this screen
+What this page is
+Every table that has something to say about this object, one panel at a time. It writes nothing at all, and it is scoped by 1 policy id and 0 claim ids. Every instant is UTC.
+The two durations
+Both are subtracted by Postgres from the operation's own append-only history: the requested row written before the provider is called, the provider_accepted row written when it answers, and the succeeded row written when the confirming event arrives. An empty cell means one of the two instants does not exist, which is a fact about the operation and not a fast one.
+How a webhook is attached to an object
+It is not: a provider event has no foreign key into our tables. What links the two is the id INSIDE the event, so that panel reads data.object.id and data.object.payment_intent and matches them against the provider references this object's operations carry. No payload reaches this screen beyond those two values and the sanitised processing error.
+An earlier attempt
+A failure reason is printed beside a status only when that status is the failure. On an operation that failed and then succeeded, the reason is dated with the instant of the failure and called an earlier attempt, on the money panel and on the timeline alike.
+Breaks
+Read through the same rule the
+[a /ops/reconciliation] reconciliation screen uses, so the two can never disagree.
+Why MCP calls are not on a policy or a claim
+mcp_calls stores a hash of the arguments and never the arguments, so no stored fact says which policy or claim a call was about. The link that does exist is the key: a key borrows one user's visibility, and that user belongs to a broker or a customer. Pretending to know more would be inventing it.
+Which requests count as this object's
+A row is on the activity panel when its subject is this object, or one of the policies and claims this page is scoped by. A request that names no object (a sign-in, a scheduled job, a health check) is on the console feed and not here.Corgi · Policy administration

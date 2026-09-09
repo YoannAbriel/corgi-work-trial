@@ -1,0 +1,46 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /broker] CorgiPolicy administration
+Broker workspace
+[a /inbox] Inbox
+[a /broker] Policies
+[a /broker/statements] Statements
+[a /broker/kyb] Business verification
+Priya Nair, brokerBroker
+Sign out
+Policies
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Your policies
+[a /broker/policies/new] New policy Policies
+[a /broker?filter=waiting] Waiting to be paid0drafts, unpaid, failed payment
+Annual premium boundThe terms in force today, before state tax and the flat policy fee.$0.00
+What needs you
+[a /broker/kyb] 1Business verification failed: you cannot bindStripe refused this verification. Binding is refused; submitting corrected details starts a new verification. Stripe reason: verification_failed_tax_id_match.
+[a /broker] All0
+[a /broker?filter=bound] Bound0
+[a /broker?filter=waiting] Waiting0
+[a /broker?filter=closed] Closed0
+[input q=]
+Search0 of 0
+|
+| Policy | Customer | Effective | Status | Total |
+|
+No policy yet. Start with a new one.
+[a /broker/policies/new] New policy
+Total annual premium plus state tax and the flat fee, in force today or on the first day of the termon the policy record the figures could not be rebuilt for that date, so they are the ones written on the policy
+About this screen
+Total
+The annual premium plus the state premium tax and the flat policy fee in force on the date the policy's own page shows: today, or the first day of the term when the term has not begun. An endorsement dated later is not in this figure; the policy page names it under the terms.
+On the policy record
+A row marked this way could not be rebuilt on that date, so its figures are the ones written on the policy.
+What was collected
+What was actually collected and refunded is on the policy page, in its journal. This list shows terms, not cash.
+Binding
+A policy binds when Stripe confirms the payment and the business verification is approved. While it is not, the money sits in the suspense account and staff operations decide.
+Your verification
+Stripe refused this verification. Binding is refused; submitting corrected details starts a new verification. Stripe reason: verification_failed_tax_id_match.
+Built for growing businesses.
+Coverage, records and the next customer decision stay together.
+Corgi · Policy administration

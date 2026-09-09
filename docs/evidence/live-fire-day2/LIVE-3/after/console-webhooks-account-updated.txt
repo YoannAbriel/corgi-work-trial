@@ -1,0 +1,305 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/console?kind=webhook&view=feed] Feed
+[a /ops/console?kind=webhook&view=problems] Problems
+[a /ops/console?kind=webhook&view=latency] Latency
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+Console
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Operations consolethe last 60 minutes
+[input view=feed]
+[input since=]
+[input kind=webhook]
+Refresh now
+[a /ops/console/search] Search Console
+Window
+[a /ops/console?kind=webhook&since=15m] 15 min
+[a /ops/console?kind=webhook&since=1h] 1 hour
+[a /ops/console?kind=webhook&since=6h] 6 hours
+[a /ops/console?kind=webhook&since=24h] 24 hours
+[a /ops/console?kind=webhook&since=7d] 7 days
+[input view=feed]
+[input kind=webhook]
+[input since=]
+Apply
+Kinds
+[a /ops/console] All
+[a /ops/console?kind=webhook&kind=money] Money
+[a /ops/console] Webhooks
+[a /ops/console?kind=webhook&kind=journal] Journal
+[a /ops/console?kind=webhook&kind=policy] Policy
+[a /ops/console?kind=webhook&kind=claim] Claims
+[a /ops/console?kind=webhook&kind=approval] Approvals
+[a /ops/console?kind=webhook&kind=reconciliation] Reconciliation
+[a /ops/console?kind=webhook&kind=statement] Statements
+[a /ops/console?kind=webhook&kind=mcp] MCP
+[a /ops/console?kind=webhook&kind=kyb] Verification
+[a /ops/console?kind=webhook&kind=change_request] Change requests15 events
+|
+| | When | Kind | What | Amount | Who | Object
+|
+| just now | webhook | stripe account.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=acct_1UDsS1K6R3yO7TeG&kind=webhook] acct_1UDsS1K6R3yO7TeG
+|
+When
+2026-09-09 20:51:44 UTC
+Detail
+done, 1 attempt: broker KYB unchanged at pending: nothing appended
+Rail
+Stripe: LIVE SANDBOX
+Reference
+acct_1UDsS1K6R3yO7TeG
+Who
+stripe
+|
+| 16 min | webhook | stripe refund.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDf5YK6R3v50tIy1TVf1Llk&kind=webhook] re_3UDf5YK6R3v50tIy1TVf1Llk
+|
+When
+2026-09-09 20:36:29 UTC
+Detail
+done, 1 attempt: already posted by an earlier delivery of this refund
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDf5YK6R3v50tIy1TVf1Llk
+Who
+stripe
+|
+| 16 min | webhook | stripe charge.refundedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=ch_3UDUCUK6R3v50tIy0CHPQY1Y&kind=webhook] ch_3UDUCUK6R3v50tIy0CHPQY1Y
+|
+When
+2026-09-09 20:36:29 UTC
+Detail
+done, 1 attempt: confirmation only: the money is posted from the refund events, not from charge.refunded
+Rail
+Stripe: LIVE SANDBOX
+Reference
+ch_3UDUCUK6R3v50tIy0CHPQY1Y
+Who
+stripe
+|
+| 16 min | webhook | stripe refund.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDrW1K6R3v50tIy1qNn3zvG&kind=webhook] re_3UDrW1K6R3v50tIy1qNn3zvG
+|
+When
+2026-09-09 20:36:29 UTC
+Detail
+done, 1 attempt: already posted by an earlier delivery of this refund
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrW1K6R3v50tIy1qNn3zvG
+Who
+stripe
+|
+| 16 min | webhook | stripe charge.refundedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=ch_3UDrW1K6R3v50tIy1xDTIFTb&kind=webhook] ch_3UDrW1K6R3v50tIy1xDTIFTb
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt: confirmation only: the money is posted from the refund events, not from charge.refunded
+Rail
+Stripe: LIVE SANDBOX
+Reference
+ch_3UDrW1K6R3v50tIy1xDTIFTb
+Who
+stripe
+|
+| 16 min | webhook | stripe refund.createdStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDrW1K6R3v50tIy1qNn3zvG&kind=webhook] re_3UDrW1K6R3v50tIy1qNn3zvG
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrW1K6R3v50tIy1qNn3zvG
+Who
+stripe
+|
+| 16 min | webhook | stripe charge.refundedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=ch_3UDf5YK6R3v50tIy1QeOF4Do&kind=webhook] ch_3UDf5YK6R3v50tIy1QeOF4Do
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt: confirmation only: the money is posted from the refund events, not from charge.refunded
+Rail
+Stripe: LIVE SANDBOX
+Reference
+ch_3UDf5YK6R3v50tIy1QeOF4Do
+Who
+stripe
+|
+| 16 min | webhook | stripe refund.createdStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDf5YK6R3v50tIy1TVf1Llk&kind=webhook] re_3UDf5YK6R3v50tIy1TVf1Llk
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDf5YK6R3v50tIy1TVf1Llk
+Who
+stripe
+|
+| 16 min | webhook | stripe refund.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDUCUK6R3v50tIy0gKOTYl7&kind=webhook] re_3UDUCUK6R3v50tIy0gKOTYl7
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt: already posted by an earlier delivery of this refund
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDUCUK6R3v50tIy0gKOTYl7
+Who
+stripe
+|
+| 16 min | webhook | stripe refund.createdStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDUCUK6R3v50tIy0gKOTYl7&kind=webhook] re_3UDUCUK6R3v50tIy0gKOTYl7
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDUCUK6R3v50tIy0gKOTYl7
+Who
+stripe
+|
+| 16 min | webhook | stripe refund.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDrw9K6R3v50tIy1ffy43I1&kind=webhook] re_3UDrw9K6R3v50tIy1ffy43I1
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt: already posted by an earlier delivery of this refund
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrw9K6R3v50tIy1ffy43I1
+Who
+stripe
+|
+| 16 min | webhook | stripe charge.refundedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=ch_3UDrw9K6R3v50tIy1ojtXipt&kind=webhook] ch_3UDrw9K6R3v50tIy1ojtXipt
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+done, 1 attempt: confirmation only: the money is posted from the refund events, not from charge.refunded
+Rail
+Stripe: LIVE SANDBOX
+Reference
+ch_3UDrw9K6R3v50tIy1ojtXipt
+Who
+stripe
+|
+| 16 min | webhook | stripe refund.createdStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDrw9K6R3v50tIy1ffy43I1&kind=webhook] re_3UDrw9K6R3v50tIy1ffy43I1
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrw9K6R3v50tIy1ffy43I1
+Who
+stripe
+|
+| 35 min | webhook | stripe checkout.session.completedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=cs_test_b1Mumpc5PNhs0MFfDC940TDowfQcRLq6rV2fFzeFPNoZOMPtWTpUmRVTg9&kind=webhook] cs_test_b1Mumpc5PNhs0MFfDC940TDowfQcRLq6rV2fFzeFPNoZOMPtWTpUmRVTg9
+|
+When
+2026-09-09 20:17:43 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+cs_test_b1Mumpc5PNhs0MFfDC940TDowfQcRLq6rV2fFzeFPNoZOMPtWTpUmRVTg9
+Who
+stripe
+|
+| 35 min | webhook | stripe payment_intent.succeededStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=pi_3UDrw9K6R3v50tIy1XjCYQsU&kind=webhook] pi_3UDrw9K6R3v50tIy1XjCYQsU
+|
+When
+2026-09-09 20:17:43 UTC
+Detail
+done, 1 attempt: endorsement applied
+Rail
+Stripe: LIVE SANDBOX
+Reference
+pi_3UDrw9K6R3v50tIy1XjCYQsU
+Who
+stripe
+When age at a glance, the UTC instant on hover and in the foldStripe: LIVE SANDBOX the row moved money on the real Stripe sandboxLOCAL SIMULATOR the row moved money on a rail simulated in this application
+About this screen
+The window
+Showing the last 60 minutes. All instants are UTC; a cell shows the age and carries the full instant on hover and in its fold. The chips set ?since=; the field beside them takes a duration such as 15m, 2h or 3d, or a UTC instant. An empty field means the last hour.
+The kinds
+A kind chip adds or removes one kind and keeps the others; All clears them. None selected means every kind, and an unselected kind costs no query at all.
+The feed is bounded
+The feed can never return more than 200 rows, whatever the query string asks for. Narrow the window or the kinds to see the rest.
+Rails
+Every row carries the rail it moved on. Stripe: LIVE SANDBOX is a real Stripe sandbox; LOCAL SIMULATOR is a rail simulated inside this application. The top bar states the three modes on every screen.
+When a line is called slow
+A step is slow when its p95 is over 5 s, a route when its p95 is over 1000 ms. Both are assumptions of this build, not a promise of Stripe and not a rule of Corgi: a step waits on a provider, a route is our own handler, so they cannot share a threshold.
+What counts as a problem
+A money operation whose last provider answer was failed or unknown; a webhook whose processing row reads failed or ignored, or that needed more than one attempt; an MCP call answered with error or refused; a failed reconciliation run, which compared nothing and must never read as clean; and an operation the provider accepted more than 15 minutes ago that has said nothing since. The view is bounded at 60 rows.
+The fixed floor
+Every problem line is inside the window except the unknown outcomes, and every line of Being checked: both are read over a fixed floor of 7 days, whatever window the feed is showing, because an operation nobody has confirmed must stay visible until a human resolves it.
+The 15-minute threshold
+It is an assumption of this build, not a rule of Stripe and not a rule of Corgi. Stripe promises no delay. Under it the operation is being checked, over it a human is asked to resolve it, and the job that actually resolves one is /api/jobs/recover-operations.
+How the latency figures are produced
+Each step is one percentile_cont computed by Postgres over the whole window; this page adds nothing up and the browser computes nothing. A percentile over two or three samples is not a percentile, which is why the sample count is on the row. A duration is only measured when both of its instants exist: an operation still waiting for its second instant is not a fast one, it is in Being checked.
+Steps and routes measure different things
+The by-route table measures activity_log.duration_ms, the time this application spent inside the handler: it excludes the network, the browser and the cold start of a serverless function. The step table measures how long an object took to move between two states, which includes the provider. A route is the URL pattern and never a URL with an id in it, so one policy cannot become its own row with one sample. Showing at most 40 routes.
+Where refused and failed rows come from
+Every route handler, every job and the MCP endpoint are wrapped in one helper (lib/observability/log.ts) that writes one append-only row in activity_log and prints the same fields as one JSON line in the server log. A row is refused when a rule said no, and error when something broke. The rule column is named by the route; a request refused before that gate names no rule rather than guessing.
+What is never shown
+No provider payload, no secret, and no API key beyond its public cmk_ prefix. A failure reason is the short sanitised sentence the money path recorded, cut to 220 characters, with emails masked and any bearer token, password or sk_ secret replaced before it was written. Names and emails are masked to their first three characters and revealed by clicking them: the console is staff-only, and this is a reading discipline for a screen left open, not a security control.
+Why it re-reads instead of streaming
+A ten-second timer asks the server to render this page again, plus a button when ten seconds is too long. No websocket, no polling script and no figure computed in the browser. The timer exists only while the console is open and is cleared when you leave it, so an automatic refresh can never pull you back to this screen.
+If a red line appears
+That block's query failed and the rest of the page still rendered. Nothing was retried and nothing was hidden. The console is what an operator opens while something is already broken, so one unreadable table must never replace the whole screen with an error page.
+Where each line comes from
+Money operations from money_operations and money_operation_events; webhooks from webhook_events with webhook_processing beside them; journal entries from journal_entries and journal_lines; policy, claim and verification events from policy_events, claim_events and broker_kyb_events; approvals from approval_requests and approval_decisions; reconciliation from reconciliation_runs; statements from statement_runs; MCP calls from mcp_calls joined to mcp_api_keys for the public prefix; change requests from policy_change_requests; refused and failed actions and every latency by route from activity_log (migration 0021).Corgi · Policy administration
