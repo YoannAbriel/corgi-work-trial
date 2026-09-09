@@ -156,7 +156,7 @@ const ACCEPTED_SHAPES_SENTENCE =
 
 type Resolution = {
   // What the reference turned out to be. "nothing" when no row matched it at all.
-  resolvedTo: "policy" | "claim" | "broker" | "provider_record_only" | "nothing";
+  resolvedTo: "policy" | "claim" | "broker" | "provider_record_only" | "reconciliation_break" | "nothing";
   subject: ConsoleSubject | null;
   // Set when the reference names ONE money operation: the file is then narrowed to it.
   operationId: string | null;
@@ -234,10 +234,14 @@ async function byProviderReference(database: postgres.Sql, reference: string): P
      limit 1
   `;
   if (!row) {
-    // A reference the provider knows and no operation of ours carries. It is not "nothing": it
-    // is exactly the case an operator is chasing when money exists at Stripe with nothing behind
-    // it here, so the file comes back with the webhook inbox rows and no subject.
-    return { ...NOTHING, resolvedTo: "provider_record_only", providerRef: reference };
+    // No operation of ours carries it. Before answering "nothing", ask the webhook inbox: a
+    // reference the provider sent us and no operation claims is exactly the case an operator is
+    // chasing when money exists at Stripe with nothing behind it here. One row is enough to know
+    // the file is worth opening; the file below reads them properly, bounded.
+    const touched = await webhooksTouching(database, [reference], 1);
+    return touched.length === 0
+      ? NOTHING
+      : { ...NOTHING, resolvedTo: "provider_record_only", providerRef: reference };
   }
   const narrowing = { operationId: row.operation_id, providerRef: reference };
   if (row.claim_id) return subjectResolution(database, "claim", row.claim_id, narrowing);
@@ -250,13 +254,21 @@ async function byProviderReference(database: postgres.Sql, reference: string): P
 // is asked about that key by name even when nothing else resolves.
 async function byBreakKey(database: postgres.Sql, breakKey: string): Promise<Resolution> {
   const reference = breakKey.slice(breakKey.indexOf("|") + 1);
-  if (reference.startsWith("op:")) {
-    const operationId = reference.slice("op:".length);
-    const resolved = isUuid(operationId) ? await byOperationId(database, operationId) : NOTHING;
+  const resolved = reference.startsWith("op:")
+    ? await byOperationIdIfItIsOne(database, reference.slice("op:".length))
+    : await byProviderReference(database, reference);
+  if (resolved.resolvedTo !== "nothing") {
     return { ...resolved, breakKey };
   }
-  const resolved = await byProviderReference(database, reference);
-  return { ...resolved, breakKey };
+  // A break key whose money our ledger has never heard of: money at the provider and nothing on
+  // our side is the commonest break there is, so the file is the reconciliation report itself.
+  // Asked of the same reader the file uses, so "nothing matches" here really means nothing.
+  const reports = await latestBreakReportsFor(database, { breakKeys: [breakKey], ledgerRefs: [], providerRefs: [] }, 1);
+  return reports.length === 0 ? NOTHING : { ...NOTHING, resolvedTo: "reconciliation_break", breakKey };
+}
+
+async function byOperationIdIfItIsOne(database: postgres.Sql, operationId: string): Promise<Resolution> {
+  return isUuid(operationId) ? byOperationId(database, operationId) : NOTHING;
 }
 
 async function byOperationId(database: postgres.Sql, operationId: string): Promise<Resolution> {
@@ -634,8 +646,9 @@ function whatThisMeans(
   staff: boolean,
 ): string {
   const subjectSentence =
-    resolution.resolvedTo === "provider_record_only"
-      ? "This reference matches no policy and no claim of ours: it is a record the provider has, or a request that named no object."
+    resolution.resolvedTo === "provider_record_only" || resolution.resolvedTo === "reconciliation_break"
+      ? "This reference matches no policy and no claim of ours: it is a record the provider has, a break our ledger " +
+        "cannot explain, or a request that named no object. That is a finding, not an empty answer."
       : `This reference belongs to a ${resolution.resolvedTo}.`;
   return (
     `${subjectSentence} ` +

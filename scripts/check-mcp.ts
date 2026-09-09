@@ -19,8 +19,15 @@ import postgres from "postgres";
 //      journal entry ids behind a ledger sum, and a CUSTOMER KEY IS REFUSED THE TOOL ALTOGETHER,
 //      with the same sentence whatever figure or policy it names;
 //   7. list_my_activity: a key reads back the calls it just made, and none of another key's;
-//   8. every single call is written down in mcp_calls, including the ones that were refused;
-//   9. who may mint a key: a staff_approver session is refused by POST /api/mcp-keys, because
+//   8. inspect_reference: a staff key opens a policy number and gets the journal entry ids the
+//      policy page reads, a PaymentIntent id resolves to its own operation with its lifecycle and
+//      its collection entry, a break key resolves to its latest report and then to the note a
+//      human wrote on it, a broker key is refused another broker's reference without the refusal
+//      naming it, a customer key is refused the tool before any read, an unknown reference
+//      answers nothing matches, an over-long one is refused by the schema, and every list
+//      respects the bound the answer publishes beside it;
+//   9. every single call is written down in mcp_calls, including the ones that were refused;
+//  10. who may mint a key: a staff_approver session is refused by POST /api/mcp-keys, because
 //      the role that decides a money-out must not be able to create the maker's credential
 //      (review finding F-INT-01).
 //
@@ -352,25 +359,43 @@ async function main() {
   const listResult = (
     listed.body as {
       result: {
-        tools: { name: string; annotations?: { readOnlyHint?: boolean; figureKeys?: { key: string }[] } }[];
+        tools: {
+          name: string;
+          annotations?: {
+            readOnlyHint?: boolean;
+            figureKeys?: { key: string }[];
+            acceptedReferenceShapes?: { shape: string; meaning: string }[];
+            bounds?: Record<string, number>;
+          };
+        }[];
         policy: { neverDelegated: unknown[] };
       };
     }
   ).result;
   report(
-    "tools/list returns the seven tools of this build",
+    "tools/list returns the eight tools of this build",
     listResult.tools.map((tool) => tool.name).join(",") ===
-      "get_policy_as_of,get_broker_statement,explain_amount,list_my_activity,list_reconciliation_breaks,run_reconciliation,request_claim_payment",
+      "get_policy_as_of,get_broker_statement,explain_amount,list_my_activity,inspect_reference,list_reconciliation_breaks,run_reconciliation,request_claim_payment",
     listResult.tools.map((tool) => tool.name).join(", "),
   );
   const readOnlyToolNames = listResult.tools.filter((tool) => tool.annotations?.readOnlyHint === true).map((tool) => tool.name);
   report(
-    "EVERY TOOL SAYS WHETHER IT READS ONLY, and the two added last do",
+    "EVERY TOOL SAYS WHETHER IT READS ONLY, and the three added last do",
     readOnlyToolNames.includes("explain_amount") &&
       readOnlyToolNames.includes("list_my_activity") &&
+      readOnlyToolNames.includes("inspect_reference") &&
       !readOnlyToolNames.includes("request_claim_payment") &&
       !readOnlyToolNames.includes("run_reconciliation"),
     `read-only: ${readOnlyToolNames.join(", ")}`,
+  );
+  const inspectAnnotations = listResult.tools.find((tool) => tool.name === "inspect_reference")?.annotations;
+  const publishedShapes = inspectAnnotations?.acceptedReferenceShapes ?? [];
+  report(
+    "inspect_reference publishes its closed list of reference shapes and its bounds in tools/list",
+    publishedShapes.length === 8 &&
+      publishedShapes.some((shape) => shape.shape === "break_key") &&
+      inspectAnnotations?.bounds?.activity === 20,
+    `${publishedShapes.length} shapes published, activity bound ${String(inspectAnnotations?.bounds?.activity)}`,
   );
   const publishedFigureKeys =
     listResult.tools.find((tool) => tool.name === "explain_amount")?.annotations?.figureKeys ?? [];
@@ -888,6 +913,209 @@ async function main() {
   );
 
   // -------------------------------------------------------------------------
+  // 3d. inspect_reference: the operational file of one reference (decision 42)
+  // -------------------------------------------------------------------------
+
+  type InspectedFile = {
+    reference: string;
+    recognisedAs: string;
+    resolvedTo: string;
+    found: boolean;
+    narrowedToOneMoneyOperation: string | null;
+    belongsTo: {
+      kind: string;
+      policyNumber: string | null;
+      claimNumber: string | null;
+      policyStatus: string | null;
+      termsInForceToday: { onDate: string | null; annualPremium: { cents: number } } | null;
+    } | null;
+    moneyOperations: {
+      operationId: string;
+      kind: string;
+      rail: string;
+      amount: { cents: number };
+      latestStatus: string | null;
+      providerRef: string | null;
+      events: { requestedAt: string | null; succeededAt: string | null };
+    }[];
+    webhookEvents: { webhookEventId: string; type: string; receivedAt: string; outcome: string }[];
+    journalEntries: { journalEntryId: string; entryType: string; lines: { accountCode: string }[] }[];
+    reconciliationReports: {
+      breakKey: string;
+      source: string;
+      classification: string;
+      runId: string;
+      reportedAt: string;
+      providerAmount: { cents: number } | null;
+      isBreakToActOn: boolean;
+      explainedNote: { note: string; byName: string; at: string } | null;
+    }[];
+    activity: { route: string; outcome: string; correlationId: string }[];
+    bounds: Record<string, number>;
+    sectionsThisKeyMayNotRead: string[];
+    whatThisMeans: string;
+  };
+
+  async function inspect(key: string, reference: string): Promise<{ ok: true; file: InspectedFile } | { ok: false; refusal: string }> {
+    const answer = await callTool(key, "inspect_reference", { reference });
+    return answer.ok ? { ok: true, file: answer.value as unknown as InspectedFile } : answer;
+  }
+
+  // Every list of a file is bounded, and the file returns its own bounds beside them: an agent
+  // must never have to guess whether it is holding all of something.
+  function everyListRespectsItsBound(file: InspectedFile): boolean {
+    return (
+      file.moneyOperations.length <= file.bounds.moneyOperations &&
+      file.webhookEvents.length <= file.bounds.webhookEvents &&
+      file.journalEntries.length <= file.bounds.journalEntries &&
+      file.reconciliationReports.length <= file.bounds.reconciliationReports &&
+      file.activity.length <= file.bounds.activity
+    );
+  }
+
+  const policyFile = await inspect(staffKey.presentedKey, policy.policyNumber);
+  // THE JOURNAL ENTRY IDS THE POLICY PAGE READS, from the reader the page itself calls. The file
+  // of a policy also carries the entries of its claims (they hang off the same object), so this
+  // is a containment on the policy that has a claim, and an equality below on the one that does
+  // not.
+  const pageEntryIds = (await journalEntriesOfPolicy(policy.policyId, runtime)).map((entry) => entry.entryId);
+  const fileEntryIds = policyFile.ok ? policyFile.file.journalEntries.map((entry) => entry.journalEntryId) : [];
+  const otherPolicyFile = await inspect(staffKey.presentedKey, otherPolicy.policyNumber);
+  const otherPageEntryIds = (await journalEntriesOfPolicy(otherPolicy.policyId, runtime)).map((entry) => entry.entryId);
+  const otherFileEntryIds = otherPolicyFile.ok ? otherPolicyFile.file.journalEntries.map((entry) => entry.journalEntryId) : [];
+  report(
+    "A STAFF KEY OPENS A POLICY NUMBER AND GETS THE JOURNAL ENTRIES THE POLICY PAGE READS, id for id",
+    policyFile.ok &&
+      otherPolicyFile.ok &&
+      pageEntryIds.length > 0 &&
+      pageEntryIds.every((entryId) => fileEntryIds.includes(entryId)) &&
+      // The second policy has no claim, so the two sets are the same set.
+      otherPageEntryIds.length > 0 &&
+      [...otherPageEntryIds].sort().join(",") === [...otherFileEntryIds].sort().join(","),
+    policyFile.ok && otherPolicyFile.ok
+      ? `${pageEntryIds.length} page entries inside ${fileEntryIds.length} file entries; the claimless policy: ${otherPageEntryIds.length} = ${otherFileEntryIds.length}`
+      : `${policyFile.ok ? "" : policyFile.refusal} ${otherPolicyFile.ok ? "" : otherPolicyFile.refusal}`,
+  );
+  report(
+    "and the file says what the policy is: its number, its cached status and the terms in force today",
+    policyFile.ok &&
+      policyFile.file.resolvedTo === "policy" &&
+      policyFile.file.belongsTo?.policyNumber === policy.policyNumber &&
+      policyFile.file.belongsTo?.termsInForceToday !== null &&
+      cents(policyFile.file.belongsTo?.termsInForceToday?.annualPremium) === ANNUAL_PREMIUM_CENTS,
+    policyFile.ok
+      ? `${String(policyFile.file.belongsTo?.policyNumber)}, status ${String(policyFile.file.belongsTo?.policyStatus)}, premium in force ${cents(policyFile.file.belongsTo?.termsInForceToday?.annualPremium)}`
+      : policyFile.refusal,
+  );
+  report(
+    "every list of the file respects the bound the file publishes beside it",
+    policyFile.ok && everyListRespectsItsBound(policyFile.file),
+    policyFile.ok
+      ? `operations ${policyFile.file.moneyOperations.length}/${policyFile.file.bounds.moneyOperations}, entries ${policyFile.file.journalEntries.length}/${policyFile.file.bounds.journalEntries}, activity ${policyFile.file.activity.length}/${policyFile.file.bounds.activity}`
+      : policyFile.refusal,
+  );
+
+  // The PaymentIntent this check planted, resolved back to the operation it paid.
+  const paymentFile = await inspect(staffKey.presentedKey, policy.paymentIntentId);
+  const paidOperation = paymentFile.ok ? paymentFile.file.moneyOperations[0] : null;
+  report(
+    "A STRIPE PaymentIntent ID RESOLVES TO ITS MONEY OPERATION, narrowed to that one, with its lifecycle instants",
+    paymentFile.ok &&
+      paymentFile.file.narrowedToOneMoneyOperation === policy.operationId &&
+      paymentFile.file.moneyOperations.length === 1 &&
+      paidOperation?.providerRef === policy.paymentIntentId &&
+      cents(paidOperation?.amount) === TOTAL_CHARGE_CENTS &&
+      paidOperation?.latestStatus === "succeeded" &&
+      paidOperation?.events.requestedAt !== null &&
+      paidOperation?.events.succeededAt !== null &&
+      paidOperation?.rail === "Stripe LIVE SANDBOX",
+    paymentFile.ok
+      ? `${String(paidOperation?.kind)} ${cents(paidOperation?.amount)} cents, ${String(paidOperation?.latestStatus)}, ${String(paidOperation?.rail)}`
+      : paymentFile.refusal,
+  );
+  report(
+    "AND THE COLLECTION ENTRY IS ON THAT FILE: the journal entry the payment posted, with its lines",
+    paymentFile.ok &&
+      paymentFile.file.journalEntries.some(
+        (entry) => entry.entryType === "premium_collected" && entry.lines.length >= 2,
+      ),
+    paymentFile.ok
+      ? paymentFile.file.journalEntries.map((entry) => `${entry.entryType} (${entry.lines.length} lines)`).join(", ")
+      : paymentFile.refusal,
+  );
+
+  // A broker key: its own book, and nothing else. The refusal must not say what the reference is.
+  const brokerOwnFile = await inspect(brokerKey.presentedKey, policy.policyNumber);
+  const brokerOnAnotherBook = await inspect(brokerKey.presentedKey, otherPolicy.policyNumber);
+  report(
+    "A BROKER KEY OPENS ITS OWN POLICY AND IS REFUSED ANOTHER BROKER'S, WITHOUT THE REFUSAL NAMING IT",
+    brokerOwnFile.ok &&
+      !brokerOnAnotherBook.ok &&
+      /not in this key's own book of business/.test(brokerOnAnotherBook.refusal) &&
+      !brokerOnAnotherBook.refusal.includes(otherPolicy.policyNumber) &&
+      !brokerOnAnotherBook.refusal.includes(people.brokerBId),
+    brokerOnAnotherBook.ok ? "it answered" : brokerOnAnotherBook.refusal,
+  );
+  report(
+    "and a broker key is told which sections it did NOT read, rather than shown two empty lists",
+    brokerOwnFile.ok &&
+      brokerOwnFile.file.webhookEvents.length === 0 &&
+      brokerOwnFile.file.reconciliationReports.length === 0 &&
+      brokerOwnFile.file.sectionsThisKeyMayNotRead.length === 2 &&
+      brokerOwnFile.file.sectionsThisKeyMayNotRead.join(" ").includes("staff only"),
+    brokerOwnFile.ok ? brokerOwnFile.file.sectionsThisKeyMayNotRead.join(" | ") : brokerOwnFile.refusal,
+  );
+
+  // A customer key is refused the tool itself, BEFORE any read: the same sentence for a policy
+  // that exists and for one that does not, so the refusal teaches a caller nothing.
+  const customerOnItsOwnPolicy = await inspect(customerKey.presentedKey, policy.policyNumber);
+  const customerOnAGhost = await inspect(customerKey.presentedKey, "CGP-00000");
+  report(
+    "A CUSTOMER KEY IS REFUSED inspect_reference ALTOGETHER, before any read",
+    !customerOnItsOwnPolicy.ok &&
+      !customerOnAGhost.ok &&
+      /reads no operational file/.test(customerOnItsOwnPolicy.refusal) &&
+      customerOnItsOwnPolicy.refusal === customerOnAGhost.refusal &&
+      !customerOnItsOwnPolicy.refusal.includes(policy.policyNumber),
+    customerOnItsOwnPolicy.ok ? "it answered" : customerOnItsOwnPolicy.refusal.slice(0, 110) + "...",
+  );
+
+  // A reference of an accepted shape that matches nothing is an ANSWER, not an error: an agent
+  // must be able to tell "I looked and there is nothing" from "the tool broke".
+  const unknownPolicyNumber = await inspect(staffKey.presentedKey, "CGP-99998");
+  const unknownPaymentIntent = await inspect(staffKey.presentedKey, "pi_never_created_by_this_system");
+  report(
+    "AN UNKNOWN REFERENCE ANSWERS NOTHING MATCHES, and is not an error",
+    unknownPolicyNumber.ok &&
+      unknownPolicyNumber.file.found === false &&
+      unknownPolicyNumber.file.resolvedTo === "nothing" &&
+      unknownPaymentIntent.ok &&
+      unknownPaymentIntent.file.found === false,
+    unknownPolicyNumber.ok
+      ? unknownPolicyNumber.file.whatThisMeans.slice(0, 90) + "..."
+      : unknownPolicyNumber.refusal,
+  );
+
+  // The schema advertises a reference of 1 to 200 characters. Enforced by the transport before
+  // the tool runs, like the enum of explain_amount, so an over-long string never reaches a query.
+  const overLongReference = `pi_${"x".repeat(300)}`;
+  const tooLong = await inspect(staffKey.presentedKey, overLongReference);
+  report(
+    "AN OVER-LONG REFERENCE IS REFUSED BY THE SCHEMA, naming the bound and never the value",
+    !tooLong.ok && /must be at most 200 characters long/.test(tooLong.refusal) && !tooLong.refusal.includes("xxxx"),
+    tooLong.ok ? "it answered" : tooLong.refusal,
+  );
+
+  // Reading an MCP API key stays on the never-delegated list: the shape is recognised so the
+  // refusal can say why, rather than pretending the reference means nothing.
+  const keyPrefixInspected = await inspect(staffKey.presentedKey, staffKey.keyPrefix);
+  report(
+    "AN MCP KEY PREFIX IS REFUSED WITH ITS REASON: reading a key is never delegated to an agent",
+    !keyPrefixInspected.ok && /never delegated to an agent/.test(keyPrefixInspected.refusal),
+    keyPrefixInspected.ok ? "it answered" : keyPrefixInspected.refusal.slice(0, 100) + "...",
+  );
+
+  // -------------------------------------------------------------------------
   // 4. The write tool: it queues, it never pays
   // -------------------------------------------------------------------------
 
@@ -1041,6 +1269,20 @@ async function main() {
   // 5. Running the reconciliation
   // -------------------------------------------------------------------------
 
+  // A BREAK OF THIS CHECK'S OWN, planted before the run so that inspect_reference has a break key
+  // to open afterwards. It is written on the PROVIDER's side only, straight into the simulated
+  // rail's own table as the owner: no money operation, no claim event, no journal entry, which is
+  // exactly the situation a reconciliation exists to find. Its break key is built the way
+  // lib/reconciliation/breaks.ts builds one for a record our ledger has never heard of.
+  const plantedTransferRef = `sim_tr_mcp_check_${crypto.randomUUID().slice(0, 8)}`;
+  const PLANTED_RAIL_TRANSFER_CENTS = 777700;
+  await owner`
+    insert into simulator_provider_records (transfer_ref, amount_cents, destination_token, status, settlement_date, payload)
+    values (${plantedTransferRef}, ${PLANTED_RAIL_TRANSFER_CENTS}, 'sim_ba_planted_by_the_mcp_check', 'sent', current_date,
+            ${owner.json({ note: "LOCAL SIMULATOR: planted by scripts/check-mcp.ts on the provider side only" })})
+  `;
+  const plantedBreakKey = `claims_rail|${plantedTransferRef}`;
+
   const beforeReconciliation = await fixtureJournalCount(ourPolicies, claim.claimId);
   const reconciled = await callTool(staffKey.presentedKey, "run_reconciliation", { windowDays: 1 });
   const runs = reconciled.ok ? (reconciled.value.runs as { runId: string; source: string; status: string }[]) : [];
@@ -1078,6 +1320,74 @@ async function main() {
     "a broker key cannot run it",
     !brokerReconciles.ok && /only staff/.test(brokerReconciles.refusal),
     brokerReconciles.ok ? "it ran" : brokerReconciles.refusal,
+  );
+
+  // -------------------------------------------------------------------------
+  // 5b. inspect_reference on the break the run just reported, before and after
+  //     a human explains it
+  // -------------------------------------------------------------------------
+
+  const brokenFile = await inspect(staffKey.presentedKey, plantedBreakKey);
+  const plantedReport = brokenFile.ok
+    ? brokenFile.file.reconciliationReports.find((report) => report.breakKey === plantedBreakKey)
+    : undefined;
+  report(
+    "A BREAK KEY RESOLVES TO ITS LATEST REPORT: the run that said it, when, and the two amounts",
+    brokenFile.ok &&
+      brokenFile.file.resolvedTo === "reconciliation_break" &&
+      plantedReport !== undefined &&
+      plantedReport.source === "claims_rail" &&
+      plantedReport.classification === "provider_only" &&
+      plantedReport.runId.length === 36 &&
+      Math.abs(cents(plantedReport.providerAmount)) === PLANTED_RAIL_TRANSFER_CENTS &&
+      plantedReport.isBreakToActOn === true &&
+      plantedReport.explainedNote === null,
+    brokenFile.ok
+      ? plantedReport
+        ? `${plantedReport.classification} of ${cents(plantedReport.providerAmount)} cents, run ${plantedReport.runId.slice(0, 8)} at ${plantedReport.reportedAt}, to act on`
+        : `no report for ${plantedBreakKey} among ${brokenFile.file.reconciliationReports.length}`
+      : brokenFile.refusal,
+  );
+
+  // A human explains it, through the function the reconciliation screen calls. Nothing is
+  // repaired by that: no journal entry, no edited row. The break stays on file with the note.
+  const { explainBreak } = await import("@/lib/reconciliation/break-notes");
+  await explainBreak(
+    {
+      breakKey: plantedBreakKey,
+      note: "Planted on the rail by the MCP check to prove inspect_reference reads an explained break.",
+      actor: { userId: people.opsId, role: "staff_ops" },
+    },
+    runtime,
+  );
+  const explainedFile = await inspect(staffKey.presentedKey, plantedBreakKey);
+  const explainedReport = explainedFile.ok
+    ? explainedFile.file.reconciliationReports.find((report) => report.breakKey === plantedBreakKey)
+    : undefined;
+  report(
+    "AND ONCE A HUMAN HAS EXPLAINED IT, THE FILE SHOWS THE NOTE, its author and its time, and stops calling it work",
+    explainedFile.ok &&
+      explainedReport !== undefined &&
+      /Planted on the rail by the MCP check/.test(explainedReport.explainedNote?.note ?? "") &&
+      explainedReport.explainedNote?.byName === "MCP check operator" &&
+      typeof explainedReport.explainedNote?.at === "string" &&
+      explainedReport.isBreakToActOn === false &&
+      // The break itself is untouched: same key, same classification, same amount.
+      explainedReport.classification === "provider_only" &&
+      Math.abs(cents(explainedReport.providerAmount)) === PLANTED_RAIL_TRANSFER_CENTS,
+    explainedFile.ok
+      ? explainedReport
+        ? `"${explainedReport.explainedNote?.note.slice(0, 60)}..." by ${String(explainedReport.explainedNote?.byName)}, to act on ${explainedReport.isBreakToActOn}`
+        : "the break vanished from the file once explained, which it must not"
+      : explainedFile.refusal,
+  );
+  report(
+    "a broker key cannot open a break key at all: it is nobody's book, and the refusal says nothing else",
+    await (async () => {
+      const brokerOnABreak = await inspect(brokerKey.presentedKey, plantedBreakKey);
+      return !brokerOnABreak.ok && /not in this key's own book of business/.test(brokerOnABreak.refusal);
+    })(),
+    "a break names another party's money; only staff read reconciliation, exactly as list_reconciliation_breaks says",
   );
 
   // -------------------------------------------------------------------------
@@ -1128,7 +1438,16 @@ async function main() {
   // sent five of them: the method "resources/list", the tool name "approve_claim_payment", the
   // header "1999-01-01", a malformed asOf and an unknown figure key. None may be in its rows.
   const rowsThisRunWrote = await lastCallRows(postsSent);
-  const callerStrings = ["resources/list", "approve_claim_payment", "1999-01-01", MALFORMED_AS_OF, UNKNOWN_FIGURE_KEY];
+  const callerStrings = [
+    "resources/list",
+    "approve_claim_payment",
+    "1999-01-01",
+    MALFORMED_AS_OF,
+    UNKNOWN_FIGURE_KEY,
+    // The over-long reference inspect_reference was handed: the schema refuses it by naming the
+    // bound, so nothing of those 300 characters may reach the row either.
+    overLongReference,
+  ];
   const rowsQuotingTheCaller = rowsThisRunWrote.filter((row) =>
     callerStrings.some(
       (caller) => (row.tool ?? "").includes(caller) || row.method.includes(caller) || (row.detail ?? "").includes(caller),
@@ -1223,7 +1542,7 @@ async function createPaidPolicy(
   recordSuccessfulPayment: typeof import("@/lib/payments/collection").recordSuccessfulPayment,
   brokerId: string,
   customerId: string,
-): Promise<{ policyId: string; policyNumber: string }> {
+): Promise<{ policyId: string; policyNumber: string; operationId: string; paymentIntentId: string }> {
   const { policyId, policyNumber, operationId } = await owner.begin(async (transaction) => {
     const [policy] = await transaction<{ id: string; policy_number: string }[]>`
       insert into policies (broker_id, customer_id, state_code) values (${brokerId}, ${customerId}, 'CA')
@@ -1253,10 +1572,13 @@ async function createPaidPolicy(
     return { policyId: policy.id, policyNumber: policy.policy_number, operationId: operation.id };
   });
 
+  // The PaymentIntent id is returned as well as stored: inspect_reference is asked to resolve it
+  // back to this very operation, so the check must know the string it planted.
+  const paymentIntentId = `pi_mcp_check_${operationId.slice(0, 8)}`;
   const collected = await recordSuccessfulPayment(
     {
       operationId,
-      paymentIntentId: `pi_mcp_check_${operationId.slice(0, 8)}`,
+      paymentIntentId,
       amountReceivedCents: TOTAL_CHARGE_CENTS,
       paidOn: TERM_START,
     },
@@ -1265,7 +1587,7 @@ async function createPaidPolicy(
   if (collected.kind !== "posted") {
     throw new Error(`the fixture policy could not be paid: ${JSON.stringify(collected)}`);
   }
-  return { policyId, policyNumber };
+  return { policyId, policyNumber, operationId, paymentIntentId };
 }
 
 class RollbackSentinel extends Error {}
