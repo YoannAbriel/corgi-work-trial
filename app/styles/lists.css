@@ -59,27 +59,9 @@
   text-align: left;
   gap: 0;
 }
-/* Nothing waiting: the block is one grey line, not a card around a paragraph (cycle 2). The
-   illustration beside it is small on purpose; a 300 px drawing to say "nothing" is the block
-   taking more room empty than full (round 1, MEDIUM). */
-.lists-needs-empty {
-  gap: 4px 12px;
-  padding: 8px 16px;
-}
-.lists-needs-empty h2 {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-.lists-needs-empty img {
-  width: 44px;
-  height: 30px;
-  object-fit: contain;
-  margin: 0;
-  align-self: center;
-}
+/* Nothing waiting draws nothing at all now (Yoann, 2026-09-09), so the empty shape this block
+   used to have has no rules left here. Where the fact is still said: the sidebar count and the
+   all-clear state of /inbox. */
 
 /* ---------------------------------------------------------------------------
    /inbox: one card per section, an empty section on one line
