@@ -69,15 +69,24 @@ export type ProviderRecord = {
 // its own heading with the sentence naming who creates them, and never counted as a break to act
 // on.
 //
-// TWO WAYS TO RECOGNISE ONE, AND BOTH REQUIRE THAT THE RECORD NAMES NO OPERATION. That condition
-// comes first and it is the safety of the whole rule: provider metadata is untrusted input, so a
-// record carrying one of our money operation ids is real money whatever else its metadata says,
-// and no forged marker can turn a real break into a line the board stops counting.
-//   1. the metadata carries probe = "check-reconciliation", which the check script sets on every
-//      PaymentIntent it plants from now on;
-//   2. the probes planted before that marker existed carry no metadata at all, so they are
-//      recognised by the two constants of the script that planted them: exactly its amount, and
-//      the description it sends.
+// THE RULE, STATED EXACTLY, and its residual stated with it (review finding F-BREAKSBOARD-03).
+// A record naming one of our money operations is NEVER a probe: that condition comes first and it
+// is the whole of the guarantee this function gives. Provider metadata is untrusted input, so a
+// record carrying one of our operation ids is real money whatever else its metadata says.
+//
+// A record naming NO operation is a probe only when one of two things holds:
+//   1. it carries the check-run marker probe = "check-reconciliation", which the check script
+//      sets on every PaymentIntent it plants from now on;
+//   2. it matches exactly the planted amount AND its description starts with the prefix the
+//      script sends, which is how the probes planted before the marker existed are recognised.
+//
+// WHAT THIS DOES NOT GUARANTEE. A real payment at the provider that names no operation of ours,
+// carries a forged marker, or happens to be exactly 4242 cents with a forged `corgi_probe:`
+// description, would be classified as a probe and would leave the count. That residual is why
+// probes are NOT dropped: they stay listed on the board under their own heading, with their
+// references and their amounts, so such a record is still on a screen an operator reads rather
+// than silently gone. Narrowing the residual further would need a fact the provider record cannot
+// carry, since anything it does carry can be written by whoever created it.
 export const PROBE_METADATA_MARKER = "check-reconciliation";
 export const PROBE_AMOUNT_CENTS = 4242;
 export const PROBE_DESCRIPTION_PREFIX = "corgi_probe:";
