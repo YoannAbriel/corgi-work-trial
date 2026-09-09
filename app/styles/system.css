@@ -1737,6 +1737,13 @@ table.entry-lines > thead > tr > th.amount {
   z-index: 39;
   background: transparent;
 }
+/* The inspector panel is opaque and fixed, so where it starts has to be right: it offsets by
+   --top-h, which is exact on every screen that carries an inspector. Those screens have a two-row
+   bar at every width above 800 px; the bar only takes a third row on the previews, which have no
+   inspector. Starting the panel at 0 instead was tried between 801 and 1000 px and painted it
+   over the sticky bar, cutting the right end of the AF-02 mode line (review finding on F-EV2-02,
+   2026-09-09). If a three-row bar ever reaches a screen with an inspector, publish the sticky
+   wrapper's real height rather than start the panel higher. */
 .drawer {
   position: fixed;
   right: 0;
@@ -2514,17 +2521,6 @@ button.secondary.is-working::after {
   }
   .layout-2 {
     grid-template-columns: minmax(0, 1fr) 300px;
-  }
-}
-/* Under 1000 px a four-level trail, the search field and the Sandbox badge stop fitting on one
-   row, so the bar can take a third row. The band follows it whatever happens, because the two are
-   one sticky block now; the inspector drawer cannot, being fixed and offset by --top-h. Below
-   this width it takes the whole height rather than start halfway up the bar, which is what it
-   already does on a phone (review finding F-EV2-02, 2026-09-09). */
-@media (max-width: 1000px) {
-  .drawer {
-    top: 0;
-    height: 100dvh;
   }
 }
 /* At 1100 px the sidebar used to fold itself to icons. It does not any more: the reader folds
