@@ -22,6 +22,7 @@ import { NOTE_MAXIMUM_CHARACTERS, NOTE_MINIMUM_CHARACTERS } from "@/lib/reconcil
 import { CLAIMS_RAIL_STALE_AFTER_HOURS } from "@/lib/reconciliation/claims-rail-source";
 import { CLEARING_ACCOUNT_MEANING, nonZeroClearingBalances } from "@/lib/reconciliation/clearing-balances";
 import {
+  countOpenBreaksBySource,
   explainedBreaksPage,
   openBreaksPage,
   probesPage,
@@ -139,9 +140,13 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
   // so on its own block rather than replace the whole page with an error. It also matters here
   // for a plain reason of order: these reads need migrations 0022 to 0025, so on a database where
   // they have not run yet the page still renders and names what it could not read.
-  const [runsRead, openRead, probeRead, explainedRead, resolvedRead, clearingRead] = await Promise.all([
+  const [runsRead, openRead, bySourceRead, probeRead, explainedRead, resolvedRead, clearingRead] = await Promise.all([
     attempt("The reconciliation runs", recentRuns(sql, HOW_MANY_RUNS_SHOWN)),
     attempt("The breaks to act on", openBreaksPage(sql, showAll ? EVERY_BREAK_THE_PAGE_WILL_DRAW : HOW_MANY_BREAKS_ON_ONE_PAGE)),
+    // Counted in SQL over the WHOLE open set, with the same rule as the badge, because the list
+    // above is one page of it: a tile that counted the rows drawn understates a source the moment
+    // the page is capped.
+    attempt("The breaks to act on by source", countOpenBreaksBySource(sql)),
     attempt("The probe payments", probesPage(sql, HOW_MANY_PROBES_SHOWN)),
     attempt("The explained breaks", explainedBreaksPage(sql, HOW_MANY_EXPLAINED_SHOWN)),
     attempt("The resolved breaks", resolvedBreaks(sql, HOW_MANY_RESOLVED_SHOWN)),
@@ -149,6 +154,7 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
   ]);
   const runs = valueOr(runsRead, []);
   const openPage = valueOr(openRead, { rows: [], totalOpen: 0, capped: false });
+  const openBreaksBySource = valueOr(bySourceRead, {} as Record<string, number>);
   const probes = valueOr(probeRead, { rows: [], totalProbes: 0, capped: false });
   const explained = valueOr(explainedRead, { rows: [], totalExplained: 0, capped: false });
   const resolved = valueOr(resolvedRead, []);
@@ -300,14 +306,14 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
               tone={openPage.totalOpen > 0 ? "warn" : "ok"}
               note="not a probe, nobody has explained it"
             />
-            {/* The split by source is counted on the rows the page drew, so when the read was
-                capped the tile says so rather than reading as the whole of it. */}
+            {/* The split by source is the WHOLE open set, counted in SQL, never the rows the page
+                drew: the list below is one page of the set and a tile is a total. */}
             {SOURCES.map((source) => (
               <Stat
                 key={source}
                 label={SOURCE_NAME[source]}
-                value={openPage.rows.filter((row) => row.source === source).length}
-                note={openPage.capped ? `${SOURCE_MODE[source]}, of the ${openPage.rows.length} shown` : SOURCE_MODE[source]}
+                value={openBreaksBySource[source] ?? 0}
+                note={SOURCE_MODE[source]}
                 href={withParams(PATH, query, { view: "breaks", source, inspect: null, all: null })}
               />
             ))}
@@ -318,21 +324,26 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
             />
           </Stats>
 
-          {openPage.rows.length > 0 ? (
+          {/* A CHART TOTAL IS ALWAYS THE WHOLE OPEN SET, never the page. The classification and the
+              age of a break are read off the rows, and the rows are one page of the set, so these
+              two pictures are drawn only when the page holds every break to act on. When it does
+              not, the page says so instead of drawing a split of a part as if it were the whole.
+              The split by source, which IS counted over the whole set in SQL, is in the tiles. */}
+          {openPage.totalOpen > 0 && !openPage.capped ? (
             <ChartRow>
-              <Chart title="By classification" figure={openPage.rows.length}>
+              <Chart title="By classification" figure={openPage.totalOpen}>
                 <Donut
-                  caption={`The ${openPage.rows.length} breaks to act on this page drew, by classification`}
-                  center={openPage.rows.length}
+                  caption="Every break to act on, by classification"
+                  center={openPage.totalOpen}
                   slices={BREAK_CLASSES.map((name) => ({
                     label: name.replace(/_/g, " "),
                     value: openPage.rows.filter((row) => row.classification === name).length,
                   })).filter((slice) => slice.value > 0)}
                 />
               </Chart>
-              <Chart title="By age" figure={openPage.rows.length}>
+              <Chart title="By age" figure={openPage.totalOpen}>
                 <Bars
-                  caption={`The ${openPage.rows.length} breaks to act on this page drew, by age bucket`}
+                  caption="Every break to act on, by age bucket"
                   points={AGE_BUCKETS.map((bucket) => ({
                     label: bucket.label,
                     value: openPage.rows.filter((row) => bucketOf(row.firstSeenAt, now) === bucket.label).length,
@@ -340,6 +351,12 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
                 />
               </Chart>
             </ChartRow>
+          ) : openPage.capped ? (
+            <p className="note money-explainer">
+              No picture while the list is capped. The page holds {openPage.rows.length} of {openPage.totalOpen} breaks
+              to act on, and a split of that part would read as a split of the whole. The split by source is in the
+              tiles above, counted over every one of them.
+            </p>
           ) : null}
 
           <BreakTable
