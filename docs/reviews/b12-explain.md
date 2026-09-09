@@ -360,7 +360,7 @@ cannot certify understanding on his behalf.
 
 ---
 
-# Re-review after the fixes, 2026-09-09T09:20Z
+# Re-review after the fixes, 2026-09-09T07:19Z (09:19 Europe/Zurich; an earlier revision of this line carried the local time with a Z suffix, corrected 2026-09-09T08:28Z)
 
 New revision reviewed: **`19baf15`** (merge of `worktree-agent-acc7e1cd088537310` into main,
 "B12 explanation fixes (F-B12-02 to 07, 09) and terms in force on today (F-YA-07)"). The eight fix
