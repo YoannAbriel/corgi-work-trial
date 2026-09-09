@@ -2,7 +2,7 @@ import "@/app/styles/console.css";
 import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
-import { FailureLine, RailsAbout, consoleViews, utc } from "@/components/console-parts";
+import { FailureLine, RailsAbout, utc } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
 import { Chart, ChartRow, HBars } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty";
@@ -63,16 +63,10 @@ export default async function ConsoleInfraPage() {
   }
   const countOn = (rows: { day: string; count: number }[], day: string) => rows.find((row) => row.day === day)?.count ?? 0;
 
-  // The same nine entries in the same three groups as every other console screen (decision 11).
-  const views = consoleViews("infra");
-
   return (
     <PortalShell
       user={user}
       active="infra"
-      views={views}
-      viewsSubtitle="measured now, beside what is documented"
-      trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Infrastructure" }]}
       band={{
         title: "Infrastructure",
         suffix: `revision ${deployedRevision().slice(0, 12)}`,
