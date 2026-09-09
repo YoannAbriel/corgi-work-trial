@@ -1044,9 +1044,9 @@ export default async function PolicyPage({
               </Disclosure>
               <Disclosure title="Endorse, cancel, correct">
                 <p>
-                  An endorsement is priced from its effective date over the days remaining in the term; above{" "}
-                  {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} the customer approves it first, and it takes effect
-                  when the delta is paid. A cancellation refunds the unearned premium pro rata and claws back the commission
+                  An endorsement is priced from its effective date over the days remaining in the term; once this
+                  term&apos;s endorsements add more than {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} of premium
+                  the customer approves first, and it takes effect when the delta is paid. A cancellation refunds the unearned premium pro rata and claws back the commission
                   on it. A correction never changes a row: it reverses and re-books.
                 </p>
               </Disclosure>
@@ -1104,7 +1104,7 @@ function EndorsementInProgress({
       <div className="chips">
         {standing.state === "awaiting_approval" ? (
           <Chip tone="warn">
-            Awaiting the customer&apos;s approval: {formatCentsAsUsd(figures.deltaTotalCents)} is above{" "}
+            Awaiting the customer&apos;s approval: this endorsement takes the policy&apos;s additional premium above{" "}
             {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}
           </Chip>
         ) : null}

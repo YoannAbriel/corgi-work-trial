@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { customerApprovalNeeded } from "@/lib/approvals/threshold";
+import { endorsementNeedsCustomerApproval } from "@/lib/approvals/threshold";
 import { daysBetween, termDays, type CalendarDate } from "./dates";
 import {
   commissionCents,
@@ -30,12 +30,13 @@ import {
 //                     total = 44586 cents refunded; commission clawed back floor(43562 x 15%) = 6534
 //
 // The flat policy fee is charged at issuance only: never again, never refunded, so it is 0 here.
-// The customer must approve when the amount to collect (premium plus tax) is above $500.
+// The customer must approve when this term's additional premium, before tax, passes $500.
 
-// Assumption of this build, not a Corgi rule (DECISIONS.md, 08:04Z): an endorsement adding more
-// than $500 needs the customer's explicit approval before the money is collected. The threshold
-// is read against the policy, not against one endorsement: see customerApprovalNeeded in
-// lib/approvals/threshold.ts (review finding F-B4-09).
+// Assumption of this build, not a Corgi rule (DECISIONS.md, 08:04Z, base widened by decision 24
+// on 2026-09-09): an endorsement adding more than $500 of premium needs the customer's explicit
+// approval before the money is collected. The threshold is read against the POLICY and over the
+// term, not against one endorsement: see endorsementNeedsCustomerApproval in
+// lib/approvals/threshold.ts (review findings F-B4-09 and F-INT-12).
 export const CUSTOMER_APPROVAL_THRESHOLD_CENTS = 50000;
 
 export type EndorsementInput = {
@@ -53,10 +54,12 @@ export type EndorsementInput = {
   // it (the same cap as a cancellation, review finding F-B1-07).
   taxChargedSoFarCents: number;
   commissionRateBps: number;
-  // Additional premium already asked for on this policy and not yet approved by the customer,
-  // excluding this quote. The customer-approval threshold is cumulative per policy (review
-  // finding F-B4-09), so two raises of $400 in a row cannot each escape the question.
-  otherUnapprovedRequestedCents?: number;
+  // The running total the customer-approval threshold is read against, BEFORE this quote: the
+  // additional premium of the term's other endorsements, applied and open together (decision 24).
+  // Read by additionalPremiumOfTheTerm in lib/policy/endorsement-requests.ts. Zero when omitted,
+  // which is right for a policy with no other endorsement and for a repricing that decides no
+  // threshold (recheckEndorsementFigures below, lib/money/correction.ts).
+  additionalPremiumSoFarCents?: number;
 };
 
 // "charge": the customer pays the delta. "refund": the customer is refunded. "none": nothing
@@ -159,14 +162,14 @@ export function computeEndorsement(input: EndorsementInput): EndorsementFigures 
     deltaTotalCents,
     commissionDeltaCents,
     direction,
-    // Approval is about money the customer has to pay: a refund never needs it.
-    customerApprovalRequired:
-      deltaTotalCents > 0 &&
-      customerApprovalNeeded({
-        amountCents: deltaTotalCents,
-        unapprovedRequestedCents: input.otherUnapprovedRequestedCents ?? 0,
-        thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
-      }),
+    // Approval is about premium the customer has to pay, so the base is deltaPremiumCents and
+    // not deltaTotalCents: the tax rides along and never decides the question (decision 24). A
+    // reduction is refused by the rule itself, which returns false on a delta that is not positive.
+    customerApprovalRequired: endorsementNeedsCustomerApproval({
+      additionalPremiumSoFarCents: input.additionalPremiumSoFarCents ?? 0,
+      additionalPremiumCents: deltaPremiumCents,
+      thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
+    }),
     taxRateBps: input.taxRateBps,
     taxChargedSoFarCents: input.taxChargedSoFarCents,
     commissionRateBps: input.commissionRateBps,

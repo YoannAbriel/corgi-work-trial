@@ -82,18 +82,12 @@ export function refundNeedsApproval(input: RefundApprovalInput): boolean {
   return policyTotalAfterThisRefund > MONEY_OUT_APPROVAL_THRESHOLD_CENTS;
 }
 
-// THE CUSTOMER-APPROVAL THRESHOLD IS PER POLICY TOO (review finding F-B4-09). An endorsement
-// adding more than $500 of premium needs the customer's explicit yes (DECISIONS.md, 08:04Z), and
-// the same splitting trick works on it: two raises of $400 collect $800 from a customer who was
-// never asked. The base is the additional premium of the requests that are still waiting for
-// this customer, plus this one; an endorsement they already approved is money they already said
-// yes to, and does not make the next one need a second yes.
-//
-// The number itself lives in lib/money/endorsement.ts, next to the function that prices an
-// endorsement, so this file takes it as an argument rather than importing it back.
+// The correction path keeps its own base: a re-booked difference is not an endorsement, and it
+// counts the money still waiting for the customer on the policy (lib/money/correction.ts, review
+// finding F-B8-02). The endorsement rule below is the one decision 24 changed.
 export type CustomerApprovalInput = {
-  amountCents: number; // premium plus tax to collect for this endorsement
-  unapprovedRequestedCents: number; // requested, not yet approved, not applied, this one excluded
+  amountCents: number; // the difference to collect
+  unapprovedRequestedCents: number; // asked for on this policy and not answered, this one excluded
   thresholdCents: number;
 };
 
@@ -104,4 +98,58 @@ export function customerApprovalNeeded(input: CustomerApprovalInput): boolean {
     }
   }
   return input.amountCents + input.unapprovedRequestedCents > input.thresholdCents;
+}
+
+// THE CUSTOMER-APPROVAL THRESHOLD ON ENDORSEMENTS IS PER POLICY AND CUMULATIVE (decision 24 of
+// DECISIONS.md, 2026-09-09, the same shape as the claims rule above; it widens the base of review
+// finding F-B4-09 and closes F-INT-12).
+//
+// An endorsement that adds more than $500 of premium needs the customer's explicit yes. The $500
+// is read against THE POLICY, not against one endorsement at a time: the running total is the
+// additional premium of the endorsements of the current term, the applied ones and the open
+// requests together. Yoann's example, decided with the figures:
+//
+//   endorsement 1   +$300.00   running total $300.00   no approval
+//   endorsement 2   +$300.00   running total $600.00   the customer approves
+//   endorsement 3    +$50.00   running total $650.00   the customer approves
+//
+// THE BASE IS THE PREMIUM, BEFORE TAX: the delta premium, never the delta total. The tax follows
+// the premium and is owed to the state, so letting it push a policy over the line would make the
+// question depend on the state the policy is written in rather than on the cover sold.
+//
+// A reduction never counts and never needs approval (rule 8 is unchanged): the customer is being
+// given money back, not asked for any.
+//
+// ONE function decides it, for the preview, for the request being recorded and for the payment
+// gate, so the three cannot disagree (F-INT-12). The running total it reads comes from one place
+// too: additionalPremiumOfTheTerm in lib/policy/endorsement-requests.ts. The threshold itself
+// lives in lib/money/endorsement.ts, next to the function that prices an endorsement, so this
+// file takes it as an argument rather than importing it back.
+export type EndorsementCustomerApprovalInput = {
+  // The running total BEFORE this endorsement: the additional premium of the term's other
+  // endorsements, applied and open together, this one excluded.
+  additionalPremiumSoFarCents: number;
+  // The additional premium of this endorsement, before tax. Zero or negative on a reduction.
+  additionalPremiumCents: number;
+  thresholdCents: number;
+};
+
+export function endorsementNeedsCustomerApproval(input: EndorsementCustomerApprovalInput): boolean {
+  if (!Number.isSafeInteger(input.additionalPremiumSoFarCents) || input.additionalPremiumSoFarCents < 0) {
+    throw new Error(
+      `additionalPremiumSoFarCents must be a whole number of cents, zero or more, got ${input.additionalPremiumSoFarCents}`,
+    );
+  }
+  if (!Number.isSafeInteger(input.additionalPremiumCents)) {
+    throw new Error(`additionalPremiumCents must be a whole number of cents, got ${input.additionalPremiumCents}`);
+  }
+  if (!Number.isSafeInteger(input.thresholdCents) || input.thresholdCents <= 0) {
+    throw new Error(`thresholdCents must be a positive whole number of cents, got ${input.thresholdCents}`);
+  }
+  // A reduction gives money back: it adds nothing to the total and asks the customer for nothing.
+  if (input.additionalPremiumCents <= 0) {
+    return false;
+  }
+  // "Above $500" is strictly above: a running total of exactly $500.00 still needs no approval.
+  return input.additionalPremiumSoFarCents + input.additionalPremiumCents > input.thresholdCents;
 }

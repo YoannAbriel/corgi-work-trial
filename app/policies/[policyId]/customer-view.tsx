@@ -303,9 +303,9 @@ export async function CustomerPolicyView({
               <Disclosure title="What happens to a request">
                 <p>
                   It reaches your broker as work waiting for them. They answer it once, either with an answer or by
-                  making the change. A change that costs money is quoted first, and above{" "}
-                  {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} you accept the quote yourself before anything is
-                  collected.
+                  making the change. A change that costs money is quoted first, and once this term&apos;s changes add
+                  more than {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)} of premium you accept the quote yourself
+                  before anything is collected.
                 </p>
               </Disclosure>
             </Panel>
