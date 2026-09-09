@@ -1,0 +1,614 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=overview] Overview
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=endorsements] Endorsements
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=claims] Claims1
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=money] Money
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=timeline] Timeline
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+Policy CGP-01707
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Policy CGP-01707Bay Area Fabrication LLCcancelled
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/claims/new] Open a claim Policies
+So far, from the journal
+Premium payment
+succeeded
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?inspect=cs_test_b1nE65P16PIZSI4aVaCKSDszhGquPvKHsiOuHEwYXLABRm5czcQwa2Fs1V&view=money] cs_test_b1nE65P16PIZSI4aVaCKSDszhGquPvKHsiOuHEwYXLABRm5czcQwa2Fs1V
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?inspect=7fb17352-df55-4d09-a811-57aa5056a9fb&view=money] 7fb17352-df55-4d09-a811-57aa5056a9fb
+Collected at Stripe
+$2,721.97
+Explain this amount
+Money that arrived on the Stripe cash account for this policy
+Every debit of cash_stripe on this policy that a correction has not reversed: the premium collection and any endorsement or correction difference the customer paid.
+|
+| Amount | How it was computed (integer cents) | Result
+| premium_collected, effective 2026-09-08 | Dr Cash held at Stripe (gross of Stripe fees) 125320 | $1,253.20
+| endorsement_premium_collected, effective 2026-09-09 | Dr Cash held at Stripe (gross of Stripe fees) 112724 | $1,127.24
+| correction_premium_collected, effective 2026-09-09 | Dr Cash held at Stripe (gross of Stripe fees) 5384 | $53.84
+| endorsement_premium_collected, effective 2026-09-09 | Dr Cash held at Stripe (gross of Stripe fees) 28769 | $287.69
+| Collected at Stripe, all debits added | 125320 + 112724 + 5384 + 28769 | $2,721.97
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_collected | 2026-09-08 | 2026-09-08 18:57:00 | Dr Cash held at Stripe (gross of Stripe fees) 125320
+| endorsement_premium_collected | 2026-09-09 | 2026-09-09 06:34:34 | Dr Cash held at Stripe (gross of Stripe fees) 112724
+| correction_premium_collected | 2026-09-09 | 2026-09-09 19:50:43 | Dr Cash held at Stripe (gross of Stripe fees) 5384
+| endorsement_premium_collected | 2026-09-09 | 2026-09-09 20:17:43 | Dr Cash held at Stripe (gross of Stripe fees) 28769
+[a #journal-entry-policy-e55a6b1c-c204-431a-9269-448fd6871a99] Trace to the ledger
+Refunded from Stripe
+$2,301.62
+Explain this amount
+Money that left the Stripe cash account for this policy
+Every credit of cash_stripe on this policy that is not the mirror of a reversed entry. A refund appears here only once Stripe's webhook confirms the money left.
+|
+| Amount | How it was computed (integer cents) | Result
+| refund_completed, effective 2026-09-09 | Cr Cash held at Stripe (gross of Stripe fees) 28769 | $287.69
+| refund_completed, effective 2026-09-09 | Cr Cash held at Stripe (gross of Stripe fees) 83285 | $832.85
+| refund_completed, effective 2026-09-09 | Cr Cash held at Stripe (gross of Stripe fees) 112724 | $1,127.24
+| refund_completed, effective 2026-09-09 | Cr Cash held at Stripe (gross of Stripe fees) 5384 | $53.84
+| Refunded from Stripe, all credits added | 28769 + 83285 + 112724 + 5384 | $2,301.62
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| refund_completed | 2026-09-09 | 2026-09-09 20:36:27 | Cr Cash held at Stripe (gross of Stripe fees) 28769
+| refund_completed | 2026-09-09 | 2026-09-09 20:36:28 | Cr Cash held at Stripe (gross of Stripe fees) 83285
+| refund_completed | 2026-09-09 | 2026-09-09 20:36:28 | Cr Cash held at Stripe (gross of Stripe fees) 112724
+| refund_completed | 2026-09-09 | 2026-09-09 20:36:28 | Cr Cash held at Stripe (gross of Stripe fees) 5384
+[a #journal-entry-policy-9ba86776-d534-4ebc-a294-339c5105d811] Trace to the ledger
+Commission owed, net
+$57.94
+Explain this amount
+Balance of this broker's commission payable on this policy
+Commission earned when premium was collected, less every clawback on premium given back. Entries a correction reversed, and their mirrors, are left out.
+|
+| Amount | How it was computed (integer cents) | Result
+| commission_earned, effective 2026-09-08 | Cr Commission owed to brokers, reduced by clawbacks 18000 | $180.00
+| endorsement_commission_earned, effective 2026-09-09 | Cr Commission owed to brokers, reduced by clawbacks 16520 | $165.20
+| correction_commission_earned, effective 2026-09-09 | Cr Commission owed to brokers, reduced by clawbacks 789 | $7.89
+| endorsement_commission_earned, effective 2026-09-09 | Cr Commission owed to brokers, reduced by clawbacks 4216 | $42.16
+| commission_clawback, effective 2026-09-09 | Dr Commission owed to brokers, reduced by clawbacks 4216 | -$42.16
+| commission_clawback, effective 2026-09-09 | Dr Commission owed to brokers, reduced by clawbacks 12206 | -$122.06
+| commission_clawback, effective 2026-09-09 | Dr Commission owed to brokers, reduced by clawbacks 16520 | -$165.20
+| commission_clawback, effective 2026-09-09 | Dr Commission owed to brokers, reduced by clawbacks 789 | -$7.89
+| Commission payable, credits minus debits | 18000 + 16520 + 789 + 4216 - 4216 - 12206 - 16520 - 789 | $57.94
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| commission_earned | 2026-09-08 | 2026-09-08 18:57:00 | Cr Commission owed to brokers, reduced by clawbacks 18000
+| endorsement_commission_earned | 2026-09-09 | 2026-09-09 06:34:34 | Cr Commission owed to brokers, reduced by clawbacks 16520
+| correction_commission_earned | 2026-09-09 | 2026-09-09 19:50:43 | Cr Commission owed to brokers, reduced by clawbacks 789
+| endorsement_commission_earned | 2026-09-09 | 2026-09-09 20:17:43 | Cr Commission owed to brokers, reduced by clawbacks 4216
+| commission_clawback | 2026-09-09 | 2026-09-09 20:36:27 | Dr Commission owed to brokers, reduced by clawbacks 4216
+| commission_clawback | 2026-09-09 | 2026-09-09 20:36:28 | Dr Commission owed to brokers, reduced by clawbacks 12206
+| commission_clawback | 2026-09-09 | 2026-09-09 20:36:28 | Dr Commission owed to brokers, reduced by clawbacks 16520
+| commission_clawback | 2026-09-09 | 2026-09-09 20:36:28 | Dr Commission owed to brokers, reduced by clawbacks 789
+[a #journal-entry-policy-5ceacd31-ed44-424e-9fe6-1854c79cf600] Trace to the ledger
+Unearned premium held
+$0.00
+Explain this amount
+Balance of unearned premium on this policy
+Premium written and not yet earned: what would be owed back if the policy stopped today. Entries a correction reversed, and their mirrors, are left out.
+|
+| Amount | How it was computed (integer cents) | Result
+| premium_written, effective 2026-09-08 | Cr Written premium not yet earned (owed back on cancel) 120000 | $1,200.00
+| endorsement_premium_written, effective 2026-09-22 | Cr Written premium not yet earned (owed back on cancel) 115397 | $1,153.97
+| endorsement_premium_written, effective 2026-10-01 | Cr Written premium not yet earned (owed back on cancel) 28109 | $281.09
+| premium_earned_to_date, effective 2026-11-08 | Dr Written premium not yet earned (owed back on cancel) 38629 | -$386.29
+| refund_requested, effective 2026-11-08 | Dr Written premium not yet earned (owed back on cancel) 81374 | -$813.74
+| refund_requested, effective 2026-11-08 | Dr Written premium not yet earned (owed back on cancel) 5260 | -$52.60
+| refund_requested, effective 2026-11-08 | Dr Written premium not yet earned (owed back on cancel) 28108 | -$281.08
+| refund_requested, effective 2026-11-08 | Dr Written premium not yet earned (owed back on cancel) 110135 | -$1,101.35
+| Unearned premium, credits minus debits | 120000 + 115397 + 28109 - 38629 - 81374 - 5260 - 28108 - 110135 | $0.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_written | 2026-09-08 | 2026-09-08 18:57:00 | Cr Written premium not yet earned (owed back on cancel) 120000
+| endorsement_premium_written | 2026-09-22 | 2026-09-09 19:33:07 | Cr Written premium not yet earned (owed back on cancel) 115397
+| endorsement_premium_written | 2026-10-01 | 2026-09-09 20:17:43 | Cr Written premium not yet earned (owed back on cancel) 28109
+| premium_earned_to_date | 2026-11-08 | 2026-09-09 20:32:36 | Dr Written premium not yet earned (owed back on cancel) 38629
+| refund_requested | 2026-11-08 | 2026-09-09 20:32:36 | Dr Written premium not yet earned (owed back on cancel) 81374
+| refund_requested | 2026-11-08 | 2026-09-09 20:32:36 | Dr Written premium not yet earned (owed back on cancel) 5260
+| refund_requested | 2026-11-08 | 2026-09-09 20:32:36 | Dr Written premium not yet earned (owed back on cancel) 28108
+| refund_requested | 2026-11-08 | 2026-09-09 20:32:36 | Dr Written premium not yet earned (owed back on cancel) 110135
+[a #journal-entry-policy-ed669983-b090-402a-9788-33a80905f72e] Trace to the ledger
+Open claims
+1, reserve $2,000.00
+2 entries a correction reversed are left out of these sums, with their mirrors: a reversal puts our own books right, it is not money coming back from Stripe. Both sides are in the journal below, where each reversal names the entry it mirrors.
+Cancellation
+Effective 2026-11-08, method pro_rata, recorded 2026-09-09 20:32:36.
+Written premium
+$2,635.06
+Explain this amount
+Written premium on this policy
+Cancellation effective 2026-11-08, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.
+|
+| Amount | How it was computed (integer cents) | Result
+| Written premium: every piece of premium written on this policy, added up | 263506 | $2,635.06
+| Earned premium kept by the insurer, rounded down on each segment (the term had run 61 of its 365 days) | sum over each written segment of floor(its written premium x its own elapsed days / its own window) | $386.29
+| Unearned premium, refunded: written minus earned | 263506 - 38629 | $2,248.77
+| Premium tax on the refunded premium at 2.35% (rounded up) | ceil(224877 x 235 / 10000) | $52.85
+| Policy fee given back: none, it was fully earned at issuance | 0 | $0.00
+| Total refunded to the customer through Stripe | 224877 + 5285 + 0 | $2,301.62
+| Broker commission clawed back on the refunded premium at 15.00% | floor(224877 x 1500 / 10000) | $337.31
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Earned, 61 of 365 days
+$386.29
+Explain this amount
+Premium earned up to the cancellation date
+Cancellation effective 2026-11-08, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one. Each piece of premium written on this policy earns over its own window: the issuance premium over the whole term, an endorsement over the days that remained from ITS effective date. The cancellation event stores the totals and not the segment list, so the rule is printed here instead of one ratio; the segments themselves are in the endorsement schedule above and in the journal's premium_written entries.
+|
+| Amount | How it was computed (integer cents) | Result
+| Written premium: every piece of premium written on this policy, added up | 263506 | $2,635.06
+| Earned premium kept by the insurer, rounded down on each segment (the term had run 61 of its 365 days) | sum over each written segment of floor(its written premium x its own elapsed days / its own window) | $386.29
+| Unearned premium, refunded: written minus earned | 263506 - 38629 | $2,248.77
+| Premium tax on the refunded premium at 2.35% (rounded up) | ceil(224877 x 235 / 10000) | $52.85
+| Policy fee given back: none, it was fully earned at issuance | 0 | $0.00
+| Total refunded to the customer through Stripe | 224877 + 5285 + 0 | $2,301.62
+| Broker commission clawed back on the refunded premium at 15.00% | floor(224877 x 1500 / 10000) | $337.31
+Rounding Rounded down (floor): the customer pays this amount, so the fraction of a cent is dropped and the insurer absorbs it.
+The entries that moved premium from unearned to earned. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_earned_to_date | 2026-11-08 | 2026-09-09 20:32:36 | Cr Premium earned to date 38629
+[a #journal-entry-policy-35cc27be-1837-4610-8502-b7f4aea83dae] Trace to the ledger
+Unearned, refunded
+$2,248.77
+Explain this amount
+Unearned premium given back to the customer
+Cancellation effective 2026-11-08, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one. Each piece of premium written on this policy earns over its own window: the issuance premium over the whole term, an endorsement over the days that remained from ITS effective date. The cancellation event stores the totals and not the segment list, so the rule is printed here instead of one ratio; the segments themselves are in the endorsement schedule above and in the journal's premium_written entries.
+|
+| Amount | How it was computed (integer cents) | Result
+| Written premium: every piece of premium written on this policy, added up | 263506 | $2,635.06
+| Earned premium kept by the insurer, rounded down on each segment (the term had run 61 of its 365 days) | sum over each written segment of floor(its written premium x its own elapsed days / its own window) | $386.29
+| Unearned premium, refunded: written minus earned | 263506 - 38629 | $2,248.77
+| Premium tax on the refunded premium at 2.35% (rounded up) | ceil(224877 x 235 / 10000) | $52.85
+| Policy fee given back: none, it was fully earned at issuance | 0 | $0.00
+| Total refunded to the customer through Stripe | 224877 + 5285 + 0 | $2,301.62
+| Broker commission clawed back on the refunded premium at 15.00% | floor(224877 x 1500 / 10000) | $337.31
+Rounding Rounded up (ceil): the customer receives this amount, so the fraction of a cent goes their way.
+CA tax back (2.35%)
+$52.85
+Explain this amount
+CA premium tax given back with the refunded premium
+Cancellation effective 2026-11-08, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.
+|
+| Amount | How it was computed (integer cents) | Result
+| Written premium: every piece of premium written on this policy, added up | 263506 | $2,635.06
+| Earned premium kept by the insurer, rounded down on each segment (the term had run 61 of its 365 days) | sum over each written segment of floor(its written premium x its own elapsed days / its own window) | $386.29
+| Unearned premium, refunded: written minus earned | 263506 - 38629 | $2,248.77
+| Premium tax on the refunded premium at 2.35% (rounded up) | ceil(224877 x 235 / 10000) | $52.85
+| Policy fee given back: none, it was fully earned at issuance | 0 | $0.00
+| Total refunded to the customer through Stripe | 224877 + 5285 + 0 | $2,301.62
+| Broker commission clawed back on the refunded premium at 15.00% | floor(224877 x 1500 / 10000) | $337.31
+Rounding Rounded up (ceil): the customer receives this amount, so the fraction of a cent goes their way.
+Policy fee back
+$0.00
+Explain this amount
+Policy fee given back
+Cancellation effective 2026-11-08, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.
+|
+| Amount | How it was computed (integer cents) | Result
+| Written premium: every piece of premium written on this policy, added up | 263506 | $2,635.06
+| Earned premium kept by the insurer, rounded down on each segment (the term had run 61 of its 365 days) | sum over each written segment of floor(its written premium x its own elapsed days / its own window) | $386.29
+| Unearned premium, refunded: written minus earned | 263506 - 38629 | $2,248.77
+| Premium tax on the refunded premium at 2.35% (rounded up) | ceil(224877 x 235 / 10000) | $52.85
+| Policy fee given back: none, it was fully earned at issuance | 0 | $0.00
+| Total refunded to the customer through Stripe | 224877 + 5285 + 0 | $2,301.62
+| Broker commission clawed back on the refunded premium at 15.00% | floor(224877 x 1500 / 10000) | $337.31
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Total refunded
+$2,301.62
+Explain this amount
+Total refunded to the customer through Stripe
+Cancellation effective 2026-11-08, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.
+|
+| Amount | How it was computed (integer cents) | Result
+| Written premium: every piece of premium written on this policy, added up | 263506 | $2,635.06
+| Earned premium kept by the insurer, rounded down on each segment (the term had run 61 of its 365 days) | sum over each written segment of floor(its written premium x its own elapsed days / its own window) | $386.29
+| Unearned premium, refunded: written minus earned | 263506 - 38629 | $2,248.77
+| Premium tax on the refunded premium at 2.35% (rounded up) | ceil(224877 x 235 / 10000) | $52.85
+| Policy fee given back: none, it was fully earned at issuance | 0 | $0.00
+| Total refunded to the customer through Stripe | 224877 + 5285 + 0 | $2,301.62
+| Broker commission clawed back on the refunded premium at 15.00% | floor(224877 x 1500 / 10000) | $337.31
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+The entries that opened the refund and, once Stripe confirmed it, sent the cash back. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| refund_requested | 2026-11-08 | 2026-09-09 20:32:36 | Cr Refunds requested at Stripe and not yet completed 83285
+| refund_requested | 2026-11-08 | 2026-09-09 20:32:36 | Cr Refunds requested at Stripe and not yet completed 5384
+| refund_requested | 2026-11-08 | 2026-09-09 20:32:36 | Cr Refunds requested at Stripe and not yet completed 28769
+| refund_requested | 2026-11-08 | 2026-09-09 20:32:36 | Cr Refunds requested at Stripe and not yet completed 112724
+| refund_completed | 2026-09-09 | 2026-09-09 20:36:27 | Dr Refunds requested at Stripe and not yet completed 28769
+| refund_completed | 2026-09-09 | 2026-09-09 20:36:28 | Dr Refunds requested at Stripe and not yet completed 83285
+| refund_completed | 2026-09-09 | 2026-09-09 20:36:28 | Dr Refunds requested at Stripe and not yet completed 112724
+| refund_completed | 2026-09-09 | 2026-09-09 20:36:28 | Dr Refunds requested at Stripe and not yet completed 5384
+[a #journal-entry-policy-5bf37e27-f1df-4303-bc86-af118ca0de6d] Trace to the ledger
+Commission clawback (15.00%)
+$337.31
+Explain this amount
+Broker commission clawed back on the refunded premium
+Cancellation effective 2026-11-08, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.
+|
+| Amount | How it was computed (integer cents) | Result
+| Written premium: every piece of premium written on this policy, added up | 263506 | $2,635.06
+| Earned premium kept by the insurer, rounded down on each segment (the term had run 61 of its 365 days) | sum over each written segment of floor(its written premium x its own elapsed days / its own window) | $386.29
+| Unearned premium, refunded: written minus earned | 263506 - 38629 | $2,248.77
+| Premium tax on the refunded premium at 2.35% (rounded up) | ceil(224877 x 235 / 10000) | $52.85
+| Policy fee given back: none, it was fully earned at issuance | 0 | $0.00
+| Total refunded to the customer through Stripe | 224877 + 5285 + 0 | $2,301.62
+| Broker commission clawed back on the refunded premium at 15.00% | floor(224877 x 1500 / 10000) | $337.31
+Rounding Rounded down (floor): broker commission drops the fraction of a cent, on what is earned and on what is clawed back.
+Every entry that moved this broker's commission payable on this policy: the commission earned at collection, then the clawback. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| commission_earned | 2026-09-08 | 2026-09-08 18:57:00 | Cr Commission owed to brokers, reduced by clawbacks 18000
+| endorsement_commission_earned | 2026-09-09 | 2026-09-09 06:34:34 | Cr Commission owed to brokers, reduced by clawbacks 16520
+| correction_commission_earned | 2026-09-09 | 2026-09-09 19:50:43 | Cr Commission owed to brokers, reduced by clawbacks 789
+| endorsement_commission_earned | 2026-09-09 | 2026-09-09 20:17:43 | Cr Commission owed to brokers, reduced by clawbacks 4216
+| commission_clawback | 2026-09-09 | 2026-09-09 20:36:27 | Dr Commission owed to brokers, reduced by clawbacks 4216
+| commission_clawback | 2026-09-09 | 2026-09-09 20:36:28 | Dr Commission owed to brokers, reduced by clawbacks 12206
+| commission_clawback | 2026-09-09 | 2026-09-09 20:36:28 | Dr Commission owed to brokers, reduced by clawbacks 16520
+| commission_clawback | 2026-09-09 | 2026-09-09 20:36:28 | Dr Commission owed to brokers, reduced by clawbacks 789
+[a #journal-entry-policy-5ceacd31-ed44-424e-9fe6-1854c79cf600] Trace to the ledger
+The cancellation did not touch the open claim: it keeps its reserve of $2,000.00, anything already paid on it stays paid, and the refund covers unearned premium only. The clawback follows the refunded premium alone, for the same reason.
+|
+| | State | Amount | Stripe | Action
+|
+| completed2026-09-09 | $287.69 |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?inspect=re_3UDrw9K6R3v50tIy1ffy43I1&view=money] re_3UDrw9K6R3v50tIy1ffy43I1 |
+|
+Premium
+$281.08
+Tax
+$6.61
+Commission clawback
+$42.16
+Sandbox references
+Stripe Refund
+re_3UDrw9K6R3v50tIy1ffy43I1
+On Stripe PaymentIntent
+pi_3UDrw9K6R3v50tIy1XjCYQsU
+Money operation id
+00f90ceb-68c0-4d95-9009-0d8dad84ec54
+Approval request id
+03467eb3-d122-40df-b6b5-79e82d7af234
+|
+| completed2026-09-09 | $832.85 |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?inspect=re_3UDUCUK6R3v50tIy0gKOTYl7&view=money] re_3UDUCUK6R3v50tIy0gKOTYl7 |
+|
+Premium
+$813.74
+Tax
+$19.11
+Commission clawback
+$122.06
+Sandbox references
+Stripe Refund
+re_3UDUCUK6R3v50tIy0gKOTYl7
+On Stripe PaymentIntent
+pi_3UDUCUK6R3v50tIy06eM9VlU
+Money operation id
+00c3607d-6184-4244-91c3-b0aa85db7bc1
+Approval request id
+17c3f400-2f7a-4347-b7b1-63406daee467
+|
+| completed2026-09-09 | $1,127.24 |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?inspect=re_3UDf5YK6R3v50tIy1TVf1Llk&view=money] re_3UDf5YK6R3v50tIy1TVf1Llk |
+|
+Premium
+$1,101.35
+Tax
+$25.89
+Commission clawback
+$165.20
+Sandbox references
+Stripe Refund
+re_3UDf5YK6R3v50tIy1TVf1Llk
+On Stripe PaymentIntent
+pi_3UDf5YK6R3v50tIy1GkJdCCi
+Money operation id
+4d2b730e-e319-425d-8efe-d479617ac4e3
+Approval request id
+f6a6df72-c289-4a5c-906e-e218b7dc6005
+|
+| completed2026-09-09 | $53.84 |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?inspect=re_3UDrW1K6R3v50tIy1qNn3zvG&view=money] re_3UDrW1K6R3v50tIy1qNn3zvG |
+|
+Premium
+$52.60
+Tax
+$1.24
+Commission clawback
+$7.89
+Sandbox references
+Stripe Refund
+re_3UDrW1K6R3v50tIy1qNn3zvG
+On Stripe PaymentIntent
+pi_3UDrW1K6R3v50tIy1GPWqtve
+Money operation id
+194f001d-12da-4070-b3b7-945a005084e1
+Approval request id
+3566dd35-cc1b-4ac6-84f9-053b326899c1
+requested recorded and owed, nothing sent to Stripe yetawaiting approval above the threshold, a second person decides before anything is sentcompleted Stripe's webhook confirmed the money left
+Correction: 2026-10-08 to 2026-09-22to collect
+What
+Annual premium $1,200.00 to $2,400.00; per-occurrence limit $1,000,000.00 to $2,000,000.00; aggregate limit $2,000,000.00 to $4,000,000.00
+Recorded
+2026-09-09 19:33:07
+By
+Sam Patel, operations
+Reason
+The endorsement was agreed on 2026-09-22
+The effective dates are business dates in the past; the recording time is when we learned we were wrong. Every figure below is the one stored on those events and posted to the journal.
+|
+| Amount | How it was computed (integer cents) | Result
+| Prorated premium as booked, 335 of 365 days remained from 2026-10-08 | floor(120000 x 335 / 365) | $1,101.36
+| Prorated premium at the corrected date, 351 of 365 days remain from 2026-09-22 | floor(120000 x 351 / 365) | $1,153.97
+| Premium difference the correction creates | 115397 - 110136 | $52.61
+| State premium tax difference (the tax follows the premium, rounded down on each figure) | floor(115397 x 235 / 10000) - floor(110136 x 235 / 10000) | $1.23
+| Total to collect from the customer through Stripe | 5261 + 123 | $53.84
+| Broker commission earned on the extra premium (rounded down) | floor(5261 x 1500 / 10000) | $7.89
+reversal_of_endorsement_tax_billedeffective 2026-10-08 · recorded 2026-09-09 19:33:07 UTCreverses 63646ae0
+Policy CGP-01707: The endorsement was agreed on 2026-09-22 (effective date 2026-10-08 corrected to 2026-09-22)
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | | $25.88
+| State premium tax collected, owed to the state | $25.88 |
+reversal_of_endorsement_premium_writteneffective 2026-10-08 · recorded 2026-09-09 19:33:07 UTCreverses f1fc2553
+Policy CGP-01707: The endorsement was agreed on 2026-09-22 (effective date 2026-10-08 corrected to 2026-09-22)
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | | $1,101.36
+| Written premium not yet earned (owed back on cancel) | $1,101.36 |
+endorsement_premium_writteneffective 2026-09-22 · recorded 2026-09-09 19:33:07 UTC
+Policy CGP-01707 additional premium re-booked at the corrected effective date 2026-09-22
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $1,153.97 |
+| Written premium not yet earned (owed back on cancel) | | $1,153.97
+endorsement_tax_billedeffective 2026-09-22 · recorded 2026-09-09 19:33:07 UTC
+Policy CGP-01707 state premium tax re-booked at the corrected effective date 2026-09-22
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $27.11 |
+| State premium tax collected, owed to the state | | $27.11
+The cash entries of the original endorsement are not in this table on purpose: Stripe really does hold that money, so reversing them would make the ledger claim it left. What the correction changes is what the customer was billed, and the difference sits in premium receivable until it is settled.
+The difference of $53.84 was collected on 2026-09-09
+Journal entries
+commission_clawbackeffective 2026-09-09 · recorded 2026-09-09 20:36:28 UTC
+Broker commission clawed back on the refunded premium of policy CGP-01707
+|
+| Account | Debit | Credit
+| Commission owed to brokers, reduced by clawbacks | $7.89 |
+| Broker commission on collected premium | | $7.89
+refund_completedeffective 2026-09-09 · recorded 2026-09-09 20:36:28 UTC
+Policy CGP-01707 refund paid back to the customer at Stripe
+|
+| Account | Debit | Credit
+| Refunds requested at Stripe and not yet completed | $53.84 |
+| Cash held at Stripe (gross of Stripe fees) | | $53.84
+refund_completedeffective 2026-09-09 · recorded 2026-09-09 20:36:28 UTC
+Policy CGP-01707 refund paid back to the customer at Stripe
+|
+| Account | Debit | Credit
+| Refunds requested at Stripe and not yet completed | $1,127.24 |
+| Cash held at Stripe (gross of Stripe fees) | | $1,127.24
+commission_clawbackeffective 2026-09-09 · recorded 2026-09-09 20:36:28 UTC
+Broker commission clawed back on the refunded premium of policy CGP-01707
+|
+| Account | Debit | Credit
+| Commission owed to brokers, reduced by clawbacks | $165.20 |
+| Broker commission on collected premium | | $165.20
+Show all 32 entries (28 older)
+commission_clawbackeffective 2026-09-09 · recorded 2026-09-09 20:36:28 UTC
+Broker commission clawed back on the refunded premium of policy CGP-01707
+|
+| Account | Debit | Credit
+| Commission owed to brokers, reduced by clawbacks | $122.06 |
+| Broker commission on collected premium | | $122.06
+refund_completedeffective 2026-09-09 · recorded 2026-09-09 20:36:28 UTC
+Policy CGP-01707 refund paid back to the customer at Stripe
+|
+| Account | Debit | Credit
+| Refunds requested at Stripe and not yet completed | $832.85 |
+| Cash held at Stripe (gross of Stripe fees) | | $832.85
+commission_clawbackeffective 2026-09-09 · recorded 2026-09-09 20:36:27 UTC
+Broker commission clawed back on the refunded premium of policy CGP-01707
+|
+| Account | Debit | Credit
+| Commission owed to brokers, reduced by clawbacks | $42.16 |
+| Broker commission on collected premium | | $42.16
+refund_completedeffective 2026-09-09 · recorded 2026-09-09 20:36:27 UTC
+Policy CGP-01707 refund paid back to the customer at Stripe
+|
+| Account | Debit | Credit
+| Refunds requested at Stripe and not yet completed | $287.69 |
+| Cash held at Stripe (gross of Stripe fees) | | $287.69
+premium_earned_to_dateeffective 2026-11-08 · recorded 2026-09-09 20:32:36 UTC
+Policy CGP-01707 premium earned up to its cancellation on 2026-11-08
+|
+| Account | Debit | Credit
+| Written premium not yet earned (owed back on cancel) | $386.29 |
+| Premium earned to date | | $386.29
+refund_requestedeffective 2026-11-08 · recorded 2026-09-09 20:32:36 UTC
+Policy CGP-01707 refund owed to the customer after cancellation
+|
+| Account | Debit | Credit
+| Written premium not yet earned (owed back on cancel) | $813.74 |
+| State premium tax collected, owed to the state | $19.11 |
+| Refunds requested at Stripe and not yet completed | | $832.85
+refund_requestedeffective 2026-11-08 · recorded 2026-09-09 20:32:36 UTC
+Policy CGP-01707 refund owed to the customer after cancellation
+|
+| Account | Debit | Credit
+| Written premium not yet earned (owed back on cancel) | $52.60 |
+| State premium tax collected, owed to the state | $1.24 |
+| Refunds requested at Stripe and not yet completed | | $53.84
+refund_requestedeffective 2026-11-08 · recorded 2026-09-09 20:32:36 UTC
+Policy CGP-01707 refund owed to the customer after cancellation
+|
+| Account | Debit | Credit
+| Written premium not yet earned (owed back on cancel) | $281.08 |
+| State premium tax collected, owed to the state | $6.61 |
+| Refunds requested at Stripe and not yet completed | | $287.69
+refund_requestedeffective 2026-11-08 · recorded 2026-09-09 20:32:36 UTC
+Policy CGP-01707 refund owed to the customer after cancellation
+|
+| Account | Debit | Credit
+| Written premium not yet earned (owed back on cancel) | $1,101.35 |
+| State premium tax collected, owed to the state | $25.89 |
+| Refunds requested at Stripe and not yet completed | | $1,127.24
+endorsement_premium_writteneffective 2026-10-01 · recorded 2026-09-09 20:17:43 UTC
+Policy CGP-01707 additional premium written by the endorsement effective 2026-10-01
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $281.09 |
+| Written premium not yet earned (owed back on cancel) | | $281.09
+endorsement_commission_earnedeffective 2026-09-09 · recorded 2026-09-09 20:17:43 UTC
+Broker commission on the endorsement premium collected for policy CGP-01707
+|
+| Account | Debit | Credit
+| Broker commission on collected premium | $42.16 |
+| Commission owed to brokers, reduced by clawbacks | | $42.16
+endorsement_premium_collectedeffective 2026-09-09 · recorded 2026-09-09 20:17:43 UTC
+Policy CGP-01707 endorsement premium and tax collected at Stripe
+|
+| Account | Debit | Credit
+| Cash held at Stripe (gross of Stripe fees) | $287.69 |
+| Premium, tax and fee billed and not yet collected | | $287.69
+endorsement_tax_billedeffective 2026-10-01 · recorded 2026-09-09 20:17:43 UTC
+Policy CGP-01707 state premium tax on the endorsement premium
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $6.60 |
+| State premium tax collected, owed to the state | | $6.60
+correction_premium_collectedeffective 2026-09-09 · recorded 2026-09-09 19:50:43 UTC
+Policy CGP-01707: the difference created by the corrected endorsement date, collected at Stripe
+|
+| Account | Debit | Credit
+| Cash held at Stripe (gross of Stripe fees) | $53.84 |
+| Premium, tax and fee billed and not yet collected | | $53.84
+correction_commission_earnedeffective 2026-09-09 · recorded 2026-09-09 19:50:43 UTC
+Broker commission on the extra premium collected after the correction on policy CGP-01707
+|
+| Account | Debit | Credit
+| Broker commission on collected premium | $7.89 |
+| Commission owed to brokers, reduced by clawbacks | | $7.89
+reversal_of_endorsement_tax_billedeffective 2026-10-08 · recorded 2026-09-09 19:33:07 UTCreverses 63646ae0
+Policy CGP-01707: The endorsement was agreed on 2026-09-22 (effective date 2026-10-08 corrected to 2026-09-22)
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | | $25.88
+| State premium tax collected, owed to the state | $25.88 |
+reversal_of_endorsement_premium_writteneffective 2026-10-08 · recorded 2026-09-09 19:33:07 UTCreverses f1fc2553
+Policy CGP-01707: The endorsement was agreed on 2026-09-22 (effective date 2026-10-08 corrected to 2026-09-22)
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | | $1,101.36
+| Written premium not yet earned (owed back on cancel) | $1,101.36 |
+endorsement_premium_writteneffective 2026-09-22 · recorded 2026-09-09 19:33:07 UTC
+Policy CGP-01707 additional premium re-booked at the corrected effective date 2026-09-22
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $1,153.97 |
+| Written premium not yet earned (owed back on cancel) | | $1,153.97
+endorsement_tax_billedeffective 2026-09-22 · recorded 2026-09-09 19:33:07 UTC
+Policy CGP-01707 state premium tax re-booked at the corrected effective date 2026-09-22
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $27.11 |
+| State premium tax collected, owed to the state | | $27.11
+claim_reserve_seteffective 2026-09-09 · recorded 2026-09-09 16:18:31 UTC
+Claim CLM-00213: reserve set
+|
+| Account | Debit | Credit
+| Claims expense recognised when a reserve is set | $2,000.00 |
+| Open case reserves (estimates) | | $2,000.00
+endorsement_commission_earnedeffective 2026-09-09 · recorded 2026-09-09 06:34:34 UTC
+Broker commission on the endorsement premium collected for policy CGP-01707
+|
+| Account | Debit | Credit
+| Broker commission on collected premium | $165.20 |
+| Commission owed to brokers, reduced by clawbacks | | $165.20
+endorsement_tax_billedeffective 2026-10-08 · recorded 2026-09-09 06:34:34 UTC
+Policy CGP-01707 state premium tax on the endorsement premium
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $25.88 |
+| State premium tax collected, owed to the state | | $25.88
+endorsement_premium_writteneffective 2026-10-08 · recorded 2026-09-09 06:34:34 UTC
+Policy CGP-01707 additional premium written by the endorsement effective 2026-10-08
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $1,101.36 |
+| Written premium not yet earned (owed back on cancel) | | $1,101.36
+endorsement_premium_collectedeffective 2026-09-09 · recorded 2026-09-09 06:34:34 UTC
+Policy CGP-01707 endorsement premium and tax collected at Stripe
+|
+| Account | Debit | Credit
+| Cash held at Stripe (gross of Stripe fees) | $1,127.24 |
+| Premium, tax and fee billed and not yet collected | | $1,127.24
+commission_earnedeffective 2026-09-08 · recorded 2026-09-08 18:57:00 UTC
+Broker commission on the collected premium of policy CGP-01707
+|
+| Account | Debit | Credit
+| Broker commission on collected premium | $180.00 |
+| Commission owed to brokers, reduced by clawbacks | | $180.00
+tax_and_fee_billedeffective 2026-09-08 · recorded 2026-09-08 18:57:00 UTC
+Policy CGP-01707 state premium tax and policy fee
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $53.20 |
+| State premium tax collected, owed to the state | | $28.20
+| Flat policy fee, fully earned at issuance | | $25.00
+premium_collectedeffective 2026-09-08 · recorded 2026-09-08 18:57:00 UTC
+Policy CGP-01707 premium, tax and fee collected at Stripe
+|
+| Account | Debit | Credit
+| Cash held at Stripe (gross of Stripe fees) | $1,253.20 |
+| Premium, tax and fee billed and not yet collected | | $1,253.20
+premium_writteneffective 2026-09-08 · recorded 2026-09-08 18:57:00 UTC
+Policy CGP-01707 written premium
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $1,200.00 |
+| Written premium not yet earned (owed back on cancel) | | $1,200.00
+Credit: where the money comes from. Debit: where it goes. Every entry takes as much as it brings.
+About this screen
+Reading an entry
+Credit: where the money comes from. Debit: where it goes. Every entry takes as much as it brings. The sentence under each entry's header is the one the posting stored when it was written.
+Where a figure comes from
+Each sum above is the addition of the journal lines of this policy; open one to see the lines it added and follow it to the entry that proves it. Nothing here is recomputed from the terms.
+A correction never changes a row
+It appends a reversal entry mirroring the original on the same effective date, and a re-booked event on the corrected date. Both stay in the journal for ever.
+Refunds
+A refund counts as completed only when Stripe's webhook confirms the money left. A failed refund reverses nothing: the customer is still owed the money.Corgi · Policy administration

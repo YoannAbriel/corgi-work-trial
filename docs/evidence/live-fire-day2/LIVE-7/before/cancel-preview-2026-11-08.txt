@@ -1,0 +1,77 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /broker] CorgiPolicy administration
+Broker workspace
+[a /inbox] Inbox
+[a /broker] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] Overview
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=endorsements] Endorsements
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=claims] Claims
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=money] Money
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=timeline] Timeline
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/cancel] Cancel
+[a /broker/statements] Statements
+[a /broker/kyb] Business verification
+Dana Ruiz, brokerBroker
+Sign out
+[a /broker] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] Policy CGP-01707
+Cancellation preview
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Cancellation previewPolicy CGP-01707nothing recorded yet Policies
+Refunded$2,301.62unearned premium and its tax
+Earned, kept$386.2961 of 365 days covered
+Commission clawback$337.3115.00% of the refunded premium
+What the customer gets back
+Written premium, the $1,200.00 of the issuance plus every endorsement delta
+$2,635.06
+Earned, 61 of 365 days covered
+$386.29
+Unearned premium, refunded
+$2,248.77
+CA premium tax on it (2.35%)
+$52.85
+Policy fee, earned at issuance
+$0.00
+Total refunded
+$2,301.62
+This policy has an open claim
+Reserve still held, untouched
+$2,000.00
+Already paid on it, untouched
+$0.00
+Policy CGP-01707 has 1 open claim (CLM-00213). Cancelling does not touch it: the open claim keeps its reserve, anything already paid on it stays paid, and the refund covers unearned premium only, because the loss happened while the policy was in force. The commission clawback follows the refunded premium alone, for the same reason.
+|
+| Stripe payment refunded | Premium | Tax | Refund
+| the payment that collected it
+Sandbox references
+Stripe PaymentIntent
+pi_3UDf5YK6R3v50tIy1GkJdCCi | $1,101.35 | $25.89 | $1,127.24
+| the payment that collected it
+Sandbox references
+Stripe PaymentIntent
+pi_3UDrW1K6R3v50tIy1GPWqtve | $52.60 | $1.24 | $53.84
+| the payment that collected it
+Sandbox references
+Stripe PaymentIntent
+pi_3UDrw9K6R3v50tIy1XjCYQsU | $281.08 | $6.61 | $287.69
+| the payment that collected it
+Sandbox references
+Stripe PaymentIntent
+pi_3UDUCUK6R3v50tIy06eM9VlU | $813.74 | $19.11 | $832.85
+Confirm
+Confirming records the cancellation, its journal entries and the refund request. The refund waits for approval before it is sent.
+This refund is above $1,000.00, so it requires approval. Confirming cancels the policy and records what the customer is owed, but nothing is sent to Stripe until a staff approver who is not you approves it in the money-out queue. The threshold is an assumption of this build, not a regulatory figure.
+[input effectiveAt=2026-11-08]
+[input calculationMethod=pro_rata]
+[input policyVersion=11:7aaf6484-3f2d-4e75-8d94-da4dacd3d94f]
+Cancel the policy
+About this screen
+Nothing has happened yet
+These are the amounts as of 2026-11-08, the day cover would stop. Pro-rata calculation on the actual days of the term; this page writes nothing.
+Segment by segment
+The issuance premium earns over the whole term and each endorsement earns its prorated amount from its own effective date, so the refund is computed on each piece of written premium separately.
+An open claim is untouched
+Cancelling never touches an open claim or its reserve: the loss happened while the policy was in force. The refund covers unearned premium only, and the clawback follows the refunded premium alone.Corgi · Policy administration
