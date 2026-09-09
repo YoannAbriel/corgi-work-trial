@@ -235,7 +235,10 @@ export function brokerSections(
           amountCents: correction.amountCents,
           since: correction.recordedAt,
           actionLabel: "Collect",
-          href: `/policies/${policy.policyId}`,
+          // The Money view, at the correction's action row. It used to be the policy overview,
+          // where nothing says what is owed or how to take it (Yoann, 2026-09-09). The anchor is
+          // `collect`, put on the block by app/policies/[policyId]/correction-sections.tsx.
+          href: `/policies/${policy.policyId}?view=money#collect`,
         })),
       ),
     },

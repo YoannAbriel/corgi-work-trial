@@ -340,6 +340,57 @@ button.pd-drawer-close {
   box-shadow: 0 2px 0 #e1e1e1;
 }
 
+/* --- A correction: what the money is doing, then the button, then the detail ------------------
+   The state and the button used to be the LAST thing in this card, under the formula and the
+   four journal entries, so a broker owed $53.84 had to scroll past all of it to find out
+   (Yoann, 2026-09-09). They are the first thing under the facts now, in their own row, and the
+   arithmetic and the entries are two closed folds beneath. */
+.pd-collect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 14px 0 4px;
+  /* The anchor of the band's "Collect" link and of the broker's inbox item. The band is sticky,
+     so the row is scrolled to with room above it rather than under the band. */
+  scroll-margin-top: 96px;
+}
+/* The sentence and the button are one line; anything the state has to explain takes the whole
+   width under them rather than squeezing between the two. */
+.pd-collect > .badge {
+  margin: 0;
+}
+.pd-collect > .pd-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+.pd-collect > form {
+  margin: 0;
+}
+.pd-collect > form button {
+  margin: 0;
+}
+/* A fold INSIDE this card is not a second card: it loses the frame and the white ground that
+   `details.disclosure` gives a fold standing on its own, and becomes a line with a rule above it. */
+.pd-correction > details.disclosure {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.pd-correction > details.disclosure > summary {
+  padding-left: 0;
+  padding-right: 0;
+  font-weight: 500;
+}
+.pd-correction > details.disclosure[open] > summary {
+  border-bottom: 0;
+}
+.pd-correction > details.disclosure > div {
+  padding: 0 0 12px;
+}
+
 /* --- The claim's actions, one compact panel --------------------------------------------------
    They were a view of their own holding three tall cards (cycle 2, decision 16). They are now one
    panel at the bottom of the overview: the three decisions side by side, each a small form with a
