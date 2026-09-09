@@ -508,6 +508,52 @@ main:focus {
   object-fit: contain;
   flex-shrink: 0;
 }
+.decorative-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+.banner-illustration {
+  width: min(220px, 100%);
+  max-width: 220px;
+  max-height: 220px;
+}
+.welcome-banner > .banner-illustration {
+  width: min(220px, 100%);
+  height: auto;
+  max-height: 150px;
+}
+.empty-illustration {
+  width: min(360px, 100%);
+  max-height: 240px;
+  margin: 0 auto;
+}
+.feedback-illustration {
+  width: min(300px, 100%);
+  max-height: 220px;
+  margin: 0 auto 20px;
+}
+.panel-empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 8px 0;
+  text-align: center;
+}
+.needs-you-empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.needs-you-empty .empty-illustration {
+  width: min(180px, 100%);
+  max-height: 120px;
+}
+.needs-you-empty .note {
+  margin: 0;
+}
 .page-actions {
   display: flex;
   gap: 12px;
@@ -830,6 +876,12 @@ code {
   width: 100%;
   max-width: 350px;
 }
+.login-art-panel > .banner-illustration {
+  width: min(220px, 100%);
+  max-width: 220px;
+  max-height: 220px;
+  margin: 0 auto;
+}
 .login-art-panel h2 {
   margin: 4px 0 10px;
 }
@@ -987,6 +1039,10 @@ code {
     width: 220px;
     height: 146px;
     align-self: center;
+  }
+  .welcome-banner > .banner-illustration {
+    width: min(220px, 100%);
+    height: auto;
   }
   .welcome-banner h2 {
     font-size: 24px;
@@ -1446,6 +1502,7 @@ div.note {
 .detail-main,
 .detail-aside {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 22px;
   min-width: 0;
 }
@@ -1568,6 +1625,10 @@ div.note {
   font-variant-numeric: tabular-nums;
   text-align: right;
   overflow-wrap: anywhere;
+}
+.aside-list dd.aside-value-nowrap {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .aside-list dd .badge {
   margin: 0;

@@ -186,7 +186,7 @@ export async function CustomerPolicyView({
 
             <Panel title="Your change requests">
               {requests.length === 0 ? (
-                <Empty>You have not asked for anything on this policy yet.</Empty>
+                <Empty illustration="in-tray">You have not asked for anything on this policy yet.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Your change requests" tabIndex={0}>
                   <table>

@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { DecorativeIllustration } from "@/components/decorative-illustration";
 
 export default function NotFound() {
   return (
     <main className="workspace-feedback">
+      <DecorativeIllustration name="search-corgi" variant="feedback" eager />
       <h1>This page couldn’t be found.</h1>
       <p>The link may be incomplete, or this record is no longer available to your account.</p>
       <Link href="/" className="button-link">Back to workspace</Link>

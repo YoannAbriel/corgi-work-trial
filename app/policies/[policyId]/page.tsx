@@ -858,7 +858,7 @@ export default async function PolicyPage({
 
             <Panel title="Claims">
               {claims.length === 0 ? (
-                <Empty>No claim on this policy.</Empty>
+                <Empty illustration="search-corgi">No claim on this policy.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Policy claims" tabIndex={0}>
                   <table>

@@ -1,6 +1,7 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
+import { IllustrationBanner } from "@/components/decorative-illustration";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -50,7 +51,7 @@ export default async function BrokerStatementsPage() {
 
       <Panel title="Statements" className="list-panel">
       {runs.length === 0 ? (
-        <Empty>No statement has been produced for you yet.</Empty>
+        <Empty illustration="open-ledger">No statement has been produced for you yet.</Empty>
       ) : (
         <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
 <table>
@@ -115,6 +116,12 @@ export default async function BrokerStatementsPage() {
         </p>
       </Disclosure>
       </Panel>
+      <IllustrationBanner
+        name="plant-care"
+        title={<>Records that <em>grow with the month.</em></>}
+      >
+        Each revision stays readable, with the figures and cutoff that produced it.
+      </IllustrationBanner>
     </PortalShell>
   );
 }

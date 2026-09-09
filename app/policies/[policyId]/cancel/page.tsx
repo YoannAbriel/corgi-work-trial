@@ -1,6 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
 import { SandboxReferences } from "@/components/disclosures";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
@@ -290,9 +289,6 @@ async function CancellationForm({
           <option value="pro_rata">Pro-rata</option>
         </select>
         <button type="submit">Preview the cancellation</button>
-        <Link href={`/policies/${policyId}`} className="button-link secondary">
-          Back to the policy
-        </Link>
       </form>
     </PortalShell>
   );

@@ -1,5 +1,4 @@
 import { PortalShell } from "@/components/portal-shell";
-import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
@@ -238,9 +237,6 @@ async function EndorsementForm({
         <label htmlFor="reason">Reason (optional)</label>
         <input id="reason" name="reason" maxLength={200} />
         <button type="submit">Preview the endorsement</button>
-        <Link href={`/policies/${policyId}`} className="button-link secondary">
-          Back to the policy
-        </Link>
       </form>
     </PortalShell>
   );

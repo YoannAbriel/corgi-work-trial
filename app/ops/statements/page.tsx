@@ -1,6 +1,7 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure, SandboxReferences } from "@/components/disclosures";
 import { Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
+import { IllustrationBanner } from "@/components/decorative-illustration";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -65,7 +66,7 @@ export default async function OpsStatementsPage({
       <DetailGrid
         main={
           <Panel title="Runs" className="list-panel">
-            {runs.length === 0 ? <Empty>No statement has ever been run. Pick a broker and a month.</Empty> : <RunTable runs={runs} />}
+            {runs.length === 0 ? <Empty illustration="open-ledger">No statement has ever been run. Pick a broker and a month.</Empty> : <RunTable runs={runs} />}
             <Disclosure>
               <p>
                 Every figure is a movement of a ledger account. Two collected figures are shown, because they answer
@@ -112,6 +113,12 @@ export default async function OpsStatementsPage({
           </Panel>
         }
       />
+      <IllustrationBanner
+        name="plant-care"
+        title={<>Records that <em>grow with the month.</em></>}
+      >
+        Each run remains available with the exact figures and knowledge cutoff that produced it.
+      </IllustrationBanner>
     </PortalShell>
   );
 }
