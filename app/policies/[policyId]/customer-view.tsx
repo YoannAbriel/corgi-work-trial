@@ -300,10 +300,30 @@ export async function CustomerPolicyView({
               </Toolbar>
             }
             legend={
+              /* F-LT-10: the pending row wears a chip this legend never named, in a column whose
+                 legend said "the money that moved" about an amount that has not moved. The three
+                 states a change can be in before it counts are named here, and the Charged
+                 column says what the figure means on a row that is still waiting. */
               <Legend
                 items={[
-                  { term: "Charged", meaning: "the money that moved at the time, priced over the days left in the year" },
+                  {
+                    term: "Charged",
+                    meaning:
+                      "the money that moved at the time, priced over the days left in the year; on a row marked to settle it is the quote, and nothing has moved yet",
+                  },
                   { term: "New annual premium", meaning: "the yearly rate after the change, not the money that moved" },
+                  ...(liveEndorsement
+                    ? [
+                        {
+                          term: "awaiting your approval",
+                          meaning: "your broker quoted this change and it waits for your yes",
+                        },
+                        {
+                          term: "approved, awaiting payment",
+                          meaning: "you said yes; the change takes effect once your broker pays the quoted amount",
+                        },
+                      ]
+                    : []),
                 ]}
               />
             }

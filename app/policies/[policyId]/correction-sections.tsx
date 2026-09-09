@@ -74,8 +74,14 @@ export function customerPolicyViews(policyId: string, formLabel: string, formHre
 // stale, it is a different question, so the other question gets its own tile beside it.
 //
 // Every figure comes from the endorsement's own stored event; nothing is recomputed and nothing
-// new is read. The tile is not drawn at all when the policy has never been endorsed: a tile
-// saying "same as today" repeats the tile beside it.
+// new is read.
+//
+// F-LT-02: NO APPLIED ENDORSEMENT, NO TILE. It used to fall back to the unpaid quote as its
+// headline figure, under the words "nothing applied yet", so a tile labelled "Latest terms on
+// record" printed a premium that is on no record at all: nobody has paid for it and the policy
+// does not carry it. A change that is only quoted already has its notice above the tiles, its row
+// in the table of changes and its own card; it does not also need to be the headline. The quote
+// keeps its place on the note line, under a figure the record really holds.
 export function LatestTermsStat({
   schedule,
   pending,
@@ -96,25 +102,17 @@ export function LatestTermsStat({
 }) {
   // The last row of the schedule is the newest effective date: the reader orders by it.
   const latestApplied = schedule.length > 0 ? schedule[schedule.length - 1] : null;
-  if (!latestApplied && !pending) {
+  if (!latestApplied) {
     return null;
   }
   return (
     <Stat
       label="Latest terms on record"
       href={href}
-      value={
-        latestApplied
-          ? formatCentsAsUsd(latestApplied.figures.newAnnualPremiumCents)
-          : formatCentsAsUsd(pending!.newAnnualPremiumCents)
-      }
+      value={formatCentsAsUsd(latestApplied.figures.newAnnualPremiumCents)}
       note={
         <>
-          {latestApplied ? (
-            <span>from {latestApplied.effectiveAt}</span>
-          ) : (
-            <span>nothing applied yet</span>
-          )}
+          <span>from {latestApplied.effectiveAt}</span>
           {pending ? (
             <span className="stat-note-line">
               {formatCentsAsUsd(pending.newAnnualPremiumCents)} from {pending.effectiveAt}{" "}
@@ -126,6 +124,12 @@ export function LatestTermsStat({
     />
   );
 }
+
+// WHO IS READING A POLICY, for the sentences and the counts that differ between them. The three
+// are not roles: `owning-broker` is the broker this policy belongs to, and `staff` is everybody
+// else with the run of the record (operations and approvers). F-LT-01: one union of two ran the
+// broker and staff together and told operations they were the ones who pay.
+export type PolicyAudience = "customer" | "owning-broker" | "staff";
 
 // The id the band's "Pay the delta" link lands on: the Pay row of the Billing view. Named beside
 // COLLECT_ANCHOR below so the anchors of the policy's views are declared together.
@@ -154,15 +158,22 @@ export function pendingEndorsementNotice({
   approvedAt: Date | null;
   // When the quote was written.
   requestedAt: Date;
-  audience: "customer" | "staff";
+  audience: PolicyAudience;
 }): string | null {
   const asUtc = (instant: Date) => `${instant.toISOString().replace("T", " ").slice(0, 19)} UTC`;
   if (standingState === "approved" && approvedAt) {
-    return audience === "customer"
-      ? `You approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when your broker pays the delta.`
-      : `The customer approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when you pay.`;
+    if (audience === "customer") {
+      return `You approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when your broker pays the delta.`;
+    }
+    // F-LT-01: "when YOU pay" is true of one reader only. Staff operations have no Pay button on
+    // this policy: the Billing view draws it for the owning broker and tells every other reader
+    // that the owning broker collects. This sentence was telling them the opposite.
+    return audience === "owning-broker"
+      ? `The customer approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when you pay.`
+      : `The customer approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when the broker pays the delta.`;
   }
   if (standingState === "awaiting_approval") {
+    // The waiting sentence names nobody as the payer, so the broker and staff read the same one.
     return audience === "customer"
       ? `The quote was sent to you at ${asUtc(requestedAt)}; the endorsement takes effect when you approve it and the delta is paid.`
       : `The quote was sent to the customer at ${asUtc(requestedAt)}; the endorsement takes effect when the customer approves and the delta is paid.`;
@@ -175,8 +186,13 @@ export function pendingEndorsementNotice({
 // person reading has to do (cycle 2, decision 3: counts are not notifications), so a broker is
 // not counted for a quote sitting with the customer, and a customer is not counted for a delta
 // their broker has to pay.
-export function endorsementNeedsThisReader(standingState: string, audience: "customer" | "staff"): boolean {
-  return audience === "customer" ? standingState === "awaiting_approval" : standingState === "approved";
+export function endorsementNeedsThisReader(standingState: string, audience: PolicyAudience): boolean {
+  if (audience === "customer") {
+    return standingState === "awaiting_approval";
+  }
+  // F-LT-01: paying the delta is the OWNING BROKER's work. Staff operations were counted for a
+  // job that is not theirs and that they have no button for on this policy.
+  return audience === "owning-broker" && standingState === "approved";
 }
 
 // THE STATE OF A CHANGE THAT IS NOT IN FORCE YET, in the words of the reader looking at it.
@@ -189,7 +205,7 @@ export function endorsementNeedsThisReader(standingState: string, audience: "cus
 // the policy terms stay as they are until the delta is paid.
 export function pendingEndorsementState(
   standingState: string,
-  audience: "customer" | "staff",
+  audience: PolicyAudience,
 ): { label: string; tone: "warn" | "neutral" } {
   if (standingState === "awaiting_approval") {
     return { label: audience === "customer" ? "awaiting your approval" : "awaiting the customer", tone: "neutral" };
