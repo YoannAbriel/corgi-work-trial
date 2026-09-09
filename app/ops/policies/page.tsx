@@ -1,4 +1,5 @@
 import "@/app/styles/lists.css";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
@@ -15,7 +16,7 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 import { policiesOfBroker, policyDetail } from "@/lib/policy/read";
 import { policyAsItStoodOn } from "@/lib/policy/correction-read";
 import type { PolicyStatus } from "@/lib/policy/status";
-import { termsInForceOn } from "@/lib/policy/terms-in-force";
+import { termsInForceOn, type TermsInForce } from "@/lib/policy/terms-in-force";
 import { firstValue, pickFilter, withParams, type Query } from "@/lib/ui/views";
 
 // /ops/policies: every policy of every broker, on today's terms.
@@ -65,6 +66,43 @@ function statusesOnScreen(rows: { status: PolicyStatus }[]): PolicyStatus[] {
   return seen;
 }
 
+// WHAT THE TOTAL CELL SAYS UNDER ITS FIGURE, and nothing at all when there is nothing to say.
+//
+// The figure above is the total in force on the date this list folds the policy for (today, or
+// the first day of the term). It is right, and on a policy carrying a change dated later it reads
+// as stale to anyone who knows that change was signed: on 2026-09-09 Yoann read $1,200.00 of
+// premium on CGP-01707 while an endorsement to $2,400.00 was already written for 2026-09-22. The
+// row now names both figures instead of only the first.
+//
+// WHAT THIS LINE CANNOT SAY: the day the later terms take effect. This list reads policy_current
+// through policyDetail (lib/policy/read.ts), which stores the latest terms and NOT the effective
+// date of the endorsement that wrote them: lib/policy/current.ts folds
+// `latestEndorsementEffectiveAt` and refreshPolicyCurrent never writes it to the table. The
+// amount is what this row can state honestly; the policy's own page names the date beside it.
+type TotalRow = { terms: TermsInForce | null; latestTotalChargeCents: number | null };
+
+function laterTerms(row: TotalRow): string | null {
+  // The fold has no answer for that date, so the figure above IS the policy record's own and
+  // there is nothing later to compare it with.
+  if (row.terms === null || row.terms.onDate === null) return null;
+  if (row.latestTotalChargeCents === null || row.latestTotalChargeCents === row.terms.totalChargeCents) return null;
+  return `${formatCentsAsUsd(row.latestTotalChargeCents)} on the latest terms`;
+}
+
+// Everything the cell says under its figure, or nothing at all: an empty `sub` would draw an
+// empty line under every row of the table.
+function underTheTotal(row: TotalRow): ReactNode | undefined {
+  const fromTheRecord = row.terms !== null && row.terms.onDate === null;
+  const later = laterTerms(row);
+  if (!fromTheRecord && !later) return undefined;
+  return (
+    <>
+      {fromTheRecord ? "on the policy record" : null}
+      {later ? <span className="lists-later">{later}</span> : null}
+    </>
+  );
+}
+
 export default async function StaffPoliciesPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
   if (!user) redirect("/login");
@@ -89,7 +127,14 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
       groups.flat().map(async (policy) => {
         const onDate = today > policy.effectiveAt ? today : policy.effectiveAt;
         const [detail, asOfResult] = await Promise.all([policyDetail(policy.policyId), policyAsItStoodOn(policy.policyId, onDate)]);
-        return { ...policy, terms: detail ? termsInForceOn(detail, asOfResult) : null };
+        return {
+          ...policy,
+          terms: detail ? termsInForceOn(detail, asOfResult) : null,
+          // The LATEST terms written on the policy record, which is what policy_current holds:
+          // every event applied whatever its effective date. It is the figure the second line of
+          // the Total cell names when it is not the one in force today (see underTheTotal).
+          latestTotalChargeCents: detail ? detail.totalChargeCents : null,
+        };
       }),
     );
   } catch {
@@ -168,6 +213,10 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
           <Legend
             items={[
               { term: "Total", meaning: "annual premium plus state tax and the flat fee, in force today or on the first day of the term" },
+              // Named only when a row below prints it: a legend is a reading of THIS screen.
+              ...(shown.some((policy) => laterTerms(policy) !== null)
+                ? [{ term: "on the latest terms", meaning: "a change is already written on the policy and takes effect after that date; the figure above it is the one in force now" }]
+                : []),
               // Only the statuses a reader can see below, in the order the rows use them.
               ...statusesOnScreen(shown).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),
               { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
@@ -208,7 +257,7 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
                 <td>
                   <Chip tone={statusTone(policy.status)}>{policy.status.replace(/_/g, " ")}</Chip>
                 </td>
-                <Num sub={policy.terms && policy.terms.onDate === null ? "on the policy record" : undefined}>
+                <Num sub={underTheTotal(policy)}>
                   {formatCentsAsUsd(policy.terms ? policy.terms.totalChargeCents : policy.totalChargeCents)}
                 </Num>
                 <Chevron />
@@ -221,7 +270,7 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
       <About>
         <h4>Total</h4>
         <p>
-          The annual premium plus the state premium tax and the flat policy fee in force on the date the policy&apos;s own page shows: today, or the first day of the term when the term has not begun. An endorsement dated later is not in this figure; the policy page names it under the terms.
+          The annual premium plus the state premium tax and the flat policy fee in force on the date the policy&apos;s own page shows: today, or the first day of the term when the term has not begun. An endorsement dated later is not in this figure: when there is one, the second line of the cell says what the policy&apos;s latest terms total, and the policy page names the day they take effect.
         </p>
         <h4>What was collected</h4>
         <p>What was actually collected and refunded is on the policy page, in its journal. This list shows terms, not cash.</p>

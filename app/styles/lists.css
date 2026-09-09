@@ -332,3 +332,18 @@ td.dt-actions.lists-row-actions > * + * {
 td .lists-one-line {
   max-width: 150px;
 }
+
+/* ---------------------------------------------------------------------------
+   The lists: what the policy becomes later, under the figure in force today
+   --------------------------------------------------------------------------- */
+/* A money cell is `white-space: nowrap` in app/styles/system.css so a figure never breaks in half.
+   The line under it is a SENTENCE and not a figure: left nowrap it widened the money column by its
+   whole length and pushed the table into a horizontal scroll. It wraps inside the cell instead,
+   and stays right-aligned under the figure it qualifies. */
+.lists-later {
+  display: block;
+  max-width: 215px;
+  margin-left: auto;
+  white-space: normal;
+  text-align: right;
+}
