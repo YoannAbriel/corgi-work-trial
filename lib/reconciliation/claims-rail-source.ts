@@ -96,6 +96,10 @@ export function foldTransfers(rows: SimulatorRow[]): ProviderRecord[] {
       policyId: null,
       feeCents: null, // the simulated rail charges nothing
       label: "claim payout",
+      // The rail carries neither a description nor metadata, and no check run plants anything on
+      // it: a transfer here is always money the ledger is expected to know about.
+      description: null,
+      probeMarker: null,
     });
   }
   return records;

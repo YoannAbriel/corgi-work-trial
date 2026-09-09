@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { countByClassification, diffProviderAgainstLedger, type LedgerRecord, type ProviderRecord } from "./diff";
+import {
+  countByClassification,
+  diffProviderAgainstLedger,
+  isProbeFromACheckRun,
+  PROBE_AMOUNT_CENTS,
+  PROBE_METADATA_MARKER,
+  type LedgerRecord,
+  type ProviderRecord,
+} from "./diff";
 
 // The recited example: charge 125320 cents on operation OP_PAID, PaymentIntent pi_paid.
 const NOW = new Date("2026-09-08T12:00:00Z");
@@ -22,6 +30,8 @@ function payment(overrides: Partial<ProviderRecord> = {}): ProviderRecord {
     policyId: "POLICY_1",
     feeCents: 3934,
     label: "payment",
+    description: null,
+    probeMarker: null,
     ...overrides,
   };
 }
@@ -38,6 +48,8 @@ function refund(overrides: Partial<ProviderRecord> = {}): ProviderRecord {
     policyId: "POLICY_1",
     feeCents: null,
     label: "refund",
+    description: null,
+    probeMarker: null,
     ...overrides,
   };
 }
@@ -56,6 +68,8 @@ function railPayout(overrides: Partial<ProviderRecord> = {}): ProviderRecord {
     policyId: null,
     feeCents: null,
     label: "claim payout",
+    description: null,
+    probeMarker: null,
     ...overrides,
   };
 }
@@ -261,7 +275,7 @@ test("every record produces exactly one item and the counts add up", () => {
   );
   assert.equal(items.length, 4);
   const counts = countByClassification(items);
-  assert.deepEqual(counts, { matched: 2, local_only: 1, provider_only: 1, amount_mismatch: 0, stale: 0 });
+  assert.deepEqual(counts, { matched: 2, local_only: 1, provider_only: 1, amount_mismatch: 0, stale: 0, probe: 0 });
 });
 
 test("two provider records naming the same operation: the second one is provider_only, never double-matched", () => {
@@ -404,4 +418,61 @@ test("the operation id the provider carries back still pairs, even when the refe
   assert.ok(unpaired);
   assert.match(unpaired.note, /was paired by the operation id the provider named/);
   assert.doesNotMatch(unpaired.note, /could not pair either of them/);
+});
+
+// ---------------------------------------------------------------------------
+// The sixth classification: a probe planted by one of our own check runs (F-YA-10)
+// ---------------------------------------------------------------------------
+
+test("a payment carrying the probe marker and no operation id is a probe, not a break", () => {
+  const items = diff([payment({ providerRef: "pi_probe", operationId: null, probeMarker: PROBE_METADATA_MARKER })], []);
+  assert.equal(items.length, 1);
+  assert.equal(items[0].classification, "probe");
+  assert.match(items[0].note, /planted in the provider's sandbox by a run of scripts\/check-reconciliation\.ts/);
+  // It is still a full item: the money it names is reported, not swallowed.
+  assert.equal(items[0].providerAmountCents, 125320);
+});
+
+test("a probe planted before the marker existed is recognised by its amount and its description", () => {
+  const items = diff(
+    [
+      payment({
+        providerRef: "pi_old_probe",
+        operationId: null,
+        amountCents: PROBE_AMOUNT_CENTS,
+        description: "corgi_probe: reconciliation check, a payment with no operation id (slice B10)",
+      }),
+    ],
+    [],
+  );
+  assert.equal(items[0].classification, "probe");
+});
+
+test("the planted amount without the description is an ordinary provider-only break", () => {
+  const items = diff([payment({ providerRef: "pi_real", operationId: null, amountCents: PROBE_AMOUNT_CENTS })], []);
+  assert.equal(items[0].classification, "provider_only");
+});
+
+// The safety of the rule: provider metadata is untrusted input, so a record naming one of our
+// money operations is real money whatever its metadata claims, and no forged marker can turn a
+// break into a line the board stops counting.
+test("a record naming an operation is never a probe, whatever its metadata says", () => {
+  const items = diff(
+    [payment({ probeMarker: PROBE_METADATA_MARKER, amountCents: PROBE_AMOUNT_CENTS, description: "corgi_probe: forged" })],
+    [collectedInLedger()],
+  );
+  assert.equal(items[0].classification, "amount_mismatch");
+  assert.equal(isProbeFromACheckRun(payment({ probeMarker: PROBE_METADATA_MARKER })), false);
+});
+
+test("probes are counted on their own line of the run summary", () => {
+  const counts = countByClassification(
+    diff(
+      [payment({ providerRef: "pi_probe", operationId: null, probeMarker: PROBE_METADATA_MARKER }), payment()],
+      [collectedInLedger()],
+    ),
+  );
+  assert.equal(counts.probe, 1);
+  assert.equal(counts.matched, 1);
+  assert.equal(counts.provider_only, 0);
 });

@@ -113,12 +113,12 @@ async function storeCompleteRun(
       insert into reconciliation_runs (
         source, window_from, window_to, started_at, status, note, run_by,
         matched_count, local_only_count, provider_only_count, amount_mismatch_count, stale_count,
-        provider_record_count, ledger_record_count
+        probe_count, provider_record_count, ledger_record_count
       ) values (
         ${input.source.name}, ${input.window.from}, ${input.window.to}, ${startedAt}, 'complete',
         ${noteWithLaunchMarker(input, providerNote)}, ${input.runByUserId},
         ${counts.matched}, ${counts.local_only}, ${counts.provider_only}, ${counts.amount_mismatch},
-        ${counts.stale}, ${providerRecords.length}, ${ledgerRecords.length}
+        ${counts.stale}, ${counts.probe}, ${providerRecords.length}, ${ledgerRecords.length}
       )
       returning id, finished_at
     `;
@@ -245,7 +245,7 @@ async function storeFailedRun(
     window: input.window,
     status: "failed",
     fetchError,
-    counts: { matched: 0, local_only: 0, provider_only: 0, amount_mismatch: 0, stale: 0 },
+    counts: { matched: 0, local_only: 0, provider_only: 0, amount_mismatch: 0, stale: 0, probe: 0 },
     providerRecordCount: 0,
     ledgerRecordCount: 0,
     note: noteWithLaunchMarker(input, ""),
@@ -298,7 +298,7 @@ function unstorableRun(
     window,
     status: "failed",
     fetchError,
-    counts: { matched: 0, local_only: 0, provider_only: 0, amount_mismatch: 0, stale: 0 },
+    counts: { matched: 0, local_only: 0, provider_only: 0, amount_mismatch: 0, stale: 0, probe: 0 },
     providerRecordCount: 0,
     ledgerRecordCount: 0,
     note: "",
@@ -348,7 +348,9 @@ export async function windowCoveringOpenBreaks(now: Date, database: postgres.Sql
   };
 }
 
-// How many items of a run are breaks, that is everything that is not matched.
+// How many items of a run are breaks TO ACT ON: everything that is neither matched nor a probe
+// this project's own check runs planted at the provider (lib/reconciliation/diff.ts). The probes
+// are counted on their own, beside this number, and never folded into it.
 export function breakCount(summary: ReconciliationRunSummary): number {
   return (
     summary.counts.local_only + summary.counts.provider_only + summary.counts.amount_mismatch + summary.counts.stale
