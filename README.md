@@ -95,6 +95,8 @@ Every money figure on the screens carries a fold saying how it was produced: the
 
 The policy page's "as it stood on a date" panel offers the dates that matter as links carrying `?asOf=YYYY-MM-DD`: the term start, every effective date still in force, and today. A change a correction put right is not offered, because the fold no longer applies it. Each click is a fresh server render, so the address can be bookmarked or sent to somebody else, and the declarations and schedule PDFs follow the same date.
 
+Statements carry a format version (1, 2, 3): a revision keeps the version it was written under, and two revisions of different versions read "format changed, not comparable by hash" instead of identical or changed (migrations 0016 and 0020).
+
 ## Corrections and history
 
 Nothing financial is ever updated or deleted: Postgres triggers refuse UPDATE, DELETE and TRUNCATE on every money table for every role, the runtime role only has SELECT and INSERT, entries are sealed at commit, and the balance of each entry is checked by the database at commit. Corrections are reversal entries linked to the originals plus a dated policy event; the fold of policy events skips superseded events. Every entry carries an effective date (business time) and a recorded time (set by the database), so "as it stood on May 3" and "what was known on May 3" are two different queries over the same rows.
