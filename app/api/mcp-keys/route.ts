@@ -1,6 +1,6 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { createApiKey, expiryInstant, isTokenLifetime, KeyRefused, revokeApiKey } from "@/lib/mcp/keys";
-import { TOKEN_REVEAL_COOKIE, TOKEN_REVEAL_SECONDS } from "@/lib/mcp/token-reveal";
+import { clearedRevealCookie, revealCookie } from "@/lib/mcp/token-reveal";
 import { isUuid } from "@/lib/http/path-ids";
 import { withActivity } from "@/lib/observability/log";
 
@@ -27,20 +27,20 @@ import { withActivity } from "@/lib/observability/log";
 //     `next start` set it, Vercel sets it, and a deployment that forgot to fill an environment
 //     variable would silently lose the flag. Plain-HTTP local development is the only case where
 //     it is absent, and there is no https there to send it over;
-//   * Max-Age=120. That is the trade-off: for at most two minutes the secret is in the browser's
-//     cookie jar instead of nowhere at all. Two minutes is long enough to copy a value into an
-//     MCP client and short enough that a shared screen left open does not keep it. The "Done"
-//     button clears it immediately, and nothing ever stores it server-side: the database still
-//     holds only the sha256 and the public prefix.
+//   * Max-Age=120, and that is the BACKSTOP, not the plan. The plan is the consume step: the
+//     reveal panel asks POST /ops/mcp-keys/reveal/consume to clear the cookie as soon as the
+//     token is painted, so the exposure is one render, which is what the screen's own words
+//     promise. The ceiling is what happens instead when the browser is closed, loses the network
+//     or runs no script. The "Done" button clears it as well, and nothing is ever stored
+//     server-side: the database still holds only the sha256 and the public prefix.
 //
-// WHY THE SCREEN CANNOT CLEAR IT ON THE FIRST RENDER. A server component may read cookies and may
-// not write them: calling `cookieStore.delete(...)` from app/ops/mcp-keys/page.tsx raises, word for
-// word, "Cookies can only be modified in a Server Action or Route Handler. Read more:
+// WHY THE SCREEN ITSELF CANNOT CLEAR IT. A server component may read cookies and may not write
+// them: calling `cookieStore.delete(...)` from app/ops/mcp-keys/page.tsx raises, word for word,
+// "Cookies can only be modified in a Server Action or Route Handler. Read more:
 // https://nextjs.org/docs/app/api-reference/functions/cookies#options" (Next.js 16.3.4, measured
-// on 2026-09-09). Only a route handler or a server action can send Set-Cookie, so the clearing is
-// the Done button's `action=dismiss` below, and the 120 s Max-Age is the hard ceiling behind it.
-// What follows from that, plainly: reloading the screen inside those two minutes shows the token
-// again. Nothing else on the deployed answer keeps it: that page is answered with
+// on 2026-09-09). Only a route handler can send Set-Cookie, hence the consume route above, called
+// from the one small client component of this screen. Nothing else on the deployed answer keeps
+// the token either: that page is answered with
 // `Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate` (measured on a
 // production build the same day).
 //
@@ -99,11 +99,9 @@ async function handlePost(request: Request): Promise<Response> {
     if (action === "dismiss") {
       const response = redirectTo("/ops/mcp-keys");
       // Same name, same path and same flags as the cookie it replaces, with Max-Age=0: a browser
-      // only drops a cookie when the deletion matches the attributes it was set with.
-      response.headers.append(
-        "set-cookie",
-        `${TOKEN_REVEAL_COOKIE}=; Path=/ops/mcp-keys; HttpOnly; SameSite=Strict; Max-Age=0${secureFlag()}`,
-      );
+      // only drops a cookie when the deletion matches the attributes it was set with, which is
+      // why both strings are built in lib/mcp/token-reveal.ts and never typed out twice.
+      response.headers.append("set-cookie", clearedRevealCookie());
       return response;
     }
 
@@ -130,20 +128,9 @@ async function handlePost(request: Request): Promise<Response> {
 // browser cache keeps the Set-Cookie header of this answer.
 function tokenShownOnce(presentedKey: string, keyPrefix: string): Response {
   const response = redirectTo(`/ops/mcp-keys?created=${encodeURIComponent(keyPrefix)}`);
-  response.headers.append(
-    "set-cookie",
-    `${TOKEN_REVEAL_COOKIE}=${presentedKey}; Path=/ops/mcp-keys; HttpOnly; SameSite=Strict; Max-Age=${TOKEN_REVEAL_SECONDS}${secureFlag()}`,
-  );
+  response.headers.append("set-cookie", revealCookie(presentedKey));
   response.headers.set("cache-control", "no-store, no-cache, must-revalidate");
   return response;
-}
-
-// Secure in production and nowhere else. It reads NODE_ENV, which the framework sets itself, and
-// not APP_BASE_URL, which is a variable a deployment can forget to fill: the session cookie of
-// app/api/session/login/route.ts reads that variable, and this cookie carries a credential that
-// is valid for the whole MCP surface, so it takes the flag that cannot be left out by accident.
-function secureFlag(): string {
-  return process.env.NODE_ENV === "production" ? "; Secure" : "";
 }
 
 function backToKeys(message: string): Response {

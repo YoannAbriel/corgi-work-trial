@@ -49,7 +49,10 @@ async function handlePost(request: Request, _context: unknown, activity: Activit
   describeCaller(activity, principal);
   // A token that ran out of time is refused exactly like a revoked one: the same answer to the
   // caller, and one row in mcp_calls naming the key it presented, with the reason an operator
-  // needs ("expired token" against "revoked key"). The reason stays in the table.
+  // needs ("expired token" against "revoked key"). The reason stays in the table, in `detail`,
+  // and NOT in `outcome`: that column holds the four words migration 0018 constrains,
+  // `check (outcome in ('ok', 'refused', 'error', 'unauthorised'))`, which the console and the
+  // checks count. A 401 on this endpoint has been 'unauthorised' since 0018 and still is.
   const expired = principal !== null && tokenHasExpired(principal.expiresAt, new Date());
   if (!principal || principal.revokedAt !== null || expired) {
     activity.rule = "MCP key";
