@@ -244,6 +244,10 @@ Production at 4ddb33b, healthy. The Vercel cron called /api/jobs/daily at 06:00 
 
 builder-b12-2-3 (YOA-625, YOA-626: explain-this-amount folds and as-of steps on the rebuilt pages), builder-change-requests (YOA-634: migration 0019 on corgi_test only, customer read-only view, request and reply routes, broker panel, what-needs-you count, a check script), builder-low-batch (YOA-628: F-B8-08, F-B11-02/03/05/06/07, F-B12-01, F-B7-13, F-B4-07/10/12, F-B10-08 sentence, F-B10-09, F-UI-03/13/16/17/18; items touching the other builders' files skipped and listed). File ownership split to avoid conflicts: the policy page panels to the first, its ownership block and a customer view file to the second, neither file to the third. Each merges origin/main before reporting; the coordinator merges, applies 0019 to the trial database, runs the checks and the guards on an ephemeral database, deploys, and launches the reviews.
 
+## 2026-09-09T06:35:24+00:00 | Two more builders on Yoann's morning feedback: PDF quality (YOA-635), notification centre (YOA-636)
+
+Agency bill kept (DECISIONS). builder-pdf-quality: declarations page, endorsement schedule and statement PDF as real documents (issuer, insured and producer blocks, coverage table, premium summary, signature block, watermark SPECIMEN TEST DATA, page X of Y), deterministic double render, PNG samples under docs/evidence/pdf/; only the three PDF files. builder-inbox: lib/inbox/read.ts and /inbox per role with one row per pending item and the link to the exact object, sidebar counts pointing at /inbox; what-needs-you.tsx untouched until the change-requests builder merges. Five delegates running.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
