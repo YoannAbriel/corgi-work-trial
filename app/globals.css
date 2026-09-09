@@ -514,6 +514,11 @@ main:focus {
   height: auto;
   object-fit: contain;
 }
+.banner-illustration {
+  width: min(220px, 100%);
+  max-width: 220px;
+  max-height: 220px;
+}
 .welcome-banner > .banner-illustration {
   width: min(220px, 100%);
   height: auto;
@@ -870,6 +875,12 @@ code {
 .login-art-panel img {
   width: 100%;
   max-width: 350px;
+}
+.login-art-panel > .banner-illustration {
+  width: min(220px, 100%);
+  max-width: 220px;
+  max-height: 220px;
+  margin: 0 auto;
 }
 .login-art-panel h2 {
   margin: 4px 0 10px;
