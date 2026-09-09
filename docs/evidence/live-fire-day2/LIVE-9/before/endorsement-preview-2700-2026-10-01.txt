@@ -1,0 +1,62 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /broker] CorgiPolicy administration
+Broker workspace
+[a /inbox] Inbox
+[a /broker] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] Overview
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=endorsements] Endorsements
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=claims] Claims
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=money] Money
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=timeline] Timeline
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/endorse] Endorse
+[a /broker/statements] Statements
+[a /broker/kyb] Business verification
+Dana Ruiz, brokerBroker
+Sign out
+[a /broker] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] Policy CGP-01707
+Endorsement preview
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Endorsement previewPolicy CGP-01707
+nothing recorded yeteffective 2026-10-01 Policies
+Annual premium$2,700.00from $2,400.00
+To collect$287.69342 of 365 days remain
+Effective2026-10-01the money is priced from this date
+What changes
+Annual premium
+$2,400.00 to $2,700.00
+Limits
+$2,000,000.00 per occurrence / $4,000,000.00 aggregate
+Reason
+Live fire day 2: second endorsement
+Impact, line by line
+The customer pays $287.69 through Stripe.
+|
+| Amount | How it was computed (integer cents) | Result
+| Annual premium difference (new minus old) | 270000 - 240000 | $300.00
+| Prorated premium charged, 342 of 365 days remain from 2026-10-01 (rounded down) | floor(30000 x 342 / 365) | $281.09
+| State premium tax on the charged premium (rounded down) | floor(28109 x 235 / 10000) | $6.60
+| Policy fee (charged at issuance only, never again, never refunded) | 0 | $0.00
+| Total collected from the customer through Stripe | 28109 + 660 | $287.69
+| Broker commission earned on the collected premium (rounded down) | floor(28109 x 1500 / 10000) | $42.16
+Confirm
+The request is recorded as a policy event carrying these figures and their hash. With this change, this policy would carry $1,435.06 of additional premium in this term, this quote included, above $500.00: the customer approves before the delta can be paid. The endorsement takes effect only when Stripe confirms the delta was paid; until then the policy terms are unchanged.
+[input effectiveAt=2026-10-01]
+[input newAnnualPremiumCents=270000]
+[input newPerOccurrenceLimitCents=200000000]
+[input newAggregateLimitCents=400000000]
+[input reason=Live fire day 2: second endorsement]
+[input quoteHash=f583fb1865c5305378320dc9c8fd1bfb0c25ea5645ba6901a11f0cbe1c9368d7]
+Request the change
+About this screen
+Every line is integer-cent arithmetic
+Each line of the table shows the formula in integer cents that produced its amount. Nothing on this page is computed in the browser, and nothing is rounded except where the rounding line says so.
+Nothing has happened yet
+These are the amounts as of 2026-10-01, the day the change takes effect: 342 of 365 days of the term remain from that date. This page writes nothing.
+Priced from the effective date
+A backdated endorsement charges more days, never the day it was typed. The premium difference is prorated over the days remaining and the state premium tax is charged on that amount, rounded in the customer's favour.
+Why a confirmation can still be refused
+The quote hash is carried with the confirmation. If the policy changes between this screen and the button, the server refuses rather than executing figures that are no longer true.Corgi · Policy administration

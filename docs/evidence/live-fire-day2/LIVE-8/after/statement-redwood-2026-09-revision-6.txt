@@ -1,0 +1,378 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+[a /ops/statements] Statements
+Redwood Commercial Brokers, 2026-09
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Redwood Commercial Brokers2026-09, revision 6
+ties to the ledgerprovisional
+[a /api/statements/8df46119-a401-41a6-b8c2-c093a7c1ba02/pdf] PDF
+[input brokerId=edae60d2-2192-4347-8083-945818e10ce8]
+[input month=2026-09]
+[input knowledgeCutoff=2026-09-09T19:59:14.571Z]
+Reproduce this revision Statements
+Cash collected
+$8,382.45
+Explain this amount
+Cash collected from customers in 2026-09
+The cash side of every collection entry: premium, state premium tax and policy fee together. Refunds are not netted into it; they are on their own lines.
+|
+| Amount | How it was computed (integer cents) | Result
+| CGP-01061, effective 2026-09-08, entry a7fd58d0 | Bound on 2026-09-08 through a locally signed webhook during development (pi_local_fafe3cc4); Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01 and Yoann's decision. | -$1,253.20
+| CGP-01062, effective 2026-09-08, entry bea403c4 | Policy CGP-01062 premium, tax and fee collected at Stripe | $3,556.84
+| CGP-01061, effective 2026-09-08, entry e0022260 | Policy CGP-01061 premium, tax and fee collected at Stripe | $1,253.20
+| CGP-01707, effective 2026-09-08, entry e55a6b1c | Policy CGP-01707 premium, tax and fee collected at Stripe | $1,253.20
+| CGP-01274, effective 2026-09-08, entry fe880a00 | Policy CGP-01274 premium, tax and fee collected at Stripe | $2,391.33
+| CGP-01707, effective 2026-09-09, entry 4203ce46 | Policy CGP-01707: the difference created by the corrected endorsement date, collected at Stripe | $53.84
+| CGP-01707, effective 2026-09-09, entry f6aa569c | Policy CGP-01707 endorsement premium and tax collected at Stripe | $1,127.24
+| Cash collected from customers in the month | -125320 + 355684 + 125320 + 125320 + 239133 + 5384 + 112724 | $8,382.45
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_collected | 2026-09-08 | 2026-09-08 11:33:17 | entry a7fd58d0, Bound on 2026-09-08 through a locally signed webhook during development (pi_local_fafe3cc4); Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01 and Yoann's decision.
+| premium_collected | 2026-09-08 | 2026-09-08 10:16:02 | entry bea403c4, Policy CGP-01062 premium, tax and fee collected at Stripe
+| premium_collected | 2026-09-08 | 2026-09-08 09:58:32 | entry e0022260, Policy CGP-01061 premium, tax and fee collected at Stripe
+| premium_collected | 2026-09-08 | 2026-09-08 18:57:00 | entry e55a6b1c, Policy CGP-01707 premium, tax and fee collected at Stripe
+| premium_collected | 2026-09-08 | 2026-09-08 11:24:30 | entry fe880a00, Policy CGP-01274 premium, tax and fee collected at Stripe
+| premium_collected | 2026-09-09 | 2026-09-09 19:50:43 | entry 4203ce46, Policy CGP-01707: the difference created by the corrected endorsement date, collected at Stripe
+| premium_collected | 2026-09-09 | 2026-09-09 06:34:34 | entry f6aa569c, Policy CGP-01707 endorsement premium and tax collected at Stripepremium, tax and fee
+Premium collected
+$8,116.72
+Explain this amount
+Premium collected in 2026-09, the commission base
+The premium part of that same cash, read from the unearned premium written by the same payment. Commission is earned on this figure alone, never on tax or fee.
+|
+| Amount | How it was computed (integer cents) | Result
+| CGP-01061, effective 2026-09-08, entry a7fd58d0 | Bound on 2026-09-08 through a locally signed webhook during development (pi_local_fafe3cc4); Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01 and Yoann's decision. | -$1,200.00
+| CGP-01062, effective 2026-09-08, entry bea403c4 | Policy CGP-01062 premium, tax and fee collected at Stripe | $3,450.75
+| CGP-01061, effective 2026-09-08, entry e0022260 | Policy CGP-01061 premium, tax and fee collected at Stripe | $1,200.00
+| CGP-01707, effective 2026-09-08, entry e55a6b1c | Policy CGP-01707 premium, tax and fee collected at Stripe | $1,200.00
+| CGP-01274, effective 2026-09-08, entry fe880a00 | Policy CGP-01274 premium, tax and fee collected at Stripe | $2,312.00
+| CGP-01707, effective 2026-09-09, entry 4203ce46 | Policy CGP-01707: the difference created by the corrected endorsement date, collected at Stripe | $52.61
+| CGP-01707, effective 2026-09-09, entry f6aa569c | Policy CGP-01707 endorsement premium and tax collected at Stripe | $1,101.36
+| Premium collected in the month, the commission base | -120000 + 345075 + 120000 + 120000 + 231200 + 5261 + 110136 | $8,116.72
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_collected | 2026-09-08 | 2026-09-08 11:33:17 | entry a7fd58d0, Bound on 2026-09-08 through a locally signed webhook during development (pi_local_fafe3cc4); Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01 and Yoann's decision.
+| premium_collected | 2026-09-08 | 2026-09-08 10:16:02 | entry bea403c4, Policy CGP-01062 premium, tax and fee collected at Stripe
+| premium_collected | 2026-09-08 | 2026-09-08 09:58:32 | entry e0022260, Policy CGP-01061 premium, tax and fee collected at Stripe
+| premium_collected | 2026-09-08 | 2026-09-08 18:57:00 | entry e55a6b1c, Policy CGP-01707 premium, tax and fee collected at Stripe
+| premium_collected | 2026-09-08 | 2026-09-08 11:24:30 | entry fe880a00, Policy CGP-01274 premium, tax and fee collected at Stripe
+| premium_collected | 2026-09-09 | 2026-09-09 19:50:43 | entry 4203ce46, Policy CGP-01707: the difference created by the corrected endorsement date, collected at Stripe
+| premium_collected | 2026-09-09 | 2026-09-09 06:34:34 | entry f6aa569c, Policy CGP-01707 endorsement premium and tax collected at Stripethe commission base
+Commission earned
+$1,217.50
+Explain this amount
+Commission earned in 2026-09
+Each line is the commission the ledger posted when the money was collected: floor(premium x rate / 10000). The statement adds whole cents and never multiplies a rate itself.
+|
+| Amount | How it was computed (integer cents) | Result
+| CGP-01274, effective 2026-09-08, entry 0b3d52fa | Broker commission on the collected premium of policy CGP-01274 | $346.80
+| CGP-01062, effective 2026-09-08, entry 44e07015 | Broker commission on the collected premium of policy CGP-01062 | $517.61
+| CGP-01707, effective 2026-09-08, entry 5ceacd31 | Broker commission on the collected premium of policy CGP-01707 | $180.00
+| CGP-01061, effective 2026-09-08, entry 9268e67a | Broker commission on the collected premium of policy CGP-01061 | $180.00
+| CGP-01061, effective 2026-09-08, entry 935f7ede | Bound on 2026-09-08 through a locally signed webhook during development (pi_local_fafe3cc4); Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01 and Yoann's decision. | -$180.00
+| CGP-01707, effective 2026-09-09, entry 0456fb95 | Broker commission on the endorsement premium collected for policy CGP-01707 | $165.20
+| CGP-01707, effective 2026-09-09, entry 99a17629 | Broker commission on the extra premium collected after the correction on policy CGP-01707 | $7.89
+| Commission earned in the month | 34680 + 51761 + 18000 + 18000 - 18000 + 16520 + 789 | $1,217.50
+Rounding Rounded down (floor): broker commission drops the fraction of a cent, on what is earned and on what is clawed back.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| commission_earned | 2026-09-08 | 2026-09-08 11:24:30 | entry 0b3d52fa, Broker commission on the collected premium of policy CGP-01274
+| commission_earned | 2026-09-08 | 2026-09-08 10:16:02 | entry 44e07015, Broker commission on the collected premium of policy CGP-01062
+| commission_earned | 2026-09-08 | 2026-09-08 18:57:00 | entry 5ceacd31, Broker commission on the collected premium of policy CGP-01707
+| commission_earned | 2026-09-08 | 2026-09-08 09:58:32 | entry 9268e67a, Broker commission on the collected premium of policy CGP-01061
+| commission_earned | 2026-09-08 | 2026-09-08 11:33:17 | entry 935f7ede, Bound on 2026-09-08 through a locally signed webhook during development (pi_local_fafe3cc4); Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01 and Yoann's decision.
+| commission_earned | 2026-09-09 | 2026-09-09 06:34:34 | entry 0456fb95, Broker commission on the endorsement premium collected for policy CGP-01707
+| commission_earned | 2026-09-09 | 2026-09-09 19:50:43 | entry 99a17629, Broker commission on the extra premium collected after the correction on policy CGP-01707on that premium
+Clawback
+-$780.05
+Explain this amount
+Commission clawed back in 2026-09
+Each line is the clawback the ledger posted when a refund completed: floor(refunded premium x rate / 10000), taken back from the broker.
+|
+| Amount | How it was computed (integer cents) | Result
+| CGP-01274, effective 2026-09-08, entry 6e6f556c | Broker commission clawed back on the refunded premium of policy CGP-01274 | -$304.99
+| CGP-01062, effective 2026-09-08, entry 9abd7240 | Broker commission clawed back on the refunded premium of policy CGP-01062 | -$475.06
+| Commission clawed back in the month, as a negative movement of what the broker is owed | -30499 - 47506 | -$780.05
+Rounding Rounded down (floor): broker commission drops the fraction of a cent, on what is earned and on what is clawed back.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| clawback | 2026-09-08 | 2026-09-08 18:27:59 | entry 6e6f556c, Broker commission clawed back on the refunded premium of policy CGP-01274
+| clawback | 2026-09-08 | 2026-09-08 11:27:42 | entry 9abd7240, Broker commission clawed back on the refunded premium of policy CGP-01062on refunded premium
+Net due
+$437.45
+Explain this amount
+Net due to Redwood Commercial Brokers for 2026-09
+Net due IS the movement of this broker's commission payable account for the month, to the cent: the page checks it against a second, independent read of the journal.
+|
+| Amount | How it was computed (integer cents) | Result
+| Commission earned in the month | 121750 | $1,217.50
+| Commission clawed back on refunded premium | -78005 | -$780.05
+| Other movements of this broker's commission payable | 0 | $0.00
+| Net due to the broker | 121750 - 78005 + 0 | $437.45
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+equals the journal movement
+|
+| | Effective | Recorded | Line | Policy | Amount | Premium in it
+|
+| 2026-09-08 | 33 h | Premium collected |
+[a /policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad] CGP-01061 | -$1,253.20 | -$1,200.00
+|
+What it says
+Bound on 2026-09-08 through a locally signed webhook during development (pi_local_fafe3cc4); Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01 and Yoann's decision.
+Journal entry
+a7fd58d0-80d3-4d9d-8c49-6d995bfb6591
+Recorded
+2026-09-08 11:33:17 UTC
+|
+| 2026-09-08 | 34 h | Premium collected |
+[a /policies/31509261-4bfd-4c0c-8e16-55ff03eff1b7] CGP-01062 | $3,556.84 | $3,450.75
+|
+What it says
+Policy CGP-01062 premium, tax and fee collected at Stripe
+Journal entry
+bea403c4-870b-4120-9d2e-fab0fb88aa05
+Recorded
+2026-09-08 10:16:02 UTC
+|
+| 2026-09-08 | 34 h | Premium collected |
+[a /policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad] CGP-01061 | $1,253.20 | $1,200.00
+|
+What it says
+Policy CGP-01061 premium, tax and fee collected at Stripe
+Journal entry
+e0022260-620d-40e1-942c-7fa7317b7e7f
+Recorded
+2026-09-08 09:58:32 UTC
+|
+| 2026-09-08 | 25 h | Premium collected |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | $1,253.20 | $1,200.00
+|
+What it says
+Policy CGP-01707 premium, tax and fee collected at Stripe
+Journal entry
+e55a6b1c-c204-431a-9269-448fd6871a99
+Recorded
+2026-09-08 18:57:00 UTC
+|
+| 2026-09-08 | 33 h | Premium collected |
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15] CGP-01274 | $2,391.33 | $2,312.00
+|
+What it says
+Policy CGP-01274 premium, tax and fee collected at Stripe
+Journal entry
+fe880a00-0b07-4c5f-a961-749872499620
+Recorded
+2026-09-08 11:24:30 UTC
+|
+| 2026-09-08 | 33 h | Commission earned |
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15] CGP-01274 | $346.80 | not cash
+|
+What it says
+Broker commission on the collected premium of policy CGP-01274
+Journal entry
+0b3d52fa-0699-42e3-911c-bfc18aa19702
+Recorded
+2026-09-08 11:24:30 UTC
+|
+| 2026-09-08 | 34 h | Commission earned |
+[a /policies/31509261-4bfd-4c0c-8e16-55ff03eff1b7] CGP-01062 | $517.61 | not cash
+|
+What it says
+Broker commission on the collected premium of policy CGP-01062
+Journal entry
+44e07015-2d43-405f-bf55-9b1107665c10
+Recorded
+2026-09-08 10:16:02 UTC
+|
+| 2026-09-08 | 25 h | Commission earned |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | $180.00 | not cash
+|
+What it says
+Broker commission on the collected premium of policy CGP-01707
+Journal entry
+5ceacd31-ed44-424e-9fe6-1854c79cf600
+Recorded
+2026-09-08 18:57:00 UTC
+|
+| 2026-09-08 | 34 h | Commission earned |
+[a /policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad] CGP-01061 | $180.00 | not cash
+|
+What it says
+Broker commission on the collected premium of policy CGP-01061
+Journal entry
+9268e67a-d983-4b75-9b05-b97a3b4c6c5c
+Recorded
+2026-09-08 09:58:32 UTC
+|
+| 2026-09-08 | 33 h | Commission earned |
+[a /policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad] CGP-01061 | -$180.00 | not cash
+|
+What it says
+Bound on 2026-09-08 through a locally signed webhook during development (pi_local_fafe3cc4); Stripe never collected this payment. Reversed by the coordinator per review finding F-B2-01 and Yoann's decision.
+Journal entry
+935f7ede-5074-41bd-882e-28c643347906
+Recorded
+2026-09-08 11:33:17 UTC
+|
+| 2026-09-08 | 26 h | Refund to customer |
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15] CGP-01274 | -$2,081.09 | -$2,033.30
+|
+What it says
+Policy CGP-01274 refund paid back to the customer at Stripe
+Journal entry
+06f687ea-7bca-4d61-87cb-59f7ff6f37a5
+Recorded
+2026-09-08 18:27:59 UTC
+|
+| 2026-09-08 | 33 h | Refund to customer |
+[a /policies/31509261-4bfd-4c0c-8e16-55ff03eff1b7] CGP-01062 | -$3,241.56 | -$3,167.13
+|
+What it says
+Policy CGP-01062 refund paid back to the customer at Stripe
+Journal entry
+e945aff8-bf64-4b57-b62d-317c588e0197
+Recorded
+2026-09-08 11:27:42 UTC
+|
+| 2026-09-08 | 26 h | Commission clawback |
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15] CGP-01274 | -$304.99 | not cash
+|
+What it says
+Broker commission clawed back on the refunded premium of policy CGP-01274
+Journal entry
+6e6f556c-8514-458d-9dc9-5d0cbb1ed220
+Recorded
+2026-09-08 18:27:59 UTC
+|
+| 2026-09-08 | 33 h | Commission clawback |
+[a /policies/31509261-4bfd-4c0c-8e16-55ff03eff1b7] CGP-01062 | -$475.06 | not cash
+|
+What it says
+Broker commission clawed back on the refunded premium of policy CGP-01062
+Journal entry
+9abd7240-0059-4245-9d65-06858af2b58d
+Recorded
+2026-09-08 11:27:42 UTC
+|
+| 2026-09-09 | 12 min | Premium collected |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | $53.84 | $52.61
+|
+What it says
+Policy CGP-01707: the difference created by the corrected endorsement date, collected at Stripe
+Journal entry
+4203ce46-3112-49c2-9c04-1a118199e103
+Recorded
+2026-09-09 19:50:43 UTC
+|
+| 2026-09-09 | 13 h | Premium collected |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | $1,127.24 | $1,101.36
+|
+What it says
+Policy CGP-01707 endorsement premium and tax collected at Stripe
+Journal entry
+f6aa569c-594c-416d-a658-b02a7d693023
+Recorded
+2026-09-09 06:34:34 UTC
+|
+| 2026-09-09 | 13 h | Commission earned |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | $165.20 | not cash
+|
+What it says
+Broker commission on the endorsement premium collected for policy CGP-01707
+Journal entry
+0456fb95-e3f5-4e1c-bc7c-e6736bcc219c
+Recorded
+2026-09-09 06:34:34 UTC
+|
+| 2026-09-09 | 12 min | Commission earned |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | $7.89 | not cash
+|
+What it says
+Broker commission on the extra premium collected after the correction on policy CGP-01707
+Journal entry
+99a17629-01d9-4d32-916e-77a0d5d0360d
+Recorded
+2026-09-09 19:50:43 UTC
+This revision
+Statement month
+2026-09, by effective date
+Revision
+6
+Knowledge cutoff
+2026-09-09 19:59:14 UTC
+Produced
+2026-09-09 19:59:14 UTC, Sam Patel, operations
+Supersedes
+[a /statements/c0f845bd-a57c-4086-8796-c36375a021ba] revision 5
+Content hash
+reproducible
+Sandbox references
+Content hash (sha256)
+5c991578feb94844d3b1fb9de8d04010d3bd4788134902953dc0c900b41e84d8
+Statement run id
+8df46119-a401-41a6-b8c2-c093a7c1ba02
+Canonical format version
+3
+Against revision 5
+|
+| | Change | Line | Recorded | Amount
+|
+| appeared | Premium collected | 12 min | $53.84
+|
+What it says
+Policy CGP-01707: the difference created by the corrected endorsement date, collected at Stripe
+Policy
+CGP-01707
+Journal entry
+4203ce46-3112-49c2-9c04-1a118199e103
+Recorded
+2026-09-09 19:50:43 UTC
+|
+| appeared | Commission earned | 12 min | $7.89
+|
+What it says
+Broker commission on the extra premium collected after the correction on policy CGP-01707
+Policy
+CGP-01707
+Journal entry
+99a17629-01d9-4d32-916e-77a0d5d0360d
+Recorded
+2026-09-09 19:50:43 UTC
+About this screen
+Ties to the ledger
+The net due is compared, live, with the movement of this broker’s commission payable account in the journal, read again with the same month and cutoff. Two reads of one ledger must agree to the cent.
+The two collected figures
+The cash line is what the customers paid: premium, state premium tax and policy fee. The premium line is the part of it commission is earned on, at the broker’s rate, rounded down.
+Reproducing this revision
+The button beside the PDF posts this same month and this same cutoff, so it can only produce this document again. A new month or a fresh cutoff is the form on
+[a /ops/statements] Broker statements.
+Provisional and revisions
+A run made before its month was over is provisional and stays exactly as it is. A later run stores a new revision that names the one it replaces; nothing is rewritten.Corgi · Policy administration
