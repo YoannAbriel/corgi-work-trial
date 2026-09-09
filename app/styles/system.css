@@ -432,10 +432,28 @@
   background: var(--orange);
   color: white;
 }
+/* The heading of a group of views. Inside a <details> it is the summary that folds the group,
+   so it carries a caret drawn from a border, not a glyph. */
 .context-group {
-  padding: 14px 10px 4px;
+  padding: 12px 10px 4px;
   font-size: 11px;
   color: var(--ink-2);
+}
+.sidebar-views summary.context-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sidebar-views summary.context-group::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border: 3.5px solid transparent;
+  border-left-color: currentColor;
+  transition: transform 0.15s;
+}
+.sidebar-views details.context-fold[open] > summary.context-group::before {
+  transform: rotate(90deg) translateX(1px);
 }
 
 /* The body: top bar, page band, content, footer. */
@@ -2566,7 +2584,7 @@ button.secondary.is-working::after {
   .context-nav nav a[aria-current="page"]::before {
     display: none;
   }
-  .context-group {
+  .context-nav .context-group {
     display: none;
   }
   .portal-body {

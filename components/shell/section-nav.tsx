@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import type { SectionId } from "./sections";
+import { SECTIONS, type SectionId } from "./sections";
 
 // One view of a section: a link to the same route with `?view=`, or to a sibling route. The
 // page decides which one is current; this component only draws the list.
@@ -36,7 +36,7 @@ export function SectionNav({ section, views }: { section: SectionId; views: NavV
   }
 
   return (
-    <nav className="sidebar-views" aria-label={`${section} views`}>
+    <nav className="sidebar-views" aria-label={`${SECTIONS[section].label} views`}>
       {runs.map((run, index) =>
         run.group ? (
           <details className="context-fold" open key={`group-${run.group}-${index}`}>
