@@ -1,7 +1,8 @@
 # Evidence pack (slice B14)
 
 Index of every independent review record, every evidence file and every external sandbox reference
-this repository cites. Written on branch `freeze-package` from `main` at `49ec797`.
+this repository cites. Written on branch `freeze-package`, refreshed from `main` at `b33edbc`
+(the cycle-2 evidence correction) after a first pass at `49ec797`.
 
 **What this is.** The README says "Evidence for the live slots is in `docs/STATUS.md` (event ids,
 payment intent and refund ids, amounts) and in the evidence pack." This is that pack. A reviewer
@@ -21,8 +22,9 @@ hashes from `md5`. External references were extracted by pattern (`pi_`, `re_`, 
 `evt_`, `we_`, `cmk_`, `YOA-`) and de-duplicated, with truncated repeats collapsed into the full form.
 
 **Images were opened, not just listed.** Every duplicate-content group found by hashing was opened
-and looked at. That is how section 4.3 found five evidence files whose names say one thing and whose
-pixels say another. A pack that indexes filenames proves nothing.
+and looked at. That is how section 4.3 found six evidence files whose names said one thing and whose
+pixels said another; all six have since been recaptured and the corrected files were opened too. A
+pack that indexes filenames proves nothing.
 
 **No external service was contacted to build this pack.** No Stripe call, no Vercel call, no
 Linear call, no HTTP request to the deployed application. Every figure below is read from the
@@ -39,12 +41,12 @@ No `.env.local`, no `.env.vercel.local` and nothing under `.local/` was opened.
 |---|---|
 | Records walked | **84** (51 review, 29 handoff, 2 checkpoint, STATUS, COMPLIANCE-MATRIX) |
 | Review records carrying a verdict | **50** (`instructions-2026-09-08.md` is an instruction-review record, not a slice review) |
-| Evidence files under `docs/evidence/` | **263**, 26.5 MB, in 8 directories |
-| Evidence files named individually by a record | **31** |
+| Evidence files under `docs/evidence/` | **263**, 27.2 MB, in 8 directories |
+| Evidence files named individually by a record | **53** (the cycle-2 record now names all 24 of its own, with their md5) |
 | Evidence files named individually by a record's own index (`observations.json`) | **121** |
-| Evidence files covered by their directory's citation or by a stated count | **111** |
+| Evidence files covered by their directory's citation or by a stated count | **89** |
 | **Files no record reaches at all (orphans)** | **0** |
-| **Files whose content does not match their name** | **5** (section 4.3, F-UI2-08) |
+| **Files whose content does not match their name** | **0**. Six were found wrong and all six are corrected (section 4.3, F-UI2-08, closed at `c8d679d`) |
 | Distinct paths under `docs/` cited by the records | **93** |
 | **Dangling citations** | **0** |
 | Distinct real sandbox references cited | **88** (20 `pi_`, 3 `re_`, 10 `cs_`, 23 `acct_`, 18 `evt_`, 2 `we_`, 12 `cmk_`) |
@@ -601,9 +603,11 @@ verdict **verbatim**, the evidence the record cites, and the external references
 - **What it closes:** F-BP-02 and F-BP-03. The record states F-BP-02 `CLOSED at `c408cb3`: the
   explained break is visible under `Explained breaks` with its note, `Sam Patel, operations` and
   `2026-09-09 16:39:11`; the count to act on is 35 against the run's 36`.
-- **Evidence files:** 24 PNGs under `docs/evidence/ui-cycle-2/`, listed by name in its section 11.
-  **Five of them do not show what they are named for.** See section 4.3; the F-BP-02 evidence itself
-  (`recon-explained.png`) is genuine and was opened for this pack.
+- **Evidence files:** 24 PNGs under `docs/evidence/ui-cycle-2/`, listed in its section 11 with an
+  md5 each. **Six of them did not show what they were named for; all six were recaptured** at
+  `c8d679d` and the record's section 12 records the defect, its cause and its fix rather than
+  rewriting the original sentences. See section 4.3. The F-BP-02 evidence itself
+  (`recon-explained.png`) was always genuine and was opened for this pack.
 - **Open findings:** F-UI2-01 to F-UI2-07, all LOW, none blocking; F-UI2-04 closed as not reproduced
   (`docs/STATUS.md` at the commit merging `92379e2`).
 - **Walkthrough:** NOT REVIEWED WITH YOANN.
@@ -612,13 +616,13 @@ verdict **verbatim**, the evidence the record cites, and the external references
 
 # 2. Evidence files
 
-263 files, 26.5 MB, in eight directories. Every one is reachable from a record. Sizes are from
+263 files, 27.2 MB, in eight directories. Every one is reachable from a record. Sizes are from
 `stat`, pixel sizes from `sips`.
 
 | Directory | Files | Bytes | The record that cites it |
 |---|---|---|---|
 | `docs/evidence/ui-audit-2026-09-09/` | 124 | 10.3 MB | `docs/ui-audit-2026-09-09.json` (the audit report) and `docs/STATUS.md` at 09:57:00Z; replayed by `docs/reviews/b13-13-ui-audit.md` |
-| `docs/evidence/ui-cycle-2/` | 24 | 3.3 MB | `docs/reviews/ui-cycle-2.md` section 11, which names all 24. Five of them are wrong, section 4.3 |
+| `docs/evidence/ui-cycle-2/` | 24 | 4.1 MB | `docs/reviews/ui-cycle-2.md` section 11, which names all 24 with their md5. Six were recaptured to close F-UI2-08, section 4.3 |
 | `docs/evidence/b13-screens/` | 38 | 3.0 MB | `docs/reviews/b13-screens.md`, `docs/COMPLIANCE-MATRIX.md`, `docs/reviews/FINDINGS.md` |
 | `docs/evidence/b13-13-ui-audit/` | 30 | 3.8 MB | `docs/reviews/b13-13-ui-audit.md` line 174, "one PNG per issue ... named by issue id" |
 | `docs/evidence/b12-4/` | 18 | 1.5 MB | `docs/handoffs/b12-4-notes.md`, `docs/reviews/inbox-and-motion.md`, `docs/COMPLIANCE-MATRIX.md`, `README.md` |
@@ -801,36 +805,38 @@ The PDF quality pass: every page of the three documents plus the edge cases. Thr
 
 ## `docs/evidence/ui-cycle-2/` (24 files)
 
-The independent measurement of interface cycle 2 on the deployed `c408cb3`. The record names
-all 24 in its section 11 and says each was opened and reviewed before being committed; for five
-of them that is not true, and section 4.3 says which and why.
+The independent measurement of interface cycle 2. **Six of these files were recaptured** to
+close F-UI2-08; the recaptured six illustrate `92379e2` and the other eighteen `c408cb3`, which
+is stated per row below and in the record's own section 11. All 24 md5 values are distinct, and
+the record's md5 table was checked against the files for this pack: 24 rows, 24 files, zero
+mismatch.
 
-| File | Size | Pixels | md5 | What it shows |
-|---|---|---|---|---|
-| `1024-console-submenu.png` | 164 KB | 1024x900 | `55bdc9bd` | the console with its submenu at 1024 px, no overlap |
-| `1440-console-submenu.png` | 238 KB | 1440x900 | `fd31f5ed` | the same at 1440 px |
-| `375-console-ledger.png` | 62 KB | 375x900 | `9b38866b` | the console ledger section at 375 px with every fold open |
-| `375-console.png` | 62 KB | 375x900 | `2b878208` | the console at 375 px with every fold open |
-| `375-explain-policy.png` | 59 KB | 375x900 | `2239a0f6` | the explanation drawer open on the policy page at 375 px |
-| `375-inbox.png` | 78 KB | 375x900 | `9bc2e8a9` | the inbox at 375 px |
-| `375-policy.png` | 75 KB | 375x900 | `0e976944` | the policy page at 375 px with every fold open |
-| `375-reconciliation.png` | 65 KB | 375x900 | `7701bec5` | the reconciliation board at 375 px |
-| `375-statements.png` | 66 KB | 375x900 | `b56525fe` | the statements screen at 375 px |
-| `anon-landing.png` | 130 KB | 1440x900 | `bcba9706` | the signed-out landing page and its sandbox sentence |
-| `anon-login.png` | 39 KB | 1440x900 | `75f8017f` | the sign-in page and its sandbox sentence |
-| `approvals.png` | 75 KB | 1440x950 | `c5789dd0` | **WRONG FILE**: named for the approvals queue, contains the signed-out sign-in page (section 4.3) |
-| `claim-payments.png` | 75 KB | 1440x950 | `c5789dd0` | **WRONG FILE**: named for the claim payments table, contains the signed-out sign-in page (section 4.3) |
-| `endorse-preview.png` | 75 KB | 1440x950 | `c5789dd0` | **WRONG FILE**: named for the endorsement preview, contains the signed-out sign-in page (section 4.3) |
-| `explain-drawer.png` | 232 KB | 1440x950 | `46bfa8f4` | the amount explanation as a right-hand drawer |
-| `inbox-broker.png` | 60 KB | 1440x950 | `bb599e07` | the broker inbox |
-| `inbox-ops.png` | 321 KB | 1440x2949 | `c847bf9a` | the operations inbox |
-| `mcp-keys.png` | 788 KB | 1440x3415 | `c2ab53a8` | the MCP provider page: endpoint, header, snippet, the tool list read from the code, the never-delegated list, key prefixes only |
-| `new-broker.png` | 153 KB | 1440x1086 | `1eef7f40` | the New broker card rendered disabled with its route-pending sentence |
-| `recon-approver.png` | 148 KB | 1440x950 | `0653edca` | the reconciliation board as `approver@`, with no explain control |
-| `recon-explained.png` | 58 KB | 1180x700 | `81e0df1d` | **the F-BP-02 evidence, genuine**: the Explained breaks table with `pi_3UDQN7K6R3v50tIy0fdlIi1Q`, classification `provider only`, the note, `Sam Patel, operations`, `2026-09-09 16:39:11`; the probe table reads "No probe payment is being reported", which is F-BP-01 |
-| `recon-ops-board.png` | 75 KB | 1440x950 | `c5789dd0` | **WRONG FILE**: named for the breaks board as `ops@`, contains the signed-out sign-in page (section 4.3) |
-| `recon-runs.png` | 75 KB | 1440x950 | `c5789dd0` | **WRONG FILE**: named for the runs list, contains the signed-out sign-in page (section 4.3) |
-| `reference-drawer.png` | 217 KB | 1440x950 | `5c9c2429` | the inspector drawer open on a reference |
+| File | Size | Pixels | md5 | Revision | What it shows |
+|---|---|---|---|---|---|
+| `1024-console-submenu.png` | 164 KB | 1024x900 | `55bdc9bd` | c408cb3 | the console with its submenu at 1024 px, no overlap |
+| `1440-console-submenu.png` | 238 KB | 1440x900 | `fd31f5ed` | c408cb3 | the same at 1440 px |
+| `375-console-ledger.png` | 62 KB | 375x900 | `9b38866b` | c408cb3 | the console ledger section at 375 px, every fold open |
+| `375-console.png` | 62 KB | 375x900 | `2b878208` | c408cb3 | the console at 375 px, every fold open |
+| `375-explain-policy.png` | 59 KB | 375x900 | `2239a0f6` | c408cb3 | the explanation drawer open on the policy page at 375 px |
+| `375-inbox.png` | 78 KB | 375x900 | `9bc2e8a9` | c408cb3 | the inbox at 375 px |
+| `375-policy.png` | 75 KB | 375x900 | `0e976944` | c408cb3 | the policy page at 375 px, every fold open |
+| `375-reconciliation.png` | 65 KB | 375x900 | `7701bec5` | c408cb3 | the reconciliation board at 375 px |
+| `375-statements.png` | 66 KB | 375x900 | `b56525fe` | c408cb3 | the statements screen at 375 px |
+| `anon-landing.png` | 130 KB | 1440x900 | `bcba9706` | c408cb3 | the signed-out landing page and its sandbox sentence |
+| `anon-login.png` | 39 KB | 1440x900 | `75f8017f` | c408cb3 | the sign-in page and its sandbox sentence |
+| `approvals.png` | 97 KB | 1440x950 | `0abd220a` | 92379e2, recaptured | **recaptured**: Money-out approvals as `ops@`, the three tiles (Waiting 0, Amount waiting $0.00, Agent raised 1), the mode line, the Waiting view empty. Opened for this pack |
+| `claim-payments.png` | 176 KB | 1440x950 | `c967444f` | 92379e2, recaptured | **recaptured**: the claim payments table with `LOCAL SIMULATOR` on its rows |
+| `endorse-preview.png` | 184 KB | 1440x950 | `2e0be5ea` | 92379e2, recaptured | **recaptured**: the endorsement preview, a GET form that computes and writes nothing |
+| `explain-drawer.png` | 232 KB | 1440x950 | `46bfa8f4` | c408cb3 | the amount explanation as a right-hand drawer |
+| `inbox-broker.png` | 60 KB | 1440x950 | `bb599e07` | c408cb3 | the broker inbox |
+| `inbox-ops.png` | 321 KB | 1440x2949 | `c847bf9a` | c408cb3 | the operations inbox |
+| `mcp-keys.png` | 788 KB | 1440x3415 | `c2ab53a8` | c408cb3 | the MCP provider page: endpoint, header, snippet, the tool list read from the code, the never-delegated list, key prefixes only |
+| `new-broker.png` | 153 KB | 1440x1086 | `1eef7f40` | c408cb3 | the New broker card rendered disabled with its route-pending sentence |
+| `recon-approver.png` | 148 KB | 1440x950 | `0653edca` | c408cb3 | the reconciliation board as `approver@`, with no explain control |
+| `recon-explained.png` | 58 KB | 1180x700 | `81e0df1d` | c408cb3 | **the F-BP-02 evidence, at `c408cb3`**: the Explained breaks table with `pi_3UDQN7K6R3v50tIy0fdlIi1Q`, classification `provider only`, the note, `Sam Patel, operations`, `2026-09-09 16:39:11`. Opened for this pack |
+| `recon-ops-board.png` | 492 KB | 1440x3326 | `aa7b34de` | 92379e2, recaptured | **recaptured**: the breaks board as `ops@`. Opened for this pack: the band reads `4 breaks to act on` and `32 probes from check runs`, the four remaining breaks are the $100.00, the two $12.61 and the -$8.98, the probe table lists 32 rows of $42.42, and the Explained breaks table is empty. See section 4.3 |
+| `recon-runs.png` | 191 KB | 1440x950 | `1ff0e033` | 92379e2, recaptured | **recaptured**: the runs list, whose latest Stripe row reads `32 probes, 4 breaks to act on` |
+| `reference-drawer.png` | 209 KB | 1440x950 | `363fe653` | 92379e2, recaptured | **recaptured**: the inspector drawer opened by following a link the page itself renders (`?inspect=pi_3UDKjJK6R3v50tIy0nLbDPOc`). The first version was signed in and genuine but showed the drawer refusing a hand-typed shape, the opposite of what the record claims |
 
 ## `docs/evidence/ui-audit-2026-09-09/` (124 files)
 
@@ -1115,11 +1121,13 @@ what is missing and where the fact comes from.
 
 Every one of the 263 files under `docs/evidence/` is reachable from a record. The breakdown:
 
-- **31** are named individually, by path or by filename, in a record.
+- **53** are named individually, by path or by filename, in a record. That number rose from 31 when
+  the cycle-2 record was corrected: it now names all 24 of its own files with their md5, which is
+  the shape every evidence section should have.
 - **121** are named individually in `docs/evidence/ui-audit-2026-09-09/observations.json`, the
   audit's own index, which `docs/ui-audit-2026-09-09.json` and `docs/STATUS.md` cite. Every index
   entry resolves to a file that exists, and every `.jpg` in that directory appears exactly once.
-- **111** are covered by their directory's citation or by a count the record states, not by name.
+- **89** are covered by their directory's citation or by a count the record states, not by name.
 
 **One soft gap inside that last group.** `docs/reviews/b13-13-ui-audit.md` describes its evidence as
 "one PNG per issue under `docs/evidence/b13-13-ui-audit/`, named by issue id". Five of the 30 files
@@ -1135,54 +1143,65 @@ dangling citation this pack found on its first pass, `docs/reviews/ui-cycle-2.md
 `docs/reviews/FINDINGS.md` rows F-BP-02 and F-BP-03 as "CONFIRMATION PENDING"), landed with the
 merge of `92379e2` and is indexed in section 1.
 
-## 4.3 Five evidence files do not show what they are named for (F-UI2-08)
+## 4.3 Six evidence files did not show what they were named for: FOUND AND CLOSED (F-UI2-08)
 
-**The hard finding of this pack.** Hashing every evidence file found six duplicate-content groups.
-Five of the six are expected and are recorded in 4.4 as confirmatory. The sixth is a defect.
+**The hard finding of this pack, and it is closed.** Hashing every evidence file found six
+duplicate-content groups. Five are expected and are recorded in 4.4 as confirmatory. The sixth was a
+defect, and correcting it turned up a seventh file nobody had asked about.
 
-These five files under `docs/evidence/ui-cycle-2/` are **byte-identical**, md5
-`c5789dd085614cec9ed051b17793d746`, 76 646 bytes each, 1440x950:
+**What was wrong.** Five files under `docs/evidence/ui-cycle-2/` were byte-identical, md5
+`c5789dd085614cec9ed051b17793d746`, 76 646 bytes each: `approvals.png`, `claim-payments.png`,
+`endorse-preview.png`, `recon-ops-board.png` and `recon-runs.png`. The image was opened for this
+pack: it was `/login`, the signed-out sign-in page, with empty email and password fields. Nothing
+about an approval, a claim payment, an endorsement or a break appeared in any of them. Two of the
+five, `recon-ops-board` and `recon-runs`, were the named illustration of the record's matrix item 2,
+the breaks-board port.
 
-| File | What its name claims | What the image actually is |
-|---|---|---|
-| `approvals.png` | the approvals queue | the signed-out sign-in page |
-| `claim-payments.png` | the claim payments table | the signed-out sign-in page |
-| `endorse-preview.png` | the endorsement preview | the signed-out sign-in page |
-| `recon-ops-board.png` | the breaks board as `ops@` | the signed-out sign-in page |
-| `recon-runs.png` | the reconciliation runs list | the signed-out sign-in page |
+`docs/reviews/ui-cycle-2.md` section 11 stated that the 24 files were "each opened and reviewed
+before being committed". That sentence was false for those five, and its AF-05 line carried the same
+defect.
 
-The image was opened for this pack: it is `/login`, headed "Sign in", with empty email and password
-fields, the corgi vignette, the "Demo accounts and access" fold closed, and the sandbox sentence
-"Work-trial build on sandbox providers and test data. No real money moves here." Nothing about an
-approval, a claim payment, an endorsement or a break appears anywhere in it.
+**Cause,** as the reviewer's own correction records it: one capture script signed in once and then
+took five shots in a loop **with no guard on the result**. The session was lost during the loop,
+every navigation redirected to `/login`, and the script screenshotted the redirect five times
+without noticing. The other nineteen files were genuine because every other script in the pass
+either signed in immediately before its shot or asserted on the content.
 
-**Why it matters.** `docs/reviews/ui-cycle-2.md` section 11 states: "24 PNGs under
-`docs/evidence/ui-cycle-2/`, 3.3 MB, **each opened and reviewed before being committed**", and lists
-all five by name. That sentence is false for those five. Two of them, `recon-ops-board` and
-`recon-runs`, are the named evidence behind matrix item 2, the breaks-board port, which is the item
-that closes F-BP-02 and F-BP-03.
+**The fix, at `c8d679d`, merged `b33edbc`.** A new capture script refuses to write a file unless,
+on the page itself: the final URL is not `/login`, the AF-02 mode line is present (it renders only
+when signed in), and a set of strings specific to that screen is found. All five passed all three
+guards. The reviewer then re-opened the other nineteen and **found a sixth file wrong in a different
+way**: `reference-drawer.png` was signed in and genuine but showed the inspector *refusing* a
+hand-typed reference shape, which is the opposite of what the record claims the drawer does. It was
+recaptured by following a link the page itself renders. The record's section 12 states all of this
+in its own words rather than quietly rewriting the original sentences.
 
-**What is not affected.** The measurements in that record may well be sound: they are DOM readings,
-and the screenshots are a separate artefact. And the evidence that actually carries F-BP-02,
-`recon-explained.png`, is genuine: opened for this pack, it shows the **Explained breaks** table with
-`pi_3UDQN7K6R3v50tIy0fdlIi1Q`, classification `provider only`, the note "Probe payment from a check
-run, explained during the production confirmation of 2026-09-09", the author "Sam Patel, operations"
-and the instant `2026-09-09 16:39:11`. Its **Probe payments from check runs** table reads "No probe
-payment is being reported", which is F-BP-01 visible on the deployed board exactly as the register
-describes it.
+**Verified independently for this pack, at `b33edbc`:**
 
-**Likely cause,** stated as a hypothesis and not as a fact: the capture session lost its session
-cookie part way through and five shots silently recorded the page the browser was redirected to. The
-application behaved correctly; the capture did not notice.
+- 24 files, **24 distinct md5 values**, 4.05 MB. The duplicate group is gone.
+- The record's md5 table was compared to the files on disk: **24 rows, 24 files, zero mismatch**, no
+  file on disk missing from the table and no table row missing from disk.
+- Two of the recaptured images were opened rather than trusted. `approvals.png` is the Money-out
+  approvals screen as `Sam Patel, operations`, signed in, with the mode line and the three tiles
+  (Waiting 0, Amount waiting $0.00, Agent raised 1). `recon-ops-board.png` is the breaks board with
+  the band reading `4 breaks to act on` and `32 probes from check runs`.
 
-**Status: recapture in progress, registered as F-UI2-08.** The coordinator verified the five hashes
-independently, registered the finding and resumed the cycle-2 reviewer to recapture the five screens
-signed in, with a guard against landing on the login page, to list the 24 md5 values in the record
-and to date the correction. When that lands, this section becomes one line and the five files are
-indexed normally in section 2.
+**One consequence the freeze package has to carry.** The six recaptured files illustrate `92379e2`,
+not the reviewed `c408cb3`, because production moved between the review and the recapture. That is
+stated per file in section 2 and in the record. It matters for the breaks board: at `92379e2` the
+**Explained breaks table is empty** ("Nobody has written a note on a break yet"), because the break
+that was explained, `pi_3UDQN7K6R3v50tIy0fdlIi1Q`, has been reclassified as a probe by a later run
+and now sits in the probe table. Nothing is lost and the F-BP-02 closure is not affected: it was
+measured at `c408cb3` and is preserved in `recon-explained.png`, which was opened for this pack and
+is genuine. But anyone re-running matrix item 2 against today's production will find that table
+empty and should expect to.
 
-**The general lesson for the freeze,** worth one sentence in the handoff: a screenshot proves
-nothing until somebody looks at it. Filename, byte size and a line in a record are not evidence.
+**The general lesson, and the reason line C2 exists in the freeze checklist.** A screenshot proves
+nothing until somebody looks at it. A filename, a byte size and a sentence in a record are not
+evidence, and a capture script without a guard will cheerfully photograph a login page five times.
+
+*A note on the timestamp: the reviewer's correction section is stamped "20:55Z", which is the local
+time, not UTC; the correction was made at 18:55Z. The coordinator has added a note to the record.*
 
 ## 4.4 Five duplicate-content groups that are expected
 
@@ -1257,12 +1276,19 @@ The live-fire session running tonight on branch `live-fire-evidence` is aimed at
 lines. Whatever it does or does not close must be re-read into this table before the email is sent,
 because the table above is the state at `5cfbc26` and not a prediction.
 
-## 4.8 Findings still open at `49ec797`
+## 4.8 Findings still open at `b33edbc`
 
 The full register is `docs/reviews/FINDINGS.md`. The ones that matter for the freeze:
 
-- **F-BP-01 (MED)**, above: one production reconciliation run closes it, and only Yoann can click it
-  before the freeze.
+- **F-BP-01 (MED)**: **the evidence now shows this closed, and the register has not caught up.** Its
+  line still reads "EXPECTED, closes with one reconciliation run on production" and predicts the
+  board will then read "0 to act on and the probes apart". The recaptured `recon-ops-board.png`, at
+  `92379e2` and opened for this pack, shows a run has happened: the band reads **`4 breaks to act
+  on`** and **`32 probes from check runs`**, the probe table holds 32 rows of $42.42, and the four
+  breaks left are the $100.00, the two $12.61 and the -$8.98 that the backend review predicted would
+  remain. The prediction of "0 to act on" was the only part that was wrong, and it was wrong in the
+  safe direction: four genuine provider-only breaks survive and are still shown. Worth one register
+  line and one STATUS line before the email quotes any of it.
 - **F-BP-02 (MED)** and **F-BP-03 (LOW)**: **closed.** The breaks-board port is merged at `c408cb3`
   and on production, and `docs/reviews/ui-cycle-2.md` confirms it, PASS at `c408cb3`, with the
   explained break visible under its own heading with its note, its author and its time.
