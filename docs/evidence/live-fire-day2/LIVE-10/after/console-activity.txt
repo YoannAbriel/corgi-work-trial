@@ -1,0 +1,1523 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/console?kind=activity&view=feed] Feed
+[a /ops/console?kind=activity&view=problems] Problems
+[a /ops/console?kind=activity&view=latency] Latency
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+Console
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Operations consolethe last 60 minutes
+[input view=feed]
+[input since=]
+Refresh now
+[a /ops/console/search] Search Console
+Window
+[a /ops/console?kind=activity&since=15m] 15 min
+[a /ops/console?kind=activity&since=1h] 1 hour
+[a /ops/console?kind=activity&since=6h] 6 hours
+[a /ops/console?kind=activity&since=24h] 24 hours
+[a /ops/console?kind=activity&since=7d] 7 days
+[input view=feed]
+[input since=]
+Apply
+Kinds
+[a /ops/console] All
+[a /ops/console?kind=money] Money
+[a /ops/console?kind=webhook] Webhooks
+[a /ops/console?kind=journal] Journal
+[a /ops/console?kind=policy] Policy
+[a /ops/console?kind=claim] Claims
+[a /ops/console?kind=approval] Approvals
+[a /ops/console?kind=reconciliation] Reconciliation
+[a /ops/console?kind=statement] Statements
+[a /ops/console?kind=mcp] MCP
+[a /ops/console?kind=kyb] Verification
+[a /ops/console?kind=change_request] Change requests93 events
+|
+| | When | Kind | What | Amount | Who | Object
+|
+| just now | money | claim_payout returnedLOCAL SIMULATOR | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=sim_tr_edbd330eb019836c1a9704e8afac5339&kind=activity] sim_tr_edbd330eb019836c1a9704e8afac5339
+|
+When
+2026-09-09 21:30:45 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+sim_tr_edbd330eb019836c1a9704e8afac5339
+Who
+Sam***Sam Patel, operations
+|
+| just now | journal | claim_reserve_restored | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=cf3812fb-f96e-42d2-b755-918edf3992ad&kind=activity] cf3812fb-f96e-42d2-b755-918edf3992ad
+|
+When
+2026-09-09 21:30:45 UTC
+Detail
+Claim CLM-00214: reserve restored after the return
+Rail
+not a rail
+Reference
+cf3812fb-f96e-42d2-b755-918edf3992ad
+Who
+Sam***Sam Patel, operations
+|
+| just now | journal | claim_payment_returned | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=cf3812fb-f96e-42d2-b755-918edf3992ad&kind=activity] cf3812fb-f96e-42d2-b755-918edf3992ad
+|
+When
+2026-09-09 21:30:45 UTC
+Detail
+Claim CLM-00214: payment returned by the bank
+Rail
+not a rail
+Reference
+cf3812fb-f96e-42d2-b755-918edf3992ad
+Who
+Sam***Sam Patel, operations
+|
+| just now | claim | payment_returnedLOCAL SIMULATOR | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:30:45 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 1 min | money | claim_payout provider_acceptedLOCAL SIMULATOR | $300.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=sim_tr_64acae2d7f00dfdcdfd7eac9ef357561&kind=activity] sim_tr_64acae2d7f00dfdcdfd7eac9ef357561
+|
+When
+2026-09-09 21:30:39 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+sim_tr_64acae2d7f00dfdcdfd7eac9ef357561
+Who
+Sam***Sam Patel, operations
+|
+| 1 min | journal | claim_payment_sent | $300.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=f1c28a22-2922-41d5-a6c6-5bce81e4656d&kind=activity] f1c28a22-2922-41d5-a6c6-5bce81e4656d
+|
+When
+2026-09-09 21:30:39 UTC
+Detail
+Claim CLM-00214: payment sent on the payout rail
+Rail
+not a rail
+Reference
+f1c28a22-2922-41d5-a6c6-5bce81e4656d
+Who
+Sam***Sam Patel, operations
+|
+| 1 min | claim | payment_sentLOCAL SIMULATOR | $300.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:30:39 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 2 min | approval | approval approved | $300.00 |
+Ale***Alex Kim, approver |
+[a /ops/console?inspect=61dfb899-0e76-4dfe-96fa-c57c6b482e08&kind=activity] 61dfb899-0e76-4dfe-96fa-c57c6b482e08
+|
+When
+2026-09-09 21:29:53 UTC
+Detail
+none
+Rail
+not a rail
+Reference
+61dfb899-0e76-4dfe-96fa-c57c6b482e08
+Who
+Ale***Alex Kim, approver
+|
+| 3 min | money | claim_payout succeededLOCAL SIMULATOR | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=sim_tr_edbd330eb019836c1a9704e8afac5339&kind=activity] sim_tr_edbd330eb019836c1a9704e8afac5339
+|
+When
+2026-09-09 21:27:58 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+sim_tr_edbd330eb019836c1a9704e8afac5339
+Who
+Sam***Sam Patel, operations
+|
+| 3 min | journal | claim_payment_settled | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=920f1f22-8dd7-4d77-bc27-d129b35871d0&kind=activity] 920f1f22-8dd7-4d77-bc27-d129b35871d0
+|
+When
+2026-09-09 21:27:58 UTC
+Detail
+Claim CLM-00214: payment settled on the payout rail
+Rail
+not a rail
+Reference
+920f1f22-8dd7-4d77-bc27-d129b35871d0
+Who
+Sam***Sam Patel, operations
+|
+| 3 min | claim | payment_settledLOCAL SIMULATOR | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:27:58 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 4 min | money | claim_payout provider_acceptedLOCAL SIMULATOR | $500.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=sim_tr_127e3e7e412f63ef0f8a0ca1a91d7bbf&kind=activity] sim_tr_127e3e7e412f63ef0f8a0ca1a91d7bbf
+|
+When
+2026-09-09 21:27:19 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+sim_tr_127e3e7e412f63ef0f8a0ca1a91d7bbf
+Who
+Sam***Sam Patel, operations
+|
+| 4 min | journal | claim_payment_sent | $500.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=709a25e0-0738-41b4-ace9-8f64575ddce1&kind=activity] 709a25e0-0738-41b4-ace9-8f64575ddce1
+|
+When
+2026-09-09 21:27:19 UTC
+Detail
+Claim CLM-00214: payment sent on the payout rail
+Rail
+not a rail
+Reference
+709a25e0-0738-41b4-ace9-8f64575ddce1
+Who
+Sam***Sam Patel, operations
+|
+| 4 min | claim | payment_sentLOCAL SIMULATOR | $500.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:27:19 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 4 min | money | claim_payout provider_acceptedLOCAL SIMULATOR | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=sim_tr_edbd330eb019836c1a9704e8afac5339&kind=activity] sim_tr_edbd330eb019836c1a9704e8afac5339
+|
+When
+2026-09-09 21:27:02 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+sim_tr_edbd330eb019836c1a9704e8afac5339
+Who
+Sam***Sam Patel, operations
+|
+| 4 min | journal | claim_payment_sent | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=519590d4-aae4-4781-94c9-9316abcba747&kind=activity] 519590d4-aae4-4781-94c9-9316abcba747
+|
+When
+2026-09-09 21:27:02 UTC
+Detail
+Claim CLM-00214: payment sent on the payout rail
+Rail
+not a rail
+Reference
+519590d4-aae4-4781-94c9-9316abcba747
+Who
+Sam***Sam Patel, operations
+|
+| 4 min | claim | payment_sentLOCAL SIMULATOR | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:27:02 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 5 min | money | claim_payout requestedLOCAL SIMULATOR | $300.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+|
+When
+2026-09-09 21:26:02 UTC
+Detail
+waiting for a second person to approve it before anything leaves
+Rail
+LOCAL SIMULATOR
+Reference
+none
+Who
+Sam***Sam Patel, operations
+|
+| 5 min | claim | payment_requestedLOCAL SIMULATOR | $300.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:26:02 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 5 min | approval | claim_payment waiting for a second person | $300.00 |
+Sam***Sam Patel, operations |
+[a /ops/console?inspect=61dfb899-0e76-4dfe-96fa-c57c6b482e08&kind=activity] 61dfb899-0e76-4dfe-96fa-c57c6b482e08
+|
+When
+2026-09-09 21:26:02 UTC
+Detail
+to LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+Rail
+not a rail
+Reference
+61dfb899-0e76-4dfe-96fa-c57c6b482e08
+Who
+Sam***Sam Patel, operations
+|
+| 8 min | approval | approval approved | $500.00 |
+Ale***Alex Kim, approver |
+[a /ops/console?inspect=4e092ab2-030a-4a0a-8f2a-0f8b57914061&kind=activity] 4e092ab2-030a-4a0a-8f2a-0f8b57914061
+|
+When
+2026-09-09 21:23:43 UTC
+Detail
+none
+Rail
+not a rail
+Reference
+4e092ab2-030a-4a0a-8f2a-0f8b57914061
+Who
+Ale***Alex Kim, approver
+|
+| 8 min | money | claim_payout requestedLOCAL SIMULATOR | $500.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+|
+When
+2026-09-09 21:23:12 UTC
+Detail
+waiting for a second person to approve it before anything leaves
+Rail
+LOCAL SIMULATOR
+Reference
+none
+Who
+Sam***Sam Patel, operations
+|
+| 8 min | claim | payment_requestedLOCAL SIMULATOR | $500.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:23:12 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 8 min | approval | claim_payment waiting for a second person | $500.00 |
+Sam***Sam Patel, operations |
+[a /ops/console?inspect=4e092ab2-030a-4a0a-8f2a-0f8b57914061&kind=activity] 4e092ab2-030a-4a0a-8f2a-0f8b57914061
+|
+When
+2026-09-09 21:23:12 UTC
+Detail
+to LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+Rail
+not a rail
+Reference
+4e092ab2-030a-4a0a-8f2a-0f8b57914061
+Who
+Sam***Sam Patel, operations
+|
+| 9 min | approval | approval approved | $1,200.00 |
+Ale***Alex Kim, approver |
+[a /ops/console?inspect=7562fcd1-af1c-4869-aee0-f3776123ad08&kind=activity] 7562fcd1-af1c-4869-aee0-f3776123ad08
+|
+When
+2026-09-09 21:22:38 UTC
+Detail
+none
+Rail
+not a rail
+Reference
+7562fcd1-af1c-4869-aee0-f3776123ad08
+Who
+Ale***Alex Kim, approver
+|
+| 11 min | money | claim_payout requestedLOCAL SIMULATOR | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+|
+When
+2026-09-09 21:20:35 UTC
+Detail
+waiting for a second person to approve it before anything leaves
+Rail
+LOCAL SIMULATOR
+Reference
+none
+Who
+Sam***Sam Patel, operations
+|
+| 11 min | claim | payment_requestedLOCAL SIMULATOR | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:20:35 UTC
+Detail
+none
+Rail
+LOCAL SIMULATOR
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 11 min | approval | claim_payment waiting for a second person | $1,200.00 |
+Sam***Sam Patel, operations |
+[a /ops/console?inspect=7562fcd1-af1c-4869-aee0-f3776123ad08&kind=activity] 7562fcd1-af1c-4869-aee0-f3776123ad08
+|
+When
+2026-09-09 21:20:35 UTC
+Detail
+to LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+Rail
+not a rail
+Reference
+7562fcd1-af1c-4869-aee0-f3776123ad08
+Who
+Sam***Sam Patel, operations
+|
+| 14 min | journal | claim_reserve_adjusted | $500.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=47f6ff7e-dc72-4d38-82df-1d0589f2defe&kind=activity] 47f6ff7e-dc72-4d38-82df-1d0589f2defe
+|
+When
+2026-09-09 21:17:27 UTC
+Detail
+Claim CLM-00214: reserve decreased
+Rail
+not a rail
+Reference
+47f6ff7e-dc72-4d38-82df-1d0589f2defe
+Who
+Sam***Sam Patel, operations
+|
+| 14 min | claim | reserve_adjusted | $2,500.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:17:27 UTC
+Detail
+none
+Rail
+not a rail
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 18 min | journal | claim_reserve_set | $3,000.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=84b72071-16b4-405c-8fcf-07d2b7dd7c20&kind=activity] 84b72071-16b4-405c-8fcf-07d2b7dd7c20
+|
+When
+2026-09-09 21:13:53 UTC
+Detail
+Claim CLM-00214: reserve set
+Rail
+not a rail
+Reference
+84b72071-16b4-405c-8fcf-07d2b7dd7c20
+Who
+Sam***Sam Patel, operations
+|
+| 18 min | claim | reserve_set | $3,000.00 |
+Sam***Sam Patel, operations |
+[a /ops/console/claim/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CGP-01707
+[a /ops/console?inspect=CLM-00214&kind=activity] CLM-00214
+|
+When
+2026-09-09 21:13:53 UTC
+Detail
+initial estimate
+Rail
+not a rail
+Reference
+CLM-00214
+Who
+Sam***Sam Patel, operations
+|
+| 37 min | webhook | stripe checkout.session.completedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj&kind=activity] cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj
+|
+When
+2026-09-09 20:54:28 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj
+Who
+stripe
+|
+| 37 min | money | stripe_checkout succeededStripe: LIVE SANDBOX | $12,307.00 |
+Mar***Marco Silva, broker |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+[a /ops/console?inspect=pi_3UDsVjK6R3v50tIy17PT02bs&kind=activity] pi_3UDsVjK6R3v50tIy17PT02bs
+|
+When
+2026-09-09 20:54:28 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+pi_3UDsVjK6R3v50tIy17PT02bs
+Who
+Mar***Marco Silva, broker
+|
+| 37 min | journal | tax_and_fee_billed | $307.00 | posted by the money path |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+[a /ops/console?inspect=4513eab4-f2d0-4358-922f-c43ff57d57a9&kind=activity] 4513eab4-f2d0-4358-922f-c43ff57d57a9
+|
+When
+2026-09-09 20:54:28 UTC
+Detail
+Policy CGP-01709 state premium tax and policy fee
+Rail
+not a rail
+Reference
+4513eab4-f2d0-4358-922f-c43ff57d57a9
+Who
+posted by the money path
+|
+| 37 min | journal | commission_earned | $1,800.00 | posted by the money path |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+[a /ops/console?inspect=4513eab4-f2d0-4358-922f-c43ff57d57a9&kind=activity] 4513eab4-f2d0-4358-922f-c43ff57d57a9
+|
+When
+2026-09-09 20:54:28 UTC
+Detail
+Broker commission on the collected premium of policy CGP-01709
+Rail
+not a rail
+Reference
+4513eab4-f2d0-4358-922f-c43ff57d57a9
+Who
+posted by the money path
+|
+| 37 min | journal | premium_collected | $12,307.00 | posted by the money path |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+[a /ops/console?inspect=4513eab4-f2d0-4358-922f-c43ff57d57a9&kind=activity] 4513eab4-f2d0-4358-922f-c43ff57d57a9
+|
+When
+2026-09-09 20:54:28 UTC
+Detail
+Policy CGP-01709 premium, tax and fee collected at Stripe
+Rail
+not a rail
+Reference
+4513eab4-f2d0-4358-922f-c43ff57d57a9
+Who
+posted by the money path
+|
+| 37 min | journal | premium_written | $12,000.00 | posted by the money path |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+[a /ops/console?inspect=4513eab4-f2d0-4358-922f-c43ff57d57a9&kind=activity] 4513eab4-f2d0-4358-922f-c43ff57d57a9
+|
+When
+2026-09-09 20:54:28 UTC
+Detail
+Policy CGP-01709 written premium
+Rail
+not a rail
+Reference
+4513eab4-f2d0-4358-922f-c43ff57d57a9
+Who
+posted by the money path
+|
+| 37 min | policy | issued | | no signed-in user recorded |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+|
+When
+2026-09-09 20:54:28 UTC
+Detail
+effective 2026-09-26
+Rail
+not a rail
+Reference
+CGP-01709
+Who
+no signed-in user recorded
+|
+| 37 min | webhook | stripe payment_intent.succeededStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=pi_3UDsVjK6R3v50tIy17PT02bs&kind=activity] pi_3UDsVjK6R3v50tIy17PT02bs
+|
+When
+2026-09-09 20:54:28 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+pi_3UDsVjK6R3v50tIy17PT02bs
+Who
+stripe
+|
+| 37 min | money | stripe_checkout provider_acceptedStripe: LIVE SANDBOX | $12,307.00 |
+Mar***Marco Silva, broker |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+[a /ops/console?inspect=cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj&kind=activity] cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj
+|
+When
+2026-09-09 20:54:07 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj
+Who
+Mar***Marco Silva, broker
+|
+| 37 min | money | stripe_checkout requestedStripe: LIVE SANDBOX | $12,307.00 |
+Mar***Marco Silva, broker |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+|
+When
+2026-09-09 20:54:07 UTC
+Detail
+checkout session not created yet
+Rail
+Stripe: LIVE SANDBOX
+Reference
+none
+Who
+Mar***Marco Silva, broker
+|
+| 38 min | kyb | broker verification approved | |
+Mar***Marco Silva, broker |
+[a /ops/console?inspect=acct_1UDsS1K6R3yO7TeG&kind=activity] acct_1UDsS1K6R3yO7TeG
+|
+When
+2026-09-09 20:53:53 UTC
+Detail
+Sierra Crest Brokerage
+Rail
+not a rail
+Reference
+acct_1UDsS1K6R3yO7TeG
+Who
+Mar***Marco Silva, broker
+|
+| 40 min | webhook | stripe account.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=acct_1UDsS1K6R3yO7TeG&kind=activity] acct_1UDsS1K6R3yO7TeG
+|
+When
+2026-09-09 20:51:44 UTC
+Detail
+done, 1 attempt: broker KYB unchanged at pending: nothing appended
+Rail
+Stripe: LIVE SANDBOX
+Reference
+acct_1UDsS1K6R3yO7TeG
+Who
+stripe
+|
+| 41 min | kyb | broker verification pending | |
+Mar***Marco Silva, broker |
+[a /ops/console?inspect=acct_1UDsS1K6R3yO7TeG&kind=activity] acct_1UDsS1K6R3yO7TeG
+|
+When
+2026-09-09 20:50:41 UTC
+Detail
+Sierra Crest Brokerage
+Rail
+not a rail
+Reference
+acct_1UDsS1K6R3yO7TeG
+Who
+Mar***Marco Silva, broker
+|
+| 42 min | policy | quoted | |
+Mar***Marco Silva, broker |
+[a /ops/console/policy/f8ed1db7-2c99-40b7-8809-daf3c606865d] CGP-01709
+|
+When
+2026-09-09 20:49:33 UTC
+Detail
+effective 2026-09-26
+Rail
+not a rail
+Reference
+CGP-01709
+Who
+Mar***Marco Silva, broker
+|
+| 43 min | policy | quoted | |
+Pri***Priya Nair, broker |
+[a /ops/console/policy/1e6c275a-ff0c-43f6-8ea6-e8295b80d93d] CGP-01708
+|
+When
+2026-09-09 20:48:28 UTC
+Detail
+effective 2027-02-21
+Rail
+not a rail
+Reference
+CGP-01708
+Who
+Pri***Priya Nair, broker
+|
+| 55 min | webhook | stripe refund.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDf5YK6R3v50tIy1TVf1Llk&kind=activity] re_3UDf5YK6R3v50tIy1TVf1Llk
+|
+When
+2026-09-09 20:36:29 UTC
+Detail
+done, 1 attempt: already posted by an earlier delivery of this refund
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDf5YK6R3v50tIy1TVf1Llk
+Who
+stripe
+|
+| 55 min | webhook | stripe charge.refundedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=ch_3UDUCUK6R3v50tIy0CHPQY1Y&kind=activity] ch_3UDUCUK6R3v50tIy0CHPQY1Y
+|
+When
+2026-09-09 20:36:29 UTC
+Detail
+done, 1 attempt: confirmation only: the money is posted from the refund events, not from charge.refunded
+Rail
+Stripe: LIVE SANDBOX
+Reference
+ch_3UDUCUK6R3v50tIy0CHPQY1Y
+Who
+stripe
+|
+| 55 min | webhook | stripe refund.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDrW1K6R3v50tIy1qNn3zvG&kind=activity] re_3UDrW1K6R3v50tIy1qNn3zvG
+|
+When
+2026-09-09 20:36:29 UTC
+Detail
+done, 1 attempt: already posted by an earlier delivery of this refund
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrW1K6R3v50tIy1qNn3zvG
+Who
+stripe
+|
+| 55 min | webhook | stripe charge.refundedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=ch_3UDrW1K6R3v50tIy1xDTIFTb&kind=activity] ch_3UDrW1K6R3v50tIy1xDTIFTb
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt: confirmation only: the money is posted from the refund events, not from charge.refunded
+Rail
+Stripe: LIVE SANDBOX
+Reference
+ch_3UDrW1K6R3v50tIy1xDTIFTb
+Who
+stripe
+|
+| 55 min | money | stripe_refund succeededStripe: LIVE SANDBOX | $53.84 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=re_3UDrW1K6R3v50tIy1qNn3zvG&kind=activity] re_3UDrW1K6R3v50tIy1qNn3zvG
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrW1K6R3v50tIy1qNn3zvG
+Who
+Dan***Dana Ruiz, broker
+|
+| 55 min | journal | commission_clawback | $7.89 | posted by the money path |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=194f001d-12da-4070-b3b7-945a005084e1&kind=activity] 194f001d-12da-4070-b3b7-945a005084e1
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+Broker commission clawed back on the refunded premium of policy CGP-01707
+Rail
+not a rail
+Reference
+194f001d-12da-4070-b3b7-945a005084e1
+Who
+posted by the money path
+|
+| 55 min | journal | refund_completed | $53.84 | posted by the money path |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=194f001d-12da-4070-b3b7-945a005084e1&kind=activity] 194f001d-12da-4070-b3b7-945a005084e1
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+Policy CGP-01707 refund paid back to the customer at Stripe
+Rail
+not a rail
+Reference
+194f001d-12da-4070-b3b7-945a005084e1
+Who
+posted by the money path
+|
+| 55 min | webhook | stripe refund.createdStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDrW1K6R3v50tIy1qNn3zvG&kind=activity] re_3UDrW1K6R3v50tIy1qNn3zvG
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrW1K6R3v50tIy1qNn3zvG
+Who
+stripe
+|
+| 55 min | webhook | stripe charge.refundedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=ch_3UDf5YK6R3v50tIy1QeOF4Do&kind=activity] ch_3UDf5YK6R3v50tIy1QeOF4Do
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt: confirmation only: the money is posted from the refund events, not from charge.refunded
+Rail
+Stripe: LIVE SANDBOX
+Reference
+ch_3UDf5YK6R3v50tIy1QeOF4Do
+Who
+stripe
+|
+| 55 min | money | stripe_refund succeededStripe: LIVE SANDBOX | $1,127.24 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=re_3UDf5YK6R3v50tIy1TVf1Llk&kind=activity] re_3UDf5YK6R3v50tIy1TVf1Llk
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDf5YK6R3v50tIy1TVf1Llk
+Who
+Dan***Dana Ruiz, broker
+|
+| 55 min | journal | commission_clawback | $165.20 | posted by the money path |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=4d2b730e-e319-425d-8efe-d479617ac4e3&kind=activity] 4d2b730e-e319-425d-8efe-d479617ac4e3
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+Broker commission clawed back on the refunded premium of policy CGP-01707
+Rail
+not a rail
+Reference
+4d2b730e-e319-425d-8efe-d479617ac4e3
+Who
+posted by the money path
+|
+| 55 min | journal | refund_completed | $1,127.24 | posted by the money path |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=4d2b730e-e319-425d-8efe-d479617ac4e3&kind=activity] 4d2b730e-e319-425d-8efe-d479617ac4e3
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+Policy CGP-01707 refund paid back to the customer at Stripe
+Rail
+not a rail
+Reference
+4d2b730e-e319-425d-8efe-d479617ac4e3
+Who
+posted by the money path
+|
+| 55 min | webhook | stripe refund.createdStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDf5YK6R3v50tIy1TVf1Llk&kind=activity] re_3UDf5YK6R3v50tIy1TVf1Llk
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDf5YK6R3v50tIy1TVf1Llk
+Who
+stripe
+|
+| 55 min | money | stripe_refund provider_acceptedStripe: LIVE SANDBOX | $53.84 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=re_3UDrW1K6R3v50tIy1qNn3zvG&kind=activity] re_3UDrW1K6R3v50tIy1qNn3zvG
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrW1K6R3v50tIy1qNn3zvG
+Who
+Dan***Dana Ruiz, broker
+|
+| 55 min | webhook | stripe refund.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDUCUK6R3v50tIy0gKOTYl7&kind=activity] re_3UDUCUK6R3v50tIy0gKOTYl7
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt: already posted by an earlier delivery of this refund
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDUCUK6R3v50tIy0gKOTYl7
+Who
+stripe
+|
+| 55 min | money | stripe_refund provider_acceptedStripe: LIVE SANDBOX | $1,127.24 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=re_3UDf5YK6R3v50tIy1TVf1Llk&kind=activity] re_3UDf5YK6R3v50tIy1TVf1Llk
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDf5YK6R3v50tIy1TVf1Llk
+Who
+Dan***Dana Ruiz, broker
+|
+| 55 min | money | stripe_refund succeededStripe: LIVE SANDBOX | $832.85 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=re_3UDUCUK6R3v50tIy0gKOTYl7&kind=activity] re_3UDUCUK6R3v50tIy0gKOTYl7
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDUCUK6R3v50tIy0gKOTYl7
+Who
+Dan***Dana Ruiz, broker
+|
+| 55 min | journal | commission_clawback | $122.06 | posted by the money path |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=00c3607d-6184-4244-91c3-b0aa85db7bc1&kind=activity] 00c3607d-6184-4244-91c3-b0aa85db7bc1
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+Broker commission clawed back on the refunded premium of policy CGP-01707
+Rail
+not a rail
+Reference
+00c3607d-6184-4244-91c3-b0aa85db7bc1
+Who
+posted by the money path
+|
+| 55 min | journal | refund_completed | $832.85 | posted by the money path |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=00c3607d-6184-4244-91c3-b0aa85db7bc1&kind=activity] 00c3607d-6184-4244-91c3-b0aa85db7bc1
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+Policy CGP-01707 refund paid back to the customer at Stripe
+Rail
+not a rail
+Reference
+00c3607d-6184-4244-91c3-b0aa85db7bc1
+Who
+posted by the money path
+|
+| 55 min | webhook | stripe refund.createdStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDUCUK6R3v50tIy0gKOTYl7&kind=activity] re_3UDUCUK6R3v50tIy0gKOTYl7
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDUCUK6R3v50tIy0gKOTYl7
+Who
+stripe
+|
+| 55 min | webhook | stripe refund.updatedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDrw9K6R3v50tIy1ffy43I1&kind=activity] re_3UDrw9K6R3v50tIy1ffy43I1
+|
+When
+2026-09-09 20:36:28 UTC
+Detail
+done, 1 attempt: already posted by an earlier delivery of this refund
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrw9K6R3v50tIy1ffy43I1
+Who
+stripe
+|
+| 55 min | webhook | stripe charge.refundedStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=ch_3UDrw9K6R3v50tIy1ojtXipt&kind=activity] ch_3UDrw9K6R3v50tIy1ojtXipt
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+done, 1 attempt: confirmation only: the money is posted from the refund events, not from charge.refunded
+Rail
+Stripe: LIVE SANDBOX
+Reference
+ch_3UDrw9K6R3v50tIy1ojtXipt
+Who
+stripe
+|
+| 55 min | money | stripe_refund succeededStripe: LIVE SANDBOX | $287.69 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=re_3UDrw9K6R3v50tIy1ffy43I1&kind=activity] re_3UDrw9K6R3v50tIy1ffy43I1
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrw9K6R3v50tIy1ffy43I1
+Who
+Dan***Dana Ruiz, broker
+|
+| 55 min | journal | refund_completed | $287.69 | posted by the money path |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=00f90ceb-68c0-4d95-9009-0d8dad84ec54&kind=activity] 00f90ceb-68c0-4d95-9009-0d8dad84ec54
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+Policy CGP-01707 refund paid back to the customer at Stripe
+Rail
+not a rail
+Reference
+00f90ceb-68c0-4d95-9009-0d8dad84ec54
+Who
+posted by the money path
+|
+| 55 min | journal | commission_clawback | $42.16 | posted by the money path |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=00f90ceb-68c0-4d95-9009-0d8dad84ec54&kind=activity] 00f90ceb-68c0-4d95-9009-0d8dad84ec54
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+Broker commission clawed back on the refunded premium of policy CGP-01707
+Rail
+not a rail
+Reference
+00f90ceb-68c0-4d95-9009-0d8dad84ec54
+Who
+posted by the money path
+|
+| 55 min | webhook | stripe refund.createdStripe: LIVE SANDBOX | | stripe |
+[a /ops/console?inspect=re_3UDrw9K6R3v50tIy1ffy43I1&kind=activity] re_3UDrw9K6R3v50tIy1ffy43I1
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+done, 1 attempt
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrw9K6R3v50tIy1ffy43I1
+Who
+stripe
+|
+| 55 min | money | stripe_refund provider_acceptedStripe: LIVE SANDBOX | $832.85 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=re_3UDUCUK6R3v50tIy0gKOTYl7&kind=activity] re_3UDUCUK6R3v50tIy0gKOTYl7
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDUCUK6R3v50tIy0gKOTYl7
+Who
+Dan***Dana Ruiz, broker
+|
+| 55 min | money | stripe_refund provider_acceptedStripe: LIVE SANDBOX | $287.69 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=re_3UDrw9K6R3v50tIy1ffy43I1&kind=activity] re_3UDrw9K6R3v50tIy1ffy43I1
+|
+When
+2026-09-09 20:36:27 UTC
+Detail
+none
+Rail
+Stripe: LIVE SANDBOX
+Reference
+re_3UDrw9K6R3v50tIy1ffy43I1
+Who
+Dan***Dana Ruiz, broker
+|
+| 57 min | approval | approval approved | $53.84 |
+Ale***Alex Kim, approver |
+[a /ops/console?inspect=3566dd35-cc1b-4ac6-84f9-053b326899c1&kind=activity] 3566dd35-cc1b-4ac6-84f9-053b326899c1
+|
+When
+2026-09-09 20:34:32 UTC
+Detail
+none
+Rail
+not a rail
+Reference
+3566dd35-cc1b-4ac6-84f9-053b326899c1
+Who
+Ale***Alex Kim, approver
+|
+| 57 min | approval | approval approved | $1,127.24 |
+Ale***Alex Kim, approver |
+[a /ops/console?inspect=f6a6df72-c289-4a5c-906e-e218b7dc6005&kind=activity] f6a6df72-c289-4a5c-906e-e218b7dc6005
+|
+When
+2026-09-09 20:34:30 UTC
+Detail
+none
+Rail
+not a rail
+Reference
+f6a6df72-c289-4a5c-906e-e218b7dc6005
+Who
+Ale***Alex Kim, approver
+|
+| 57 min | approval | approval approved | $832.85 |
+Ale***Alex Kim, approver |
+[a /ops/console?inspect=17c3f400-2f7a-4347-b7b1-63406daee467&kind=activity] 17c3f400-2f7a-4347-b7b1-63406daee467
+|
+When
+2026-09-09 20:34:29 UTC
+Detail
+none
+Rail
+not a rail
+Reference
+17c3f400-2f7a-4347-b7b1-63406daee467
+Who
+Ale***Alex Kim, approver
+|
+| 57 min | approval | approval approved | $287.69 |
+Ale***Alex Kim, approver |
+[a /ops/console?inspect=03467eb3-d122-40df-b6b5-79e82d7af234&kind=activity] 03467eb3-d122-40df-b6b5-79e82d7af234
+|
+When
+2026-09-09 20:34:28 UTC
+Detail
+none
+Rail
+not a rail
+Reference
+03467eb3-d122-40df-b6b5-79e82d7af234
+Who
+Ale***Alex Kim, approver
+|
+| 59 min | money | stripe_refund requestedStripe: LIVE SANDBOX | $53.84 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+cancellation recorded; this refund waits for a second person to approve it before Stripe is called
+Rail
+Stripe: LIVE SANDBOX
+Reference
+none
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | money | stripe_refund requestedStripe: LIVE SANDBOX | $832.85 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+cancellation recorded; this refund waits for a second person to approve it before Stripe is called
+Rail
+Stripe: LIVE SANDBOX
+Reference
+none
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | money | stripe_refund requestedStripe: LIVE SANDBOX | $287.69 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+cancellation recorded; this refund waits for a second person to approve it before Stripe is called
+Rail
+Stripe: LIVE SANDBOX
+Reference
+none
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | money | stripe_refund requestedStripe: LIVE SANDBOX | $1,127.24 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+cancellation recorded; this refund waits for a second person to approve it before Stripe is called
+Rail
+Stripe: LIVE SANDBOX
+Reference
+none
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | journal | refund_requested | $1,127.24 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=4d2b730e-e319-425d-8efe-d479617ac4e3&kind=activity] 4d2b730e-e319-425d-8efe-d479617ac4e3
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+Policy CGP-01707 refund owed to the customer after cancellation
+Rail
+not a rail
+Reference
+4d2b730e-e319-425d-8efe-d479617ac4e3
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | journal | refund_requested | $832.85 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=00c3607d-6184-4244-91c3-b0aa85db7bc1&kind=activity] 00c3607d-6184-4244-91c3-b0aa85db7bc1
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+Policy CGP-01707 refund owed to the customer after cancellation
+Rail
+not a rail
+Reference
+00c3607d-6184-4244-91c3-b0aa85db7bc1
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | journal | refund_requested | $287.69 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=00f90ceb-68c0-4d95-9009-0d8dad84ec54&kind=activity] 00f90ceb-68c0-4d95-9009-0d8dad84ec54
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+Policy CGP-01707 refund owed to the customer after cancellation
+Rail
+not a rail
+Reference
+00f90ceb-68c0-4d95-9009-0d8dad84ec54
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | journal | refund_requested | $53.84 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=194f001d-12da-4070-b3b7-945a005084e1&kind=activity] 194f001d-12da-4070-b3b7-945a005084e1
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+Policy CGP-01707 refund owed to the customer after cancellation
+Rail
+not a rail
+Reference
+194f001d-12da-4070-b3b7-945a005084e1
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | journal | premium_earned_to_date | $386.29 |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+[a /ops/console?inspect=ce575f40-ebed-464b-a5e6-4ef2169bff38&kind=activity] ce575f40-ebed-464b-a5e6-4ef2169bff38
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+Policy CGP-01707 premium earned up to its cancellation on 2026-11-08
+Rail
+not a rail
+Reference
+ce575f40-ebed-464b-a5e6-4ef2169bff38
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | policy | cancelled | |
+Dan***Dana Ruiz, broker |
+[a /ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+effective 2026-11-08
+Rail
+not a rail
+Reference
+CGP-01707
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | approval | refund waiting for a second person | $832.85 |
+Dan***Dana Ruiz, broker |
+[a /ops/console?inspect=17c3f400-2f7a-4347-b7b1-63406daee467&kind=activity] 17c3f400-2f7a-4347-b7b1-63406daee467
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+to Stripe payment pi_3UDUCUK6R3v50tIy06eM9VlU (card refund to the customer)
+Rail
+not a rail
+Reference
+17c3f400-2f7a-4347-b7b1-63406daee467
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | approval | refund waiting for a second person | $53.84 |
+Dan***Dana Ruiz, broker |
+[a /ops/console?inspect=3566dd35-cc1b-4ac6-84f9-053b326899c1&kind=activity] 3566dd35-cc1b-4ac6-84f9-053b326899c1
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+to Stripe payment pi_3UDrW1K6R3v50tIy1GPWqtve (card refund to the customer)
+Rail
+not a rail
+Reference
+3566dd35-cc1b-4ac6-84f9-053b326899c1
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | approval | refund waiting for a second person | $1,127.24 |
+Dan***Dana Ruiz, broker |
+[a /ops/console?inspect=f6a6df72-c289-4a5c-906e-e218b7dc6005&kind=activity] f6a6df72-c289-4a5c-906e-e218b7dc6005
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+to Stripe payment pi_3UDf5YK6R3v50tIy1GkJdCCi (card refund to the customer)
+Rail
+not a rail
+Reference
+f6a6df72-c289-4a5c-906e-e218b7dc6005
+Who
+Dan***Dana Ruiz, broker
+|
+| 59 min | approval | refund waiting for a second person | $287.69 |
+Dan***Dana Ruiz, broker |
+[a /ops/console?inspect=03467eb3-d122-40df-b6b5-79e82d7af234&kind=activity] 03467eb3-d122-40df-b6b5-79e82d7af234
+|
+When
+2026-09-09 20:32:36 UTC
+Detail
+to Stripe payment pi_3UDrw9K6R3v50tIy1XjCYQsU (card refund to the customer)
+Rail
+not a rail
+Reference
+03467eb3-d122-40df-b6b5-79e82d7af234
+Who
+Dan***Dana Ruiz, broker
+When age at a glance, the UTC instant on hover and in the foldStripe: LIVE SANDBOX the row moved money on the real Stripe sandboxLOCAL SIMULATOR the row moved money on a rail simulated in this application
+About this screen
+The window
+Showing the last 60 minutes. All instants are UTC; a cell shows the age and carries the full instant on hover and in its fold. The chips set ?since=; the field beside them takes a duration such as 15m, 2h or 3d, or a UTC instant. An empty field means the last hour.
+The kinds
+A kind chip adds or removes one kind and keeps the others; All clears them. None selected means every kind, and an unselected kind costs no query at all.
+The feed is bounded
+The feed can never return more than 200 rows, whatever the query string asks for. Narrow the window or the kinds to see the rest.
+Rails
+Every row carries the rail it moved on. Stripe: LIVE SANDBOX is a real Stripe sandbox; LOCAL SIMULATOR is a rail simulated inside this application. The top bar states the three modes on every screen.
+When a line is called slow
+A step is slow when its p95 is over 5 s, a route when its p95 is over 1000 ms. Both are assumptions of this build, not a promise of Stripe and not a rule of Corgi: a step waits on a provider, a route is our own handler, so they cannot share a threshold.
+What counts as a problem
+A money operation whose last provider answer was failed or unknown; a webhook whose processing row reads failed or ignored, or that needed more than one attempt; an MCP call answered with error or refused; a failed reconciliation run, which compared nothing and must never read as clean; and an operation the provider accepted more than 15 minutes ago that has said nothing since. The view is bounded at 60 rows.
+The fixed floor
+Every problem line is inside the window except the unknown outcomes, and every line of Being checked: both are read over a fixed floor of 7 days, whatever window the feed is showing, because an operation nobody has confirmed must stay visible until a human resolves it.
+The 15-minute threshold
+It is an assumption of this build, not a rule of Stripe and not a rule of Corgi. Stripe promises no delay. Under it the operation is being checked, over it a human is asked to resolve it, and the job that actually resolves one is /api/jobs/recover-operations.
+How the latency figures are produced
+Each step is one percentile_cont computed by Postgres over the whole window; this page adds nothing up and the browser computes nothing. A percentile over two or three samples is not a percentile, which is why the sample count is on the row. A duration is only measured when both of its instants exist: an operation still waiting for its second instant is not a fast one, it is in Being checked.
+Steps and routes measure different things
+The by-route table measures activity_log.duration_ms, the time this application spent inside the handler: it excludes the network, the browser and the cold start of a serverless function. The step table measures how long an object took to move between two states, which includes the provider. A route is the URL pattern and never a URL with an id in it, so one policy cannot become its own row with one sample. Showing at most 40 routes.
+Where refused and failed rows come from
+Every route handler, every job and the MCP endpoint are wrapped in one helper (lib/observability/log.ts) that writes one append-only row in activity_log and prints the same fields as one JSON line in the server log. A row is refused when a rule said no, and error when something broke. The rule column is named by the route; a request refused before that gate names no rule rather than guessing.
+What is never shown
+No provider payload, no secret, and no API key beyond its public cmk_ prefix. A failure reason is the short sanitised sentence the money path recorded, cut to 220 characters, with emails masked and any bearer token, password or sk_ secret replaced before it was written. Names and emails are masked to their first three characters and revealed by clicking them: the console is staff-only, and this is a reading discipline for a screen left open, not a security control.
+Why it re-reads instead of streaming
+A ten-second timer asks the server to render this page again, plus a button when ten seconds is too long. No websocket, no polling script and no figure computed in the browser. The timer exists only while the console is open and is cleared when you leave it, so an automatic refresh can never pull you back to this screen.
+If a red line appears
+That block's query failed and the rest of the page still rendered. Nothing was retried and nothing was hidden. The console is what an operator opens while something is already broken, so one unreadable table must never replace the whole screen with an error page.
+Where each line comes from
+Money operations from money_operations and money_operation_events; webhooks from webhook_events with webhook_processing beside them; journal entries from journal_entries and journal_lines; policy, claim and verification events from policy_events, claim_events and broker_kyb_events; approvals from approval_requests and approval_decisions; reconciliation from reconciliation_runs; statements from statement_runs; MCP calls from mcp_calls joined to mcp_api_keys for the public prefix; change requests from policy_change_requests; refused and failed actions and every latency by route from activity_log (migration 0021).Corgi · Policy administration

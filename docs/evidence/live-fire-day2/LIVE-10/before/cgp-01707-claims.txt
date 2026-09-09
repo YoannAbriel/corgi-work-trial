@@ -1,0 +1,60 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=overview] Overview
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=endorsements] Endorsements
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=claims] Claims1
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=money] Money
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=timeline] Timeline
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+Policy CGP-01707
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Policy CGP-01707Bay Area Fabrication LLCcancelled
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/claims/new] Open a claim Policies
+|
+| Claim | Loss | State | Reserve | Paid | Incurred |
+|
+[a /ops/claims/634f03fd-85b9-40b8-aea0-c130b74e1694] CLM-00213Bay Area Fabrication LLC | 2026-09-09 | open | $2,000.00 | $0.00 | $2,000.00 |
+Reserve what the claim is still expected to costIncurred paid plus the reserve still outstandingLOCAL SIMULATOR claim payments move on a simulated rail, never a live one
+About this screen
+Incurred, reserve, paid
+Incurred is what a claim has cost so far: paid plus the reserve still outstanding. A claim can be opened on a cancelled policy too, as long as the loss happened while the policy was in force.
+Cancelling with a claim open
+Cancelling never touches an open claim or its reserve. The refund covers unearned premium only, because the loss happened while the policy was in force.Corgi · Policy administration

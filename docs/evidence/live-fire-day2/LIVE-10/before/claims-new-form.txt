@@ -1,0 +1,75 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] Overview
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=endorsements] Endorsements
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=claims] Claims
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=money] Money
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=timeline] Timeline
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/claims/new] New claim
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] Policy CGP-01707
+Open a claim
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Open a claimPolicy CGP-01707 Policies
+The loss
+Claimant name
+[input claimantName=Bay Area Fabrication LLC]
+Date of loss
+[input occurredAt=2026-09-09]
+Date reported to us
+[input reportedAt=2026-09-09]
+What happened
+Open a claim
+On the policy record
+Customer
+Bay Area Fabrication LLC
+Term
+2026-09-08 to 2027-09-08
+Per-occurrence limit
+$2,000,000.00
+Aggregate limit
+$4,000,000.00
+The loss must have happened while the policy was in force. The reserve is set on the claim screen once the claim exists.
+About this screen
+What opening a claim does
+It records the claim and nothing else: no money moves, and nothing is reserved until a person sets a reserve on the claim screen.
+Cover on the loss date
+The server checks that cover existed on the date of loss, whatever this page displayed. A claim can be opened on a cancelled policy when the loss predates the cancellation.Corgi · Policy administration
