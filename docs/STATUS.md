@@ -522,6 +522,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - The interface session verified production at 489a36d from outside (22 screens across the three roles, refusals 307 and 404 unchanged, the sandbox sentence verbatim on / and /login) and handed over branch ui-fixes: icons on the overview section cards, the landscape banners moved to a footer band on /ops, /broker and /customer, the band vignette without its framed square, no header row over an empty statement table. Six files under app/ and components/, no form or route touched, no dash, no leak; merged with --no-ff, typecheck clean, 496 tests, pushed as code alone, deployed and confirmed by /api/health at 15:26Z. The adversarial screenshot loop starts on that branch at 18:00 local when its session limit resets; further batches are merged on the same terms (presentation-only batches on typecheck and screenshots, anything touching a form, a figure, a role or a label through the independent review).
 
+## 2026-09-09T15:28:00+00:00 | A 375 px defect of the rework found on production and fixed (944003a)
+
+- The interface session re-measured production after the merge with the freeze invariants: three staff screens (reconciliation, console, console ledger) scrolled sideways at 375 px because the hidden data table behind each chart kept its 640 px minimum width; the policy page held. Fix on ui-fixes (1997f1c, two files: the hidden data in a div, the band static under 800 px), merged with --no-ff at 944003a, typecheck clean, 496 tests, pushed as code alone, deployed and confirmed by /api/health at 15:29Z. Registered as F-UIS-09 (MEDIUM, fixed after the merge); the screenshot loop re-measures it on production.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
