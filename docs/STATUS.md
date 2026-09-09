@@ -566,6 +566,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T19:25:00+00:00 | F-LIVE-01: the backdated correction has no visible entry point (found by Yoann during LIVE-8)
+
+- On 92379e2 the policy band offers Endorse, Cancel and Open a claim; the `Correct` sub-menu item appears only on the corrections route; the sole link is the one-line form under the Endorsements table. Yoann could not find it on his first LIVE-8 attempt. Registered MED (the panel's live-fire item 2 depends on reaching it), passed to the interface session for tonight's batch as its own commit. Not blocking: the direct URL `/policies/<id>/corrections/new` and the Endorsements line work, LIVE-8 continues on 92379e2.
+
 ## 2026-09-09T19:35:00+00:00 | LIVE-0 done by Yoann on production, evidence merged (3c67d45)
 
 - **Reconciliation click at 18:38:23Z** as `ops` in the interface: 42 Stripe records against 7 ledger records, 32 probes, 4 breaks to act on ($100.00, two of $12.61, one refund of $8.98), claims rail 1 provider record, 3 ledger, 0 break. Board chip, probes tile and inbox badge agree. F-BP-01 and F-UI2-01 closed on that run.
