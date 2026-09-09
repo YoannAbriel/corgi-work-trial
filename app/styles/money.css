@@ -118,6 +118,72 @@ td.money-decision {
   }
 }
 
+/* The totals of one statement, read top to bottom as the subtraction they are (Yoann, 2026-09-09
+ * evening: "why is there no line with the negative?"). Commission earned, the clawback with its
+ * minus sign, then the net due under a rule, the way a receipt is read. Three side by side tiles
+ * said nothing about one figure producing the next.
+ *
+ * Narrow on purpose: a column of amounts is read down its right edge, and a block as wide as the
+ * screen would put the labels and the figures a hand apart. */
+.money-totals {
+  max-width: 360px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-block);
+}
+.money-totals h2 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.money-totals dl {
+  margin: 0;
+}
+.money-totals dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+}
+.money-totals dt {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.money-totals dd {
+  margin: 0;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+/* A figure that takes money away: the minus sign is printed by the formatter, the colour is here.
+ * The same danger red the system uses for a refused state, so one screen has one red. */
+.money-totals-negative dd {
+  color: var(--danger);
+}
+/* The line the two above it produce, under the rule that says so. */
+.money-totals .money-totals-net {
+  margin-top: 3px;
+  padding-top: 9px;
+  border-top: 1px solid var(--ink);
+}
+.money-totals .money-totals-net dt {
+  color: var(--ink);
+}
+.money-totals .money-totals-net dd {
+  font-family: "DM Sans", "Inter", sans-serif;
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.4px;
+}
+.money-totals-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
 /* --- The breaks board -------------------------------------------------------------------------
  *
  * The breaks view of /ops/reconciliation carries three disjoint lists (breaks to act on, probe
