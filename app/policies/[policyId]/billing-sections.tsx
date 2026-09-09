@@ -38,8 +38,12 @@ export type OwedRow = {
   key: string;
   amountCents: number;
   what: string;
-  // When the amount became owed. An instant, so the row can print it as an age.
+  // When the amount became owed. An instant, so the row can print it as an age. Null only when no
+  // reader on this page carries one, which the row then says in words rather than leaving blank.
   since: Date | null;
+  // F-BL-03: why this amount cannot be collected right now, when something stands in the way.
+  // Without it an owed row sat on the screen with no button and no reason.
+  blockedReason?: string;
 };
 
 export type PaidRow = {
@@ -47,10 +51,16 @@ export type PaidRow = {
   amountCents: number;
   what: string;
   // The Stripe object this collection is known by, when the reader that produced the row carries
-  // one. Null is printed as "no reference read", never as a blank.
+  // one. Null is printed as "not recorded", never as a blank (F-BL-07: one wording for both
+  // columns, because "no reference read" beside "not read" read as two different facts).
   reference: string | null;
-  // The UTC day the money arrived, as the provider reported it. Null while it has not.
+  // The UTC day the policy was bound by this payment. Null when no reader carries one.
   paidOn: string | null;
+  // F-BL-01 (HIGH): a correction can reverse the issuance of a policy. The four entries are
+  // mirrored, the policy becomes voided, and Stripe kept nothing. This row used to print
+  // "$1,253.20 paid" with its Checkout Session as if it stood. Money that was reversed reads as
+  // reversed: struck through, with a danger chip and the void record's own sentence.
+  reversed?: { reason: string; recordedAt: Date };
 };
 
 export type RefundRow = {
@@ -69,6 +79,7 @@ export function billingRows({
   endorsements,
   corrections,
   refunds,
+  voidCorrection,
 }: {
   policy: PolicyDetail;
   // The issuance payment of the policy itself, when the broker has started one.
@@ -76,13 +87,19 @@ export function billingRows({
   endorsements: EndorsementView[];
   corrections: CorrectionView[];
   refunds: RefundOperationView[];
+  // The correction that reversed the issuance of this policy, when there is one: it is what makes
+  // a policy `voided`. Both pages read it from lib/policy/read.ts.
+  voidCorrection: { reason: string; recordedAt: Date } | null;
 }): { owed: OwedRow[]; paid: PaidRow[]; refunded: RefundRow[] } {
   const owed: OwedRow[] = [];
   const paid: PaidRow[] = [];
 
   // 1. THE POLICY ITSELF. It is owed until it is bound, and the terms on the record are what a
-  // full term costs. `boundAt` is the only instant the policy record carries, so a policy still
-  // waiting for its payment has no "since" to print and says so by leaving the cell empty.
+  // full term costs. F-BL-06: `boundAt` is the only instant PolicyDetail carries, and a policy
+  // waiting for its payment has not got one. The inbox prints the quote's age from `quotedAt`,
+  // which is on PolicySummary and NOT on PolicyDetail; adding it would mean changing a reader
+  // under lib/, which this work may not do. The cell says "no date recorded" instead of the
+  // "not started" it used to say, which was a claim about the payment and not about the date.
   if (policy.status === "draft" || policy.status === "awaiting_payment" || policy.status === "payment_failed") {
     owed.push({
       key: "policy-premium",
@@ -97,9 +114,13 @@ export function billingRows({
       amountCents: payment.amountCents,
       what: "Policy premium, tax and fee",
       reference: payment.providerRef,
-      // The issuance reader does not carry the day the money arrived; the policy was bound on it,
-      // and that is the instant the record does carry.
+      // F-BL-05: the issuance reader carries no day of its own, so this is the day the policy was
+      // bound, which is the same event: binding is what a confirmed payment causes. On a policy
+      // that was paid and not bound, or voided, there is no such day. The column is named "Bound
+      // on" for exactly that reason, so it names what it holds instead of promising a paid date.
       paidOn: policy.boundAt ? policy.boundAt.toISOString().slice(0, 10) : null,
+      // F-BL-01: a voided policy's issuance was reversed in the journal and Stripe kept nothing.
+      reversed: voidCorrection ? { reason: voidCorrection.reason, recordedAt: voidCorrection.recordedAt } : undefined,
     });
   }
 
@@ -113,6 +134,11 @@ export function billingRows({
         amountCents: request.figures.deltaTotalCents,
         what: `Endorsement delta, effective ${request.figures.effectiveAt}`,
         since: standing.approvedAt ?? request.recordedAt,
+        // F-BL-03: the money reached Stripe but the endorsement could not be applied, so there is
+        // no button to press. The row says why instead of sitting there mute.
+        blockedReason: collection?.applicationRefusedReason
+          ? `Paid, not applied: ${collection.applicationRefusedReason}. Staff operations apply it once that is put right.`
+          : undefined,
       });
     }
     if (collection?.paidOn) {
@@ -216,7 +242,8 @@ function ReferenceCell({
   inspected?: string | null;
 }) {
   if (!value) {
-    return <span className="dt-muted">no reference read</span>;
+    // F-BL-07: one wording for every "we do not hold this" cell of these tables.
+    return <span className="dt-muted">not recorded</span>;
   }
   return <Ref value={value} inspectHref={inspectHrefFor ? inspectHrefFor(value) : undefined} open={inspected === value} />;
 }
@@ -240,9 +267,13 @@ export function WhatIsOwed({ rows, now }: { rows: OwedRow[]; now: Date }) {
             {rows.map((row) => (
               <tr key={row.key}>
                 <Num>{formatCentsAsUsd(row.amountCents)}</Num>
-                <td>{row.what}</td>
+                <td>
+                  {row.what}
+                  {/* F-BL-03: what stands in the way, under the row it belongs to. */}
+                  {row.blockedReason ? <span className="dt-sub">{row.blockedReason}</span> : null}
+                </td>
                 <td className="nowrap">
-                  {row.since ? <When instant={row.since} now={now} /> : <span className="dt-muted">not started</span>}
+                  {row.since ? <When instant={row.since} now={now} /> : <span className="dt-muted">no date recorded</span>}
                 </td>
               </tr>
             ))}
@@ -272,7 +303,10 @@ export function WhatWasPaid({
           <thead>
             <tr>
               <th>Stripe</th>
-              <th>Paid on</th>
+              {/* F-BL-05: what this column actually holds is the day the policy was bound, which
+                  a policy that was paid and not bound, or voided, never got. Naming it "Paid on"
+                  promised a date this page cannot read. */}
+              <th>Bound on</th>
               <th className="num">Amount</th>
               <th>What it paid for</th>
             </tr>
@@ -283,9 +317,26 @@ export function WhatWasPaid({
                 <td>
                   <ReferenceCell value={row.reference} inspectHrefFor={inspectHrefFor} inspected={inspected} />
                 </td>
-                <td className="nowrap">{row.paidOn ?? <span className="dt-muted">not read</span>}</td>
-                <Num>{formatCentsAsUsd(row.amountCents)}</Num>
-                <td>{row.what}</td>
+                <td className="nowrap">{row.paidOn ?? <span className="dt-muted">not recorded</span>}</td>
+                {/* F-BL-01: a payment a correction reversed is struck through, because it no
+                    longer stands: Stripe kept nothing and the four entries were mirrored. */}
+                <Num>
+                  {row.reversed ? <s>{formatCentsAsUsd(row.amountCents)}</s> : formatCentsAsUsd(row.amountCents)}
+                </Num>
+                <td>
+                  {row.what}
+                  {row.reversed ? (
+                    <>
+                      {" "}
+                      <Chip tone="danger">reversed</Chip>
+                      <span className="dt-sub">
+                        Reversed by a correction on{" "}
+                        {row.reversed.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC:{" "}
+                        {row.reversed.reason}. Nothing was collected and nothing stands.
+                      </span>
+                    </>
+                  ) : null}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -304,8 +355,16 @@ export function WhatIsBeingRefunded({
   inspectHrefFor?: (reference: string) => string;
   inspected?: string | null;
 }) {
+  // F-BL-08: this card used to disappear when there was nothing to refund, while both About
+  // blocks went on explaining a table the reader could not see. It is the third of three answers
+  // and it keeps its place, with an empty line, exactly as the two cards above it do.
   if (rows.length === 0) {
-    return null;
+    return (
+      <section className="card">
+        <h2>What is being refunded</h2>
+        <EmptyState illustration="all-clear">No money is on its way back on this policy.</EmptyState>
+      </section>
+    );
   }
   return (
     <section className="card">

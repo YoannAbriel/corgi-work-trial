@@ -1373,13 +1373,6 @@ div.note {
      sixty-character provider reference: it wraps rather than being cut off at 375 px. */
   overflow-wrap: anywhere;
 }
-/* An entry whose movement a later entry undid: its amounts are struck through in muted ink, so
-   the pair reads as one movement instead of two (Yoann, 2026-09-09). The strike is drawing only;
-   the figures are the stored ones and the block still adds up. */
-.entry-struck table.dt.entry-lines-table td.num {
-  text-decoration: line-through;
-  color: var(--ink-2);
-}
 .entry-tag {
   display: inline-block;
   white-space: nowrap;

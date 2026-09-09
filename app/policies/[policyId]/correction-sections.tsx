@@ -128,8 +128,11 @@ export function LatestTermsStat({
 }
 
 // The id the band's "Pay the delta" link lands on: the Pay row of the Billing view. Named beside
-// COLLECT_ANCHOR below so the two anchors of that view are declared together.
+// COLLECT_ANCHOR below so the anchors of the policy's views are declared together.
 export const PAY_DELTA_ANCHOR = "pay-delta";
+
+// The id the "refunds approved, $X to send" notice lands on: the refunds table of the Money view.
+export const REFUNDS_ANCHOR = "refunds";
 
 // THE SENTENCE ABOVE THE TILES while a change is quoted or approved and not paid for.
 //
@@ -420,12 +423,26 @@ export function CorrectEndorsementDateForm({
 // correction that was settled long ago.
 export const COLLECT_ANCHOR = "collect";
 
+// F-EV2-05: one anchor per correction. The broker's inbox lists one row per open difference and
+// every row used to point at the same `#collect`, which was the first one, so the second row sent
+// the reader to the wrong correction. The card that holds the rows keeps the bare `collect` id,
+// so a link written before this still lands on the right card.
+export function collectAnchorFor(rebookEventId: string) {
+  return `${COLLECT_ANCHOR}-${rebookEventId}`;
+}
+
 // Is this correction's difference still waiting to be collected, and may this reader collect it?
 // The three facts the button is drawn from, read in one place, so the band, the anchor and the
 // button cannot disagree about whether there is money to take.
 export function openCollectionOf(correction: CorrectionView, canPay: boolean) {
   const collection = correction.collection;
   if (correction.money.settlement !== "collect" || !collection || collection.paidOn) {
+    return null;
+  }
+  // F-EV2-01: nothing is open FOR THIS READER when the money is not theirs to take. This used to
+  // return the object whatever `canPay` said and leave the caller to look at `canCollectNow`, so
+  // the band drew an orange "Collect $X" for an approver, who has no button behind it.
+  if (!canPay) {
     return null;
   }
   const waitingForTheCustomer = collection.customerApprovalRequired && !collection.customerApprovedAt;
@@ -499,48 +516,51 @@ export function CorrectionCollectRows({
   if (stillOpen.length === 0) {
     return null;
   }
-  const anchored = firstOpenCollection(corrections, canPay)?.correction ?? null;
-
   return (
     <>
       {stillOpen.map((correction) => {
         const open = openCollectionOf(correction, canPay);
+        const collection = correction.collection;
+        // F-BL-10: `stillOpen` was filtered on `openCollectionOf`, which already refuses a
+        // correction without a collection, so this can only be null for a reader of the code.
+        // Saying so once beats four non-null assertions that each have to be argued about.
+        if (!open || !collection) {
+          return null;
+        }
         return (
           <div
             className="pd-collect"
             key={correction.rebookEventId}
-            // The anchor the band's "Collect" link and the broker's inbox item land on.
-            id={correction === anchored ? COLLECT_ANCHOR : undefined}
+            // The anchor the band's "Collect" link and THIS correction's inbox row land on.
+            id={collectAnchorFor(correction.rebookEventId)}
           >
             {/* The badge stays plain: it is a chip, already short and already scanned by its tone.
                 Only the sentences under it are emphasised (Yoann, 2026-09-09 22:10). They followed
                 the collect form here from the Money view (decision 43) and carry the emphasis with
                 them. */}
             <CorrectionMoneyBadge correction={correction} open={open} />
-            {open?.waitingForTheCustomer ? (
+            {open.waitingForTheCustomer ? (
               <p className="pd-note">
                 <Emphasis>
                   {`The customer has to approve it from their own screen before it can be collected: ${correction.approvalSentences.customer ?? "it is above the customer approval threshold"}.`}
                 </Emphasis>
               </p>
             ) : null}
-            {!correction.collection!.paidOn &&
-            !correction.collection!.customerApprovalRequired &&
-            correction.approvalSentences.customer ? (
+            {!collection.paidOn && !collection.customerApprovalRequired && correction.approvalSentences.customer ? (
               <p className="pd-note">
                 <Emphasis>{`Customer approval: ${correction.approvalSentences.customer}.`}</Emphasis>
               </p>
             ) : null}
-            {open?.canCollectNow ? (
+            {open.canCollectNow ? (
               <form
                 method="post"
                 action={`/api/policies/${policyId}/corrections/${correction.rebookEventId}/checkout`}
                 className="inline-form"
               >
                 <SubmitButton>
-                  {correction.collection!.checkoutUrl && !correction.collection!.isDead
+                  {collection.checkoutUrl && !collection.isDead
                     ? "Continue the payment of the difference at Stripe"
-                    : `Collect the difference (${formatCentsAsUsd(correction.collection!.amountCents)}) with Stripe (test mode)`}
+                    : `Collect the difference (${formatCentsAsUsd(collection.amountCents)}) with Stripe (test mode)`}
                 </SubmitButton>
               </form>
             ) : null}
@@ -659,11 +679,18 @@ export function CorrectionsExplained({
                 // This panel sits on the same view, above it: repeating the sentence per correction
                 // would print it four times on one screen.
                 legend={false}
-                // An entry carrying `reversesEntryId` is the one that undid a booking; the others
-                // are the re-booking that replaced it.
+                // F-EV2-06: an entry carrying `reversesEntryId` is the one that DOES the undoing,
+                // so "reversed" beside `reversal_of_endorsement_tax_billed` read as "this reversal
+                // was reversed". The chip says the direction now, and names the entry it undoes.
+                //
+                // The strike-through is gone with it, and deliberately: this entry's amounts are
+                // real postings that stand in the ledger for ever. What no longer stands is the
+                // ORIGINAL entry, which is not in this table (the correction posts the reversal
+                // and the re-booking; the entry being undone belongs to the endorsement).
+                // Striking a line that is still true was the same mistake as the wording.
                 mark={(entry) =>
                   entry.reversesEntryId
-                    ? { chip: <Chip tone="danger">reversed</Chip>, struck: true }
+                    ? { chip: <Chip tone="danger">undoes {entry.reversesEntryId.slice(0, 8)}</Chip> }
                     : { chip: <Chip tone="ok">re-booked on {entry.effectiveAt}</Chip> }
                 }
               />

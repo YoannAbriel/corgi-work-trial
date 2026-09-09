@@ -23,7 +23,12 @@ import {
 } from "@/lib/policy/change-requests";
 import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { endorsementScheduleOfPolicy, endorsementsOfPolicy } from "@/lib/policy/endorsement-read";
-import { checkoutOperationOfPolicy, refundOperationsOfPolicy, type PolicyDetail } from "@/lib/policy/read";
+import {
+  checkoutOperationOfPolicy,
+  refundOperationsOfPolicy,
+  voidCorrectionOfPolicy,
+  type PolicyDetail,
+} from "@/lib/policy/read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { firstValue, pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 import { AGENCY_BILL_SENTENCE_FOR_CUSTOMER, BillingSummary, billingRows } from "./billing-sections";
@@ -78,16 +83,18 @@ export async function CustomerPolicyView({
   // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
   const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
 
-  const [query, schedule, requests, payment, endorsements, corrections, refunds, termsToday] = await Promise.all([
-    searchParams,
+  // The view is decided before anything is read, because four of the readers below are needed by
+  // one of the three views only (F-BL-09: they ran on every view, including the overview a
+  // customer opens every time they look at their policy).
+  const query = await searchParams;
+  const view = pickView(query.view, VIEWS);
+
+  const [schedule, requests, endorsements, termsToday] = await Promise.all([
     endorsementScheduleOfPolicy(policy.policyId),
     changeRequestsOfPolicy(policy.policyId),
-    // The money rows of the Billing view (decision 43). The SAME four readers the staff page
-    // uses, so the customer and their broker read one set of figures, not two.
-    checkoutOperationOfPolicy(policy.policyId),
+    // Read on every view: the overview needs the change that is not in force yet for its tile,
+    // its table row and its notice line.
     endorsementsOfPolicy(policy.policyId),
-    correctionsOfPolicy(policy.policyId),
-    refundOperationsOfPolicy(policy.policyId),
     // THE TERMS IN FORCE ON THIS DATE, not the latest terms on the policy record (review finding
     // F-INT-02). policy_current applies every event whatever its effective date, so this page was
     // printing a future endorsement's premium, tax and LIMITS as the cover in force today, to the
@@ -95,6 +102,21 @@ export async function CustomerPolicyView({
     // function, same day, on both screens.
     policyAsItStoodOn(policy.policyId, documentDate),
   ]);
+
+  // The money rows of the Billing view (decision 43). The SAME readers the staff page uses, so
+  // the customer and their broker read one set of figures, not two.
+  const [payment, corrections, refunds, voidCorrection] =
+    view === "billing"
+      ? await Promise.all([
+          checkoutOperationOfPolicy(policy.policyId),
+          correctionsOfPolicy(policy.policyId),
+          refundOperationsOfPolicy(policy.policyId),
+          // F-BL-01: what makes a policy voided. Without it the customer's Billing view printed a
+          // reversed issuance as a plain paid row, with nothing anywhere on their page saying the
+          // policy had been voided at all.
+          voidCorrectionOfPolicy(policy.policyId),
+        ])
+      : [null, [], [], null];
   const terms = termsInForceOn(policy, termsToday);
   // Applied endorsements that have not taken effect yet: the gap between what the policy is today
   // and what policy_current already carries. Named under the facts rather than folded into them.
@@ -109,7 +131,6 @@ export async function CustomerPolicyView({
     policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "warn" : "neutral";
 
   const path = `/policies/${policy.policyId}`;
-  const view = pickView(query.view, VIEWS);
   const now = new Date();
   const refusal = firstValue(query.error);
   const sent = firstValue(query.changeRequest) === "sent";
@@ -478,8 +499,21 @@ export async function CustomerPolicyView({
             backend slice. This is deliberately a comment and no markup: an empty box promising a
             button nobody can press is worse than nothing.
           */}
+          {/* F-BL-01: the same fact the staff page puts above its own views. A customer whose
+              policy was voided by a correction saw nothing of the kind anywhere on their page,
+              while their Billing view listed the reversed issuance as money they had paid. */}
+          {policy.status === "voided" && voidCorrection ? (
+            <div className="notices">
+              <div className="error" role="alert">
+                <Emphasis>
+                  {`This policy was voided by a correction on ${voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC: ${voidCorrection.reason}. Nothing was collected on it and it cannot be paid; a replacement needs a new policy.`}
+                </Emphasis>
+              </div>
+            </div>
+          ) : null}
+
           <BillingSummary
-            rows={billingRows({ policy, payment, endorsements, corrections, refunds })}
+            rows={billingRows({ policy, payment, endorsements, corrections, refunds, voidCorrection })}
             now={now}
             lead={AGENCY_BILL_SENTENCE_FOR_CUSTOMER}
             // No inspector for a customer: the console behind a reference is not theirs to read.

@@ -220,7 +220,9 @@ export function brokerSections(
         amountCents: policy.liveEndorsement!.deltaTotalCents,
         since: policy.liveEndorsement!.approvedAt ?? policy.liveEndorsement!.requestedAt,
         actionLabel: "Pay the delta",
-        href: `/policies/${policy.policyId}`,
+        // F-BL-04: the Billing view, at the Pay row itself. It used to be the policy overview,
+        // where nothing says what is owed or offers the button.
+        href: `/policies/${policy.policyId}?view=billing#pay-delta`,
       })),
     },
     {
@@ -235,11 +237,13 @@ export function brokerSections(
           amountCents: correction.amountCents,
           since: correction.recordedAt,
           actionLabel: "Collect",
-          // The Billing view, at the correction's action row. It used to be the policy overview,
+          // The Billing view, at THIS correction's action row. It used to be the policy overview,
           // where nothing says what is owed or how to take it (Yoann, 2026-09-09), then the Money
-          // view until decision 43 moved every button that takes money to Billing. The anchor is
-          // `collect`, put on the row by app/policies/[policyId]/correction-sections.tsx.
-          href: `/policies/${policy.policyId}?view=billing#collect`,
+          // view until decision 43 moved every button that takes money to Billing, and then the
+          // bare `#collect` until F-EV2-05: with two open differences every row of this section
+          // landed on the first one. The per-correction anchor is built by `collectAnchorFor` in
+          // app/policies/[policyId]/correction-sections.tsx.
+          href: `/policies/${policy.policyId}?view=billing#collect-${correction.rebookEventId}`,
         })),
       ),
     },

@@ -14,6 +14,7 @@ export function DataTable({
   footer,
   children,
   className,
+  id,
 }: {
   ariaLabel: string;
   toolbar?: ReactNode;
@@ -21,9 +22,11 @@ export function DataTable({
   footer?: ReactNode;
   children: ReactNode;
   className?: string;
+  // An anchor on the block, when a notice or a link elsewhere has to land on this table.
+  id?: string;
 }) {
   return (
-    <div className={`dt-wrap${className ? ` ${className}` : ""}`}>
+    <div className={`dt-wrap${className ? ` ${className}` : ""}`} id={id}>
       {toolbar}
       <div className="dt-scroll" role="region" aria-label={ariaLabel} tabIndex={0}>
         <table className="dt">{children}</table>
