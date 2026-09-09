@@ -1,0 +1,45 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /broker] CorgiPolicy administration
+Broker workspace
+[a /inbox] Inbox
+[a /broker] Policies
+[a /broker/statements] Statements
+[a /broker/kyb] Business verification
+[a /broker/kyb?view=status] Status
+[a /broker/kyb?view=submit] Submit
+[a /broker/kyb?view=history] History
+Marco Silva, brokerBroker
+Sign out
+[a /broker] Policies
+Brokers
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Business verificationnot submitted Brokers
+Bindingrefusedthe rule the server applies before binding
+Settling windowcleartwo minutes after a status is recorded
+Where it stands
+No verification on file for this broker. Binding is refused until one passes.
+Provider
+none
+Connected account
+not created yet
+Sandbox references
+Stripe connected account
+none yet
+Recorded
+none
+Submitted
+none
+About this screen
+What Stripe checks
+Stripe Connect business verification (test mode) is not a dedicated KYB vendor; it is the live check this build runs, and the status shown is Stripe's answer. The server reads that same status before allowing a policy to be bound.
+Pending, approved, failed
+The status stays pending for at least two minutes after a submission (a settling window), then "Check at Stripe" reads it again. A failed check names Stripe's own requirement codes.
+Every status is a row
+A status is appended when observed, never edited. The history view is that table, newest first; each row unfolds on Stripe's own sentence and its requirement codes.
+address_full_match
+A registered address reading address_full_match is Stripe's published test token, not a street: it tells the sandbox to answer as though the address matched the business records exactly. It is what was submitted, so it is what this screen shows.
+What is stored
+The registered name, the address, the website, the last four digits of the EIN, the connected account id, and the instant and IP address of the agreement acceptance. The EIN itself is never stored.Corgi · Policy administration

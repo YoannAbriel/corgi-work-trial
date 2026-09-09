@@ -7,10 +7,13 @@ import { withActivity, type Activity } from "@/lib/observability/log";
 // POST /api/session/switch, called by the account menu at the bottom of the sidebar.
 //
 // A signed-in demo user becomes another DEMO account without typing the shared password again
-// (Yoann, 2026-09-09). Three gates, in this order, and the route answers the same 303 for each:
+// (Yoann, 2026-09-09). Four gates, in this order, and the route answers the same 303 for each:
 //   1. there must be a valid session already (nobody signs in through here);
-//   2. the target email must be on the closed list in lib/auth/demo-accounts.ts;
-//   3. the target must exist and must not be an 'agent' principal, exactly as /api/session/login.
+//   2. the ACTOR must be a demo account too: a broker created through POST /api/brokers has its
+//      own password and is not on the list, so it can never become staff through this route
+//      (review finding F-SWITCH-01);
+//   3. the target email must be on the closed list in lib/auth/demo-accounts.ts;
+//   4. the target must exist and must not be an 'agent' principal, exactly as /api/session/login.
 // The new cookie is signed the same way login signs it, so every screen keeps checking the
 // role for itself. The activity log keeps the row like any sign in (rule "sign in").
 export const POST = withActivity({ route: "/api/session/switch", rule: "sign in" }, handlePost);
@@ -21,6 +24,9 @@ async function handlePost(request: Request, _context: unknown, activity: Activit
     return redirectTo("/login?error=Please+sign+in+first");
   }
   const home = homeOf(user.role);
+  if (!isDemoAccountEmail(String(user.email ?? "").trim().toLowerCase())) {
+    return redirectTo(`${home}?error=${encodeURIComponent("only a demo account can switch accounts")}`);
+  }
 
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim().toLowerCase();

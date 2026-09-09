@@ -1,0 +1,162 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /broker] CorgiPolicy administration
+Broker workspace
+[a /inbox] Inbox
+[a /broker] Policies
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=overview] Overview
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=endorsements] Endorsements
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=claims] Claims
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=money] Money
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=timeline] Timeline
+[a /broker/statements] Statements
+[a /broker/kyb] Business verification
+Marco Silva, brokerBroker
+Sign out
+[a /broker] Policies
+Policy CGP-01709
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Policy CGP-01709TestCustomer2bound
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/endorse] Endorse
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/cancel] Cancel the policy Policies
+Annual premium$12,000.00in force on 2026-09-26
+CA premium tax
+$282.00
+Explain this amount
+CA premium tax on the annual premium in force on 2026-09-26
+Premium tax is charged on the premium alone: never on the policy fee, and never on itself.
+|
+| Amount | How it was computed (integer cents) | Result
+| Annual premium the tax is charged on | 1200000 | $12,000.00
+| CA premium tax at 2.35% (235 basis points) | floor(1200000 x 235 / 10000) | $282.00
+Rounding Rounded down (floor): the customer pays this amount, so the fraction of a cent is dropped and the insurer absorbs it.
+The premium tax entries booked on this policy so far (issuance, and any endorsement or cancellation). They are what was charged over time; the figure above is the tax on the annual premium in force on this date. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| tax_and_fee_billed | 2026-09-26 | 2026-09-09 20:54:28 | Cr State premium tax collected, owed to the state 28200
+[a #journal-entry-policy-5897c0e5-1c7f-4852-8866-cc3324c9d15b] Trace to the ledger2.35% of the premium
+Policy fee
+$25.00
+Explain this amount
+Flat policy fee
+A configured flat amount, fully earned the day the policy is issued, so a mid-term cancellation never refunds it.
+|
+| Amount | How it was computed (integer cents) | Result
+| Flat policy fee, charged once at issuance | 2500 | $25.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| tax_and_fee_billed | 2026-09-26 | 2026-09-09 20:54:28 | Cr Flat policy fee, fully earned at issuance 2500
+[a #journal-entry-policy-5897c0e5-1c7f-4852-8866-cc3324c9d15b] Trace to the ledgeronce at issuance
+Full annual term
+$12,307.00
+Explain this amount
+What a full annual term at the terms in force on 2026-09-26 costs the customer
+The terms in force, not what was collected: what actually moved is in the endorsement schedule, the refunds and the journal.
+|
+| Amount | How it was computed (integer cents) | Result
+| Annual premium | 1200000 | $12,000.00
+| CA premium tax | 28200 | $282.00
+| Policy fee | 2500 | $25.00
+| Total for a full annual term at these terms | 1200000 + 28200 + 2500 | $12,307.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+premium, tax and fee
+Cover
+General Liability - Each Occurrence
+$1,000,000.00
+General Liability - Aggregate
+$2,000,000.00
+Term
+2026-09-26 to 2027-09-26
+State
+CA
+Commission rate
+15.00%
+So far, from the journal
+Premium payment
+succeeded
+cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj4513eab4-f2d0-4358-922f-c43ff57d57a9
+Collected at Stripe
+$12,307.00
+Explain this amount
+Money that arrived on the Stripe cash account for this policy
+Every debit of cash_stripe on this policy that a correction has not reversed: the premium collection and any endorsement or correction difference the customer paid.
+|
+| Amount | How it was computed (integer cents) | Result
+| premium_collected, effective 2026-09-09 | Dr Cash held at Stripe (gross of Stripe fees) 1230700 | $12,307.00
+| Collected at Stripe, all debits added | 1230700 | $12,307.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_collected | 2026-09-09 | 2026-09-09 20:54:28 | Dr Cash held at Stripe (gross of Stripe fees) 1230700
+[a #journal-entry-policy-d4526bea-e273-4433-97cf-542b5b6760bd] Trace to the ledger
+Refunded from Stripe
+$0.00
+Explain this amount
+Money that left the Stripe cash account for this policy
+Every credit of cash_stripe on this policy that is not the mirror of a reversed entry. A refund appears here only once Stripe's webhook confirms the money left.
+|
+| Amount | How it was computed (integer cents) | Result
+| Refunded from Stripe, all credits added | no credit on this account yet | $0.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Commission owed, net
+$1,800.00
+Explain this amount
+Balance of this broker's commission payable on this policy
+Commission earned when premium was collected, less every clawback on premium given back. Entries a correction reversed, and their mirrors, are left out.
+|
+| Amount | How it was computed (integer cents) | Result
+| commission_earned, effective 2026-09-09 | Cr Commission owed to brokers, reduced by clawbacks 180000 | $1,800.00
+| Commission payable, credits minus debits | 180000 | $1,800.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| commission_earned | 2026-09-09 | 2026-09-09 20:54:28 | Cr Commission owed to brokers, reduced by clawbacks 180000
+[a #journal-entry-policy-add5a5a3-4463-467e-bc5f-f2784ded6fa3] Trace to the ledger
+Unearned premium held
+$12,000.00
+Explain this amount
+Balance of unearned premium on this policy
+Premium written and not yet earned: what would be owed back if the policy stopped today. Entries a correction reversed, and their mirrors, are left out.
+|
+| Amount | How it was computed (integer cents) | Result
+| premium_written, effective 2026-09-26 | Cr Written premium not yet earned (owed back on cancel) 1200000 | $12,000.00
+| Unearned premium, credits minus debits | 1200000 | $12,000.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_written | 2026-09-26 | 2026-09-09 20:54:28 | Cr Written premium not yet earned (owed back on cancel) 1200000
+[a #journal-entry-policy-bdb957b8-727c-4036-9456-50d07205ff68] Trace to the ledger
+Open claims
+none
+Broker
+Name
+Sierra Crest Brokerage
+Verification
+approved
+Customer
+testcustomer2@test.com
+Documents
+[input asOf=2026-09-26]
+Declarationsas of 2026-09-26, PDF
+[input asOf=2026-09-26]
+Endorsement scheduleas of 2026-09-26, PDF
+About this screen
+What the four sums are
+Sums of the journal lines of this policy: cash at Stripe in and out, the commission payable balance, the unearned premium balance. An entry a correction reversed, and the reversal that mirrors it, are left out of them, because a reversal puts our own books right rather than moving money at Stripe. Both sides stay in the journal of the money view.
+The broker's verification
+Stripe's business verification passed. This broker can bind policies.
+In force is not collected
+The terms in force are today's premium and limits. What was actually collected and refunded is in the endorsements view, the money view and the journal, never in the terms.
+Total
+The annual premium plus the state premium tax and the flat policy fee, in force on the date named under the figures: today, or the first day of the term when the term has not begun.
+Endorse, cancel, correct
+An endorsement is priced from its effective date over the days remaining in the term; once this term's endorsements add more than $500.00 of premium the customer approves first, and it takes effect when the delta is paid. A cancellation refunds the unearned premium pro rata and claws back the commission on it. A correction never changes a row: it reverses and re-books.
+Paid, not bound
+The customer's money arrived while the broker was not eligible to bind, so it sits in the suspense account until staff operations bind the policy or send it back.Corgi · Policy administration

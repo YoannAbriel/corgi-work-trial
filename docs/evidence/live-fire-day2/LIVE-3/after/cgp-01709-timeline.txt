@@ -1,0 +1,75 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=overview] Overview
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=endorsements] Endorsements
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=claims] Claims
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=money] Money
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=timeline] Timeline
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+Policy CGP-01709
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Policy CGP-01709TestCustomer2bound
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/endorse] Endorse
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/cancel] Cancel the policy
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/claims/new] Open a claim Policies
+As it stood on
+[input asOf=2026-09-26]
+[input view=timeline]
+Show
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?asOf=2026-09-26&view=timeline] 2026-09-26term start
+|
+| | Effective | Recorded | Event | What
+|
+| 2026-09-26 | 7 min | quoted | Quote priced at $12,000.00 of annual premium
+|
+What it says
+Quote priced at $12,000.00 of annual premium
+Effective
+2026-09-26
+Recorded
+2026-09-09 20:49:33
+|
+| 2026-09-26 | 2 min | issued | Policy bound at $12,000.00 of annual premium
+|
+What it says
+Policy bound at $12,000.00 of annual premium
+Effective
+2026-09-26
+Recorded
+2026-09-09 20:54:28
+About this screen
+Two clocks, never merged
+Effective is the business date a fact applies from: it prices the money, and it can be in the past or in the future. Recorded is the instant the row was written, set by the database and never by a client: it answers what we knew that day.
+A struck-through row
+It was superseded by a correction. The row stays in the table for ever; the fold that rebuilds the policy no longer applies it.
+The dates this policy changed
+The term start, every change still in force, and today. A change a correction put right is not a step. Picking one rebuilds the policy from the events effective on or before it.
+Written premium segments
+Each piece of premium earns over its own window. The issuance premium earns over the whole term; an endorsement earns its prorated amount from its own effective date to the end of the term. This is why the annual premium in force is not the written premium once a policy has been endorsed.
+The same date as a document
+Both PDFs are rebuilt from the same events: between two endorsements the declarations page shows the premium and the limits that were in force that day. They are in the Documents card of the overview, and the answer above links to them for the date it is showing.Corgi · Policy administration

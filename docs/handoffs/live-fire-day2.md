@@ -306,3 +306,86 @@ found the buttons on the policy page); four separate "Send to Stripe" buttons pr
 reload the page once and give no per-refund feedback (a "Send the approved refunds" action for
 the whole cancellation, or a toast per send). Neither changes a money path: the send route
 already covers each operation and refuses an unapproved one.
+
+## LIVE-3: broker KYB shown live on Stripe Connect, one approved and one failed, binding refused until approved (YOA-659), revision d002f77
+
+Deployed revision at the start of the step, `/api/health` at 20:40:55Z: `d002f77`. Before-state
+read as ops and as the three brokers (`LIVE-3/before/`): Redwood Commercial Brokers (broker@,
+Dana Ruiz) approved on EIN ending 0000 since 2026-09-08 (acct_1UDNobK6R3ohMVag); Harbor Point
+Insurance Services (broker2@, Priya Nair) failed with `verification_failed_tax_id_match` on EIN
+ending 1111 since 2026-09-08 13:03:27Z (acct_1UDOfRK6R3FpfF2D, history rows "verification
+pending" 13:02:33Z then "verification failed" 13:03:27Z); Sierra Crest Brokerage (broker3@, Marco
+Silva) never submitted, status unknown, no connected account, home item "Business verification
+not submitted: you cannot bind". The ops "New broker" card is disabled ("Route pending: POST
+/api/brokers is not on this branch yet"); Yoann decided at about 20:45Z that the route is built
+tonight, so Sierra Crest could be consumed by this step. Fixtures per the submit form and
+lib/kyb/stripe-connect.ts: EIN 000000000 verifies, 111111111 fails with
+verification_failed_tax_id_match, address token address_full_match, a valid website (Stripe
+refuses example.com with url_invalid). Sandbox only, test-mode account, no real money.
+
+### Click 1: broker2@example.com (failed), New policy then the policy page (about 20:47Z)
+
+Draft CGP-01708 created (Test Customer, $12,000.00 annual premium, $1,000,000 / $2,000,001,
+term 2027-02-21 to 2028-02-21; the figures are Yoann's typing, the field is in dollars). On the
+policy page: the "Pay with Stripe (test mode)" button rendered disabled, the sentence "Payment is
+blocked while the broker is not approved. Stripe refused this verification. Binding is refused;
+submitting corrected details starts a new verification. Stripe reason:
+verification_failed_tax_id_match.", the Broker card chip "failed". Expected: binding refused for
+the failed broker (lib/payments/checkout.ts refuses the server side too, with 'binding is
+refused: the broker's KYB status is "failed" and must be "approved"'). Agree.
+
+### Click 2: broker3@example.com (unknown), New policy then the policy page
+
+Draft CGP-01709 (TestCustomer2, $12,000.00, $1,000,000 / $2,000,000, term 2026-09-26 to
+2027-09-26). Pay disabled, sentence "Payment is blocked while the broker is not approved. No
+verification on file for this broker. Binding is refused until one passes.", chip "unknown".
+Agree. Wording noted: the Broker card also prints "KYB: not yet live: a seeded placeholder, not
+provider evidence" for a broker that never submitted anything (no seed row either), which reads
+wrong; LOW for the interface session.
+
+### Click 3: broker3@example.com, /broker/kyb, Submit for verification (20:50:41Z)
+
+Submitted: Sierra Crest Brokerage LLC, EIN 000000000 (stored as "ending 0000"),
+address_full_match San Francisco CA 94105, website https://corgi-work-trial-iota.vercel.app,
+agreement accepted (instant and IP recorded, IP not copied here). Read by GET:
+
+| Figure | Expected | Read | Agree |
+|---|---|---|---|
+| Connected account created at Stripe | one v2 account, test mode | acct_1UDsS1K6R3yO7TeG | agree |
+| Status right after | pending, settling window of two minutes | "pending", "Verification in progress at Stripe, at least 2 minutes. Binding is refused until it passes. Stripe reason: awaiting the first verification result." | agree |
+| History | one row "verification pending" | pending, Stripe Connect, 2026-09-09 20:50:41 | agree |
+| Ops list | Sierra Crest pending | console file "verification pending 20:50:41" | agree |
+| account.updated webhook | 45 to 60 seconds after creation | received 20:51:44Z on the deployed endpoint, listed on /ops/console?kind=webhook for acct_1UDsS1K6R3yO7TeG | agree |
+| "Check at Stripe" inside the window (Yoann clicked once early) | still pending, nothing appended | "Read again at Stripe: still pending (awaiting the first verification result), nothing appended" | agree |
+
+Observed: the broker's own Webhooks view on the console
+(`/ops/console/broker/<id>?view=webhooks`) says "This object has no provider reference yet, so no
+webhook could name it" although the account id is on the broker and the account.updated row is on
+the global list. LOW for the coordinator (the broker webhooks view does not resolve the connected
+account id).
+
+### Click 4: broker3@example.com, "Check at Stripe" after the window (20:53:53Z)
+
+| Figure | Expected | Read | Agree |
+|---|---|---|---|
+| Status | approved, binding allowed, window clear | "approved", "Binding allowed, the rule the server applies before binding", "Settling window clear" | agree |
+| History | a second row appended, the first kept | approved 20:53:53 ("business identity settled..."), pending 20:50:41 | agree |
+| Ops list | Sierra Crest approved, EIN ending 0000 | "Sierra Crest Brokerage LLC, EIN ending 0000, approved, 2 min" | agree |
+| Home item "you cannot bind" | gone | gone | agree |
+| CGP-01709 | Pay enabled, Broker chip approved | chip "approved", the Pay form active | agree |
+
+### Beyond the brief: Yoann paid CGP-01709 (20:54:28Z)
+
+The brief said to stop before any payment; Yoann clicked Pay and paid with the test card. Read
+by GET: checkout.session.completed 20:54:28Z (cs_test_b1wtJSGZ...), premium_collected Dr
+cash_stripe 1230700 ($12,307.00: 1200000 premium, 28200 tax, 2500 fee), commission_earned
+180000 ($1,800.00), policy CGP-01709 "bound", issued event effective 2026-09-26. This is the
+binding the step was meant to show as allowed, now shown as done; sandbox only, no real money.
+Consequences to know: Sierra Crest now has a bound policy of $12,307.00 (so a September statement
+for Sierra Crest is no longer empty), and the next reconciliation run matches one more payment.
+CGP-01708 (Harbor Point) stays a draft: binding refused.
+
+Every figure of LIVE-3 agrees. Freeze checklist section D: evidence in
+`docs/evidence/live-fire-day2/LIVE-3/` (before: brokers list, console files, the three brokers'
+pages; after: status, history, home, brokers list, console file and timeline, CGP-01709 money and
+timeline, screenshots).

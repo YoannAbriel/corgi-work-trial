@@ -1,0 +1,52 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /broker] CorgiPolicy administration
+Broker workspace
+[a /inbox] Inbox
+[a /broker] Policies
+[a /broker/statements] Statements
+[a /broker/kyb] Business verification
+[a /broker/kyb?view=status] Status
+[a /broker/kyb?view=submit] Submit
+[a /broker/kyb?view=history] History
+Marco Silva, brokerBroker
+Sign out
+[a /broker] Policies
+Brokers
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Business verificationnot submitted Brokers
+Submit the company
+The details are sent to Stripe Connect in test mode; the EIN itself is never stored here, only its last four digits.
+Registered legal name
+EIN (nine digits, no dash)Stripe publishes three test values, and what each one actually produced here on 2026-09-08 is written next to it: 000000000 verifies; 111111111 fails with verification_failed_tax_id_match; 222221005 is documented as pending but came back approved in this configuration, so it is not the way to demonstrate a pending broker. The honest pending state is the first minutes after this form is submitted.
+Registered address, line 1
+[input addressLine1=address_full_match]
+Stripe's test token address_full_match is accepted here and matches the business records exactly.
+City
+[input addressCity=San Francisco]
+State (two letters)
+[input addressState=CA]
+ZIP code
+[input addressPostalCode=94105]
+Business websiteStripe validates it and refuses https://example.com with url_invalid, so use a real address.
+Contact email
+[input contactEmail=broker3@example.com]
+[input termsAccepted=yes]
+By submitting, you accept the
+[a https://stripe.com/connect-account/legal] Stripe Connected Account Agreement on behalf of your business
+Submit for verification
+What is stored
+The registered name, the address, the website, the last four digits of the EIN, the connected account id, and the instant and IP address of the agreement acceptance. The EIN itself is never stored.
+About this screen
+What Stripe checks
+Stripe Connect business verification (test mode) is not a dedicated KYB vendor; it is the live check this build runs, and the status shown is Stripe's answer. The server reads that same status before allowing a policy to be bound.
+Pending, approved, failed
+The status stays pending for at least two minutes after a submission (a settling window), then "Check at Stripe" reads it again. A failed check names Stripe's own requirement codes.
+Every status is a row
+A status is appended when observed, never edited. The history view is that table, newest first; each row unfolds on Stripe's own sentence and its requirement codes.
+address_full_match
+A registered address reading address_full_match is Stripe's published test token, not a street: it tells the sandbox to answer as though the address matched the business records exactly. It is what was submitted, so it is what this screen shows.
+What is stored
+The registered name, the address, the website, the last four digits of the EIN, the connected account id, and the instant and IP address of the agreement acceptance. The EIN itself is never stored.Corgi · Policy administration
