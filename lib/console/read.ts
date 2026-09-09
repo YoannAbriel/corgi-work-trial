@@ -1179,22 +1179,24 @@ export type OperationInFlight = {
 // written by a client (migration 0002); running the same reader with a threshold of 0 and with
 // the real threshold proves the split without backdating anything.
 //
-// `since` bounds the query in time, and it is the correction of review finding F-B13-23. The CTE
-// used to reduce the WHOLE money_operation_events table before the outer limit was applied, so
-// its cost grew with every event ever written. It now reads only the events of the window the
-// operator asked for, widened by the threshold: an operation accepted `thresholdMinutes` before
-// the window opened is the oldest one that can still become an unknown outcome inside it, so
-// that margin is exactly what the rule needs and nothing more. Anything older than the window is
-// not "in flight" any more, it is a stale operation that /api/jobs/recover-operations owns.
+// THE FLOOR IS THIS READER'S OWN, and it is the correction of review findings F-B13-23 and
+// F-B13-50. The CTE used to reduce the WHOLE money_operation_events table before the outer limit
+// was applied, so its cost grew with every event ever written; bounding it by the FEED cursor
+// then fixed the cost but tied this list to whatever window the operator happened to be reading,
+// and the default 60-minute cockpit answered "nothing is unresolved" while two operations sat
+// accepted and unconfirmed. An unconfirmed operation is money whose outcome nobody knows: it
+// stays visible until a human resolves it, whatever the feed is showing. So this reader carries
+// its own fixed floor, seven days, and takes no cursor at all.
+export const UNRESOLVED_OPERATIONS_FLOOR_DAYS = 7;
+
 export async function acceptedAndUnconfirmedOperations(
   database: postgres.Sql,
   {
-    since,
     limit = 50,
     thresholdMinutes = UNKNOWN_OUTCOME_AFTER_MINUTES,
-  }: { since: Date; limit?: number; thresholdMinutes?: number },
+  }: { limit?: number; thresholdMinutes?: number } = {},
 ): Promise<{ checking: OperationInFlight[]; unknownOutcome: OperationInFlight[] }> {
-  const acceptedAfter = new Date(since.getTime() - thresholdMinutes * 60_000);
+  const acceptedAfter = new Date(Date.now() - UNRESOLVED_OPERATIONS_FLOOR_DAYS * 24 * 60 * 60_000);
   const rows = await database<
     {
       operation_id: string;
@@ -1211,14 +1213,14 @@ export async function acceptedAndUnconfirmedOperations(
     }[]
   >`
     with latest as (
-      -- The last row of each operation's history, by its total order, WITHIN THE WINDOW.
+      -- The last row of each operation's history, by its total order, within the seven days.
       -- distinct on is the index-friendly way to ask that question: money_operation_events
       -- carries the index (operation_id, sequence_number) since migration 0002.
       --
       -- The time bound is not an approximation. A row that survives it is an acceptance
-      -- recorded inside the window with nothing after it, and any later event of that same
-      -- operation would necessarily be inside the window too, because events only move forward.
-      -- So this reads exactly "accepted during this window and silent since".
+      -- recorded inside the seven days with nothing after it, and any later event of that same
+      -- operation would necessarily be inside them too, because events only move forward.
+      -- So this reads exactly "accepted in the last seven days and silent since".
       select distinct on (operation_id)
              operation_id, status, recorded_at, provider_ref
         from money_operation_events
@@ -1265,6 +1267,11 @@ export async function acceptedAndUnconfirmedOperations(
   };
 }
 
+// The largest errors list this panel will ever render, named because the screen prints it when
+// it is reached: a list that stops at N without saying so reads as "these are all of them"
+// (review finding F-B13-51).
+export const MOST_PROBLEM_ROWS = 60;
+
 // Everything that failed or was refused since `since`, plus the operations whose outcome is
 // unknown. Four bounded queries, merged newest first.
 //
@@ -1275,7 +1282,7 @@ export async function acceptedAndUnconfirmedOperations(
 // the two panels can never disagree about the same operation.
 export async function operationsProblems(
   database: postgres.Sql,
-  { since, limit = 60, unknownOutcome }: { since: Date; limit?: number; unknownOutcome: OperationInFlight[] },
+  { since, limit = MOST_PROBLEM_ROWS, unknownOutcome }: { since: Date; limit?: number; unknownOutcome: OperationInFlight[] },
 ): Promise<OperationsProblem[]> {
   const [failedOperations, webhookTrouble, mcpTrouble, failedRuns] = await Promise.all([
     // A provider failure, or an operation the recovery job could not resolve either way.
