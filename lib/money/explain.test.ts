@@ -132,6 +132,18 @@ test("every cancellation fold ends on the figure it sits under", () => {
   const earned = lines.find((line) => line.key === "earned_premium")?.cents ?? 0;
   const unearned = lines.find((line) => line.key === "unearned_premium")?.cents ?? 0;
   assert.equal(earned + unearned, figures.writtenPremiumCents);
+
+  // Review finding F-B12-03: the earned line must NOT print a single ratio over the whole term.
+  // On a policy endorsed mid-term the endorsement segment earns over its own window, and the
+  // cancellation event does not store the segments, so the fold prints the rule and says so.
+  const earnedLine = lines.find((line) => line.key === "earned_premium");
+  assert.equal(
+    earnedLine?.formula,
+    "sum over each written segment of floor(its written premium x its own elapsed days / its own window)",
+  );
+  assert.doesNotMatch(earnedLine?.formula ?? "", /100 \/ 365/);
+  assert.match(explainCancellationFigure(figures, "earned_premium").note ?? "", /its own window/);
+  assert.match(explainCancellationFigure(figures, "unearned_premium").note ?? "", /its own window/);
 });
 
 // ---------------------------------------------------------------------------

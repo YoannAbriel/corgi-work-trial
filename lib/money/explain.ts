@@ -207,9 +207,16 @@ export function cancellationFormulaLines(cancellation: CancellationFigures): For
       cents: cancellation.writtenPremiumCents,
     },
     {
+      // NO CONCRETE RATIO HERE, ON PURPOSE (review finding F-B12-03). The figure is a sum over
+      // the written premium segments, and each segment earns over ITS OWN window: on a policy
+      // endorsed mid-term the endorsement segment runs from its effective date to the end of the
+      // term, not over the whole term. Printing `floor(written x earnedDays / termDays)` would be
+      // a formula the ledger never ran, and the agreement check could not catch it because it
+      // compares cents and not printed arithmetic. The cancellation event stores the totals and
+      // not the segments (lib/policy/cancel.ts), so the fold prints the rule and says so.
       key: "earned_premium",
-      label: `Earned over ${cancellation.earnedDays} of ${cancellation.termDays} days, kept by the insurer (each written segment earns over its own window, rounded down)`,
-      formula: `floor(written x ${cancellation.earnedDays} / ${cancellation.termDays}) per segment`,
+      label: `Earned premium kept by the insurer, rounded down on each segment (the term had run ${cancellation.earnedDays} of its ${cancellation.termDays} days)`,
+      formula: "sum over each written segment of floor(its written premium x its own elapsed days / its own window)",
       cents: cancellation.earnedPremiumCents,
     },
     {
@@ -259,16 +266,24 @@ const CANCELLATION_ROUNDING: Record<CancellationFigureKey, string | null> = {
   commission_clawback: ROUNDED_DOWN_COMMISSION,
 };
 
+// The sentence added under the earned figure, and under the unearned figure that is derived from
+// it: the segments themselves are not on the cancellation event, so the fold says which windows it
+// cannot print rather than printing a window it does not know (review finding F-B12-03).
+const SEGMENTS_NOT_STORED =
+  "Each piece of premium written on this policy earns over its own window: the issuance premium over the whole term, an endorsement over the days that remained from ITS effective date. The cancellation event stores the totals and not the segment list, so the rule is printed here instead of one ratio; the segments themselves are in the endorsement schedule above and in the journal's premium_written entries.";
+
 export function explainCancellationFigure(
   cancellation: CancellationFigures,
   key: CancellationFigureKey,
   evidence?: ExplanationEvidence[],
 ): AmountExplanation {
+  const base = `Cancellation effective ${cancellation.effectiveAt}, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.`;
+  const segmentsMatter = key === "earned_premium" || key === "unearned_premium";
   return {
     lines: cancellationFormulaLines(cancellation),
     resultKey: key,
     rounding: CANCELLATION_ROUNDING[key],
-    note: `Cancellation effective ${cancellation.effectiveAt}, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.`,
+    note: segmentsMatter ? `${base} ${SEGMENTS_NOT_STORED}` : base,
     evidence,
   };
 }
