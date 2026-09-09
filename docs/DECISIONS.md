@@ -245,3 +245,12 @@ Decided by Yoann in his interface session and sent to the coordinator with the r
 49. Statement lists sort by run age only, newest first; /broker/statements shows a Produced column.
 50. Band vignettes are cropped copies under public/illustrations/band produced by scripts/crop-illustrations.mjs; library originals stay for the large sizes.
 51. Brand: generated PDFs open in a new tab; the Corgi wordmark (compiled in as lib/documents/brand-wordmark.ts, no runtime file read) and #ff5c00 on rules and bars only (text stays ink for contrast) in both PDF renderers; the issuer line and sandbox chip are unchanged; the sidebar mark and favicon are the Corgi mark; sources under brand/, derived files by scripts/brand-assets.mjs. The statement hash covers the canonical text, so the wordmark changes no revision.
+
+## 2026-09-09T20:46:00+00:00 | Explicit user decisions (Yoann, in the coordinator session, form of four questions) | Decision 44 to week two, demo key re-minted, New broker built tonight, F-INSPECT-05 one sentence
+
+Yoann answered the four open questions at 22:45 local.
+
+- Decision 44 (direct bill by the customer through the same Checkout): **week two**. Nothing is built before the freeze; the week-two plan carries it with the $53.84 example. Agency bill stays as decided at 06:35Z.
+- Demo MCP key (prefix cmk_e96f88a4, secret echoed once into a tool output at 18:35Z, incident in STATUS): **revoke and re-mint now**. Yoann revokes on /ops/mcp-keys and mints the replacement himself; the new secret goes to `.local/mcp-demo-key.txt` only. Interface batch 2 adds an expiry to keys, so the replacement is minted once that batch is on production.
+52. New broker route: **built tonight, mandatory, tested**. POST /api/brokers for staff_ops only: one broker row and one broker user in one transaction, commission rate in bps, unique email, a random password stored as a hash and shown once to the operator through a short-lived cookie cleared on first display; seeded demo users keep the shared demo password. No money path. Own independent review and check script; the disabled New broker card on /ops/brokers?view=new becomes live.
+53. F-INSPECT-05: `inspect_reference` on a reference nothing matches answers **one sentence** ("nothing in this database matches that reference") instead of the list of recognised shapes. Text change with its test, light review.

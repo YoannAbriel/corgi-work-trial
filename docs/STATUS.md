@@ -566,6 +566,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T20:46:00+00:00 | Yoann's four answers: decision 44 to week two, demo key to re-mint, New broker route built tonight (decision 52), F-INSPECT-05 one sentence (decision 53)
+
+- Recorded in DECISIONS. The New broker slice starts now as an opus builder with an independent reviewer (route, migration adding a nullable password hash to users, login check, reveal cookie, check script); F-INSPECT-05 is a second small builder in the same run. The demo key is revoked by Yoann on /ops/mcp-keys and re-minted after interface batch 2 is on production. LIVE-3 (KYB live) is briefed by the co-pilot on d002f77.
+
 ## 2026-09-09T20:39:00+00:00 | LIVE-7 done by Yoann on production (d002f77), evidence merged (3d23e92): the four live-fire steps of day 2 are done
 
 - **Cancellation of CGP-01707 with the open claim**, confirmed by the broker 20:32:36Z effective 2026-11-08: 61 of 365 days, earned 38629, unearned 224877 in four refund_requested entries (81374 + 5260 + 28108 + 110135), tax back 5285, refund 230162 ($2,301.62), clawback 33731 ($337.31), identical to cancellationBreakdown on the three segments and to the preview; refund_payable credited, queue 4 waiting.
