@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { DataTable, Num, Ref } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty";
 import { When } from "@/components/ui/time";
@@ -328,7 +329,14 @@ export function WhatIsBeingRefunded({
                 <Chip tone={row.tone}>{row.state}</Chip>
               </td>
               <Num>{formatCentsAsUsd(row.amountCents)}</Num>
-              <td>{row.waitsFor}</td>
+              {/* THE ONE CELL OF THIS FILE THAT IS EMPHASISED, and the exception is deliberate.
+                  Bold does not belong in a table cell that holds an aligned value: an amount and a
+                  date are read by position and the emphasis would fight the alignment. This column
+                  holds a SENTENCE, one per refund, with the date Stripe confirmed inside it, which
+                  is exactly what a reader is looking for. */}
+              <td>
+                <Emphasis>{row.waitsFor}</Emphasis>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -356,7 +364,9 @@ export function BillingSummary({
 }) {
   return (
     <>
-      {lead ? <p className="pd-lead">{lead}</p> : null}
+      {/* The agency-bill sentence. A caller that hands a plain string gets its figures and its
+          words emphasised; one that builds its own element keeps exactly what it built. */}
+      {lead ? <p className="pd-lead">{typeof lead === "string" ? <Emphasis>{lead}</Emphasis> : lead}</p> : null}
       <WhatIsOwed rows={rows.owed} now={now} />
       <WhatWasPaid rows={rows.paid} inspectHrefFor={inspectHrefFor} inspected={inspected} />
       <WhatIsBeingRefunded rows={rows.refunded} inspectHrefFor={inspectHrefFor} inspected={inspected} />
