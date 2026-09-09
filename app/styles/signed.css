@@ -63,11 +63,13 @@ tr.dt-row.will-be-reversed td.num {
 }
 
 /* What the correction will book instead: a preview, not a record, so the row is dashed and sits
-   on a faint ground rather than looking like a row that already exists. */
+   on the page's own ground rather than on the white of a row that already exists. Both values are
+   tokens: --line is the border of every block, and --bg is the ground the white cards sit on, so
+   a preview row reads as the page showing through the table (review finding F-EV2-03). */
 tr.dt-row.rebook-preview td {
-  border-top: 1px dashed #c9cbd1;
-  border-bottom: 1px dashed #c9cbd1;
-  background: #fbfcfb;
+  border-top: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--line);
+  background: var(--bg);
 }
 tr.dt-row.rebook-preview td.num {
   font-weight: 600;
