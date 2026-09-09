@@ -18,16 +18,29 @@ table.endorsement-schedule {
    Column 2 is deliberately left unset: under a fixed layout it takes everything the others do
    not, which is what the sentence a reader is here for needs. */
 table.endorsement-schedule th:nth-child(1) {
-  width: 15%;
+  width: 14%;
 }
 table.endorsement-schedule th:nth-child(3) {
-  width: 20%;
+  width: 18%;
 }
 table.endorsement-schedule th:nth-child(4) {
   width: 16%;
 }
+/* Two points more than the 17% it had: the provider column holds the references fold, and at 17%
+   (125 px) the fold was 93 px, narrow enough to break the word REFERENCES in its own title
+   (review finding F-UA-03). The two points come from the date and the delta columns, which print
+   a date and an amount and had room to spare. */
 table.endorsement-schedule th:nth-child(5) {
-  width: 17%;
+  width: 21%;
+}
+/* Review finding F-UA-03: app/globals.css keeps every table header on one line, and under the
+   fixed layout above "New annual premium" is 121 px of nowrap text in a column that is 118 px at
+   a 1512 px window, so the label overflowed 19 px into "Stripe" with no gutter between the two.
+   A header of three words wraps instead, which is the repair ops-tables.css:66 already applies to
+   the operations tables. Wrapping a header changes no column width: the fixed shares above still
+   decide them, and the amounts under the headers keep their own nowrap. */
+table.endorsement-schedule > thead > tr > th {
+  white-space: normal;
 }
 /* The recording time, under the business date it belongs to: two clocks, one column. */
 .schedule-recorded {

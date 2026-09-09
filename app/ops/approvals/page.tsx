@@ -11,6 +11,11 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 // UI-008: the gutter between the two panels and the line break under the "raised by an AGENT"
 // badge. Presentation only; the decision form below is untouched.
 import "@/app/styles/shell.css";
+// Review finding F-UA-05: this screen was edited without the stylesheet that fixed the same
+// defect on the other operations tables, so app/globals.css kept `overflow-wrap: anywhere` on its
+// cells and the "What" column was 71 px, splitting "payment" into "paym / ent". The column roles
+// below come from the same file.
+import "@/app/styles/ops-tables.css";
 
 // The maker-checker queue: every money-out above the threshold, who asked for it, exactly what
 // they asked for, and the two buttons that decide it.
@@ -51,7 +56,7 @@ export default async function ApprovalsPage({
     <PortalShell active="approvals" user={user}>
       <DetailHeading
         title="Money-out approvals"
-        lead={`Anything above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} leaving this system, a claim payment or a cancellation refund, waits here until a staff approver who is not the person who asked says yes. So does a request an agent raised through the MCP endpoint, whatever the amount.`}
+        lead={`Anything above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} leaving this system, a claim payment or a cancellation refund, waits here until a staff approver who is not the person who asked says yes. So does a payment that takes its claim’s money out, or its policy’s refunds, above that line, and so does a request an agent raised through the MCP endpoint, whatever the amount.`}
         chips={
           <>
             <Chip tone={waiting.length > 0 ? "warn" : "ok"}>
@@ -67,12 +72,14 @@ export default async function ApprovalsPage({
       <Panel title="Waiting for a decision" className="list-panel stacked-panel">
         {waiting.length === 0 ? (
           // UI-009: "below the threshold, never" was contradicted by the $10.00 claim payment in
-          // the decided table below. Rule 21 of the decision log (2026-09-08) sends an
-          // agent-raised claim payment to a human approver whatever the amount, so a small
-          // request is exactly what a reader can find here.
+          // the decided table below. The rewrite then named only the agent case, and that row was
+          // not agent-raised (review finding F-UA-02): it is there under the CUMULATIVE rule of
+          // lib/approvals/threshold.ts, where a payment joins the queue when it takes the claim's
+          // money out above the line. Both reasons are named now, here and in the disclosure.
           <Empty>
-            Nothing is waiting. Below the threshold, the only request that appears here is one an
-            agent raised through the MCP endpoint.
+            Nothing is waiting. A request below the threshold appears here for one of two reasons:
+            it takes its claim&rsquo;s money out, or its policy&rsquo;s refunds, above the line, or an
+            agent raised it through the MCP endpoint.
           </Empty>
         ) : (
           <RequestTable requests={waiting} user={user} />
@@ -84,9 +91,12 @@ export default async function ApprovalsPage({
         <Disclosure>
           <p>
             The threshold is an assumption of this build, decided on 2026-09-08 and recorded in the decision log. It is
-            not a regulatory figure. It applies to what a person asks for: below it, the only request that appears here
-            is one an agent raised through the MCP endpoint, which waits for a human approver whatever the amount
-            (rule 21 of the decision log).
+            not a regulatory figure. <strong>It is cumulative</strong>: a payment below it still waits here when it
+            takes the claim&rsquo;s money out above the line, and a refund below it waits when it takes the policy&rsquo;s
+            refunds above the line (<code>lib/approvals/threshold.ts</code>), so a payout cannot be split into
+            sub-threshold pieces to skip the approver. That is why a small decided request can be in the table above
+            with no agent behind it. The other sub-threshold case is a request an agent raised through the MCP
+            endpoint, which waits for a human approver whatever the amount (rule 21 of the decision log).
           </p>
           <p>
             Open a row to decide it. What you approve is the exact text shown there, and its sha256 is stored with the
@@ -115,23 +125,23 @@ function RequestTable({
 }) {
   return (
     <div className="table-scroll" role="region" aria-label="Money-out approval requests" tabIndex={0}>
-      <table>
+      <table className="ops-table">
         <thead>
           <tr>
             <th className="amount">Amount</th>
-            <th>What</th>
-            <th>Asked by</th>
-            <th>Where the money would go</th>
-            <th>Subject</th>
-            <th>State</th>
-            <th>Decision</th>
+            <th className="col-label">What</th>
+            <th className="col-name">Asked by</th>
+            <th className="col-text">Where the money would go</th>
+            <th className="col-name">Subject</th>
+            <th className="col-label">State</th>
+            <th className="col-controls">Decision</th>
           </tr>
         </thead>
         <tbody>
           {requests.map((request) => (
             <tr key={request.requestId}>
               <td className="amount">{formatCentsAsUsd(request.amountCents)}</td>
-              <td>
+              <td className="col-label">
                 {request.kind.replace("_", " ")}
                 <SandboxReferences
                   references={[
@@ -140,7 +150,7 @@ function RequestTable({
                   ]}
                 />
               </td>
-              <td>
+              <td className="col-name">
                 {request.requestedByName}
                 <br />
                 <span className="note">{request.requestedAt.toISOString().slice(0, 19)} UTC</span>
@@ -160,22 +170,22 @@ function RequestTable({
                   </>
                 ) : null}
               </td>
-              <td>{request.destination}</td>
-              <td>
+              <td className="col-text">{request.destination}</td>
+              <td className="col-name">
                 {request.subjectKind === "claim" ? (
                   <Link href={`/ops/claims/${request.subjectId}`}>this claim</Link>
                 ) : (
                   <Link href={`/policies/${request.subjectId}`}>this policy</Link>
                 )}
               </td>
-              <td>
+              <td className="col-label">
                 {request.decision === null ? (
                   <Chip tone="warn">waiting</Chip>
                 ) : (
                   <Chip tone={request.decision === "approved" ? "ok" : "neutral"}>{request.decision}</Chip>
                 )}
               </td>
-              <td>
+              <td className="col-controls">
                 <Decision request={request} user={user} />
               </td>
             </tr>

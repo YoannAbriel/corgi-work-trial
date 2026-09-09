@@ -95,6 +95,14 @@ function EntryBlock({ entry, panelKey }: { entry: JournalEntryForTable; panelKey
         </span>
         {entry.reversesEntryId ? <span className="entry-when">reverses {entry.reversesEntryId.slice(0, 8)}</span> : null}
       </div>
+      {/* The lines scroll sideways inside their own block instead of being cut off by it (review
+          finding F-UA-04). At 375 px the block was 277 px around a 640 px table under
+          `overflow: hidden`, so every DEBIT and CREDIT amount was unreachable on a phone with no
+          scroller to reach it. Same pattern as `.table-scroll` on the other wide tables. */}
+      {/* Focusable, because a region that scrolls has to be reachable from the keyboard as well
+          as by a finger. It carries a name rather than a landmark role: eight entry blocks would
+          otherwise put eight landmarks on one page. */}
+      <div className="entry-lines-scroll" tabIndex={0} aria-label={`${entry.entryType} lines`}>
       <table className="entry-lines">
         <colgroup>
           <col />
@@ -111,6 +119,7 @@ function EntryBlock({ entry, panelKey }: { entry: JournalEntryForTable; panelKey
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

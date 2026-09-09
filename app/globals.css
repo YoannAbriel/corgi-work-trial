@@ -1708,6 +1708,18 @@ div.note {
   border-radius: 12px;
   background: white;
   overflow: hidden;
+  /* A grid item's default minimum size is its CONTENT, so the block kept the width its lines
+     wanted (640 px, the amounts being nowrap) whatever the track it sits in, and `overflow:
+     hidden` above then cut 363 px of it off at 375 px with no way to reach the DEBIT and CREDIT
+     columns (review finding F-UA-04). The block now takes the width of its track and the lines
+     scroll inside it. */
+  min-width: 0;
+}
+/* The scroller of one entry's lines. `overflow: hidden` on the block keeps the rounded corners;
+   this is what actually gives way when the three columns do not fit, exactly as `.table-scroll`
+   does for the wide tables of the other screens. */
+.entry-lines-scroll {
+  overflow-x: auto;
 }
 .entry-head {
   display: flex;
@@ -1866,8 +1878,12 @@ button.orange:hover {
   background: #ff7d33;
 }
 @media (max-width: 580px) {
+  /* Under 580 px `table:not(.amounts)` above gives every table a 640 px minimum and its own
+     scroll container: each entry block now scrolls its lines (review finding F-UA-04), and this
+     decorative header sits outside those scrollers, so it cannot follow them sideways and would
+     label columns it no longer lines up with. It is aria-hidden, so nothing is lost with it. */
   .entry-columns {
-    grid-template-columns: minmax(0, 1fr) 92px 92px;
+    display: none;
   }
   table.entry-lines col.amount-column {
     width: 92px;
