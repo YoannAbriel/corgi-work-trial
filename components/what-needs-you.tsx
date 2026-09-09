@@ -30,6 +30,24 @@ export type BlockingTask = {
   href: string;
 };
 
+// Every task label from lib/inbox/tasks.ts is a whole sentence that ALREADY begins with its count
+// and is already pluralised: "1 endorsement delta to pay", "2 endorsement deltas to pay", "4 open
+// breaks between a provider and the ledger". This block prints the count as a chip of its own, so
+// printing the sentence unchanged said the number twice, and with no space between the two the row
+// read as "11 endorsement delta to pay" for a count of 1 (Yoann, on the broker home, 2026-09-09).
+//
+// The count is removed HERE and not in lib/inbox/tasks.ts, because the sentence with its count is
+// the counting module's own wording and nothing else should have to reassemble it; what this block
+// needs is the same sentence minus the number it is already showing. The pluralisation stays where
+// it is, which is what makes "endorsement deltas" appear beside a chip saying 2.
+//
+// The count is matched as a prefix rather than assumed: a label that does not start with its own
+// count (the blocking task below has none) is printed exactly as it was written.
+function withoutTheLeadingCount(label: string, count: number): string {
+  const prefix = `${count} `;
+  return label.startsWith(prefix) ? label.slice(prefix.length) : label;
+}
+
 // The block at the top of each role's workspace home. It lists the same tasks the sidebar counts,
 // with a link to the screen where the work is done.
 export function WhatNeedsYou({
@@ -87,7 +105,9 @@ export function WhatNeedsYou({
             <Link href={`/inbox#${task.anchor}`} prefetch={false}>
               <span className="count-chip">{task.count}</span>
               <span>
-                <strong>{task.label}</strong>
+                {/* The chip above is the count, so the sentence beside it drops the one it carried:
+                    the two together read "4 open breaks between a provider and the ledger", once. */}
+                <strong>{withoutTheLeadingCount(task.label, task.count)}</strong>
                 {/* One line, cut with an ellipsis: the whole sentence stays in the title and in
                     the inbox section this row links to. */}
                 <span title={task.detail}>
