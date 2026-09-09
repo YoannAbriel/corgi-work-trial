@@ -1,74 +1,236 @@
-/* The rules that belong to the policy screens alone (UI cycle B: UI-019, UI-021).
-   app/globals.css keeps the shared building blocks; anything that only the endorsement schedule
-   and its provider references need lives here, imported by app/policies/[policyId]/page.tsx.
-   Same split as the other sheets in this folder (ops-tables.css, shell.css). */
+/* The rules the policy screens, the claim screen and the amount explanation need on top of the
+   interface system (app/styles/system.css) and the shared blocks (app/globals.css).
 
-/* --- UI-019: the endorsement schedule reads across ---------------------------------------
-   The schedule used the browser's automatic table layout inside a horizontal scroll container.
-   Every amount column is nowrap, so the only column that could give way was the one that says
-   WHAT CHANGED: it collapsed to 97 px and broke "Annual premium $1,200.00 to $1,800.00" into
-   fragments. The widths below are fixed shares of the table, so the change column keeps the
-   room it needs and the amounts keep theirs; under 620 px the container scrolls sideways rather
-   than squeezing anything, exactly as it did before. */
-table.endorsement-schedule {
-  table-layout: fixed;
-  min-width: 620px;
+   Imported by app/policies/[policyId]/page.tsx, app/ops/claims/[claimId]/page.tsx, and by the two
+   components that carry these rules wherever they are used: components/amount-explained-motion.tsx
+   and components/journal-table.tsx. Every class below is prefixed `pd-`, or names an element of
+   those two components, so nothing here can reach another builder's screen by accident.
+
+   Three of these blocks belong in system.css and are listed as change requests for the
+   coordinator: the figure that opens its explanation, the explanation panel itself, and the header
+   of a journal entry's lines. They live here until then. */
+
+/* --- The figure that opens its explanation --------------------------------------------------
+   The figure IS the button now (components/amount-explained-motion.tsx), so it has to lose every
+   inch of the button style of app/globals.css and keep the type of the cell, the tile or the
+   facts row it sits in. The dotted underline is the only thing that says it can be opened. */
+.amount-explained button.amount-explained-figure {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: #b9bcc4;
+  cursor: pointer;
+  /* A money figure never breaks across two lines, whatever the column it sits in. */
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
-/* 1 effective date, 2 what changed, 3 prorated delta, 4 new annual premium, 5 Stripe.
-   Column 2 is deliberately left unset: under a fixed layout it takes everything the others do
-   not, which is what the sentence a reader is here for needs. */
-table.endorsement-schedule th:nth-child(1) {
-  width: 14%;
+.amount-explained button.amount-explained-figure:hover {
+  background: none;
+  color: var(--accent);
+  text-decoration-color: currentColor;
 }
-table.endorsement-schedule th:nth-child(3) {
-  width: 18%;
+.amount-explained button.amount-explained-figure:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
-table.endorsement-schedule th:nth-child(4) {
-  width: 16%;
-}
-/* Two points more than the 17% it had: the provider column holds the references fold, and at 17%
-   (125 px) the fold was 93 px, narrow enough to break the word REFERENCES in its own title
-   (review finding F-UA-03). The two points come from the date and the delta columns, which print
-   a date and an amount and had room to spare. */
-table.endorsement-schedule th:nth-child(5) {
-  width: 21%;
-}
-/* Review finding F-UA-03: app/globals.css keeps every table header on one line, and under the
-   fixed layout above "New annual premium" is 121 px of nowrap text in a column that is 118 px at
-   a 1512 px window, so the label overflowed 19 px into "Stripe" with no gutter between the two.
-   A header of three words wraps instead, which is the repair ops-tables.css:66 already applies to
-   the operations tables. Wrapping a header changes no column width: the fixed shares above still
-   decide them, and the amounts under the headers keep their own nowrap. */
-table.endorsement-schedule > thead > tr > th {
+
+/* --- The explanation panel, in the top layer ------------------------------------------------
+   `.pop-explain` (app/styles/system.css) gives it its box. The panel is written inside the cell
+   or the tile it explains, so it inherits that type: a figure tile is 24 px and right aligned,
+   and the explanation is neither. Everything it needs is set back here, once. */
+[popover].pop.pop-explain {
+  /* Wider than a menu: the arithmetic is a table of three columns and it has to be read, not
+     scrolled word by word. Never wider than the window. */
+  width: min(520px, calc(100vw - 24px));
+  max-width: min(520px, calc(100vw - 24px));
+  max-height: min(72dvh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-align: left;
   white-space: normal;
+  color: var(--ink);
 }
-/* The recording time, under the business date it belongs to: two clocks, one column. */
-.schedule-recorded {
-  display: block;
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--ink-2);
-  line-height: 1.35;
+/* A figure in the right-hand column opens a panel wider than the room left beside it, and a
+   figure low on the screen opens one taller than the room under it. The system stylesheet already
+   asks the browser to flip the panel to the other side in that case, and MEASURED ON 2026-09-09 IT
+   NEVER DID: a browser only takes a fallback position that overflows in NO direction, and a panel
+   of a fixed 640 px still ran off the bottom whichever side it was flipped to, so the original
+   position won every time and the panel was cut off by the window.
+   `stretch` is what unties it: the panel takes at most the space actually left between the figure
+   and the edge, nothing overflows any more, and the sideways flip is then chosen on its own. The
+   line above it is the same rule for a browser that has neither. */
+@supports (position-anchor: --x) {
+  [popover].pop.pop-explain {
+    max-height: -webkit-fill-available;
+    max-height: stretch;
+    position-try-fallbacks: flip-inline, flip-block, flip-block flip-inline;
+  }
 }
-/* The split of a delta into premium and tax sits under the amount and wraps, rather than
-   holding the whole column open on one nowrap line. */
-td.amount .schedule-split {
-  display: block;
-  margin-top: 2px;
-  white-space: normal;
+[popover].pop-explain .table-scroll {
+  margin: 10px 0 0;
+}
+/* The three columns keep a readable width and the box scrolls sideways, rather than every label
+   collapsing to one word per line. */
+[popover].pop-explain table.formula {
+  min-width: 440px;
+}
+[popover].pop-explain .amount-explain-title {
+  margin: 0 0 8px;
   font-size: 12px;
-  color: var(--ink-2);
+  font-weight: 500;
+  color: var(--ink);
+}
+[popover].pop-explain .note,
+[popover].pop-explain .error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+[popover].pop-explain table.formula {
+  font-size: 12px;
+}
+[popover].pop-explain table.formula code {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
-/* --- UI-021: provider references that open where they are --------------------------------
-   The default popover is a 220 px box next to the little "i". Inside a table cell that box
-   widens the table, and the horizontal scroll container then cuts it off, so the title and the
-   Stripe reference could not be read in their open position. As an inline fold the panel takes
-   the width of its own cell and wraps its identifiers, so nothing is ever clipped. */
-details.sandbox-reference.inline-fold {
-  display: block;
-  margin-left: 0;
+/* --- The header of a journal entry's lines (F-LU-02) ----------------------------------------
+   The three columns are named inside the table now, so the header scrolls with the amounts it
+   labels and is still there at 375 px. Same type as the decorative header it replaces. */
+table.entry-lines > thead > tr > th {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  color: var(--ink-2);
+  background: #fbfbfc;
+  border-bottom: 1px solid #ededee;
+  white-space: nowrap;
 }
-details.sandbox-reference.inline-fold > div {
-  min-width: 0;
+table.entry-lines > thead > tr > th.amount {
+  text-align: right;
+}
+
+/* --- Horizontal bars that actually draw (change request for system.css) ---------------------
+   `HBars` (components/ui/charts.tsx) draws each bar as a <span> carrying a percentage width, and
+   a span is inline, so the width is ignored and every bar measured 0 px wide on the claim screen.
+   The bars need one line: the fill is a block. Scoped to the wrapper this area puts around them
+   until the rule lands in app/styles/system.css. */
+.pd-bars .hbar-row .hbar-fill {
+  display: block;
+}
+
+/* --- The steps of "as it stood on a date" ---------------------------------------------------
+   One link per date the policy changed. The shared `.as-of-steps` rules of app/globals.css draw
+   them; this only keeps them from touching the block above inside a card. */
+.pd-steps {
+  margin-bottom: 12px;
+}
+
+/* --- A form that is a card inside a card ----------------------------------------------------
+   The form pages put one form in the left column of `.layout-2`. `form.card` carries its own
+   border in app/globals.css, which would draw a second frame inside the block. */
+.pd-form-card form.card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: none;
+}
+.pd-form-card form.card > label:first-child {
+  margin-top: 0;
+}
+
+/* The answer a form gives inside its own card: it starts below the button, and its table is a
+   block of its own rather than the full-width footer `.card > .dt-wrap` would make of it. */
+.pd-answer {
+  margin-top: 20px;
+}
+.pd-answer > * + * {
+  margin-top: 14px;
+}
+.pd-answer > h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+/* The endorsement in progress, the corrections and the claim actions put several forms in one
+   column; they are separated by a line rather than by nothing. */
+.pd-stack {
+  display: grid;
+  gap: 14px;
+}
+.pd-stack > * + * {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* A short definition list inside a card, when a FactGrid would be too wide for the column. */
+* + .pd-facts {
+  margin-top: 12px;
+}
+.pd-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+}
+.pd-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f2;
+}
+.pd-facts > div:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.pd-facts dt {
+  color: var(--ink-2);
+}
+.pd-facts dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* The one sentence a card is allowed to carry under its figures. */
+.pd-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.pd-note:first-child {
+  margin-top: 0;
+}
+
+/* --- A closed row menu stays closed (change request for system.css) --------------------------
+   `.pop-menu` in app/styles/system.css sets `display: grid`, and an author rule beats the
+   browser's own `[popover]:not(:popover-open) { display: none }` whatever its specificity, so
+   every row menu on a screen was drawn open, over the rows under it. The browser's rule is put
+   back here, under the wrapper this area puts around such a table, until system.css says it. */
+.pd-rows [popover].pop-menu:not(:popover-open) {
+  display: none;
 }

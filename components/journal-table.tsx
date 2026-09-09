@@ -1,3 +1,4 @@
+import "@/app/styles/policy-detail.css";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 
 // The journal of one thing (a policy, a claim, a correction), read straight from the entries
@@ -39,11 +40,6 @@ export function JournalTable({
 
   return (
     <div className="journal" role="region" aria-label={ariaLabel}>
-      <div className="entry-columns" aria-hidden="true">
-        <span>Account</span>
-        <span>Debit</span>
-        <span>Credit</span>
-      </div>
       <div className="journal-list">
         {shown.map((entry) => (
           <EntryBlock key={entry.entryId} entry={entry} panelKey={panelKey} />
@@ -100,15 +96,30 @@ function EntryBlock({ entry, panelKey }: { entry: JournalEntryForTable; panelKey
           `overflow: hidden`, so every DEBIT and CREDIT amount was unreachable on a phone with no
           scroller to reach it. Same pattern as `.table-scroll` on the other wide tables. */}
       {/* Focusable, because a region that scrolls has to be reachable from the keyboard as well
-          as by a finger. It carries a name rather than a landmark role: eight entry blocks would
-          otherwise put eight landmarks on one page. */}
-      <div className="entry-lines-scroll" tabIndex={0} aria-label={`${entry.entryType} lines`}>
+          as by a finger. F-LU-03: it carries role="group" with its name, because a named element
+          with no role names nothing; a landmark is not used on purpose, since eight entry blocks
+          would otherwise put eight landmarks on one page. */}
+      <div className="entry-lines-scroll" role="group" tabIndex={0} aria-label={`${entry.entryType} lines`}>
       <table className="entry-lines">
         <colgroup>
           <col />
           <col className="amount-column" />
           <col className="amount-column" />
         </colgroup>
+        {/* F-LU-02: the three columns are named inside the table, so the header scrolls with the
+            lines it labels and is still there at 375 px, where the decorative header that used to
+            sit above the blocks was hidden and the amounts were left unlabelled. */}
+        <thead>
+          <tr>
+            <th scope="col">Account</th>
+            <th scope="col" className="amount">
+              Debit
+            </th>
+            <th scope="col" className="amount">
+              Credit
+            </th>
+          </tr>
+        </thead>
         <tbody>
           {entry.lines.map((line, index) => (
             <tr key={`${entry.entryId}-${line.accountId}-${index}`}>
