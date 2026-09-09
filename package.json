@@ -26,7 +26,7 @@
     "check:statements": "tsx scripts/check-statements.ts",
     "check:mcp": "tsx scripts/check-mcp.ts",
     "brand:assets": "node scripts/brand-assets.mjs",
-    "illustrations:band": "node scripts/crop-band-illustrations.mjs",
+    "illustrations:crop": "node scripts/crop-illustrations.mjs",
     "seed": "tsx scripts/seed.ts",
     "create-mcp-key": "tsx scripts/create-mcp-key.ts",
     "rebuild:policy-current": "tsx scripts/rebuild-policy-current.ts",
