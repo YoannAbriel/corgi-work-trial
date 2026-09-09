@@ -3,6 +3,7 @@ import { PortalShell } from "@/components/portal-shell";
 import { AmountExplained } from "@/components/amount-explained";
 import { SandboxReferences } from "@/components/disclosures";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { JournalTable } from "@/components/journal-table";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
@@ -58,7 +59,10 @@ import {
 import {
   COLLECT_ANCHOR,
   CorrectionCollectRows,
+  endorsementNeedsThisReader,
   LatestTermsStat,
+  PAY_DELTA_ANCHOR,
+  pendingEndorsementNotice,
   pendingEndorsementState,
   correctionHref,
   correctionViews,
@@ -224,6 +228,28 @@ export default async function PolicyPage({
   const liveEndorsement = endorsements.find(
     (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
   );
+  // The endorsement delta, when it is approved, unpaid, and this reader is the one who pays it.
+  // The Billing view draws that Pay form for the owning broker only; this reuses the same test,
+  // so the band never links to a button that is not there. Staff therefore get no action here.
+  const payableDelta =
+    liveEndorsement &&
+    liveEndorsement.standing.state === "approved" &&
+    isOwningBroker &&
+    !liveEndorsement.collection?.applicationRefusedReason &&
+    liveEndorsement.collection?.latestStatus !== "succeeded"
+      ? liveEndorsement
+      : null;
+  const payDeltaHref = `${billingHref}#${PAY_DELTA_ANCHOR}`;
+  // TWO OPEN ITEMS, ONE PRIMARY. Both orange is two shouts and no order, so the one that has been
+  // waiting longest is the orange action and the other steps back to secondary. "Waiting since"
+  // is when each became payable: the customer's approval for a delta, the recording of the
+  // correction for a difference.
+  const deltaWaitingSince = payableDelta?.standing.approvedAt ?? null;
+  const differenceWaitingSince = collectable?.correction.recordedAt ?? null;
+  const deltaIsTheOlder =
+    payableDelta !== null &&
+    (differenceWaitingSince === null ||
+      (deltaWaitingSince !== null && deltaWaitingSince.getTime() <= differenceWaitingSince.getTime()));
   const historicalRequests = endorsements.filter((endorsement) => endorsement.standing.state === "superseded");
   // Slice B7: an open claim survives a cancellation untouched, which is the live-fire question,
   // so the explanation sits next to the cancellation amounts it explains.
@@ -288,8 +314,25 @@ export default async function PolicyPage({
     ...toast("changeRequest", changeRequestOutcome, "ok", "Answer sent", "It is under the request it answers."),
   ];
 
+  // LIVE-9, the broker's side: what the change waiting on this policy is waiting for, at the top
+  // of every view of it, so a broker who has just been approved does not have to open a card
+  // three views away to learn that the delta is his to pay.
+  const pendingNotice = liveEndorsement
+    ? pendingEndorsementNotice({
+        standingState: liveEndorsement.standing.state,
+        approvedAt: liveEndorsement.standing.approvedAt,
+        requestedAt: liveEndorsement.request.recordedAt,
+        audience: "staff",
+      })
+    : null;
+
   const notices = [
     refusal ? <p key="error" className="error" role="alert">{refusal}</p> : null,
+    pendingNotice ? (
+      <p key="pendingEndorsement" className="note" role="status">
+        <Emphasis>{pendingNotice}</Emphasis>
+      </p>
+    ) : null,
     paymentOutcome === "returned" ? (
       <p key="returned" className="note" role="status">
         You came back from the Stripe hosted page. The policy is bound when Stripe&apos;s webhook confirms the payment,
@@ -368,7 +411,15 @@ export default async function PolicyPage({
       label: POLICY_VIEW_LABEL[one],
       href: withParams(path, query, { view: one, inspect: null }),
       current: one === view,
-      count: one === "claims" && openClaims.length > 0 ? openClaims.length : undefined,
+      count:
+        one === "claims" && openClaims.length > 0
+          ? openClaims.length
+          : // LIVE-9: one, while the change waiting is waiting on THIS reader.
+            one === "endorsements" &&
+                liveEndorsement &&
+                endorsementNeedsThisReader(liveEndorsement.standing.state, "staff")
+              ? 1
+              : undefined,
     })),
     // F-LIVE-01: the correction is a screen of the policy, so it is listed with the policy's own
     // views. Operations only, and always, whether or not there is an endorsement to correct: the
@@ -424,8 +475,13 @@ export default async function PolicyPage({
                 one thing to do on this policy, so it is the orange action and Endorse steps back
                 to secondary. The link lands on the action row of the block itself, not on the
                 top of a long view. */}
+            {payableDelta ? (
+              <Link href={payDeltaHref} className={deltaIsTheOlder ? "button-link orange" : "button-link secondary"}>
+                Pay the delta {formatCentsAsUsd(payableDelta.request.figures.deltaTotalCents)}
+              </Link>
+            ) : null}
             {collectable ? (
-              <Link href={collectHref} className="button-link orange">
+              <Link href={collectHref} className={deltaIsTheOlder ? "button-link secondary" : "button-link orange"}>
                 Collect {formatCentsAsUsd(collectable.open.amountCents)}
               </Link>
             ) : null}
@@ -1363,7 +1419,7 @@ export default async function PolicyPage({
               !liveEndorsement.collection?.applicationRefusedReason ? (
                 // The endorsement delta, moved here from the Endorsements card. Same route, same
                 // method, same hidden `quoteHash`: only the screen it is drawn on changed.
-                <div className="pd-collect">
+                <div className="pd-collect" id={PAY_DELTA_ANCHOR}>
                   <p className="badge badge-warn">
                     {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)} of endorsement delta to collect,
                     effective {liveEndorsement.request.figures.effectiveAt}

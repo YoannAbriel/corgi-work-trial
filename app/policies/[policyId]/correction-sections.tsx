@@ -127,6 +127,55 @@ export function LatestTermsStat({
   );
 }
 
+// The id the band's "Pay the delta" link lands on: the Pay row of the Billing view. Named beside
+// COLLECT_ANCHOR below so the two anchors of that view are declared together.
+export const PAY_DELTA_ANCHOR = "pay-delta";
+
+// THE SENTENCE ABOVE THE TILES while a change is quoted or approved and not paid for.
+//
+// LIVE-9 again, from the broker's side: the customer approved the $287.69 quote and the broker
+// saw nothing. The inbox badge already read 1 for something else, and the only place the state
+// existed was inside the "Endorsement in progress" card, three views away from where he was
+// standing. This is one line at the top of the page, in the reader's own terms.
+//
+// It returns a plain string because <Emphasis> takes one: the rule that decides which pieces go
+// bold lives in lib/ui/emphasis.ts, and nothing here rewords or rounds anything.
+export function pendingEndorsementNotice({
+  standingState,
+  approvedAt,
+  requestedAt,
+  audience,
+}: {
+  standingState: string;
+  // When the customer said yes, on an approved change. Null while it is still a quote.
+  approvedAt: Date | null;
+  // When the quote was written.
+  requestedAt: Date;
+  audience: "customer" | "staff";
+}): string | null {
+  const asUtc = (instant: Date) => `${instant.toISOString().replace("T", " ").slice(0, 19)} UTC`;
+  if (standingState === "approved" && approvedAt) {
+    return audience === "customer"
+      ? `You approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when your broker pays the delta.`
+      : `The customer approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when you pay.`;
+  }
+  if (standingState === "awaiting_approval") {
+    return audience === "customer"
+      ? `The quote was sent to you at ${asUtc(requestedAt)}; the endorsement takes effect when you approve it and the delta is paid.`
+      : `The quote was sent to the customer at ${asUtc(requestedAt)}; the endorsement takes effect when the customer approves and the delta is paid.`;
+  }
+  return null;
+}
+
+// Whether the change that is not in force yet is waiting on THIS reader, for the count chip on
+// the Endorsements entry of the policy's navigation. A count is only ever drawn for something the
+// person reading has to do (cycle 2, decision 3: counts are not notifications), so a broker is
+// not counted for a quote sitting with the customer, and a customer is not counted for a delta
+// their broker has to pay.
+export function endorsementNeedsThisReader(standingState: string, audience: "customer" | "staff"): boolean {
+  return audience === "customer" ? standingState === "awaiting_approval" : standingState === "approved";
+}
+
 // THE STATE OF A CHANGE THAT IS NOT IN FORCE YET, in the words of the reader looking at it.
 //
 // LIVE-9: a customer who had already approved a $287.69 quote saw nothing about it in "Changes to
