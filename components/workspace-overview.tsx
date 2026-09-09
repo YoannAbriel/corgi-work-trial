@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { DecorativeIllustration } from "./decorative-illustration";
 import { SECTIONS, type SectionId } from "./shell/sections";
 import { WhatNeedsYou, type WorkspaceTask } from "./what-needs-you";
 import { About } from "./ui/about";
+import { LandscapeFooter } from "./ui/landscape";
 import { Stat, Stats } from "./ui/stat";
 import { INBOX_ANCHORS } from "@/lib/inbox/sections";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
@@ -52,10 +52,11 @@ export function WorkspaceOverview({ isApprover, tasks }: { isApprover: boolean; 
       <div className="cards" style={{ marginTop: 16 }}>
         {sections.map(({ section, href, blurb }) => {
           const definition = SECTIONS[section];
+          const Icon = definition.icon;
           return (
             <Link key={href} href={href} prefetch={false} className="section-card">
-              <span className="section-card-art" aria-hidden="true">
-                <DecorativeIllustration name={definition.illustration} variant="card" />
+              <span className="section-card-icon" aria-hidden="true">
+                <Icon size={20} strokeWidth={1.7} />
               </span>
               <span>
                 <strong>{section === "verification" ? "Brokers and verification" : definition.label}</strong>
@@ -66,16 +67,6 @@ export function WorkspaceOverview({ isApprover, tasks }: { isApprover: boolean; 
           );
         })}
       </div>
-
-      <section className="welcome-card">
-        <div>
-          <h2>
-            The whole operation, <em>in view.</em>
-          </h2>
-          <p>Every screen reads append-only tables. Nothing here edits or deletes a money row: a correction is a reversal plus a re-booking.</p>
-        </div>
-        <DecorativeIllustration name="moonlit-hills" variant="banner" />
-      </section>
 
       <About>
         <h4>Your role</h4>
@@ -95,6 +86,10 @@ export function WorkspaceOverview({ isApprover, tasks }: { isApprover: boolean; 
         <h4>Where the figures come from</h4>
         <p>The tiles count the same rows the inbox lists, read once per page. A tile opens the inbox section holding exactly those items.</p>
       </About>
+
+      <LandscapeFooter name="moonlit-hills" title={<>The whole operation, <em>in view.</em></>}>
+        Every screen reads append-only tables. Nothing here edits or deletes a money row: a correction is a reversal plus a re-booking.
+      </LandscapeFooter>
     </>
   );
 }

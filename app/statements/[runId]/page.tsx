@@ -241,6 +241,7 @@ export default async function StatementPage({
               />
             }
           >
+            {lines.length === 0 ? null : (
             <thead>
               <tr>
                 <ExpandHead />
@@ -252,6 +253,7 @@ export default async function StatementPage({
                 <th className="num">Premium in it</th>
               </tr>
             </thead>
+            )}
             {lines.length === 0 ? (
               <tbody>
                 <tr>
