@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { FailureLine, utc } from "@/components/console-parts";
+import { FailureLine, IntegrationModes, utc } from "@/components/console-parts";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import {
@@ -70,6 +70,8 @@ export default async function ConsoleInfraPage() {
           </Link>
         }
       />
+
+      <IntegrationModes />
 
       <DetailGrid
         main={

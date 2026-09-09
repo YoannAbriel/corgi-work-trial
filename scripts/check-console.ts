@@ -57,6 +57,7 @@ const RUN_TAG = randomUUID().slice(0, 8);
 async function main() {
   const {
     CONSOLE_EVENT_KINDS,
+    MOST_DAYS_BACK,
     MOST_FEED_ROWS,
     UNKNOWN_OUTCOME_AFTER_MINUTES,
     acceptedAndUnconfirmedOperations,
@@ -160,6 +161,18 @@ async function main() {
     parsedNonsense.reading,
   );
 
+  // Review finding F-B13-21. "999999d" is 2738 years: the instant used to be the year -712,
+  // Postgres refused the parameter, and the feed and the errors panel both went dark. The floor
+  // is proven here, in the pure function, so this assertion needs no database.
+  const aFixedNow = new Date("2026-09-09T12:00:00Z");
+  const theFloor = new Date(aFixedNow.getTime() - MOST_DAYS_BACK * 24 * 60 * 60_000);
+  const parsedAbsurd = parseSince("999999d", aFixedNow);
+  report(
+    "a since cursor further back than the floor is clamped to it, and the reading says so",
+    parsedAbsurd.since.getTime() >= theFloor.getTime() && parsedAbsurd.reading.includes("clamped"),
+    `${parsedAbsurd.since.toISOString()}, floor ${theFloor.toISOString()}; reading: ${parsedAbsurd.reading}`,
+  );
+
   // ---------------------------------------------------------------------------
   // 3. The latency tiles
   // ---------------------------------------------------------------------------
@@ -188,7 +201,11 @@ async function main() {
   // recorded_at is set by the database clock and can never be written by a client (migration
   // 0002), so a fixture operation cannot be made sixteen minutes old. Running the same reader
   // with the real threshold and with a threshold of zero proves the split without backdating.
-  const withRealThreshold = await acceptedAndUnconfirmedOperations(runtime, 200, UNKNOWN_OUTCOME_AFTER_MINUTES);
+  const withRealThreshold = await acceptedAndUnconfirmedOperations(runtime, {
+    since: beforeFixture,
+    limit: 200,
+    thresholdMinutes: UNKNOWN_OUTCOME_AFTER_MINUTES,
+  });
   const isChecking = withRealThreshold.checking.some((operation) => operation.operationId === fixture.stuckOperationId);
   const notYetUnknown = !withRealThreshold.unknownOutcome.some((operation) => operation.operationId === fixture.stuckOperationId);
   report(
@@ -197,7 +214,7 @@ async function main() {
     `checking ${withRealThreshold.checking.length}, unknown ${withRealThreshold.unknownOutcome.length}`,
   );
 
-  const withZeroThreshold = await acceptedAndUnconfirmedOperations(runtime, 200, 0);
+  const withZeroThreshold = await acceptedAndUnconfirmedOperations(runtime, { since: beforeFixture, limit: 200, thresholdMinutes: 0 });
   const isUnknown = withZeroThreshold.unknownOutcome.some((operation) => operation.operationId === fixture.stuckOperationId);
   report(
     "the same operation reads as an unknown outcome once the threshold is passed",
@@ -205,7 +222,13 @@ async function main() {
     `${withZeroThreshold.unknownOutcome.length} unknown outcomes with a threshold of 0`,
   );
 
-  const problems = await operationsProblems(runtime, { since: beforeFixture, limit: 200 });
+  // The in-flight list is read once and handed to operationsProblems, which is how the page
+  // does it since review finding F-B13-23: the reader is no longer called twice per render.
+  const problems = await operationsProblems(runtime, {
+    since: beforeFixture,
+    limit: 200,
+    unknownOutcome: withZeroThreshold.unknownOutcome,
+  });
   const failedRunListed = problems.some((problem) => problem.family === "reconciliation" && problem.recovery.kind === "reconcile");
   report(
     "a failed reconciliation run is a problem, and its recovery is the run form that already exists",

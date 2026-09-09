@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { EventTable, FailureLine, RecoveryCell, describeMinutes, formatSeconds, utc } from "@/components/console-parts";
+import { EventTable, FailureLine, IntegrationModes, RecoveryCell, describeMinutes, formatSeconds, utc } from "@/components/console-parts";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import {
@@ -71,16 +71,21 @@ export default async function OperationsConsolePage({
   // is not one of the known kinds is dropped rather than passed to a reader.
   const selectedKinds = (Array.isArray(query.kind) ? query.kind : query.kind ? [query.kind] : []).filter(isConsoleEventKind);
 
-  const [feed, tiles, problems, inFlight] = await Promise.all([
+  // Read FIRST and alone, because two panels are built from the same rows: "being checked" shows
+  // the operations under the threshold, and the errors panel shows the ones over it as unknown
+  // outcomes. Reading it once and passing it down is the correction of review finding F-B13-23;
+  // before it, this page asked the same question twice on every ten-second refresh.
+  const inFlight = await attempt("the operations in flight", acceptedAndUnconfirmedOperations(sql, { since }));
+  const { checking, unknownOutcome } = valueOr(inFlight, { checking: [], unknownOutcome: [] });
+
+  const [feed, tiles, problems] = await Promise.all([
     attempt("the feed", consoleFeed(sql, { since, kinds: selectedKinds, limit: MOST_FEED_ROWS })),
     attempt("the latency tiles", latencyTiles(sql)),
-    attempt("the errors and unknowns", operationsProblems(sql, { since })),
-    attempt("the operations in flight", acceptedAndUnconfirmedOperations(sql)),
+    attempt("the errors and unknowns", operationsProblems(sql, { since, unknownOutcome })),
   ]);
 
   const events = valueOr(feed, []);
   const problemRows = valueOr(problems, []);
-  const checking = valueOr(inFlight, { checking: [], unknownOutcome: [] }).checking;
 
   // The hidden inputs that make "Refresh now" and the meta refresh keep the current view.
   const currentView = (
@@ -129,6 +134,8 @@ export default async function OperationsConsolePage({
           </>
         }
       />
+
+      <IntegrationModes />
 
       <Panel title={`How long things are taking, over the last ${LATENCY_WINDOW_HOURS} hours`}>
         <FailureLine attempted={tiles} />
@@ -203,7 +210,16 @@ export default async function OperationsConsolePage({
                         <tr key={`${problem.family}-${problem.instant.toISOString()}-${index}`}>
                           <td>{utc(problem.instant)}</td>
                           <td>{describeMinutes(problem.ageMinutes)}</td>
-                          <td>{problem.family.replace(/_/g, " ")}</td>
+                          <td>
+                            {problem.family.replace(/_/g, " ")}
+                            {/* The rail, on the row (AF-02, recheck finding F-RC-08). */}
+                            {problem.rail ? (
+                              <>
+                                <br />
+                                <span className="note">{problem.rail}</span>
+                              </>
+                            ) : null}
+                          </td>
                           <td>
                             <Chip tone="warn">{problem.title}</Chip>
                           </td>
@@ -263,7 +279,11 @@ export default async function OperationsConsolePage({
                           <td>
                             <Chip tone="neutral">checking, {operation.ageMinutes} min</Chip>
                           </td>
-                          <td>{operation.kind}</td>
+                          <td>
+                            {operation.kind}
+                            <br />
+                            <span className="note">{operation.rail}</span>
+                          </td>
                           <td className="amount">{formatCentsAsUsd(operation.amountCents)}</td>
                           <td>
                             <code>{operation.providerRef ?? "none yet"}</code>
@@ -290,7 +310,9 @@ export default async function OperationsConsolePage({
               <p className="note">
                 A temporary status, not a problem: the provider has taken the request and we are waiting for the event
                 that confirms it. Past {UNKNOWN_OUTCOME_AFTER_MINUTES} minutes the same operation moves up into the
-                errors panel as an unknown outcome.
+                errors panel as an unknown outcome. This list is bounded by the window above, widened by those{" "}
+                {UNKNOWN_OUTCOME_AFTER_MINUTES} minutes: an operation accepted before the window is not shown here.
+                Ask for a wider window (<code>7d</code>) to see the older ones.
               </p>
             </Panel>
 

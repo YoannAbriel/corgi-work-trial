@@ -1,6 +1,12 @@
 import type postgres from "postgres";
 import { centsFromDatabase } from "@/lib/money/cents";
-import { openBreaks, type ReconciliationBreakRow } from "@/lib/reconciliation/read";
+import {
+  A_LATER_RUN_RE_EXAMINED_IT,
+  LATEST_REPORT_OF_EACH_BREAK,
+  toBreakRow,
+  type BreakRowShape,
+  type ReconciliationBreakRow,
+} from "@/lib/reconciliation/read";
 
 // The operations console (slice B13-9): every read behind /ops/console.
 //
@@ -81,6 +87,24 @@ export function isConsoleEventKind(value: string): value is ConsoleEventKind {
 // 'ok' happened and was fine, 'warn' needs a look, 'failed' did not happen, 'neutral' is a step.
 export type ConsoleOutcome = "ok" | "warn" | "failed" | "neutral";
 
+// WHICH RAIL A ROW'S MONEY ACTUALLY MOVED ON, printed on the row itself and never only in a
+// fold (AF-02, recheck finding F-RC-08). The console shows records of a real Stripe sandbox and
+// records of two local simulators side by side; a simulated record read as a live one is the
+// one mistake this application must never make an operator make.
+//
+// A row that is not about a rail at all (a journal entry, a policy event, an approval) carries
+// null and prints nothing: labelling it would be noise, and noise is what makes labels ignored.
+export type IntegrationMode = "Stripe LIVE SANDBOX" | "LOCAL SIMULATOR";
+
+// money_operations.provider is 'stripe' or 'simulator' (migration 0002), webhook_events.provider
+// is 'stripe' (migration 0001), and a reconciliation source is 'stripe' or 'claims_rail'. Stripe
+// is in test mode for the whole of this build: lib/stripe.ts refuses any key that is not
+// sk_test_. Anything that is not exactly 'stripe' reads as a simulator, which is the fail-safe
+// direction: a rail nobody thought to name here is never announced as live.
+export function integrationModeOf(providerOrSource: string): IntegrationMode {
+  return providerOrSource === "stripe" ? "Stripe LIVE SANDBOX" : "LOCAL SIMULATOR";
+}
+
 export type ConsoleEvent = {
   kind: ConsoleEventKind;
   instant: Date;
@@ -100,6 +124,9 @@ export type ConsoleEvent = {
   claimNumber: string | null;
   reference: string | null; // provider reference, business number, or event id
   href: string | null; // the existing screen of the object this event is about
+  // The rail this row's money moved on, or null when the row is not about a rail. Required, not
+  // optional, so that a kind added later cannot forget to answer the question (F-RC-08).
+  rail: IntegrationMode | null;
 };
 
 export type FeedOptions = {
@@ -114,10 +141,29 @@ export type FeedOptions = {
 export const MOST_FEED_ROWS = 200;
 const DEFAULT_FEED_MINUTES = 60;
 
+// How far back a cursor may reach, and the correction of review finding F-B13-21.
+//
+// The digits were bounded, the instant was not. "999999d" is 2738 years: JavaScript builds that
+// date happily, the driver sends it as the year -712, and Postgres refuses the parameter with
+// "time zone displacement out of range". The feed and the errors panels both went dark, and the
+// only thing the operator did was type a number into the form on the page. So the window is
+// clamped here, in the pure function, and no reader can be handed an instant the database will
+// not accept. Ten years is longer than this application has existed.
+export const MOST_DAYS_BACK = 3650;
+
+function clampToFloor(wanted: Date, now: Date): { since: Date; clamped: boolean } {
+  const floor = new Date(now.getTime() - MOST_DAYS_BACK * 24 * 60 * 60_000);
+  if (wanted.getTime() < floor.getTime()) {
+    return { since: floor, clamped: true };
+  }
+  return { since: wanted, clamped: false };
+}
+
 // The `since` cursor, written the way an operator types it: an ISO instant, or a duration back
 // from now ("15m", "2h", "3d"). A pure function, so the check script can prove it without a
 // database. Anything unrecognised falls back to the default window rather than to the beginning
-// of time: a typo must not turn into the largest query this page can make.
+// of time: a typo must not turn into the largest query this page can make. Anything further back
+// than MOST_DAYS_BACK is clamped to that floor, and the reading sentence says so.
 export function parseSince(raw: string | undefined, now: Date): { since: Date; reading: string } {
   const text = (raw ?? "").trim();
   if (text === "") {
@@ -128,11 +174,23 @@ export function parseSince(raw: string | undefined, now: Date): { since: Date; r
     const amount = Number(duration[1]);
     const unit = duration[2].toLowerCase();
     const minutes = unit === "m" ? amount : unit === "h" ? amount * 60 : amount * 60 * 24;
-    return { since: new Date(now.getTime() - minutes * 60_000), reading: `the last ${text}` };
+    const { since, clamped } = clampToFloor(new Date(now.getTime() - minutes * 60_000), now);
+    return {
+      since,
+      reading: clamped
+        ? `the last ${text}, clamped to the last ${MOST_DAYS_BACK} days, which is as far back as this page reads: everything after ${since.toISOString()}`
+        : `the last ${text}`,
+    };
   }
   const instant = new Date(text);
   if (!Number.isNaN(instant.getTime())) {
-    return { since: instant, reading: `everything after ${instant.toISOString()}` };
+    const { since, clamped } = clampToFloor(instant, now);
+    return {
+      since,
+      reading: clamped
+        ? `${instant.toISOString()} is further back than the ${MOST_DAYS_BACK} days this page reads, so the window was clamped: everything after ${since.toISOString()}`
+        : `everything after ${instant.toISOString()}`,
+    };
   }
   return {
     since: new Date(now.getTime() - DEFAULT_FEED_MINUTES * 60_000),
@@ -234,6 +292,7 @@ async function moneyEvents(database: postgres.Sql, since: Date): Promise<Console
     claimNumber: row.claim_number,
     reference: row.provider_ref,
     href: objectHref(row.claim_id, row.policy_id),
+    rail: integrationModeOf(row.provider),
   }));
 }
 
@@ -291,6 +350,7 @@ async function webhookEvents(database: postgres.Sql, since: Date): Promise<Conso
     claimNumber: null,
     reference: row.object_id ?? row.provider_event_id,
     href: `/ops/console/search?reference=${encodeURIComponent(row.object_id ?? row.provider_event_id)}`,
+    rail: integrationModeOf(row.provider),
   }));
 }
 
@@ -372,6 +432,8 @@ async function journalEvents(database: postgres.Sql, since: Date): Promise<Conso
     claimNumber: row.claim_number,
     reference: row.source_id,
     href: objectHref(row.claim_id, row.policy_id),
+    // Not a rail record: nothing to label (F-RC-08).
+    rail: null,
   }));
 }
 
@@ -423,6 +485,8 @@ async function policyEvents(database: postgres.Sql, since: Date): Promise<Consol
     claimNumber: null,
     reference: row.policy_number,
     href: `/ops/console/policy/${row.policy_id}`,
+    // Not a rail record: nothing to label (F-RC-08).
+    rail: null,
   }));
 }
 
@@ -441,6 +505,7 @@ async function claimEvents(database: postgres.Sql, since: Date): Promise<Console
       customer_id: string;
       actor: string | null;
       note: string | null;
+      rail_provider: string | null;
     }[]
   >`
     select event.recorded_at as instant,
@@ -453,10 +518,15 @@ async function claimEvents(database: postgres.Sql, since: Date): Promise<Console
            policy.broker_id,
            policy.customer_id,
            author.display_name as actor,
-           left(event.payload ->> 'note', ${SANITISED_DETAIL_LENGTH}) as note
+           left(event.payload ->> 'note', ${SANITISED_DETAIL_LENGTH}) as note,
+           -- The four payment stages carry a money operation, and its provider is the rail the
+           -- money really moved on. A reserve or a closure carries none, and is not a rail
+           -- record (F-RC-08).
+           operation.provider as rail_provider
       from claim_events event
       join claims claim    on claim.id = event.claim_id
       join policies policy on policy.id = claim.policy_id
+      left join money_operations operation on operation.id = event.money_operation_id
       left join users author on author.id::text = event.created_by
      where event.recorded_at > ${since}
      order by event.recorded_at desc
@@ -479,6 +549,7 @@ async function claimEvents(database: postgres.Sql, since: Date): Promise<Console
     claimNumber: row.claim_number,
     reference: row.claim_number,
     href: `/ops/console/claim/${row.claim_id}`,
+    rail: row.rail_provider === null ? null : integrationModeOf(row.rail_provider),
   }));
 }
 
@@ -507,7 +578,11 @@ async function approvalEvents(database: postgres.Sql, since: Date): Promise<Cons
              request.amount_cents,
              left(request.destination, ${SANITISED_DETAIL_LENGTH}) as destination,
              requester.display_name as actor,
-             (request.payload ->> 'raised_by_agent')::boolean as raised_by_agent
+             -- Compared as text, not cast to boolean (review finding F-B13-27): the only writer
+             -- (lib/claims/payments.ts) writes a real JSON boolean, an absent key stays null,
+             -- and a payload that ever carried something else would raise "invalid input syntax
+             -- for type boolean" and take the whole panel down instead of reading false.
+             request.payload ->> 'raised_by_agent' = 'true' as raised_by_agent
         from approval_requests request
         join users requester on requester.id = request.requested_by
        where request.recorded_at > ${since}
@@ -572,6 +647,8 @@ async function approvalEvents(database: postgres.Sql, since: Date): Promise<Cons
     claimNumber: null,
     reference,
     href: subjectKind === "claim" ? `/ops/console/claim/${subjectId}` : `/ops/console/policy/${subjectId}`,
+    // An approval is a decision about money, not a movement of it: no rail (F-RC-08).
+    rail: null,
   });
 
   return [
@@ -655,6 +732,8 @@ async function reconciliationEvents(database: postgres.Sql, since: Date): Promis
     claimNumber: null,
     reference: row.run_id,
     href: "/ops/reconciliation",
+    // 'stripe' or 'claims_rail': the run itself says which side it compared.
+    rail: integrationModeOf(row.source),
   }));
 }
 
@@ -706,6 +785,8 @@ async function statementEvents(database: postgres.Sql, since: Date): Promise<Con
     claimNumber: null,
     reference: row.run_id,
     href: `/statements/${row.run_id}`,
+    // Not a rail record: nothing to label (F-RC-08).
+    rail: null,
   }));
 }
 
@@ -762,6 +843,8 @@ async function mcpEvents(database: postgres.Sql, since: Date): Promise<ConsoleEv
     claimNumber: null,
     reference: row.key_prefix,
     href: "/ops/mcp-keys",
+    // Not a rail record: nothing to label (F-RC-08).
+    rail: null,
   }));
 }
 
@@ -809,6 +892,9 @@ async function kybEvents(database: postgres.Sql, since: Date): Promise<ConsoleEv
     claimNumber: null,
     reference: row.provider_ref,
     href: `/ops/console/broker/${row.broker_id}`,
+    // Broker verification is Stripe Connect, a live sandbox, but it moves no money: it is not a
+    // rail, so it carries no rail label (F-RC-08).
+    rail: null,
   }));
 }
 
@@ -863,6 +949,8 @@ async function changeRequestEvents(database: postgres.Sql, since: Date): Promise
     claimNumber: null,
     reference: row.request_id,
     href: `/ops/console/policy/${row.policy_id}`,
+    // Not a rail record: nothing to label (F-RC-08).
+    rail: null,
   }));
 }
 
@@ -1058,6 +1146,8 @@ export type ProblemFamily = "money" | "webhook" | "mcp" | "reconciliation" | "un
 export type OperationsProblem = {
   family: ProblemFamily;
   instant: Date;
+  // The rail this problem is about, when it is about one at all (F-RC-08).
+  rail: IntegrationMode | null;
   title: string;
   detail: string;
   reference: string | null;
@@ -1068,6 +1158,8 @@ export type OperationsProblem = {
 export type OperationInFlight = {
   operationId: string;
   kind: string;
+  // The rail the money is sitting on while we wait (F-RC-08).
+  rail: IntegrationMode;
   amountCents: number;
   providerRef: string | null;
   acceptedAt: Date;
@@ -1086,15 +1178,28 @@ export type OperationInFlight = {
 // made sixteen minutes old, because recorded_at is set by the database clock and can never be
 // written by a client (migration 0002); running the same reader with a threshold of 0 and with
 // the real threshold proves the split without backdating anything.
+//
+// `since` bounds the query in time, and it is the correction of review finding F-B13-23. The CTE
+// used to reduce the WHOLE money_operation_events table before the outer limit was applied, so
+// its cost grew with every event ever written. It now reads only the events of the window the
+// operator asked for, widened by the threshold: an operation accepted `thresholdMinutes` before
+// the window opened is the oldest one that can still become an unknown outcome inside it, so
+// that margin is exactly what the rule needs and nothing more. Anything older than the window is
+// not "in flight" any more, it is a stale operation that /api/jobs/recover-operations owns.
 export async function acceptedAndUnconfirmedOperations(
   database: postgres.Sql,
-  limit = 50,
-  thresholdMinutes: number = UNKNOWN_OUTCOME_AFTER_MINUTES,
+  {
+    since,
+    limit = 50,
+    thresholdMinutes = UNKNOWN_OUTCOME_AFTER_MINUTES,
+  }: { since: Date; limit?: number; thresholdMinutes?: number },
 ): Promise<{ checking: OperationInFlight[]; unknownOutcome: OperationInFlight[] }> {
+  const acceptedAfter = new Date(since.getTime() - thresholdMinutes * 60_000);
   const rows = await database<
     {
       operation_id: string;
       kind: string;
+      provider: string;
       amount_cents: string;
       provider_ref: string | null;
       accepted_at: Date;
@@ -1106,16 +1211,23 @@ export async function acceptedAndUnconfirmedOperations(
     }[]
   >`
     with latest as (
-      -- The last row of each operation's history, by its total order. distinct on is the
-      -- index-friendly way to ask that question: money_operation_events carries the index
-      -- (operation_id, sequence_number) since migration 0002.
+      -- The last row of each operation's history, by its total order, WITHIN THE WINDOW.
+      -- distinct on is the index-friendly way to ask that question: money_operation_events
+      -- carries the index (operation_id, sequence_number) since migration 0002.
+      --
+      -- The time bound is not an approximation. A row that survives it is an acceptance
+      -- recorded inside the window with nothing after it, and any later event of that same
+      -- operation would necessarily be inside the window too, because events only move forward.
+      -- So this reads exactly "accepted during this window and silent since".
       select distinct on (operation_id)
              operation_id, status, recorded_at, provider_ref
         from money_operation_events
+       where recorded_at > ${acceptedAfter}
        order by operation_id, sequence_number desc
     )
     select operation.id       as operation_id,
            operation.kind,
+           operation.provider,
            operation.amount_cents,
            latest.provider_ref,
            latest.recorded_at as accepted_at,
@@ -1136,6 +1248,7 @@ export async function acceptedAndUnconfirmedOperations(
   const all: OperationInFlight[] = rows.map((row) => ({
     operationId: row.operation_id,
     kind: row.kind,
+    rail: integrationModeOf(row.provider),
     amountCents: centsFromDatabase(row.amount_cents, "amount_cents"),
     providerRef: row.provider_ref,
     acceptedAt: row.accepted_at,
@@ -1153,18 +1266,25 @@ export async function acceptedAndUnconfirmedOperations(
 }
 
 // Everything that failed or was refused since `since`, plus the operations whose outcome is
-// unknown. Five bounded queries, merged newest first.
+// unknown. Four bounded queries, merged newest first.
+//
+// `unknownOutcome` is passed in rather than read here, and that is the second half of review
+// finding F-B13-23: this function used to call acceptedAndUnconfirmedOperations itself while the
+// page called it too, so the feed page read the same table twice on every one of its ten-second
+// refreshes. The caller reads it once and hands the same rows to both panels, which also means
+// the two panels can never disagree about the same operation.
 export async function operationsProblems(
   database: postgres.Sql,
-  { since, limit = 60 }: { since: Date; limit?: number },
+  { since, limit = 60, unknownOutcome }: { since: Date; limit?: number; unknownOutcome: OperationInFlight[] },
 ): Promise<OperationsProblem[]> {
-  const [failedOperations, webhookTrouble, mcpTrouble, failedRuns, inFlight] = await Promise.all([
+  const [failedOperations, webhookTrouble, mcpTrouble, failedRuns] = await Promise.all([
     // A provider failure, or an operation the recovery job could not resolve either way.
     database<
       {
         instant: Date;
         status: string;
         operation_kind: string;
+        provider: string;
         reason: string | null;
         provider_ref: string | null;
         policy_id: string | null;
@@ -1178,6 +1298,7 @@ export async function operationsProblems(
       select event.recorded_at as instant,
              event.status,
              operation.kind    as operation_kind,
+             operation.provider,
              left(coalesce(event.payload ->> 'reason', event.payload ->> 'binding_refused_reason'),
                   ${SANITISED_DETAIL_LENGTH}) as reason,
              event.provider_ref,
@@ -1263,13 +1384,13 @@ export async function operationsProblems(
        order by run.finished_at desc
        limit ${limit}
     `,
-    acceptedAndUnconfirmedOperations(database, limit),
   ]);
 
   const problems: OperationsProblem[] = [
     ...failedOperations.map((row) => ({
       family: "money" as const,
       instant: row.instant,
+      rail: integrationModeOf(row.provider),
       title: `${row.operation_kind} ${row.status}`,
       detail: row.reason ?? "no reason was recorded on the event",
       reference: row.provider_ref,
@@ -1279,6 +1400,7 @@ export async function operationsProblems(
     ...webhookTrouble.map((row) => ({
       family: "webhook" as const,
       instant: row.instant,
+      rail: integrationModeOf(row.provider),
       title: `${row.provider} ${row.event_type} ${row.status}`,
       detail: describeWebhookProcessing(row.status, row.attempts, row.last_error),
       reference: row.provider_event_id,
@@ -1294,6 +1416,8 @@ export async function operationsProblems(
     ...mcpTrouble.map((row) => ({
       family: "mcp" as const,
       instant: row.instant,
+      // An MCP call is a request to this application, not a movement on a rail.
+      rail: null,
       title: `mcp ${row.tool ?? row.method} ${row.outcome}`,
       detail: [row.key_prefix ?? "no key", row.detail].filter(Boolean).join(" · "),
       reference: row.key_prefix,
@@ -1303,15 +1427,17 @@ export async function operationsProblems(
     ...failedRuns.map((row) => ({
       family: "reconciliation" as const,
       instant: row.instant,
+      rail: integrationModeOf(row.source),
       title: `${row.source} reconciliation failed`,
       detail: row.fetch_error ?? "no error was recorded",
       reference: row.source,
       ageMinutes: Number(row.age_minutes),
       recovery: { kind: "reconcile" as const },
     })),
-    ...inFlight.unknownOutcome.map((operation) => ({
+    ...unknownOutcome.map((operation) => ({
       family: "unknown_outcome" as const,
       instant: operation.acceptedAt,
+      rail: operation.rail,
       title: `${operation.kind} accepted and unconfirmed`,
       detail: `the provider accepted it ${operation.ageMinutes} minutes ago and has said nothing since; past ${UNKNOWN_OUTCOME_AFTER_MINUTES} minutes this build calls the outcome unknown`,
       reference: operation.providerRef,
@@ -1521,6 +1647,8 @@ async function webhookOnlyMatch(
       claimNumber: null,
       reference,
       href: null,
+      // Every row of the webhook inbox is a Stripe event (migration 0001).
+      rail: integrationModeOf("stripe"),
     })),
   };
 }
@@ -1596,6 +1724,8 @@ async function byMcpKeyPrefix(
       claimNumber: null,
       reference,
       href: "/ops/mcp-keys",
+      // Not a rail record: nothing to label (F-RC-08).
+      rail: null,
     })),
   };
 }
@@ -2266,7 +2396,9 @@ export async function approvalsOfSubject(
            left(request.destination, ${SANITISED_DETAIL_LENGTH}) as destination,
            request.recorded_at,
            requester.display_name as requested_by_name,
-           (request.payload ->> 'raised_by_agent')::boolean as raised_by_agent,
+           -- Compared as text rather than cast to boolean, for the reason written on the same
+           -- comparison in approvalEvents above (review finding F-B13-27).
+           request.payload ->> 'raised_by_agent' = 'true' as raised_by_agent,
            decision.decision,
            decider.display_name   as decided_by_name,
            decision.recorded_at   as decided_at,
@@ -2343,27 +2475,46 @@ export async function statementRunsOfBroker(
   }));
 }
 
+// The most breaks one 360 page will show. Reaching it is said on the panel, because a list that
+// silently stops at N is worse than no list at all on a screen about unexplained money.
+export const MOST_BREAKS_ON_A_360_PAGE = 50;
+
 // The open breaks that are about this subject's money.
 //
-// It calls openBreaks() from lib/reconciliation/read.ts rather than restating the rule that
-// decides whether a break is open. That rule is subtle (a break is closed only by a later
+// It reuses the two SQL fragments of lib/reconciliation/read.ts rather than restating the rule
+// that decides whether a break is open. That rule is subtle (a break is closed only by a later
 // complete run of the same source whose window covers the record) and it must exist once, or
 // this page and the reconciliation screen would disagree about the same money.
+//
+// The references are compared IN SQL, with a limit, and that is review finding F-B13-22: this
+// reader used to call openBreaks(), which reads every open break of every broker and customer
+// with no limit, and then dropped almost all of them in TypeScript. It was the one query on
+// these pages whose cost grew with the whole system instead of with the object being looked at.
 export async function openBreaksOfSubject(
   database: postgres.Sql,
   operations: OperationWithTimeline[],
+  limit = MOST_BREAKS_ON_A_360_PAGE,
 ): Promise<ReconciliationBreakRow[]> {
   if (operations.length === 0) return [];
-  const ledgerRefs = new Set(operations.map((operation) => operation.operationId));
-  const providerRefs = new Set(
-    operations.map((operation) => operation.providerRef).filter((reference): reference is string => reference !== null),
-  );
-  const all = await openBreaks(database);
-  return all.filter(
-    (row) =>
-      (row.ledgerRef !== null && ledgerRefs.has(row.ledgerRef)) ||
-      (row.providerRef !== null && providerRefs.has(row.providerRef)),
-  );
+  const ledgerRefs = operations.map((operation) => operation.operationId);
+  const providerRefs = operations
+    .map((operation) => operation.providerRef)
+    .filter((reference): reference is string => reference !== null);
+
+  const rows = await database<BreakRowShape[]>`
+    with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+    select source, classification, break_key, provider_ref, ledger_ref,
+           provider_amount_cents::text as provider_amount_cents,
+           ledger_amount_cents::text as ledger_amount_cents,
+           difference_cents::text as difference_cents,
+           record_at, first_seen_at, last_reported_at, note
+      from latest_report
+     where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+       and (ledger_ref = any(${ledgerRefs}::text[]) or provider_ref = any(${providerRefs}::text[]))
+     order by first_seen_at, source, break_key
+     limit ${limit}
+  `;
+  return rows.map(toBreakRow);
 }
 
 export type ConsoleChangeRequest = {
@@ -2644,6 +2795,7 @@ export async function subjectTimeline(
     claimNumber: operation.claimNumber,
     reference: operation.providerRef,
     href: objectHref(operation.claimId, operation.policyId),
+    rail: integrationModeOf(operation.provider),
   }));
 
   const fromJournal: ConsoleEvent[] = journal.map((entry) => ({
@@ -2663,6 +2815,8 @@ export async function subjectTimeline(
     claimNumber: null,
     reference: entry.entryId,
     href: null,
+    // Not a rail record: nothing to label (F-RC-08).
+    rail: null,
   }));
 
   return [...fromOperations, ...fromJournal, ...policyRows, ...claimRows]
@@ -2720,6 +2874,8 @@ export async function policyEventsOfPolicies(
     claimNumber: null,
     reference: row.policy_number,
     href: `/ops/console/policy/${row.policy_id}`,
+    // Not a rail record: nothing to label (F-RC-08).
+    rail: null,
   }));
 }
 
@@ -2740,16 +2896,20 @@ export async function claimEventsOfClaims(
       policy_number: string;
       actor: string | null;
       note: string | null;
+      rail_provider: string | null;
     }[]
   >`
     select event.recorded_at as instant, event.event_type, event.amount_cents,
            claim.id as claim_id, claim.claim_number,
            policy.id as policy_id, policy.policy_number,
            author.display_name as actor,
-           left(event.payload ->> 'note', ${SANITISED_DETAIL_LENGTH}) as note
+           left(event.payload ->> 'note', ${SANITISED_DETAIL_LENGTH}) as note,
+           -- The rail the money moved on, when this stage moved money (F-RC-08).
+           operation.provider as rail_provider
       from claim_events event
       join claims claim    on claim.id = event.claim_id
       join policies policy on policy.id = claim.policy_id
+      left join money_operations operation on operation.id = event.money_operation_id
       left join users author on author.id::text = event.created_by
      where event.claim_id = any(${claimIds}::uuid[])
      order by event.recorded_at desc
@@ -2773,6 +2933,7 @@ export async function claimEventsOfClaims(
     claimNumber: row.claim_number,
     reference: row.claim_number,
     href: `/ops/console/claim/${row.claim_id}`,
+    rail: row.rail_provider === null ? null : integrationModeOf(row.rail_provider),
   }));
 }
 
@@ -2810,6 +2971,8 @@ export async function kybEventsOfBroker(
     claimNumber: null,
     reference: row.provider_ref,
     href: `/ops/console/broker/${brokerId}`,
+    // Same reason as kybEvents above: a verification, not a money rail (F-RC-08).
+    rail: null,
   }));
 }
 
