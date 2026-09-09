@@ -22,7 +22,9 @@ import postgres from "postgres";
 //   8. inspect_reference: a staff key opens a policy number and gets the journal entry ids the
 //      policy page reads, a PaymentIntent id resolves to its own operation with its lifecycle and
 //      its collection entry, a break key resolves to its latest report and then to the note a
-//      human wrote on it, a broker key is refused another broker's reference without the refusal
+//      human wrote on it, a reference that resolves to a BROKER (a connected account id, or the
+//      correlation id of a request that named one) opens that broker's whole book and names no
+//      policy at all, a broker key is refused another broker's reference without the refusal
 //      naming it, a customer key is refused the tool before any read, an unknown reference
 //      answers nothing matches, an over-long one is refused by the schema, and every list
 //      respects the bound the answer publishes beside it;
@@ -235,6 +237,33 @@ async function main() {
     { brokerId: people.brokerAId, statementMonth: STATEMENT_MONTH, actorUserId: people.opsId },
     runtime,
   );
+
+  // A BROKER'S FILE IS A BOOK, NOT ONE OF ITS POLICIES (review finding F-INSPECT-01). Two
+  // references resolve to a broker rather than to one object, and both were unproved: a connected
+  // account id, and the correlation id of a request that named a broker. So broker A gets a
+  // SECOND paid policy, an account id to be found by, and one such request. Planted after the
+  // statement above on purpose: the statement is a frozen document and this must not change it.
+  const secondPolicyOfBrokerA = await createPaidPolicy(recordSuccessfulPayment, people.brokerAId, people.customerId);
+  // The connected account of broker A, appended to the KYB log the way slice B3 appends one. It
+  // is the reference an alert from Stripe carries, and it names a broker and no policy at all.
+  const brokerAccountRef = `acct_mcpcheck${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`;
+  await owner`
+    insert into broker_kyb_events (broker_id, provider, status, provider_ref)
+    values (${people.brokerAId}, 'seed', 'approved', ${brokerAccountRef})
+  `;
+  // One request of the past that named broker A. Appended straight to the activity log, as the
+  // owner, because no MCP call names a broker: the correlation id an operator pastes during an
+  // incident comes from a browser request to a broker screen, and this check speaks MCP.
+  const brokerRequestTrace = `mcp-check-broker-trace-${crypto.randomUUID().slice(0, 8)}`;
+  await owner`
+    insert into activity_log (
+      correlation_id, actor_user_id, actor_role, actor_kind, route, method,
+      subject_kind, subject_id, duration_ms, outcome, status_code
+    ) values (
+      ${brokerRequestTrace}, ${people.opsId}, 'staff_ops', 'human',
+      '/ops/console/broker/[brokerId]', 'GET', 'broker', ${people.brokerAId}, 12, 'ok', 200
+    )
+  `;
 
   // -------------------------------------------------------------------------
   // Keys. Created through the production function, with the runtime role, which
@@ -924,10 +953,15 @@ async function main() {
     narrowedToOneMoneyOperation: string | null;
     belongsTo: {
       kind: string;
+      policyId: string | null;
       policyNumber: string | null;
       claimNumber: string | null;
+      brokerId: string | null;
       policyStatus: string | null;
+      term: { start: string; end: string } | null;
       termsInForceToday: { onDate: string | null; annualPremium: { cents: number } } | null;
+      spansAWholeBrokerBook: boolean;
+      policiesTheseListsWereDrawnFrom: number | null;
     } | null;
     moneyOperations: {
       operationId: string;
@@ -1042,6 +1076,65 @@ async function main() {
     paymentFile.ok
       ? paymentFile.file.journalEntries.map((entry) => `${entry.entryType} (${entry.lines.length} lines)`).join(", ")
       : paymentFile.refusal,
+  );
+
+  // A REFERENCE THAT RESOLVES TO A BROKER OPENS A BOOK, AND SAYS SO (review finding
+  // F-INSPECT-01). Before the fix the answer carried one policy of that broker in the header, the
+  // newest one, with its number, its cached status, its term and its four terms in force, beside
+  // money operations and journal entries read across the whole book: a reader would have quoted
+  // that policy for figures that are not its own.
+  const accountFile = await inspect(staffKey.presentedKey, brokerAccountRef);
+  const bookHeader = accountFile.ok ? accountFile.file.belongsTo : null;
+  report(
+    "A CONNECTED ACCOUNT ID (acct_) RESOLVES TO THE BROKER'S WHOLE BOOK AND NAMES NO POLICY",
+    accountFile.ok &&
+      accountFile.file.resolvedTo === "broker" &&
+      bookHeader?.kind === "broker" &&
+      bookHeader.brokerId === people.brokerAId &&
+      bookHeader.spansAWholeBrokerBook === true &&
+      bookHeader.policyId === null &&
+      bookHeader.policyNumber === null &&
+      bookHeader.policyStatus === null &&
+      bookHeader.term === null &&
+      bookHeader.termsInForceToday === null &&
+      bookHeader.policiesTheseListsWereDrawnFrom === 2 &&
+      // And the sentence says it in words, for a reader who reads prose and not nulls.
+      /span that broker's whole book, drawn from 2 policies/.test(accountFile.file.whatThisMeans),
+    accountFile.ok
+      ? `book of ${String(bookHeader?.policiesTheseListsWereDrawnFrom)} policies, policyNumber ${String(bookHeader?.policyNumber)}, terms ${String(bookHeader?.termsInForceToday)}`
+      : accountFile.refusal,
+  );
+  const operationIdsOnTheBook = accountFile.ok
+    ? accountFile.file.moneyOperations.map((operation) => operation.operationId)
+    : [];
+  report(
+    "and the lists really do span the book: the money operations of BOTH of that broker's policies are on the file",
+    accountFile.ok &&
+      operationIdsOnTheBook.includes(policy.operationId) &&
+      operationIdsOnTheBook.includes(secondPolicyOfBrokerA.operationId) &&
+      accountFile.file.journalEntries.length > 0 &&
+      everyListRespectsItsBound(accountFile.file),
+    accountFile.ok
+      ? `${operationIdsOnTheBook.length} operations, ${accountFile.file.journalEntries.length} journal entries, both policies present: ${String(operationIdsOnTheBook.includes(policy.operationId) && operationIdsOnTheBook.includes(secondPolicyOfBrokerA.operationId))}`
+      : accountFile.refusal,
+  );
+
+  // The other way in to a broker: the correlation id of a request that named one.
+  const traceFile = await inspect(staffKey.presentedKey, brokerRequestTrace);
+  const tracedHeader = traceFile.ok ? traceFile.file.belongsTo : null;
+  report(
+    "A CORRELATION ID WHOSE REQUEST NAMED A BROKER OPENS THE SAME BOOK, still with no policy in the header",
+    traceFile.ok &&
+      traceFile.file.resolvedTo === "broker" &&
+      tracedHeader?.spansAWholeBrokerBook === true &&
+      tracedHeader.policyNumber === null &&
+      tracedHeader.termsInForceToday === null &&
+      tracedHeader.policiesTheseListsWereDrawnFrom === 2 &&
+      // The request that was pasted is itself on the file, which is what an operator came for.
+      traceFile.file.activity.some((row) => row.correlationId === brokerRequestTrace),
+    traceFile.ok
+      ? `${traceFile.file.resolvedTo}, ${traceFile.file.activity.length} request(s) on the file, policyNumber ${String(tracedHeader?.policyNumber)}`
+      : traceFile.refusal,
   );
 
   // A broker key: its own book, and nothing else. The refusal must not say what the reference is.
