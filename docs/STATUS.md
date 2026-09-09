@@ -365,6 +365,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 - F-PP-05 (MEDIUM): scripts/check-mcp.ts pinned the statement format version to 2, so check:mcp reads 57 PASS and 1 FAIL since the bump to 3, and the "53/53" evidence closing F-B11-01 was stale. The application is right, the evidence was not. The coordinator changed the assertion to import CANONICAL_STATEMENT_VERSION where it runs (ea204d7); check:mcp rerun on the disposable database behind the app on port 3800: 58 PASS, 0 FAIL, the line reads format v3. Confirmation of section C requested from the reviewer. Eleven LOW findings F-PP-01 to F-PP-12 registered (two accepted, two disclosed, the rest on the B13 backlog).
 - Checks run by the reviewer: check:claims-and-approvals 72/0, check:payment-replay 34/0, check:endorsement-replay 80/0, check:correction-replay clean, check:statements all passed, 454 unit tests. Production measured at 7b8431c: the agent chip on CLM-00212, CGP-01707 succeeded, the Redwood 2026-09 statement revision 3 with five explain folds. The reviewer notes the guards proof it cites was at 0019; the 0020 proof (184/184 at 08:32Z) postdates its brief.
 
+## 2026-09-09T09:07:00+00:00 | Post-PASS re-review: overall PASS for A to G at ea204d7
+
+- The reviewer confirmed F-PP-05 with its own run (58 PASS, 0 FAIL behind its own server on the disposable database, "format v3, 2 lines"), turned section C to PASS and the overall verdict to PASS at ea204d7. Every money-path change made after a slice's PASS now carries a verdict; the eleven remaining F-PP findings are LOW and none blocks. Note kept from the record: the guards proof it cites is the 0019 one; the coordinator's 0020 proof (184 of 184 at 08:32Z) postdates the brief. The 27 compliance-matrix rows that named the pending record now cite the PASS.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
