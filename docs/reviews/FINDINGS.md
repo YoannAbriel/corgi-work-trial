@@ -153,10 +153,10 @@ One line per finding from the independent reviews (design and implementation). F
 
 | ID | Severity | Finding | Required correction | Status |
 |---|---|---|---|---|
-| F-B13-01 | LOW | The reply route redirects with ?changeRequest=answered but the policy page prints no notice for it | Add the notice | FIX CYCLE (change-requests builder, 09:03 local) |
-| F-B13-02 | LOW | A customer refused on a foreign policy is redirected to that policy page, which redirects to /customer and drops the error: silent refusal | Redirect straight to /customer with the error | FIX CYCLE |
-| F-B13-03 | LOW | "answered" decided from the truthiness of joined columns including display_name | Test reply_id is not null | FIX CYCLE |
-| F-B13-04 | LOW | The lines CHECK allows a repeated line on a direct INSERT; the application dedupes | Refuse duplicates in the application; the database gap noted (no redefinition of 0019) | FIX CYCLE |
+| F-B13-01 | LOW | The reply route redirects with ?changeRequest=answered but the policy page prints no notice for it | Add the notice | FIXED 06999e3, re-review pending |
+| F-B13-02 | LOW | A customer refused on a foreign policy is redirected to that policy page, which redirects to /customer and drops the error: silent refusal | Redirect straight to /customer with the error | FIXED 06999e3, re-review pending |
+| F-B13-03 | LOW | "answered" decided from the truthiness of joined columns including display_name | Test reply_id is not null | FIXED 06999e3, re-review pending |
+| F-B13-04 | LOW | The lines CHECK allows a repeated line on a direct INSERT; the application dedupes | Refuse duplicates in the application; the database gap noted (no redefinition of 0019) | FIXED 06999e3, re-review pending |
 | F-B13-05 | LOW | openChangeRequestsOfPolicy exported and used by the check only | Accepted | ACCEPTED |
-| F-B13-06 | LOW | The customer's timeline reprints staff-written correction text verbatim (an internal payment-intent reference, a review finding id, the word "coordinator" on CGP-01061) | Customer-safe timeline summaries | FIX CYCLE |
+| F-B13-06 | LOW | The customer's timeline reprints staff-written correction text verbatim (an internal payment-intent reference, a review finding id, the word "coordinator" on CGP-01061) | Customer-safe timeline summaries | FIXED 06999e3, re-review pending |
 | F-B13-07 | LOW | No bound on the number of requests a customer may send | Accepted for the trial, README limitation | ACCEPTED |
