@@ -14,8 +14,9 @@ import postgres from "postgres";
 //      application AND by the database trigger;
 //   5. the reconciliation tool stores runs and posts no journal entry;
 //   6. explain_amount: the explanation of a figure is the one the policy page reads, key by key,
-//      a figure key that does not exist is refused by naming the closed list, and a broker key
-//      cannot explain another broker's policy;
+//      a figure key that does not exist is refused by naming the closed list, a broker key
+//      cannot explain another broker's policy, and a customer key is refused the figures its own
+//      policy screen withholds while still reading the ones it prints;
 //   7. list_my_activity: a key reads back the calls it just made, and none of another key's;
 //   8. every single call is written down in mcp_calls, including the ones that were refused;
 //   9. who may mint a key: a staff_approver session is refused by POST /api/mcp-keys, because
@@ -727,6 +728,36 @@ async function main() {
       !anotherBrokersPolicy.ok &&
       explainAnotherBroker.refusal === anotherBrokersPolicy.refusal,
     explainAnotherBroker.ok ? "it answered" : explainAnotherBroker.refusal,
+  );
+
+  // Review finding F-MCPTOOLS-01: being allowed to see the policy is not being allowed to see
+  // every figure on it. The customer's own screen prints the terms in force and the endorsement
+  // schedule and withholds the journal, the ledger sums and the broker's commission, so the key
+  // that belongs to that customer has to be refused them here too.
+  const customerAsksForCommission = await callTool(customerKey.presentedKey, "explain_amount", {
+    policy: policy.policyNumber,
+    figure: "commission_payable",
+  });
+  report(
+    "A CUSTOMER KEY CANNOT READ THE BROKER'S COMMISSION on the policy that covers it, and the refusal names the rule",
+    !customerAsksForCommission.ok &&
+      /not on the policy screen this key's user reads/.test(customerAsksForCommission.refusal),
+    customerAsksForCommission.ok
+      ? `it answered ${cents(customerAsksForCommission.value.amount)} cents`
+      : customerAsksForCommission.refusal,
+  );
+
+  const customerAsksForTax = await callTool(customerKey.presentedKey, "explain_amount", {
+    policy: policy.policyNumber,
+    figure: "premium_tax",
+    asOf: TERM_START,
+  });
+  report(
+    "and the same key still reads the figures its own screen does print: the premium tax, to the cent",
+    customerAsksForTax.ok && cents(customerAsksForTax.value.amount) === pageTerms.taxCents,
+    customerAsksForTax.ok
+      ? `${cents(customerAsksForTax.value.amount)} cents, page reads ${pageTerms.taxCents}`
+      : customerAsksForTax.refusal,
   );
 
   // -------------------------------------------------------------------------
