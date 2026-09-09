@@ -2,7 +2,7 @@
 
 One line per finding taken, with the commit and the proof, or the reason it was skipped. Branch
 `worktree-agent-a285d5858c4689d35`, opened on `main` at `62d8cc8` and merged with `origin/main`
-at `bd98c2f`. Nothing pushed, nothing deployed, no migration written by this batch, no UPDATE and
+at `bb54cce`. Nothing pushed, nothing deployed, no migration written by this batch, no UPDATE and
 no DELETE of any row.
 
 **One merge conflict, in a money-posting path, and it was resolved by keeping both sides.**
@@ -78,7 +78,7 @@ All on `corgi_test`, once each, no loop, no contention observed (no deadlock in 
 | Command | Result |
 |---|---|
 | `npm run typecheck` | exit 0, no output |
-| `npm test` | 428 tests, 427 pass, 0 fail, 1 skipped (the opt-in live Stripe test), after the merge; 416 before it |
+| `npm test` | 436 tests, 435 pass, 0 fail, 1 skipped (the opt-in live Stripe test), after the last merge; 416 before any merge |
 | `npm run build` | exit 0, every route compiled, before and after the merge |
 | `npm run check:statements` | ALL CHECKS PASSED, 0 FAIL, including the four new section 7b lines |
 | `npm run check:mcp` | 58 PASS, 0 FAIL (dev server on 127.0.0.1:3877 pointed at `corgi_test`) |
