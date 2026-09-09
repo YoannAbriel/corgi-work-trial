@@ -563,28 +563,36 @@ export async function endorsementsPaidButNotApplied(
 ): Promise<EndorsementPaidNotAppliedRow[]> {
   // `distinct on (request_event_id)` is the list form of the `count(distinct request_event_id)`
   // this used to be: one endorsement request that somehow carries two succeeded events is one
-  // piece of work, not two.
+  // piece of work, not two. It forces `order by request_event_id` inside, which is an order by
+  // uuid, so the rows are wrapped and the caller receives them OLDEST PAYMENT FIRST: the inbox
+  // prints a "Paid" column for this section, and a column of dates in random order is a column
+  // nobody can read (review finding F-B13-20).
   const rows = await database<
     { policy_id: string; policy_number: string; request_event_id: string; amount_cents: string; paid_at: Date }[]
   >`
-    select distinct on (link.request_event_id)
-           link.policy_id,
-           policy.policy_number,
-           link.request_event_id,
-           link.amount_cents,
-           paid.recorded_at as paid_at
-      from endorsement_collections link
-      join policies policy on policy.id = link.policy_id
-      join money_operation_events paid
-        on paid.operation_id = link.collection_operation_id
-       and paid.status = 'succeeded'
-       and paid.payload ->> 'application_refused_reason' is not null
-     where not exists (
-             select 1 from policy_events applied
-              where applied.event_type = 'endorsed'
-                and applied.payload ->> 'request_event_id' = link.request_event_id::text
-           )
-     order by link.request_event_id, paid.recorded_at
+    select waiting.policy_id, waiting.policy_number, waiting.request_event_id,
+           waiting.amount_cents, waiting.paid_at
+      from (
+        select distinct on (link.request_event_id)
+               link.policy_id,
+               policy.policy_number,
+               link.request_event_id,
+               link.amount_cents,
+               paid.recorded_at as paid_at
+          from endorsement_collections link
+          join policies policy on policy.id = link.policy_id
+          join money_operation_events paid
+            on paid.operation_id = link.collection_operation_id
+           and paid.status = 'succeeded'
+           and paid.payload ->> 'application_refused_reason' is not null
+         where not exists (
+                 select 1 from policy_events applied
+                  where applied.event_type = 'endorsed'
+                    and applied.payload ->> 'request_event_id' = link.request_event_id::text
+               )
+         order by link.request_event_id, paid.recorded_at
+      ) waiting
+     order by waiting.paid_at
   `;
   return rows.map((row) => ({
     policyId: row.policy_id,

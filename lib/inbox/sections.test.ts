@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   brokerSections,
+  INBOX_ANCHORS,
   customerSections,
   staffSections,
   type BrokerPolicyFacts,
@@ -214,4 +215,19 @@ test("a change request nobody answered is the broker's to answer", () => {
   assert.equal(requests.items[0].amountCents, null);
   assert.equal(requests.items[0].href, "/policies/p9");
   assert.match(requests.items[0].what, /the address of the business/);
+});
+
+test("every anchor a task can name is an anchor some section actually has", () => {
+  // components/what-needs-you.tsx links each of its counts to /inbox#<anchor> using these names,
+  // so a name no section carries is a link to nothing (review findings F-B13-15, F-B13-16). The
+  // type already limits a task to these twelve; this checks the other direction, that each of the
+  // twelve is rendered by the role that uses it.
+  const rendered = new Set([
+    ...brokerSections([], []).map((one) => one.anchor),
+    ...customerSections([]).map((one) => one.anchor),
+    ...staffSections(staffFacts(), "staff_ops").map((one) => one.anchor),
+  ]);
+  for (const [kindOfWork, anchor] of Object.entries(INBOX_ANCHORS)) {
+    assert.ok(rendered.has(anchor), `${kindOfWork} points at #${anchor}, which no section carries`);
+  }
 });

@@ -41,12 +41,14 @@ export default async function InboxPage() {
         }
       />
 
-      {inbox.unreadablePolicyNumbers.length > 0 ? (
+      {inbox.unreadablePolicies.length > 0 ? (
         <div className="notices">
           <p className="error" role="alert">
-            {inbox.unreadablePolicyNumbers.length === 1 ? "Policy " : "Policies "}
-            {inbox.unreadablePolicyNumbers.join(", ")}{" "}
-            could not be read, so nothing below counts them. Open the policy itself to see why.
+            Nothing below counts{" "}
+            {inbox.unreadablePolicies.length === 1 ? "this policy" : "these policies"}, because a
+            figure they have stored was refused when it was read:{" "}
+            {inbox.unreadablePolicies.map((policy) => `${policy.policyNumber} (${policy.reason})`).join("; ")}. Open
+            the policy itself to see the whole story.
           </p>
         </div>
       ) : null}

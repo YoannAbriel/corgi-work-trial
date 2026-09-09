@@ -38,14 +38,23 @@ export type { InboxItem, InboxSection } from "./sections";
 // functions of ./sections turn those facts into sections. The grouping is the part that carries
 // the wording and the rules of who does what, so it is the part worth testing on its own.
 
+export type UnreadablePolicy = {
+  policyNumber: string;
+  // What the reader said, printed on the screen beside the number. A reader that refuses a stored
+  // value says which value it refused, and that sentence is what tells an operator whether this
+  // is old data or something worse (review finding F-B13-18).
+  reason: string;
+};
+
 export type WorkspaceInbox = {
   totalWaiting: number;
   sections: InboxSection[];
-  // Policies whose own readers refused to answer, by number. The inbox shows what it could read
-  // and names the rest out loud (app/inbox/page.tsx): emptying a whole role's inbox because one
-  // policy cannot be read is worse than a short, visible warning, and hiding the failure in
-  // silence would be worse than both.
-  unreadablePolicyNumbers: string[];
+  // Policies whose own readers refused a value they had stored. The inbox shows what it could
+  // read and names the rest out loud (app/inbox/page.tsx): emptying a whole role's inbox because
+  // one policy cannot be read is worse than a short, visible warning, and hiding the failure in
+  // silence would be worse than both. Anything that is NOT a refused value, a database that is
+  // not answering above all, is rethrown and never lands here.
+  unreadablePolicies: UnreadablePolicy[];
 };
 
 // ---------------------------------------------------------------------------
@@ -67,23 +76,23 @@ export async function workspaceInbox(
 
 async function sectionsFor(
   user: Pick<SignedInUser, "role" | "brokerId" | "customerId">,
-): Promise<{ sections: InboxSection[]; unreadablePolicyNumbers: string[] }> {
+): Promise<{ sections: InboxSection[]; unreadablePolicies: UnreadablePolicy[] }> {
   if (user.role === "staff_ops" || user.role === "staff_approver") {
-    return { sections: staffSections(await readStaffFacts(), user.role), unreadablePolicyNumbers: [] };
+    return { sections: staffSections(await readStaffFacts(), user.role), unreadablePolicies: [] };
   }
   if (user.role === "broker" && user.brokerId) {
     const read = await readBrokerPolicies(user.brokerId);
     const changeRequests = await readOpenChangeRequests(user.brokerId);
     return {
       sections: brokerSections(read.policies, changeRequests),
-      unreadablePolicyNumbers: read.unreadablePolicyNumbers,
+      unreadablePolicies: read.unreadablePolicies,
     };
   }
   if (user.role === "customer" && user.customerId) {
     const read = await readCustomerPolicies(user.customerId);
-    return { sections: customerSections(read.policies), unreadablePolicyNumbers: read.unreadablePolicyNumbers };
+    return { sections: customerSections(read.policies), unreadablePolicies: read.unreadablePolicies };
   }
-  return { sections: [], unreadablePolicyNumbers: [] };
+  return { sections: [], unreadablePolicies: [] };
 }
 
 // The broker's own policies, each with the endorsement request that is live on it and the
@@ -92,10 +101,10 @@ async function sectionsFor(
 // use is worth more than one clever query that could disagree with them.
 async function readBrokerPolicies(
   brokerId: string,
-): Promise<{ policies: BrokerPolicyFacts[]; unreadablePolicyNumbers: string[] }> {
+): Promise<{ policies: BrokerPolicyFacts[]; unreadablePolicies: UnreadablePolicy[] }> {
   const policies = await policiesOfBroker(brokerId);
   const facts: BrokerPolicyFacts[] = [];
-  const unreadablePolicyNumbers: string[] = [];
+  const unreadablePolicies: UnreadablePolicy[] = [];
   for (const policy of policies) {
     try {
       facts.push({
@@ -108,19 +117,19 @@ async function readBrokerPolicies(
         liveEndorsement: await readLiveEndorsement(policy.policyId),
         correctionsToCollect: await readCorrections(policy.policyId, "to_collect"),
       });
-    } catch {
-      // A policy whose own readers refuse to answer, because an older format wrote a payload
-      // they no longer accept, must not empty the whole inbox. It is named on the screen
-      // instead, and its own page shows the real error.
-      unreadablePolicyNumbers.push(policy.policyNumber);
+    } catch (error) {
+      // A policy whose own readers refuse a value it has stored, because an older format wrote a
+      // payload they no longer accept, must not empty the whole inbox. It is named on the screen
+      // instead, with what the reader said, and its own page shows the full error.
+      unreadablePolicies.push({ policyNumber: policy.policyNumber, reason: refusedValueOrRethrow(error) });
     }
   }
-  return { policies: facts, unreadablePolicyNumbers };
+  return { policies: facts, unreadablePolicies };
 }
 
 async function readCustomerPolicies(
   customerId: string,
-): Promise<{ policies: CustomerPolicyFacts[]; unreadablePolicyNumbers: string[] }> {
+): Promise<{ policies: CustomerPolicyFacts[]; unreadablePolicies: UnreadablePolicy[] }> {
   // Ownership comes from the session: the customer id is the one on the signed-in user.
   const policies = await sql<{ id: string; policy_number: string }[]>`
     select policy.id, policy.policy_number
@@ -129,7 +138,7 @@ async function readCustomerPolicies(
      order by policy.created_at desc
   `;
   const facts: CustomerPolicyFacts[] = [];
-  const unreadablePolicyNumbers: string[] = [];
+  const unreadablePolicies: UnreadablePolicy[] = [];
   for (const policy of policies) {
     try {
       facts.push({
@@ -138,12 +147,40 @@ async function readCustomerPolicies(
         liveEndorsement: await readLiveEndorsement(policy.id),
         correctionsToApprove: await readCorrections(policy.id, "to_approve"),
       });
-    } catch {
+    } catch (error) {
       // Same reason as the broker's list above.
-      unreadablePolicyNumbers.push(policy.policy_number);
+      unreadablePolicies.push({ policyNumber: policy.policy_number, reason: refusedValueOrRethrow(error) });
     }
   }
-  return { policies: facts, unreadablePolicyNumbers };
+  return { policies: facts, unreadablePolicies };
+}
+
+// WHAT COUNTS AS "THIS POLICY CANNOT BE READ", AND WHAT MUST NOT BE SWALLOWED (F-B13-18).
+//
+// The failure this was written for is a reader refusing a value the policy has stored:
+// correctionsOfPolicy throws a plain Error when an old 'correction_rebook' payload carries no
+// policy_refunded_cents. That is one policy's problem, and the inbox names it.
+//
+// A database that is not answering is not that policy's problem, and neither is a mistake in our
+// own code. Reporting either as a defective policy would hide a real fault behind a sentence
+// sending the operator to look at a policy that is fine, so both go up and the page fails:
+//
+//   * a postgres error carries a `code` (the server's SQLSTATE) or an `errno` (a socket that
+//     closed), and neither belongs to a value we refused;
+//   * TypeError, RangeError and ReferenceError are programming mistakes, never stored data;
+//   * anything thrown that is not an Error at all is nothing we can explain.
+function refusedValueOrRethrow(error: unknown): string {
+  if (!(error instanceof Error)) {
+    throw error;
+  }
+  if (error instanceof TypeError || error instanceof RangeError || error instanceof ReferenceError) {
+    throw error;
+  }
+  const fromTheDatabaseDriver = error as { code?: unknown; errno?: unknown };
+  if (fromTheDatabaseDriver.code !== undefined || fromTheDatabaseDriver.errno !== undefined) {
+    throw error;
+  }
+  return error.message;
 }
 
 // What this broker's customers asked and nobody has answered yet, through the same reader the

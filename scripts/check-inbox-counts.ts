@@ -3,14 +3,21 @@
 // components/what-needs-you.tsx counts what is waiting for a person and puts the number on the
 // sidebar; lib/inbox/read.ts lists the same work item by item on /inbox. If the two ever drifted,
 // a badge would send an operator to a screen where the work is not there. This check reads both
-// for the brokers of the database, up to the first one that actually has work waiting, and for
-// one staff user, and compares them section by section.
+// for a batch of brokers and customers and for one user of each staff role, and compares them
+// ANCHOR BY ANCHOR: not "do the totals match" but "does each count open the very section that
+// holds those items" (review finding F-B13-17). The size of the batch, and why it is not everyone,
+// is explained where it is chosen below; how many were left out is printed at the end.
 //
 // WHAT IT WRITES: nothing at all. Every call here is a read, made with the RESTRICTED runtime
 // role, so it can be run on the disposable database without adding a single row.
 //
 // WHERE IT RUNS: the disposable database corgi_test, like the other checks, because that is where
 // the seeded and replayed data lives.
+//
+// WHAT IT NEEDS: the full local environment of `.env.local`, like the other check scripts, and not
+// only the two database URLs it reads by name. It imports the application's own readers, and their
+// import graph reaches lib/stripe.ts, which refuses to load without STRIPE_SECRET_KEY even though
+// nothing here ever calls Stripe (review finding F-B13-19).
 //
 // Run with: npm run check:inbox-counts
 
@@ -32,21 +39,6 @@ if (!runtimeUrl) {
 // The application modules connect to DATABASE_URL_APP; point them at the disposable database.
 process.env.DATABASE_URL_APP = runtimeUrl;
 
-// Which sidebar section each inbox section belongs to. The sidebar knows four names; the inbox
-// splits some of them into several lists, and this is where the two vocabularies meet.
-const SIDEBAR_SECTION_OF_ANCHOR: Record<string, string> = {
-  approvals: "approvals",
-  policies: "policies",
-  "endorsement-deltas": "policies",
-  "correction-differences": "policies",
-  "change-requests": "policies",
-  "waiting-for-the-customer": "policies",
-  corrections: "policies",
-  endorsements: "policies",
-  claims: "claims",
-  reconciliation: "reconciliation",
-};
-
 let failures = 0;
 function report(name: string, passed: boolean, detail: string) {
   console.log(`${passed ? "PASS" : "FAIL"}  ${name}  (${detail})`);
@@ -64,15 +56,43 @@ async function main() {
     process.exit(1);
   }
 
-  // One staff user is enough: the staff sections do not depend on who is looking, only on the
-  // role, and reading every claim payment of the database is the slow part of this check. The
-  // brokers are walked until one of them actually has work waiting, because comparing two zeros
-  // proves nothing.
-  const brokers = await sql<{ id: string; display_name: string; role: string; broker_id: string | null; customer_id: string | null }[]>`
-    select id, display_name, role, broker_id, customer_id
+  // HOW MANY OWNERS ARE COMPARED, and why it is not all of them.
+  //
+  // Stopping at the first broker with work left seven brokers with change requests uncompared
+  // (review finding F-B13-17), so this walks a batch rather than one. It cannot walk everybody:
+  // corgi_test has accumulated 434 brokers and 380 customers from every check run ever made, each
+  // inbox is a handful of round trips to a database that is not on this machine, and the whole
+  // set took more than twenty minutes without finding anything the batch does not find.
+  //
+  // The batch is the MOST RECENT owners, ordered by their newest policy, because the newest data
+  // is what the last check run wrote and therefore where the interesting cases are. How many were
+  // left out is printed at the end rather than left to be guessed.
+  const OWNERS_PER_ROLE = 25;
+  const owners = await sql<{ id: string; display_name: string; role: string; broker_id: string | null; customer_id: string | null }[]>`
+    (
+      select owner.id, owner.display_name, owner.role, owner.broker_id, owner.customer_id
+        from users owner
+        left join policies policy on policy.broker_id = owner.broker_id
+       where owner.role = 'broker' and owner.broker_id is not null
+       group by owner.id
+       order by max(policy.created_at) desc nulls last
+       limit ${OWNERS_PER_ROLE}
+    )
+    union all
+    (
+      select owner.id, owner.display_name, owner.role, owner.broker_id, owner.customer_id
+        from users owner
+        left join policies policy on policy.customer_id = owner.customer_id
+       where owner.role = 'customer' and owner.customer_id is not null
+       group by owner.id
+       order by max(policy.created_at) desc nulls last
+       limit ${OWNERS_PER_ROLE}
+    )
+  `;
+  const [{ brokers: brokerCount, customers: customerCount }] = await sql<{ brokers: number; customers: number }[]>`
+    select count(*) filter (where role = 'broker' and broker_id is not null)::int    as brokers,
+           count(*) filter (where role = 'customer' and customer_id is not null)::int as customers
       from users
-     where role = 'broker' and broker_id is not null
-     order by display_name
   `;
   // One of each staff role: the two see different lists, because binding a paid policy and
   // applying a paid endorsement are staff operations work and never an approver's.
@@ -83,61 +103,66 @@ async function main() {
      order by role, display_name
   `;
 
-  let brokersChecked = 0;
+  let ownersChecked = 0;
   let staffChecked = 0;
-  let largestBrokerTotal = 0;
+  let largestOwnerTotal = 0;
   let largestStaffTotal = 0;
 
-  for (const row of [...brokers, ...staff]) {
-    // Stop walking brokers once one with real work has been compared.
-    if (row.role === "broker" && largestBrokerTotal > 0) {
-      continue;
-    }
-    const user = { role: row.role as "broker" | "staff_ops" | "staff_approver", brokerId: row.broker_id, customerId: row.customer_id };
+  for (const row of [...owners, ...staff]) {
+    const user = {
+      role: row.role as "broker" | "customer" | "staff_ops" | "staff_approver",
+      brokerId: row.broker_id,
+      customerId: row.customer_id,
+    };
     const [tasks, inbox] = await Promise.all([workspaceTasks(user), workspaceInbox(user)]);
 
-    const countedBySection = new Map<string, number>();
+    // ANCHOR BY ANCHOR, not sidebar section by sidebar section. Folding the ten anchors onto the
+    // four sidebar names made the two sides equal by construction whenever the totals were, which
+    // is why this check reported PASS on the very data where F-B13-15 was visible on screen.
+    const countedByAnchor = new Map<string, number>();
     for (const task of tasks) {
-      countedBySection.set(task.section, (countedBySection.get(task.section) ?? 0) + task.count);
+      countedByAnchor.set(task.anchor, (countedByAnchor.get(task.anchor) ?? 0) + task.count);
     }
-    const listedBySection = new Map<string, number>();
+    const listedByAnchor = new Map<string, number>();
     for (const section of inbox.sections) {
-      const sidebarSection = SIDEBAR_SECTION_OF_ANCHOR[section.anchor];
-      if (!sidebarSection) {
-        report(`${row.display_name}: unknown inbox anchor`, false, section.anchor);
-        continue;
+      if (listedByAnchor.has(section.anchor)) {
+        // Two panels with one id: the browser would send #policies to the first of them.
+        report(`${row.role} ${row.display_name}: one anchor per section`, false, `#${section.anchor} is used twice`);
       }
-      listedBySection.set(sidebarSection, (listedBySection.get(sidebarSection) ?? 0) + section.items.length);
+      listedByAnchor.set(section.anchor, (listedByAnchor.get(section.anchor) ?? 0) + section.items.length);
     }
 
     // A policy the readers refuse to answer for is counted by neither side in the same way:
     // workspaceTasks catches the failure and returns no task at all, while the inbox lists what
     // it could read and names the policy it could not. Comparing those two is comparing nothing,
     // so the user is reported as skipped, with the policies that caused it.
-    if (inbox.unreadablePolicyNumbers.length > 0) {
+    if (inbox.unreadablePolicies.length > 0) {
       console.log(
-        `SKIP  ${row.role} ${row.display_name}: ${inbox.unreadablePolicyNumbers.length} unreadable policy or policies ` +
-          `(${inbox.unreadablePolicyNumbers.join(", ")}); the badge shows nothing for this user while the inbox lists ${inbox.totalWaiting}`,
+        `SKIP  ${row.role} ${row.display_name}: ${inbox.unreadablePolicies.length} policy or policies whose stored ` +
+          `figures were refused (${inbox.unreadablePolicies.map((policy) => policy.policyNumber).join(", ")}); ` +
+          `the badge shows nothing for this user while the inbox lists ${inbox.totalWaiting}`,
       );
       continue;
     }
 
-    const sections = new Set([...countedBySection.keys(), ...listedBySection.keys()]);
-    const detail = [...sections]
-      .map((section) => `${section} ${countedBySection.get(section) ?? 0}/${listedBySection.get(section) ?? 0}`)
+    // Only the anchors a task named are compared for equality: a section nobody counted (an empty
+    // panel, or one the sidebar does not badge) is listed with its number and is not a failure.
+    const named = [...countedByAnchor.keys()];
+    const detail = named
+      .map((anchor) => `#${anchor} ${countedByAnchor.get(anchor) ?? 0}/${listedByAnchor.get(anchor) ?? 0}`)
       .join(", ");
-    const agree = [...sections].every((section) => (countedBySection.get(section) ?? 0) === (listedBySection.get(section) ?? 0));
+    const agree = named.every((anchor) => (countedByAnchor.get(anchor) ?? 0) === (listedByAnchor.get(anchor) ?? 0));
     const counted = tasks.reduce((total, task) => total + task.count, 0);
 
     report(
-      `${row.role} ${row.display_name}: badge counts equal inbox lines`,
+      `${row.role} ${row.display_name}: each count opens a section holding exactly those items`,
       agree && counted === inbox.totalWaiting,
       `${counted} counted, ${inbox.totalWaiting} listed${detail ? `; ${detail}` : "; nothing waiting"}`,
     );
 
-    if (row.role === "broker") {
-      brokersChecked += 1;
-      largestBrokerTotal = Math.max(largestBrokerTotal, inbox.totalWaiting);
+    if (row.role === "broker" || row.role === "customer") {
+      ownersChecked += 1;
+      largestOwnerTotal = Math.max(largestOwnerTotal, inbox.totalWaiting);
     }
     if (row.role === "staff_ops" || row.role === "staff_approver") {
       staffChecked += 1;
@@ -147,9 +172,11 @@ async function main() {
 
   // A comparison of two zeros proves nothing, so say out loud whether any real work was compared.
   report(
-    "at least one broker and one staff user had work waiting",
-    brokersChecked > 0 && staffChecked > 0 && largestBrokerTotal > 0 && largestStaffTotal > 0,
-    `${brokersChecked} brokers compared (largest inbox ${largestBrokerTotal}), ${staffChecked} staff compared (largest inbox ${largestStaffTotal})`,
+    "at least one broker or customer and one staff user had work waiting",
+    ownersChecked > 0 && staffChecked > 0 && largestOwnerTotal > 0 && largestStaffTotal > 0,
+    `${ownersChecked} of ${brokerCount + customerCount} brokers and customers compared, the most ` +
+      `recent ${OWNERS_PER_ROLE} of each role (largest inbox ${largestOwnerTotal}); ` +
+      `${staffChecked} staff compared, one of each role (largest inbox ${largestStaffTotal})`,
   );
 
   await sql.end();

@@ -5,6 +5,34 @@
 // lib/inbox/read.ts reads the facts from the same readers the screens use and calls these
 // functions; app/inbox/page.tsx only prints what comes back.
 
+// THE ANCHOR OF EACH SECTION, named once for everybody who links to one.
+//
+// A link to /inbox#<anchor> has to land on the section that holds the very items it counted, so
+// the names cannot be typed twice. They are declared here, used by the sections below, and used
+// by components/what-needs-you.tsx to say which section each of its counts belongs to: a task
+// that names an anchor no section has is a type error rather than a link to an empty panel
+// (review findings F-B13-15 and F-B13-16).
+//
+// Several kinds of work share the anchor `policies`, one per role: it is the name the sidebar
+// uses, and each role has exactly one section carrying it, so a sidebar chip always lands
+// somewhere sensible too.
+export const INBOX_ANCHORS = {
+  brokerPoliciesToPay: "policies",
+  endorsementDeltasToPay: "endorsement-deltas",
+  correctionDifferencesToCollect: "correction-differences",
+  changeRequestsToAnswer: "change-requests",
+  endorsementsWaitingForTheCustomer: "waiting-for-the-customer",
+  customerEndorsementsToApprove: "policies",
+  customerCorrectionsToApprove: "corrections",
+  approvalRequestsWaiting: "approvals",
+  policiesPaidNotBound: "policies",
+  endorsementsPaidNotApplied: "endorsements",
+  claimPaymentsStillToMove: "claims",
+  openBreaks: "reconciliation",
+} as const;
+
+export type InboxAnchor = (typeof INBOX_ANCHORS)[keyof typeof INBOX_ANCHORS];
+
 // One line of the inbox: an object, what is waiting on it, and the one link that acts on it.
 export type InboxItem = {
   subject: string; // the object itself: a policy number, a claim number, a break key
@@ -16,10 +44,8 @@ export type InboxItem = {
 };
 
 export type InboxSection = {
-  // The anchor of the section. The four names the sidebar knows (policies, approvals, claims,
-  // reconciliation) are used once each per role, so a count chip pointing at /inbox#approvals
-  // always lands on the section it counts. The extra sections carry their own name.
-  anchor: string;
+  // The anchor of the section, from INBOX_ANCHORS above.
+  anchor: InboxAnchor;
   title: string;
   // What the "since" column means for THIS section: a quote is not a request is not a payment,
   // and one column header for all of them would be a small lie about the age of the work.
@@ -130,7 +156,7 @@ export function brokerSections(
 
   return [
     {
-      anchor: "policies",
+      anchor: INBOX_ANCHORS.brokerPoliciesToPay,
       title: "Policies to pay",
       sinceHeading: "Quoted",
       emptySentence: "No policy of yours is waiting for a payment.",
@@ -144,7 +170,7 @@ export function brokerSections(
       })),
     },
     {
-      anchor: "endorsement-deltas",
+      anchor: INBOX_ANCHORS.endorsementDeltasToPay,
       title: "Endorsement deltas to pay",
       sinceHeading: "Approved",
       emptySentence: "No approved endorsement is waiting for its delta.",
@@ -158,7 +184,7 @@ export function brokerSections(
       })),
     },
     {
-      anchor: "correction-differences",
+      anchor: INBOX_ANCHORS.correctionDifferencesToCollect,
       title: "Correction differences to collect",
       sinceHeading: "Corrected",
       emptySentence: "No correction has left a difference to collect.",
@@ -174,7 +200,7 @@ export function brokerSections(
       ),
     },
     {
-      anchor: "change-requests",
+      anchor: INBOX_ANCHORS.changeRequestsToAnswer,
       title: "Change requests to answer",
       sinceHeading: "Asked",
       emptySentence: "No customer is waiting for an answer.",
@@ -188,7 +214,7 @@ export function brokerSections(
       })),
     },
     {
-      anchor: "waiting-for-the-customer",
+      anchor: INBOX_ANCHORS.endorsementsWaitingForTheCustomer,
       title: "Endorsement quotes waiting for the customer",
       sinceHeading: "Quoted",
       emptySentence: "No endorsement quote is waiting for a customer.",
@@ -210,7 +236,7 @@ export function customerSections(policies: CustomerPolicyFacts[]): InboxSection[
 
   return [
     {
-      anchor: "policies",
+      anchor: INBOX_ANCHORS.customerEndorsementsToApprove,
       title: "Endorsements waiting for your approval",
       sinceHeading: "Quoted",
       emptySentence: "No endorsement is waiting for your approval.",
@@ -224,7 +250,7 @@ export function customerSections(policies: CustomerPolicyFacts[]): InboxSection[
       })),
     },
     {
-      anchor: "corrections",
+      anchor: INBOX_ANCHORS.customerCorrectionsToApprove,
       title: "Corrections waiting for your approval",
       sinceHeading: "Corrected",
       emptySentence: "No correction is waiting for your approval.",
@@ -257,7 +283,7 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
 
   return [
     {
-      anchor: "approvals",
+      anchor: INBOX_ANCHORS.approvalRequestsWaiting,
       title: isApprover ? "Money-out requests waiting for your decision" : "Money-out requests waiting for an approver",
       sinceHeading: "Requested",
       emptySentence: "No money-out request is waiting for a decision.",
@@ -273,7 +299,7 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
       })),
     },
     {
-      anchor: "policies",
+      anchor: INBOX_ANCHORS.policiesPaidNotBound,
       title: "Policies paid and not bound",
       sinceHeading: "Quoted",
       emptySentence: isApprover ? operationsOnly : "No paid policy is waiting to be bound.",
@@ -287,7 +313,7 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
       })),
     },
     {
-      anchor: "endorsements",
+      anchor: INBOX_ANCHORS.endorsementsPaidNotApplied,
       title: "Endorsements paid and not in force",
       sinceHeading: "Paid",
       emptySentence: isApprover ? operationsOnly : "No paid endorsement is waiting to be applied.",
@@ -301,7 +327,7 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
       })),
     },
     {
-      anchor: "claims",
+      anchor: INBOX_ANCHORS.claimPaymentsStillToMove,
       title: "Claims with a payment still to move",
       sinceHeading: "Requested",
       emptySentence: "No claim payment is waiting to move.",
@@ -318,7 +344,7 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
       })),
     },
     {
-      anchor: "reconciliation",
+      anchor: INBOX_ANCHORS.openBreaks,
       title: "Open breaks between a provider and the ledger",
       sinceHeading: "First seen",
       emptySentence: "No break is open: the last complete run of each source matched everything it compared.",
