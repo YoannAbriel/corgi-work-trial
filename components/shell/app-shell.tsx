@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Shapes, UserRound } from "lucide-react";
+import { Search as SearchIcon, Shapes, UserRound } from "lucide-react";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import type { ToastNotice } from "@/lib/ui/views";
 import { workspaceTasks, type WorkspaceTask } from "@/lib/inbox/tasks";
@@ -24,6 +24,12 @@ export type { Band } from "./page-band";
 export type { NavView } from "./section-nav";
 export type { SectionId } from "./sections";
 
+// AF-02, said once, on every signed-in screen (cycle 2, decision 1). The words are exact and
+// they are the same words as the README's integration inventory: Stripe is a real sandbox, the
+// claim payout rail and the bank check are local simulators. A simulated record still carries
+// LOCAL SIMULATOR on its own row; this line is the standing statement of the whole workspace.
+export const WORKSPACE_MODES = "Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR";
+
 export async function PortalShell({
   children,
   user,
@@ -33,6 +39,7 @@ export async function PortalShell({
   band,
   views,
   viewsSubtitle,
+  modes = WORKSPACE_MODES,
   inspector,
   toasts,
 }: {
@@ -46,7 +53,9 @@ export async function PortalShell({
   // The views of the section; their presence folds the main sidebar to a rail.
   views?: NavView[];
   viewsSubtitle?: string;
-  // The inspector panel, rendered beside the content when a record is open.
+  // The AF-02 mode line of the top bar. A page that must not show it passes `modes={null}`.
+  modes?: ReactNode;
+  // The inspector, rendered as a drawer over the content when a reference is open.
   inspector?: ReactNode;
   // Notices to show as toasts, read from the redirect query by the page (lib/ui/views.ts).
   toasts?: ToastNotice[];
@@ -112,7 +121,14 @@ export async function PortalShell({
   let lastGroup: string | undefined;
   const sidebar = (
     <>
-      <Link className="brand" href={isStaff ? "/ops" : user?.role === "broker" ? "/broker" : user?.role === "customer" ? "/customer" : "/"} prefetch={false}>
+      {/* The rail hides the words beside the mark, so the link says its name itself (F-UI review
+          of round 1: an icon-only link with a `title` still has no accessible name). */}
+      <Link
+        className="brand"
+        aria-label="Corgi, policy administration"
+        href={isStaff ? "/ops" : user?.role === "broker" ? "/broker" : user?.role === "customer" ? "/customer" : "/"}
+        prefetch={false}
+      >
         <span className="workspace-icon">
           <Shapes size={20} strokeWidth={1.8} aria-hidden="true" />
         </span>
@@ -138,22 +154,28 @@ export async function PortalShell({
             ) : null;
           lastGroup = entry.group;
           const label = entry.section === "verification" && isStaff ? "Brokers" : entry.section === "verification" ? "Business verification" : definition.label;
+          // The views of the screen the reader is on are drawn under its own entry, and nowhere
+          // else: one navigation column, submenus that fold (cycle 2, decision 17).
+          const isHere = activeEntry === entry.section;
           return (
             <div key={entry.href} style={{ display: "contents" }}>
               {heading}
               <div className="sidebar-nav-row">
-                <Link href={entry.href} prefetch={false} aria-current={activeEntry === entry.section ? "page" : undefined} title={label}>
-                  <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
-                  <span>{label}</span>
-                </Link>
-                {waiting > 0 ? (
-                  // The number is a link of its own, to the inbox section listing exactly those
-                  // items: a count that cannot be opened is the complaint the inbox answers.
-                  <Link className="nav-badge" href={entry.section === "inbox" ? "/inbox" : `/inbox#${entry.section}`} prefetch={false}>
-                    {waiting}
-                    <span className="visually-hidden"> waiting for you, open the inbox</span>
+                <div className="sidebar-nav-line">
+                  <Link href={entry.href} prefetch={false} aria-current={isHere ? "page" : undefined} title={label} aria-label={label}>
+                    <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
+                    <span>{label}</span>
                   </Link>
-                ) : null}
+                  {waiting > 0 ? (
+                    // The number is a link of its own, to the inbox section listing exactly those
+                    // items: a count that cannot be opened is the complaint the inbox answers.
+                    <Link className="nav-badge" href={entry.section === "inbox" ? "/inbox" : `/inbox#${entry.section}`} prefetch={false}>
+                      {waiting}
+                      <span className="visually-hidden"> waiting for you, open the inbox</span>
+                    </Link>
+                  ) : null}
+                </div>
+                {isHere && views && views.length > 0 ? <SectionNav section={active} views={views} subtitle={viewsSubtitle} /> : null}
               </div>
             </div>
           );
@@ -180,20 +202,32 @@ export async function PortalShell({
     </>
   );
 
-  const contextNav = views && views.length > 0 ? <SectionNav section={active} views={views} subtitle={viewsSubtitle} /> : null;
+  // Staff can type a reference from any screen and land on the search screen: same route, same
+  // field name as the screen's own form, so one reader reads them both (cycle 2, decision 18).
+  // Brokers and customers never see it: the console is not theirs.
+  const search = isStaff ? (
+    <form className="topbar-search" role="search" method="get" action="/ops/console/search">
+      <SearchIcon size={14} aria-hidden="true" />
+      <input type="search" name="reference" placeholder="Find a reference" aria-label="Find a reference" />
+    </form>
+  ) : null;
 
   return (
-    <PortalFrame sidebar={sidebar} contextNav={contextNav} breadcrumbs={breadcrumbs} band={band ? <PageBand section={active} band={band} /> : null}>
+    <PortalFrame
+      sidebar={sidebar}
+      breadcrumbs={breadcrumbs}
+      search={search}
+      // The landing and sign-in frames have no signed-in user and no mode line.
+      modes={user ? modes : null}
+      band={band ? <PageBand section={active} band={band} /> : null}
+    >
+      {/* The content keeps the whole width whether a reference is open or not: the inspector is
+          a drawer over the page now (cycle 2, decision 5), not a second column that squeezed
+          the table under it. */}
       <main id="main-content" tabIndex={-1} className="reveal">
-        {inspector ? (
-          <div className="with-inspector">
-            <div className="stack">{children}</div>
-            {inspector}
-          </div>
-        ) : (
-          children
-        )}
+        {children}
       </main>
+      {inspector}
       {toasts && toasts.length > 0 ? <Toaster notices={toasts} /> : null}
     </PortalFrame>
   );

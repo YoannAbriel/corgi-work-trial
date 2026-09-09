@@ -200,20 +200,25 @@ export function HBars({
   const limit = Math.max(1, max ?? Math.max(...rows.map((row) => Math.abs(row.value))));
   return (
     <div className="hbars" role="img" aria-label={caption}>
-      {rows.map((row, index) => (
-        <div className="hbar-row" key={row.key ?? `${row.label}-${index}`}>
-          <span className="hbar-label" title={row.label}>
-            {row.label}
-          </span>
-          <span className="hbar-track">
-            <span
-              className="hbar-fill"
-              style={{ width: `${Math.min(100, (Math.abs(row.value) / limit) * 100)}%`, ["--swatch" as string]: row.color ?? PALETTE[0], animationDelay: `${index * 30}ms` }}
-            />
-          </span>
-          <span className="hbar-value">{row.display ?? format(row.value)}</span>
-        </div>
-      ))}
+      {rows.map((row, index) => {
+        // A negative row is drawn in grey and from the right, and its value cell keeps the sign:
+        // the same orange bar for -$1,200.00 and $1,200.00 said the opposite of the figure
+        // (round 1, MEDIUM). Every track is the same length, so a long bar always means a large
+        // figure (round 1, HIGH); the length is fixed by the grid, not by the label beside it.
+        const negative = row.value < 0;
+        return (
+          <div className="hbar-row" key={row.key ?? `${row.label}-${index}`}>
+            <span className="hbar-label">{row.label}</span>
+            <span className={negative ? "hbar-track negative" : "hbar-track"}>
+              <span
+                className={negative ? "hbar-fill negative" : "hbar-fill"}
+                style={{ width: `${Math.min(100, (Math.abs(row.value) / limit) * 100)}%`, ["--swatch" as string]: row.color ?? PALETTE[0], animationDelay: `${index * 30}ms` }}
+              />
+            </span>
+            <span className="hbar-value">{row.display ?? format(row.value)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -282,7 +287,10 @@ export function Sparkline({ points, width = 140, height = 36, color = "var(--cha
   const line = coordinates.map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
   const area = `${line} L${width},${height} L0,${height} Z`;
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={caption} style={{ width, height }} preserveAspectRatio="none">
+    // The line fills the box it is given rather than stopping at a fixed 640 px inside a wider
+    // card (round 1, MEDIUM). `preserveAspectRatio="none"` is safe here: the picture carries no
+    // text, only a line whose shape is what is read.
+    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={caption} style={{ width: "100%", height }} preserveAspectRatio="none">
       <title>{caption}</title>
       <path className="area" d={area} fill={color} opacity={0.12} />
       <path className="line" d={line} fill="none" stroke={color} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
