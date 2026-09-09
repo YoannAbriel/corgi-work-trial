@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Download } from "lucide-react";
 import { AmountExplained } from "@/components/amount-explained";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { SandboxReferences } from "@/components/disclosures";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
@@ -412,12 +413,16 @@ export default async function StatementPage({
             <h4>Format</h4>
             {formatChanged ? (
               <p>
-                Revision {run.revision - 1} was written in format v{run.previousCanonicalVersion} and this one in v
-                {run.canonicalVersion}, so the two hash different texts and cannot be compared by hash. Their journal
-                entries can be, and they are.
+                <Emphasis>
+                  {`Revision ${run.revision - 1} was written in format v${run.previousCanonicalVersion} and this one in v${run.canonicalVersion}, so the two hash different texts and cannot be compared by hash. Their journal entries can be, and they are.`}
+                </Emphasis>
               </p>
             ) : null}
-            {collected.formatNote ? <p>{collected.formatNote}</p> : null}
+            {collected.formatNote ? (
+              <p>
+                <Emphasis>{collected.formatNote}</Emphasis>
+              </p>
+            ) : null}
           </>
         ) : null}
       </About>

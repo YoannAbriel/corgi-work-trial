@@ -2,6 +2,8 @@ import "@/app/styles/policy-detail.css";
 import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { Disclosure } from "@/components/disclosures";
+import { Emphasis } from "@/components/emphasis";
 import { formatSignedCentsAsUsd, formatSignedDays, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
@@ -120,8 +122,12 @@ export default async function ApproveCorrectionPage({
             />
           </section>
 
-          <section className="card">
-            <h2>Every figure, and how it was computed</h2>
+          {/* CLOSED ON ARRIVAL (review finding F-LIVE-02). The customer comes here to answer one
+              question, and the arithmetic answering "how was this worked out" was the tallest
+              thing on the screen: the state, the three tiles and the approval now come first and
+              the table is one click away. It is a native details element, so every figure stays in
+              the HTML for a reviewer and for a text search whether it is open or not. */}
+          <Disclosure title="Every figure, and how it was computed">
             {/* Same reading as the operator's preview: the differences carry the direction, what
                 was booked and what the corrected date prices step back, the total is bold. */}
             <FormulaLinesTable
@@ -130,15 +136,15 @@ export default async function ApproveCorrectionPage({
               signedKeys={["premium_difference", "tax_difference", "difference_total"]}
               referenceKeys={["premium_as_booked", "premium_corrected"]}
             />
-          </section>
+          </Disclosure>
         </div>
 
         <section className="card pd-form-card">
           <h2>Your approval</h2>
           <p className="pd-note">
-            Why it is needed: {correction.approvalSentences.customer ?? "the difference is above the approval threshold"}
-            . Approving records your acceptance; your broker then opens the Stripe payment page. Nothing is charged by
-            this button.
+            <Emphasis>
+              {`Why it is needed: ${correction.approvalSentences.customer ?? "the difference is above the approval threshold"}. Approving records your acceptance; your broker then opens the Stripe payment page. Nothing is charged by this button.`}
+            </Emphasis>
           </p>
           {correction.collection.customerApprovedAt ? (
             <p className="badge badge-ok">

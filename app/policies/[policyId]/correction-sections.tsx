@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 import { Disclosure, SandboxReferences } from "@/components/disclosures";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { JournalTable } from "@/components/journal-table";
 import { DataTable, ExpandHead, ExpandRow, FactGrid } from "@/components/ui/table";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -469,14 +470,15 @@ export function CorrectionsExplained({
             ) : null}
             {correction.money.settlement === "refund" ? (
               <p className="pd-note">
-                The corrected date charges fewer days, so {formatCentsAsUsd(-correction.money.differenceTotalCents)}{" "}
-                goes back to the customer through Stripe. It is listed under the refunds above, with its state and the
-                approver it is waiting for. Second approver:{" "}
-                {correction.approvalSentences.refund ?? "read from the refund itself"}.
+                <Emphasis>
+                  {`The corrected date charges fewer days, so ${formatCentsAsUsd(-correction.money.differenceTotalCents)} goes back to the customer through Stripe. It is listed under the refunds above, with its state and the approver it is waiting for. Second approver: ${correction.approvalSentences.refund ?? "read from the refund itself"}.`}
+                </Emphasis>
               </p>
             ) : null}
             {correction.money.settlement === "none" ? (
-              <p className="pd-note">The corrected date prices the same amount, so no money moves.</p>
+              <p className="pd-note">
+                <Emphasis>{"The corrected date prices the same amount, so no money moves."}</Emphasis>
+              </p>
             ) : null}
 
             {/* THE ARITHMETIC, FOLDED, closed on arrival. Yoann's rule F-YA-05 bans folding an
@@ -484,8 +486,9 @@ export function CorrectionsExplained({
                 open or not, so a reviewer and a text search still find it. */}
             <Disclosure title="Impact, line by line">
               <p className="pd-note">
-                The effective dates are business dates in the past; the recording time is when we learned we were
-                wrong. Every figure here is the one stored on those events and posted to the journal.
+                <Emphasis>
+                  {"The effective dates are business dates in the past; the recording time is when we learned we were wrong. Every figure here is the one stored on those events and posted to the journal."}
+                </Emphasis>
               </p>
               {/* The same reading as the preview and the customer's approval screen (Yoann,
                   2026-09-09): the differences carry their sign and their direction colour, what was
