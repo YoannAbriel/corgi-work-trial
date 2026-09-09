@@ -92,3 +92,46 @@
 .money-charts .hbar-fill {
   display: block;
 }
+
+/* --- The breaks board -------------------------------------------------------------------------
+ *
+ * The breaks view of /ops/reconciliation carries three disjoint lists (breaks to act on, probe
+ * payments, explained breaks), so it needs section headings and a note under a bounded table.
+ * Both are one declaration each; nothing here decides a figure or a state. */
+
+/* A heading above one of the three tables. Same size and weight as the console's own headings,
+ * kept in this file because the console stylesheet belongs to another screen. */
+h2.money-heading {
+  margin: 4px 0 10px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* The sentence a bounded table prints INSIDE its own frame, under the legend: same inset and same
+ * size as that legend, so it reads as one more line of the table rather than a stray paragraph. */
+.money-cap {
+  margin: 0;
+  padding: 2px 14px 10px;
+  font-size: 12px;
+}
+
+/* A sentence UNDER a table rather than inside it: what a probe payment is, and the cap notes of
+ * the two lists whose frame has no footer. */
+.money-explainer {
+  margin: -6px 0 20px;
+  max-width: 78ch;
+}
+
+/* The note form of one break, inside that row's menu (components/ui/table.tsx, RowMenu). The
+ * system sizes a menu panel for a list of links; a textarea needs a usable width, so the panel
+ * that holds this form is widened and the field is given a readable height. */
+/* `text-align` is reset because the panel is a child of the row's action cell, and .dt-actions
+ * right-aligns its content; a popover inherits that and the menu title drifted to the right. */
+.pop-menu:has(form.money-explain) {
+  min-width: 320px;
+  text-align: left;
+}
+form.money-explain textarea {
+  min-height: 66px;
+  resize: vertical;
+}
