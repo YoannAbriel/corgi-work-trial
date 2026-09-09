@@ -36,6 +36,16 @@ import corgiChecker from "@/public/illustrations/library/075-corgi-checker.webp"
 import corgiEngineer from "@/public/illustrations/library/081-corgi-engineer.webp";
 import corgiCelebrating from "@/public/illustrations/library/110-corgi-celebrating.webp";
 import corgiReading from "@/public/illustrations/library/118-corgi-reading.webp";
+// Cycle 2, decision 12: the sections that were drawn with near-black monochrome objects
+// (in-tray, open-folder, balance-scales, server-box) take a light watercolour corgi, which is
+// what the rest of the identity is made of. The old names stay in the map: other screens still
+// use them for empty states.
+import corgiLetter from "@/public/illustrations/library/070-corgi-letter.webp";
+import corgiArchivist from "@/public/illustrations/library/071-corgi-archivist.webp";
+import corgiResearcher from "@/public/illustrations/library/076-corgi-researcher.webp";
+import corgiMechanic from "@/public/illustrations/library/098-corgi-mechanic.webp";
+import corgiUmbrella from "@/public/illustrations/library/112-corgi-umbrella.webp";
+import corgiLaptopWork from "@/public/illustrations/library/119-corgi-laptop-work.webp";
 
 // Only the illustrations used by the interface are listed here.
 const illustrations = {
@@ -73,6 +83,12 @@ const illustrations = {
   "engineer-corgi": corgiEngineer,
   "celebrating-corgi": corgiCelebrating,
   "reading-corgi": corgiReading,
+  "letter-corgi": corgiLetter,
+  "archivist-corgi": corgiArchivist,
+  "researcher-corgi": corgiResearcher,
+  "mechanic-corgi": corgiMechanic,
+  "umbrella-corgi": corgiUmbrella,
+  "laptop-corgi": corgiLaptopWork,
 } as const;
 
 export type IllustrationName = keyof typeof illustrations;

@@ -6,30 +6,42 @@ import { ChevronRight, PanelLeft, ShieldCheck } from "lucide-react";
 
 export type BreadcrumbItem = { label: string; href?: string };
 
-// The only client state in the shell is whether the navigation is visible. Everything else
-// arrives rendered from the server: the sidebar, the section navigation, the band, the page.
+// The only client state in the shell is whether the sidebar is folded to its icons. Everything
+// else arrives rendered from the server: the sidebar and the views inside it, the band, the page.
+//
+// Cycle 2, decision 17: there is ONE navigation column. The views of the section the reader is
+// in are drawn inside the sidebar under that section's entry (components/shell/app-shell.tsx),
+// so nothing moves sideways when a screen declares its views. Folded, the sidebar is the icon
+// rail and the views of the current section open as a flyout on hover (app/styles/system.css).
 export function PortalFrame({
   sidebar,
   contextNav,
   breadcrumbs,
+  search,
+  modes,
   band,
   children,
 }: {
   sidebar: React.ReactNode;
+  // Kept for callers that still hand a second navigation column; the shell no longer builds one.
   contextNav?: React.ReactNode;
   breadcrumbs: BreadcrumbItem[];
+  // The staff search field: a GET form to the search screen (cycle 2, decision 18).
+  search?: React.ReactNode;
+  // The AF-02 mode line, right of the breadcrumb: which provider is a real sandbox and which is
+  // a local simulator. The words are exact and the same on every screen (PortalShell owns them).
+  modes?: React.ReactNode;
   band?: React.ReactNode;
   children: React.ReactNode;
 }) {
-  const [navigationOpen, setNavigationOpen] = useState(true);
+  const [railFolded, setRailFolded] = useState(false);
 
   return (
-    <div className={`portal${navigationOpen ? "" : " navigation-collapsed"}`}>
+    <div className="portal">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      {/* With a section navigation beside it, the main sidebar folds to its icons. */}
-      <aside id="portal-navigation" className={contextNav ? "sidebar is-rail" : "sidebar"} hidden={!navigationOpen}>
+      <aside id="portal-navigation" className={railFolded ? "sidebar is-rail" : "sidebar"}>
         {sidebar}
       </aside>
       {contextNav}
@@ -39,10 +51,11 @@ export function PortalFrame({
             <button
               type="button"
               className="sidebar-toggle"
-              aria-label="Toggle navigation"
+              aria-label={railFolded ? "Expand navigation" : "Fold navigation"}
+              title={railFolded ? "Expand navigation" : "Fold navigation"}
               aria-controls="portal-navigation"
-              aria-expanded={navigationOpen}
-              onClick={() => setNavigationOpen(!navigationOpen)}
+              aria-expanded={!railFolded}
+              onClick={() => setRailFolded(!railFolded)}
             >
               <PanelLeft size={16} aria-hidden="true" />
             </button>
@@ -63,6 +76,8 @@ export function PortalFrame({
               </ol>
             </nav>
           </div>
+          {search}
+          {modes ? <div className="topbar-modes">{modes}</div> : null}
           <details className="environment-badge">
             <summary>
               <ShieldCheck size={13} aria-hidden="true" /> Sandbox
