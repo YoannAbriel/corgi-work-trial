@@ -8,7 +8,9 @@ import { commissionCents, stateTaxCents } from "./premium";
 // same pure functions and the same stored figures the page already shows, so the fold under a
 // figure cannot say something the figure does not. Where a screen already has formula lines
 // (endorsement, correction: lib/money/endorsement.ts and lib/money/correction.ts) those lines are
-// reused as they are; where it does not, the lines are built here from the stored figures.
+// reused: they are rebuilt at read time from the figures stored on the event, by the same function
+// that priced it, and the line the fold points at IS the stored figure. Where a screen has no such
+// lines, they are built here from the stored figures.
 //
 // Every function below is pure: no database, no clock, no provider. The screens format the cents;
 // nothing is computed in the browser.
@@ -71,6 +73,20 @@ export function explainedCents(explanation: AmountExplanation): number {
 
 function percentOfBasisPoints(basisPoints: number): string {
   return `${(basisPoints / 100).toFixed(2)}%`;
+}
+
+// Signed cents written out as a sum a person would write: "34680 - 30499", never
+// "34680 + -30499" (review finding F-B12-05). A negative first term keeps its sign, and a zero
+// prints as "0" and never as "-0", which is what `-${0}` in a template used to produce.
+function joinSignedCents(amounts: number[]): string {
+  if (amounts.length === 0) {
+    return "0";
+  }
+  return amounts
+    .map((amount, position) =>
+      position === 0 ? String(amount) : amount < 0 ? ` - ${Math.abs(amount)}` : ` + ${amount}`,
+    )
+    .join("");
 }
 
 // ---------------------------------------------------------------------------
@@ -207,9 +223,16 @@ export function cancellationFormulaLines(cancellation: CancellationFigures): For
       cents: cancellation.writtenPremiumCents,
     },
     {
+      // NO CONCRETE RATIO HERE, ON PURPOSE (review finding F-B12-03). The figure is a sum over
+      // the written premium segments, and each segment earns over ITS OWN window: on a policy
+      // endorsed mid-term the endorsement segment runs from its effective date to the end of the
+      // term, not over the whole term. Printing `floor(written x earnedDays / termDays)` would be
+      // a formula the ledger never ran, and the agreement check could not catch it because it
+      // compares cents and not printed arithmetic. The cancellation event stores the totals and
+      // not the segments (lib/policy/cancel.ts), so the fold prints the rule and says so.
       key: "earned_premium",
-      label: `Earned over ${cancellation.earnedDays} of ${cancellation.termDays} days, kept by the insurer (each written segment earns over its own window, rounded down)`,
-      formula: `floor(written x ${cancellation.earnedDays} / ${cancellation.termDays}) per segment`,
+      label: `Earned premium kept by the insurer, rounded down on each segment (the term had run ${cancellation.earnedDays} of its ${cancellation.termDays} days)`,
+      formula: "sum over each written segment of floor(its written premium x its own elapsed days / its own window)",
       cents: cancellation.earnedPremiumCents,
     },
     {
@@ -259,16 +282,24 @@ const CANCELLATION_ROUNDING: Record<CancellationFigureKey, string | null> = {
   commission_clawback: ROUNDED_DOWN_COMMISSION,
 };
 
+// The sentence added under the earned figure, and under the unearned figure that is derived from
+// it: the segments themselves are not on the cancellation event, so the fold says which windows it
+// cannot print rather than printing a window it does not know (review finding F-B12-03).
+const SEGMENTS_NOT_STORED =
+  "Each piece of premium written on this policy earns over its own window: the issuance premium over the whole term, an endorsement over the days that remained from ITS effective date. The cancellation event stores the totals and not the segment list, so the rule is printed here instead of one ratio; the segments themselves are in the endorsement schedule above and in the journal's premium_written entries.";
+
 export function explainCancellationFigure(
   cancellation: CancellationFigures,
   key: CancellationFigureKey,
   evidence?: ExplanationEvidence[],
 ): AmountExplanation {
+  const base = `Cancellation effective ${cancellation.effectiveAt}, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.`;
+  const segmentsMatter = key === "earned_premium" || key === "unearned_premium";
   return {
     lines: cancellationFormulaLines(cancellation),
     resultKey: key,
     rounding: CANCELLATION_ROUNDING[key],
-    note: `Cancellation effective ${cancellation.effectiveAt}, pro rata. Each figure is the one stored on the cancellation event and posted to the journal; the earned part is rounded down per written segment, so the part given back is the larger one.`,
+    note: segmentsMatter ? `${base} ${SEGMENTS_NOT_STORED}` : base,
     evidence,
   };
 }
@@ -377,28 +408,44 @@ export function explainAccountSum(input: {
   for (const entry of input.entries) {
     for (const line of entry.lines) {
       if (line.accountId !== input.accountId) continue;
+      // ONLY THE LINES THE RULE ACTUALLY SUMS (review finding F-B12-02). A credit on the account
+      // contributes nothing to a debit sum, so printing it inside that fold showed a refund of
+      // 208109 against a result of $0.00: a row a reader would have to be talked out of. It also
+      // filled the list, so "no debit on this account yet" could never appear on a policy that
+      // had only ever been refunded.
+      if (input.rule === "debits" && line.debitCents === 0) continue;
+      if (input.rule === "credits" && line.creditCents === 0) continue;
       const contribution = contributionOf(line, input.rule);
-      const side = line.debitCents > 0 ? "Dr" : "Cr";
-      const movedCents = line.debitCents > 0 ? line.debitCents : line.creditCents;
+      // The side named is the side the RULE reads, not whichever column happens to be filled:
+      // under "debits" a printed line is always a debit.
+      const side = input.rule === "debits" ? "Dr" : input.rule === "credits" ? "Cr" : line.debitCents > 0 ? "Dr" : "Cr";
+      const movedCents = side === "Dr" ? line.debitCents : line.creditCents;
+      const detail = `${side} ${line.accountName} ${movedCents}`;
       lines.push({
         key: `line_${position}`,
         label: `${entry.entryType}, effective ${entry.effectiveAt}`,
-        formula: `${side} ${line.accountName} ${movedCents}`,
+        formula: detail,
         cents: contribution,
       });
       evidence.push({
         entryType: entry.entryType,
         effectiveAt: entry.effectiveAt,
         recordedAt: entry.recordedAt,
-        detail: `${side} ${line.accountName} ${movedCents}`,
+        detail,
       });
       position += 1;
     }
   }
+  const nothingYet =
+    input.rule === "debits"
+      ? "no debit on this account yet"
+      : input.rule === "credits"
+        ? "no credit on this account yet"
+        : "no movement on this account yet";
   lines.push({
     key: "total",
     label: input.totalLabel,
-    formula: lines.length === 0 ? "no line on this account yet" : lines.map((line) => line.cents).join(" + "),
+    formula: lines.length === 0 ? nothingYet : joinSignedCents(lines.map((line) => line.cents)),
     cents: accountSumCents(input.entries, input.accountId, input.rule),
   });
   return {
@@ -413,12 +460,18 @@ export function explainAccountSum(input: {
 // The journal entries that touched one account, as the evidence under a figure that was NOT
 // computed from them (the terms in force, for instance): they are what proves the figure was
 // really booked, not how it was calculated.
+// `entryTypes`, when given, keeps only those kinds of entry. It is how a fold can list the lines
+// that move ITS figure rather than every line on an account: the entries a claim posts on
+// claims_payable net to zero once a payment has settled, which under a paid figure of $1,200 left
+// the reader to work out why (review finding F-B12-07).
 export function evidenceFromJournal(
   entries: JournalEntryForExplanation[],
   accountId: string,
+  entryTypes?: string[],
 ): ExplanationEvidence[] {
   const evidence: ExplanationEvidence[] = [];
   for (const entry of entries) {
+    if (entryTypes && !entryTypes.includes(entry.entryType)) continue;
     for (const line of entry.lines) {
       if (line.accountId !== accountId) continue;
       const side = line.debitCents > 0 ? "Dr" : "Cr";
@@ -486,7 +539,7 @@ export function explainStatementTotal(input: {
         {
           key: "clawback",
           label: "Commission clawed back on refunded premium",
-          formula: `-${input.clawbackCents}`,
+          formula: String(-input.clawbackCents),
           cents: -input.clawbackCents,
         },
         {
@@ -498,7 +551,7 @@ export function explainStatementTotal(input: {
         {
           key: "net_due",
           label: "Net due to the broker",
-          formula: `${input.commissionEarnedCents} - ${input.clawbackCents} + ${input.adjustmentCents}`,
+          formula: joinSignedCents([input.commissionEarnedCents, -input.clawbackCents, input.adjustmentCents]),
           cents: input.commissionEarnedCents - input.clawbackCents + input.adjustmentCents,
         },
       ],
@@ -522,7 +575,7 @@ export function explainStatementTotal(input: {
   lines.push({
     key: "total",
     label: TOTAL_LABEL[key],
-    formula: lines.length === 0 ? "no line of this kind this month" : lines.map((line) => line.cents).join(" + "),
+    formula: lines.length === 0 ? "no line of this kind this month" : joinSignedCents(lines.map((line) => line.cents)),
     cents: total,
   });
   return {
