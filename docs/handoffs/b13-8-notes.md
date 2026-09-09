@@ -106,20 +106,57 @@ the accumulated data of every replay check.
 - `npm test`: 442 tests, 441 pass, 1 skipped, 0 fail, after merging `origin/main` at bb54cce.
   Eight of them are the new `lib/inbox/sections.test.ts`.
 - `npm run build`: passes, `/inbox` listed as server-rendered on demand.
-- `npm run check:inbox-counts` on `corgi_test`, read-only, all PASS on the merged tree:
-  - broker with open change requests: 2 counted, 2 listed;
-  - `staff_approver`: 1142 counted, 1142 listed (approvals 94, claims 31, reconciliation 1017,
-    policies 0 on both sides);
-  - `staff_ops`: 1184 counted, 1184 listed (approvals 94, policies 42, claims 31,
-    reconciliation 1017).
+- `npm run check:inbox-counts` on `corgi_test`, read-only, 53 PASS, 0 FAIL, 0 SKIP, comparing
+  anchor by anchor after the fix cycle:
+  - 50 of the 818 brokers and customers, the 25 most recent of each role;
+  - `staff_approver`: 1283 counted, 1283 listed (#approvals 116, #claims 38,
+    #reconciliation 1129);
+  - `staff_ops`: 1330 counted, 1330 listed (#approvals 116, #policies 10, #endorsements 37,
+    #claims 38, #reconciliation 1129). Those two figures, 10 and 37, are the ones that used to be
+    added together as "policies 42/42": the check now sees the two sections apart, which is what
+    F-B13-16 was about.
 
-  The script was run four times in total while it was being written; every run is a read, it
-  opens no transaction of its own and writes no row, so it adds nothing to `corgi_test` and
-  cannot contend with another builder's check.
+  The script was run six times in total while it was being written and corrected; every run is a
+  read, it opens no transaction of its own and writes no row, so it adds nothing to `corgi_test`
+  and cannot contend with another builder's check.
+
+## Fix cycle after the review (docs/reviews/inbox-and-motion.md, PASS with findings)
+
+**F-B13-15 and F-B13-16, the counts opened the wrong section.** The block linked each count to
+`/inbox#<sidebar section>`, and the sidebar knows four names while the inbox lists ten kinds of
+work: "2 change requests to answer" opened "Policies to pay", which held nothing. `WorkspaceTask`
+now carries an `anchor` beside its `section`: `section` is where the sidebar adds the count up,
+`anchor` is the inbox section that lists those very items. The names live once, in `INBOX_ANCHORS`
+in `lib/inbox/sections.ts`, used by the sections and by the tasks, so a task naming a section that
+does not exist is a compile error; a unit test checks the other direction, that every one of the
+twelve names is rendered by the role that uses it. The task `href` field went with it: nothing read
+it any more, and what it said ("this work is at /broker") was the wrong signpost.
+
+**F-B13-17, the check could not see it.** It folded the ten anchors onto the four sidebar names
+before comparing, so the two sides were equal by construction whenever the totals were, and it
+reported PASS on the data where the bug was visible. It now compares each anchor a task named
+against the section carrying that anchor, refuses two sections sharing one id, and walks every
+broker and every customer instead of stopping at the first one with work.
+
+**F-B13-18, the catch was too wide.** The per-policy `catch {}` reported a dropped connection or a
+mistake in our own code as a defective policy. It now keeps only the failure it was written for, a
+reader refusing a value the policy has stored, and rethrows a postgres error (one carrying a `code`
+or an `errno`), `TypeError`, `RangeError`, `ReferenceError` and anything thrown that is not an
+`Error`. What the reader said is carried with the policy number and printed, so the sentence names
+the refused figure.
+
+**F-B13-19, the script's environment.** Its header said `DATABASE_URL_TEST_APP` and its import
+graph needs the whole `.env.local`, because `lib/stripe.ts` refuses to load without
+`STRIPE_SECRET_KEY`. The header says so now. Nothing here calls Stripe.
+
+**F-B13-20, a column of dates in uuid order.** `distinct on (request_event_id)` forces an order by
+uuid and that order reached the "Paid" column. The distinct-on is wrapped and the outer select
+orders by `paid_at`. Measured on `corgi_test`: 35 rows, oldest first, from 2026-09-08T13:31:57Z.
 
 ## What is not done here
 
-- `components/what-needs-you.tsx` was not touched: another builder owns it this morning. The
-  two-line change that points its items at `/inbox` is in the report to the coordinator.
 - `app/policies/[policyId]/page.tsx` and `app/ops/claims/[claimId]/page.tsx` were not touched.
 - No migration, no new table, no write of any kind: every line added here reads.
+- `refusedValueOrRethrow` (F-B13-18) has no unit test of its own: it lives in `lib/inbox/read.ts`,
+  which opens the database pool on import, so a test would need the environment. It is exercised on
+  `corgi_test` by the SKIP lines of the count check, which are exactly its refused-value branch.
