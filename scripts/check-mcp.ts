@@ -449,9 +449,12 @@ async function main() {
       ? `revision ${String(ownStatement.value.revision)}, net due ${cents((ownStatement.value.totals as { netDue: unknown }).netDue)}, hash ${String(ownStatement.value.contentHash).slice(0, 12)}...`
       : ownStatement.refusal,
   );
+  // F-PP-05: the expected format version is the application's own constant, never a pinned
+  // number, so a version bump cannot leave this assertion behind again.
+  const { CANONICAL_STATEMENT_VERSION } = await import("@/lib/statements/compute");
   report(
     "it carries the format version and the lines it published",
-    ownStatement.ok && ownStatement.value.formatVersion === 2 && (ownStatement.value.lines as unknown[]).length >= 2,
+    ownStatement.ok && ownStatement.value.formatVersion === CANONICAL_STATEMENT_VERSION && (ownStatement.value.lines as unknown[]).length >= 2,
     ownStatement.ok ? `format v${String(ownStatement.value.formatVersion)}, ${(ownStatement.value.lines as unknown[]).length} lines` : ownStatement.refusal,
   );
 
