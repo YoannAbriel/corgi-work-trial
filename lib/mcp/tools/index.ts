@@ -1,19 +1,24 @@
 import { getBrokerStatement } from "./broker-statement";
 import { requestClaimPaymentTool } from "./claim-payment";
+import { explainAmount } from "./explain-amount";
+import { listMyActivity } from "./my-activity";
 import { getPolicyAsOf } from "./policy-as-of";
 import { listReconciliationBreaks } from "./reconciliation-breaks";
 import { runReconciliationTool } from "./run-reconciliation";
 import type { McpTool } from "./tool";
 
-// The whole surface, in one list. Reading order: three tools that only read, one that runs the
+// The whole surface, in one list. Reading order: five tools that only read, one that runs the
 // comparison job (which moves no money), and one that can only ask a human for permission.
 //
 // The brief asks for at least three read tools and one write tool that creates a request in the
-// human approval queue rather than moving money. That is exactly what is here, and nothing else
-// is: lib/never-delegated.ts says what is deliberately absent and why.
+// human approval queue rather than moving money. There are five read tools and still exactly one
+// write tool: explain_amount and list_my_activity, added last, read and nothing else, and
+// lib/mcp/never-delegated.ts says what is deliberately absent and why.
 export const MCP_TOOLS: McpTool[] = [
   getPolicyAsOf,
   getBrokerStatement,
+  explainAmount,
+  listMyActivity,
   listReconciliationBreaks,
   runReconciliationTool,
   requestClaimPaymentTool,
