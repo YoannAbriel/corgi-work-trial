@@ -2,6 +2,7 @@ import "@/app/styles/policy-detail.css";
 import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { formatSignedCentsAsUsd, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { Stat, Stats } from "@/components/ui/stat";
@@ -92,6 +93,30 @@ export default async function EndorsePolicyPage({
         ? `The customer is refunded ${formatCentsAsUsd(-figures.deltaTotalCents)} through Stripe, at once`
         : "No money moves";
 
+  // What confirming does, as one sentence per direction, so the figures and the words inside can
+  // be emphasised (components/emphasis.tsx). Every piece was already printed on this screen, in
+  // this order and with this spacing.
+  //
+  // THE VERDICT IS NEVER PRINTED WITHOUT THE RUNNING TOTAL BEHIND IT: this policy's additional
+  // premium over the term, before tax, applied endorsements and open requests together (decision
+  // 24). The sentence used to say the policy "has" that premium "since issuance"; both words were
+  // wrong (review finding F-INT-23). The figure is scoped to the CURRENT TERM, and it INCLUDES the
+  // quote on this page, which nobody has requested yet, so it is what the policy WOULD carry.
+  const whatConfirmingDoes =
+    figures.direction === "charge"
+      ? "The request is recorded as a policy event carrying these figures and their hash. " +
+        (figures.customerApprovalRequired
+          ? `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: the customer approves before the delta can be paid.`
+          : `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, at or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: no approval is needed and the delta can be paid straight away.`) +
+        " The endorsement takes effect only when Stripe confirms the delta was paid; until then the policy terms are unchanged."
+      : figures.direction === "refund"
+        ? "The endorsement is applied in one transaction with the refund request and its journal entries. " +
+          (plan.refundNeedsApproval
+            ? `This refund is above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it waits in the approval queue: a second person, never you, has to approve it before anything is sent to Stripe.`
+            : `At or below ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} no second approver is needed, so Stripe is asked to refund the original payment straight away.`) +
+          " The refund counts as completed only when Stripe's webhook says the money left."
+        : "The endorsement is applied at once: no money moves and no journal entry is posted.";
+
   return (
     <PortalShell
       user={user}
@@ -144,7 +169,9 @@ export default async function EndorsePolicyPage({
 
           <section className="card">
             <h2>Impact, line by line</h2>
-            <p className="pd-note">{direction}.</p>
+            <p className="pd-note">
+              <Emphasis>{`${direction}.`}</Emphasis>
+            </p>
             {/* The prorated lines and the total are what moves; the annual difference above them
                 is the yearly rate the proration is read against, so it steps back. The commission
                 line stays in the ordinary ink: it is the broker's money, not the customer's. */}
@@ -155,41 +182,21 @@ export default async function EndorsePolicyPage({
             />
             {figures.taxRefundWasCappedAtCharged ? (
               <p className="pd-note">
-                The tax refund is capped at the premium tax still held on this policy: rounding it up would otherwise
-                give back a cent that was never collected.
+                <Emphasis>
+                  {"The tax refund is capped at the premium tax still held on this policy: rounding it up would otherwise give back a cent that was never collected."}
+                </Emphasis>
               </p>
             ) : null}
           </section>
         </div>
 
         <section className="card pd-form-card">
+          {/* The three sentences are built above as one string each, so the figures and the words
+              inside them can be emphasised (Yoann, 2026-09-09 22:10). Same words, same order. */}
           <h2>Confirm</h2>
-          {figures.direction === "charge" ? (
-            <p className="pd-note">
-              The request is recorded as a policy event carrying these figures and their hash.{" "}
-              {/* The verdict is never printed without the running total behind it: this policy's
-                  additional premium over the term, before tax, applied endorsements and open
-                  requests together (decision 24). The sentence used to say the policy "has" that
-                  premium "since issuance"; both words were wrong (review finding F-INT-23). The
-                  figure is scoped to the CURRENT TERM, and it INCLUDES the quote on this page,
-                  which nobody has requested yet, so it is what the policy WOULD carry. */}
-              {figures.customerApprovalRequired
-                ? `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: the customer approves before the delta can be paid.`
-                : `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, at or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: no approval is needed and the delta can be paid straight away.`}{" "}
-              The endorsement takes effect only when Stripe confirms the delta was paid; until then the policy terms are
-              unchanged.
-            </p>
-          ) : figures.direction === "refund" ? (
-            <p className="pd-note">
-              The endorsement is applied in one transaction with the refund request and its journal entries.{" "}
-              {plan.refundNeedsApproval
-                ? `This refund is above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it waits in the approval queue: a second person, never you, has to approve it before anything is sent to Stripe.`
-                : `At or below ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} no second approver is needed, so Stripe is asked to refund the original payment straight away.`}{" "}
-              The refund counts as completed only when Stripe&apos;s webhook says the money left.
-            </p>
-          ) : (
-            <p className="pd-note">The endorsement is applied at once: no money moves and no journal entry is posted.</p>
-          )}
+          <p className="pd-note">
+            <Emphasis>{whatConfirmingDoes}</Emphasis>
+          </p>
 
           <form method="post" action={`/api/policies/${policyId}/endorsements`} className="card">
             <input type="hidden" name="effectiveAt" value={figures.effectiveAt} />

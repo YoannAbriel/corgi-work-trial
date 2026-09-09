@@ -1,4 +1,5 @@
 import { AmountExplainedMotion } from "@/components/amount-explained-motion";
+import { Emphasis } from "@/components/emphasis";
 import { FormulaLinesTable } from "@/components/formula-lines";
 import { journalEntryElementId } from "@/components/journal-table";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -84,10 +85,9 @@ export function AmountExplained({
               6). What is left in the first step of the reveal is what qualifies the figure. */}
           {agrees ? null : (
             <p className="error" role="alert">
-              This explanation does not end on the figure above it ({formatCentsAsUsd(amountCents)}
-              {resultLine ? ` against ${formatCentsAsUsd(resultLine.cents)}` : ", and it carries no result line"}). The
-              figure is what the ledger holds; do not read the arithmetic below as an explanation of it until this is
-              resolved.
+              <Emphasis>
+                {`This explanation does not end on the figure above it (${formatCentsAsUsd(amountCents)}${resultLine ? ` against ${formatCentsAsUsd(resultLine.cents)}` : ", and it carries no result line"}). The figure is what the ledger holds; do not read the arithmetic below as an explanation of it until this is resolved.`}
+              </Emphasis>
             </p>
           )}
           {/* THE SECOND HALF OF THE CHECK, for a fold that replays stored figures rather than
@@ -96,28 +96,34 @@ export function AmountExplained({
           {explanation.recheck ? (
             explanation.recheck.notComputable !== null ? (
               <p className="error" role="alert">
-                These figures could not be priced again from the inputs stored with them:{" "}
-                {explanation.recheck.notComputable}. The figure above is what the ledger holds; nothing here confirms it.
+                <Emphasis>
+                  {`These figures could not be priced again from the inputs stored with them: ${explanation.recheck.notComputable}. The figure above is what the ledger holds; nothing here confirms it.`}
+                </Emphasis>
               </p>
             ) : explanation.recheck.agrees ? (
-              <p className="note">Recomputed today from the same inputs: identical.</p>
+              <p className="note">
+                <Emphasis>{"Recomputed today from the same inputs: identical."}</Emphasis>
+              </p>
             ) : (
               <p className="error" role="alert">
-                Recomputed today from the same inputs, and it does not agree on{" "}
-                {explanation.recheck.disagreements
-                  .map(
-                    (disagreement) =>
-                      `${disagreement.figure} (${formatCentsAsUsd(disagreement.storedCents)} stored, ${formatCentsAsUsd(
-                        disagreement.recomputedCents,
-                      )} recomputed)`,
-                  )
-                  .join(", ")}
-                . The figure above is what the ledger holds; do not read the arithmetic below as an explanation of it
-                until this is resolved.
+                <Emphasis>
+                  {`Recomputed today from the same inputs, and it does not agree on ${explanation.recheck.disagreements
+                    .map(
+                      (disagreement) =>
+                        `${disagreement.figure} (${formatCentsAsUsd(disagreement.storedCents)} stored, ${formatCentsAsUsd(
+                          disagreement.recomputedCents,
+                        )} recomputed)`,
+                    )
+                    .join(", ")}. The figure above is what the ledger holds; do not read the arithmetic below as an explanation of it until this is resolved.`}
+                </Emphasis>
               </p>
             )
           ) : null}
-          {explanation.note ? <p className="note">{explanation.note}</p> : null}
+          {explanation.note ? (
+            <p className="note">
+              <Emphasis>{explanation.note}</Emphasis>
+            </p>
+          ) : null}
         </>
       }
       formula={
@@ -130,16 +136,21 @@ export function AmountExplained({
       }
       rounding={
         <p className="amount-explain-rounding">
+          {/* The badge stays plain: it is a chip. The rule beside it is a sentence. */}
           <span className="rounding-badge">Rounding</span>{" "}
-          {explanation.rounding ?? "nothing is rounded here: this figure is a sum of whole cents."}
+          <Emphasis>{explanation.rounding ?? "nothing is rounded here: this figure is a sum of whole cents."}</Emphasis>
         </p>
       }
       evidence={
         explanation.evidence && explanation.evidence.length > 0 ? (
           <>
             <p className="note">
-              <b>{explanation.evidenceLabel ?? "Proved by these journal entries."}</b> The effective date is the
-              business date the entry belongs to; the recorded time is when the database wrote it.
+              {/* The lead keeps its own <b>: it names the evidence. Only the sentence after it is
+                  emphasised. */}
+              <b>{explanation.evidenceLabel ?? "Proved by these journal entries."}</b>{" "}
+              <Emphasis>
+                {"The effective date is the business date the entry belongs to; the recorded time is when the database wrote it."}
+              </Emphasis>
             </p>
             <div className="table-scroll" role="region" aria-label="Journal entries behind this amount" tabIndex={0}>
               <table className="formula">

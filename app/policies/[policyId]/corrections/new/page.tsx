@@ -2,6 +2,7 @@ import "@/app/styles/policy-detail.css";
 import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { formatSignedCentsAsUsd, formatSignedDays, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
@@ -101,6 +102,17 @@ export default async function CorrectEndorsementDatePage({
   }
 
   const { money } = plan;
+  // What confirming writes, as one sentence, so the figures and the words inside it can be
+  // emphasised (components/emphasis.tsx). Every piece was already on this page in this order.
+  const whatConfirmingWrites =
+    "In one transaction: a dated correction event superseding the endorsement that was wrong, one reversal entry " +
+    `per line beside, the endorsement re-booked on ${money.correctedEffectiveAt} with fresh premium and tax ` +
+    "entries, and the difference opened as a money operation. Nothing is deleted and nothing is updated." +
+    (money.settlement === "collect"
+      ? ` The ${formatCentsAsUsd(money.differenceTotalCents)} difference is then collected through a hosted Stripe page.`
+      : money.settlement === "refund"
+        ? ` The ${formatCentsAsUsd(-money.differenceTotalCents)} goes back through the Stripe Refunds API on the original payment.`
+        : "");
   const direction =
     money.settlement === "collect"
       ? `The customer owes ${formatCentsAsUsd(money.differenceTotalCents)} more, collected through Stripe`
@@ -162,7 +174,9 @@ export default async function CorrectEndorsementDatePage({
 
           <section className="card">
             <h2>Impact, line by line</h2>
-            <p className="pd-note">{direction}.</p>
+            <p className="pd-note">
+              <Emphasis>{`${direction}.`}</Emphasis>
+            </p>
             {/* The three differences carry the direction; the two lines they are read against step
                 back into the secondary ink. The broker commission line is neither: it is the
                 broker's money, not the customer's, so it stays in the ordinary ink rather than
@@ -246,21 +260,25 @@ export default async function CorrectEndorsementDatePage({
 
         <section className="card pd-form-card">
           <h2>Confirm</h2>
+          {/* The sentence is now built as one string so <Emphasis> can bold the figures and the
+              words inside it (Yoann, 2026-09-09 22:10). Same words, same order, same spacing as
+              the JSX that held it: only the markup around the pieces is new. */}
           <p className="pd-note">
-            In one transaction: a dated correction event superseding the endorsement that was wrong, one reversal entry
-            per line beside, the endorsement re-booked on {money.correctedEffectiveAt} with fresh premium and tax
-            entries, and the difference opened as a money operation. Nothing is deleted and nothing is updated.
-            {money.settlement === "collect"
-              ? ` The ${formatCentsAsUsd(money.differenceTotalCents)} difference is then collected through a hosted Stripe page.`
-              : money.settlement === "refund"
-                ? ` The ${formatCentsAsUsd(-money.differenceTotalCents)} goes back through the Stripe Refunds API on the original payment.`
-                : ""}
+            <Emphasis>{whatConfirmingWrites}</Emphasis>
           </p>
           {/* The verdict on each threshold, always with the total it was read against: both are
               cumulative over the policy, so the amount of this correction alone does not answer
               them (review finding F-B8-02). */}
-          {plan.approvalSentences.customer ? <p className="pd-note">Customer approval: {plan.approvalSentences.customer}.</p> : null}
-          {plan.approvalSentences.refund ? <p className="pd-note">Second approver: {plan.approvalSentences.refund}.</p> : null}
+          {plan.approvalSentences.customer ? (
+            <p className="pd-note">
+              <Emphasis>{`Customer approval: ${plan.approvalSentences.customer}.`}</Emphasis>
+            </p>
+          ) : null}
+          {plan.approvalSentences.refund ? (
+            <p className="pd-note">
+              <Emphasis>{`Second approver: ${plan.approvalSentences.refund}.`}</Emphasis>
+            </p>
+          ) : null}
 
           <form method="post" action={`/api/policies/${policyId}/corrections`} className="card">
             <input type="hidden" name="endorsedEventId" value={plan.correctedEventId} />

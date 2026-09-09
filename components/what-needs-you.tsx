@@ -1,6 +1,7 @@
 import "@/app/styles/lists.css";
 import Link from "next/link";
 import { ArrowRight, BellRing } from "lucide-react";
+import { Emphasis } from "@/components/emphasis";
 import type { WorkspaceTask } from "@/lib/inbox/tasks";
 
 // The "what needs you" block at the top of each role's workspace home: the work waiting for the
@@ -65,7 +66,11 @@ export function WhatNeedsYou({
               <span className="count-chip">1</span>
               <span>
                 <strong>{blocking.label}</strong>
-                <span title={blocking.detail}>{blocking.detail}</span>
+                {/* The title keeps the plain sentence for the tooltip and for a text search; only
+                    what is drawn carries the emphasis (Yoann, 2026-09-09 22:10). */}
+                <span title={blocking.detail}>
+                  <Emphasis>{blocking.detail}</Emphasis>
+                </span>
               </span>
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
@@ -85,7 +90,9 @@ export function WhatNeedsYou({
                 <strong>{task.label}</strong>
                 {/* One line, cut with an ellipsis: the whole sentence stays in the title and in
                     the inbox section this row links to. */}
-                <span title={task.detail}>{task.detail}</span>
+                <span title={task.detail}>
+                  <Emphasis>{task.detail}</Emphasis>
+                </span>
               </span>
               <ArrowRight size={16} aria-hidden="true" />
             </Link>

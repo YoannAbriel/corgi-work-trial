@@ -1,6 +1,7 @@
 import "@/app/styles/money.css";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { FailureLine } from "@/components/console-parts";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
@@ -278,9 +279,9 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
           {query.ran ? <p className="note">Run finished: {firstValue(query.ran)}</p> : null}
           {query.explained ? (
             <p className="note">
-              Break {firstValue(query.explained)} is explained. It is no longer counted as a break to act on and it has
-              left the operations inbox. Nothing was repaired: it is listed below with your note, and every later run
-              compares it again exactly as before.
+              <Emphasis>
+                {`Break ${firstValue(query.explained)} is explained. It is no longer counted as a break to act on and it has left the operations inbox. Nothing was repaired: it is listed below with your note, and every later run compares it again exactly as before.`}
+              </Emphasis>
             </p>
           ) : null}
           {/* A failed latest run is called out above everything else: it found nothing because it
@@ -385,8 +386,9 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
                     draw is the number that matters (review findings F-B10-07 and F-LS-01). */}
                 {openPage.capped ? (
                   <p className="note money-cap">
-                    Showing the {openPage.rows.length} oldest of {openPage.totalOpen} breaks to act on. The rest are on
-                    file and counted; nothing was dropped.
+                    <Emphasis>
+                      {`Showing the ${openPage.rows.length} oldest of ${openPage.totalOpen} breaks to act on. The rest are on file and counted; nothing was dropped.`}
+                    </Emphasis>
                   </p>
                 ) : null}
                 <MoreRows
@@ -407,8 +409,9 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
           <ProbeTable rows={probes.rows} now={now} query={query} inspected={inspected} />
           {probes.capped ? (
             <p className="note money-explainer">
-              Showing the {probes.rows.length} oldest of {probes.totalProbes} probe payments. The rest are on file and
-              counted; nothing was dropped.
+              <Emphasis>
+                {`Showing the ${probes.rows.length} oldest of ${probes.totalProbes} probe payments. The rest are on file and counted; nothing was dropped.`}
+              </Emphasis>
             </p>
           ) : null}
           {/* One line, because About says the rest: a paragraph of seven lines sat between two
@@ -423,8 +426,9 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
           <ExplainedTable rows={explained.rows} now={now} query={query} inspected={inspected} />
           {explained.capped ? (
             <p className="note money-explainer">
-              Showing {explained.rows.length} of {explained.totalExplained} explained breaks, most recently explained
-              first. The rest are on file and counted; nothing was dropped.
+              <Emphasis>
+                {`Showing ${explained.rows.length} of ${explained.totalExplained} explained breaks, most recently explained first. The rest are on file and counted; nothing was dropped.`}
+              </Emphasis>
             </p>
           ) : null}
         </>
@@ -545,7 +549,7 @@ export default async function ReconciliationPage({ searchParams }: { searchParam
               <SubmitButton className="secondary">Reconcile both sources</SubmitButton>
             </form>
             <p className="note">
-              Both sources, one after the other. The window defaults to {DEFAULT_WINDOW_DAYS} days.
+              <Emphasis>{`Both sources, one after the other. The window defaults to ${DEFAULT_WINDOW_DAYS} days.`}</Emphasis>
             </p>
           </div>
           </div>

@@ -3,6 +3,7 @@ import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
 import { Disclosure } from "@/components/disclosures";
+import { Emphasis } from "@/components/emphasis";
 import { formatSignedCentsAsUsd, formatSignedDays, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
@@ -141,9 +142,9 @@ export default async function ApproveCorrectionPage({
         <section className="card pd-form-card">
           <h2>Your approval</h2>
           <p className="pd-note">
-            Why it is needed: {correction.approvalSentences.customer ?? "the difference is above the approval threshold"}
-            . Approving records your acceptance; your broker then opens the Stripe payment page. Nothing is charged by
-            this button.
+            <Emphasis>
+              {`Why it is needed: ${correction.approvalSentences.customer ?? "the difference is above the approval threshold"}. Approving records your acceptance; your broker then opens the Stripe payment page. Nothing is charged by this button.`}
+            </Emphasis>
           </p>
           {correction.collection.customerApprovedAt ? (
             <p className="badge badge-ok">
