@@ -208,6 +208,70 @@ export async function brokersForStatements(database: postgres.Sql): Promise<Brok
 }
 
 // ---------------------------------------------------------------------------
+// What the inbox shows: the statements the monthly job produced
+// ---------------------------------------------------------------------------
+
+// How many of them the inbox lists. The inbox promises that a count is the LENGTH of the list it
+// opens (scripts/check-inbox-counts.ts), so the count is taken from this same list and never from
+// a separate count(*): a badge saying 516 over a panel showing 25 would be the exact disagreement
+// that check exists to catch. The whole list lives on /ops/statements.
+export const MOST_STATEMENTS_IN_THE_INBOX = 25;
+
+export type StatementProducedByTheJob = {
+  runId: string;
+  brokerId: string;
+  brokerName: string;
+  statementMonth: string; // "YYYY-MM"
+  netDueCents: number;
+  createdAt: Date;
+};
+
+// The statements the monthly close produced this calendar month (lib/statements/monthly-job.ts),
+// newest first. `brokerId` narrows it to one broker, which is how a broker's own inbox is limited
+// to their own statements: the id comes from the session, never from a URL.
+//
+// TWO CONDITIONS SAY "THE JOB PRODUCED THIS ONE", and they are the two the job itself works with:
+//
+//   run_by is null            nobody signed for it. Every human path passes the signed-in staff
+//                             member (app/api/statements/run/route.ts), so a run with no author
+//                             was produced by a job;
+//   cutoff at or after the    it read a month that was already over, which is the definitive
+//   end of its month          statement the job publishes and never a provisional one somebody
+//                             ran during the month.
+//
+// "This calendar month" is measured in UTC, spelled out rather than left to the session's time
+// zone, because the job itself decides its day in UTC.
+export async function statementsProducedByTheJob(
+  database: postgres.Sql,
+  options: { brokerId?: string } = {},
+): Promise<StatementProducedByTheJob[]> {
+  const rows = await database<
+    { id: string; broker_id: string; broker_name: string; statement_month: Date; net_due_cents: string; created_at: Date }[]
+  >`
+    select run.id, run.broker_id, broker.name as broker_name, run.statement_month,
+           run.net_due_cents::text, run.created_at
+      from statement_runs run
+      join brokers broker on broker.id = run.broker_id
+     where run.run_by is null
+       and run.knowledge_cutoff >= (run.statement_month + interval '1 month') at time zone 'UTC'
+       and run.created_at >= date_trunc('month', (now() at time zone 'UTC')) at time zone 'UTC'
+       -- No broker asked for means every broker: the condition then compares the column with
+       -- itself, which is true for every row.
+       and run.broker_id = coalesce(${options.brokerId ?? null}::uuid, run.broker_id)
+     order by run.created_at desc
+     limit ${MOST_STATEMENTS_IN_THE_INBOX}
+  `;
+  return rows.map((row) => ({
+    runId: row.id,
+    brokerId: row.broker_id,
+    brokerName: row.broker_name,
+    statementMonth: monthOfFirstDay(row.statement_month.toISOString().slice(0, 10)),
+    netDueCents: centsFromDatabase(row.net_due_cents, "net_due_cents"),
+    createdAt: row.created_at,
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Row shapes, and the conversions out of them
 // ---------------------------------------------------------------------------
 

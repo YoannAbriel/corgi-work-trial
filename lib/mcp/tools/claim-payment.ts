@@ -72,6 +72,7 @@ export const requestClaimPaymentTool: McpTool = {
             channel: "mcp",
             principalKind: context.principal.principalKind,
             keyPrefix: context.principal.keyPrefix,
+            keyId: context.principal.keyId,
           },
         },
         context.database,

@@ -1,5 +1,5 @@
 import {
-  customerApprovalNeeded,
+  endorsementNeedsCustomerApproval,
   MONEY_OUT_APPROVAL_THRESHOLD_CENTS,
   refundNeedsApproval,
 } from "@/lib/approvals/threshold";
@@ -42,19 +42,24 @@ import { commissionCents } from "./premium";
 export type CorrectionSettlement = "collect" | "refund" | "none";
 
 // What the two approval thresholds are read AGAINST. Neither is a question about this correction
-// alone (review findings F-B8-02, and F-B4-04 and F-B4-09 before it, which decided the rule for
-// endorsements): three differences of $600 given back on one policy are $1,800 out of the door,
-// and two raises of $400 collect $800 from a customer who was never asked. The caller reads these
-// totals from the policy at the moment the gate is applied (lib/policy/correct-endorsement-date.ts)
-// and passes them in, so this file stays pure and the rule stays in one place.
+// alone (review findings F-B8-02 and F-B8-04, and F-B4-04 and F-B4-09 before them, which decided
+// the rule for endorsements): three differences of $600 given back on one policy are $1,800 out of
+// the door, and an endorsement of $400 followed by a correction difference of $200 collects $600
+// from a customer who was never asked. The caller reads these totals from the policy at the moment
+// the gate is applied (lib/policy/correct-endorsement-date.ts) and passes them in, so this file
+// stays pure and the rule stays in one place.
 export type CorrectionThresholdTotals = {
   // Refunds this policy has already sent, and refunds on their way (lib/payments/refunds.ts,
   // policyRefundTotals). A refund that FAILED gave the money back to us and counts for nothing.
   policyRefundedCents: number;
   policyPendingRefundCents: number;
-  // Money on this policy that is still waiting for this customer to say yes, this correction
-  // excluded: endorsement quotes they have not approved, and other correction differences.
-  customerUnapprovedRequestedCents: number;
+  // The running total the $500 customer threshold is read against, BEFORE this correction's own
+  // difference: the additional premium (before tax) of this term's endorsements, the applied ones
+  // and the open requests together (decision 24, additionalPremiumOfTheTerm in
+  // lib/policy/endorsement-requests.ts). It is the SAME base an endorsement is judged on, which
+  // is the whole point: a correction re-prices an endorsement, so its difference belongs to that
+  // same total rather than to a base of its own.
+  additionalPremiumOfTheTermCents: number;
 };
 
 export type EndorsementDateCorrection = {
@@ -73,8 +78,9 @@ export type EndorsementDateCorrection = {
   // the insurer absorbs the fraction (DECISIONS.md, clawback rounded down).
   differenceCommissionCents: number;
   settlement: CorrectionSettlement;
-  // The customer has to approve paying a difference above $500, counting anything else on this
-  // policy still waiting for them, exactly as for an endorsement (lib/money/endorsement.ts).
+  // The customer has to approve when this difference takes the term's additional premium above
+  // $500, counting the endorsements already in force and the quotes still open, exactly as for an
+  // endorsement and through the same function (decision 24).
   customerApprovalRequired: boolean;
   // A difference given back waits for a distinct human approver when it takes what this policy
   // has given back past $1,000, exactly as every other money-out (lib/approvals/threshold.ts).
@@ -125,13 +131,15 @@ export function correctEndorsementDateMoney(
     differenceTotalCents,
     differenceCommissionCents,
     settlement,
-    customerApprovalRequired:
-      settlement === "collect" &&
-      customerApprovalNeeded({
-        amountCents: differenceTotalCents,
-        unapprovedRequestedCents: totals.customerUnapprovedRequestedCents,
-        thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
-      }),
+    // The same predicate the endorsement path uses, on the same running total. No settlement test
+    // in front of it: a difference that lowers the premium is a negative number, and the predicate
+    // already answers false on one. The base is the PREMIUM difference, never the total: the tax
+    // follows the premium and never decides the question (decision 24).
+    customerApprovalRequired: endorsementNeedsCustomerApproval({
+      additionalPremiumSoFarCents: totals.additionalPremiumOfTheTermCents,
+      additionalPremiumCents: differencePremiumCents,
+      thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
+    }),
     refundNeedsApproval:
       settlement === "refund" &&
       refundNeedsApproval({
@@ -155,12 +163,14 @@ export function correctionApprovalSentences(correction: EndorsementDateCorrectio
   const { totals } = correction;
   if (correction.settlement === "collect") {
     const amount = formatCentsAsUsd(correction.differenceTotalCents);
-    const waiting = formatCentsAsUsd(totals.customerUnapprovedRequestedCents);
+    // The running total WITH this difference in it, which is the figure the verdict compares, and
+    // the same sentence shape the endorsement preview prints (app/policies/[policyId]/endorse).
+    const runningTotal = formatCentsAsUsd(totals.additionalPremiumOfTheTermCents + correction.differencePremiumCents);
     const threshold = formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS);
     return {
       customer: correction.customerApprovalRequired
-        ? `${amount} to collect, counting the ${waiting} still waiting for this customer on this policy, is above ${threshold}, so the customer has to approve it`
-        : `${amount} to collect, counting the ${waiting} already waiting for this customer, is at or below ${threshold}, so no customer approval is needed`,
+        ? `${amount} to collect: with this difference, this policy carries ${runningTotal} of additional premium in this term, above ${threshold}, so the customer has to approve it before it is collected`
+        : `${amount} to collect: with this difference, this policy carries ${runningTotal} of additional premium in this term, at or below ${threshold}, so no customer approval is needed`,
       refund: null,
     };
   }

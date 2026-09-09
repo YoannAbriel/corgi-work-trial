@@ -82,25 +82,7 @@ export function refundNeedsApproval(input: RefundApprovalInput): boolean {
   return policyTotalAfterThisRefund > MONEY_OUT_APPROVAL_THRESHOLD_CENTS;
 }
 
-// The correction path keeps its own base: a re-booked difference is not an endorsement, and it
-// counts the money still waiting for the customer on the policy (lib/money/correction.ts, review
-// finding F-B8-02). The endorsement rule below is the one decision 24 changed.
-export type CustomerApprovalInput = {
-  amountCents: number; // the difference to collect
-  unapprovedRequestedCents: number; // asked for on this policy and not answered, this one excluded
-  thresholdCents: number;
-};
-
-export function customerApprovalNeeded(input: CustomerApprovalInput): boolean {
-  for (const [name, value] of Object.entries(input)) {
-    if (!Number.isSafeInteger(value) || value < 0) {
-      throw new Error(`${name} must be a whole number of cents, zero or more, got ${value}`);
-    }
-  }
-  return input.amountCents + input.unapprovedRequestedCents > input.thresholdCents;
-}
-
-// THE CUSTOMER-APPROVAL THRESHOLD ON ENDORSEMENTS IS PER POLICY AND CUMULATIVE (decision 24 of
+// THE CUSTOMER-APPROVAL THRESHOLD IS PER POLICY AND CUMULATIVE (decision 24 of
 // DECISIONS.md, 2026-09-09, the same shape as the claims rule above; it widens the base of review
 // finding F-B4-09 and closes F-INT-12).
 //
@@ -120,9 +102,17 @@ export function customerApprovalNeeded(input: CustomerApprovalInput): boolean {
 // A reduction never counts and never needs approval (rule 8 is unchanged): the customer is being
 // given money back, not asked for any.
 //
-// ONE function decides it, for the preview, for the request being recorded and for the payment
-// gate, so the three cannot disagree (F-INT-12). The running total it reads comes from one place
-// too: additionalPremiumOfTheTerm in lib/policy/endorsement-requests.ts. The threshold itself
+// A CORRECTION DIFFERENCE IS JUDGED BY THIS SAME FUNCTION AND THIS SAME RUNNING TOTAL. Correcting
+// the effective date of an endorsement re-prices that endorsement: the premium difference it
+// creates is additional premium of the same term, so it moves the same total and is read against
+// the same $500 (review findings F-B8-02 and F-B8-04, which had the correction path counting a
+// base of its own). An endorsement of $400 followed by a correction difference of $200 collects
+// $600 from a customer nobody ever asked, unless the two are counted together. A correction that
+// lowers the premium gives money back and asks for nothing, like a reduction.
+//
+// ONE function decides it, for the preview, for the request being recorded, for the payment gate
+// and for a correction difference, so none of them can disagree (F-INT-12). The running total it
+// reads comes from one place too: additionalPremiumOfTheTerm in lib/policy/endorsement-requests.ts. The threshold itself
 // lives in lib/money/endorsement.ts, next to the function that prices an endorsement, so this
 // file takes it as an argument rather than importing it back.
 export type EndorsementCustomerApprovalInput = {

@@ -19,7 +19,10 @@ import postgres from "postgres";
 //      delta was refunded, outside the term, before the issuance, by anyone who is not staff
 //      operations, and while an earlier difference is unsettled;
 //   8. a cancellation recorded after a correction gives back the CORRECTED premium segment;
-//   9. the whole ledger still balances.
+//   9. the customer-approval threshold is read over the TERM, not over one change at a time
+//      (decision 24): an endorsement under $500 whose correction difference takes the term above
+//      it waits for the customer before the difference can be collected;
+//  10. the whole ledger still balances.
 //
 // It runs the production functions with the restricted runtime role and calls NO provider: every
 // payment is simulated by calling the webhook-side functions directly with the payloads Stripe
@@ -53,6 +56,10 @@ const TERM_START = "2028-03-01";
 const TERM_END = "2029-03-01";
 const DAY_100 = "2028-06-09";
 const DAY_130 = "2028-07-09";
+// Day 60 of the term, 305 days remaining: an endorsement moved back to this date is re-priced at
+// floor(60000 x 305 / 365) = 50136 of premium, which is what takes the term above $500 (decision
+// 24, section 4b below).
+const CROSSING_DATE = "2028-04-30";
 const RAISED_ANNUAL_PREMIUM_CENTS = 180000;
 const PER_OCCURRENCE = 100000000;
 const AGGREGATE = 200000000;
@@ -88,9 +95,13 @@ async function main() {
     premiumReceivableBalance,
     CorrectionRefused,
   } = await import("@/lib/policy/correct-endorsement-date");
-  const { recordSuccessfulCorrectionPayment, recordExpiredCorrectionCheckout } = await import(
-    "@/lib/payments/correction-collection"
-  );
+  const {
+    approveCorrectionCollection,
+    CorrectionCheckoutRefused,
+    recordSuccessfulCorrectionPayment,
+    recordExpiredCorrectionCheckout,
+    startCorrectionCheckout,
+  } = await import("@/lib/payments/correction-collection");
   const { foldPolicyEvents } = await import("@/lib/policy/current");
   const { policyAsItStoodOn, correctionsOfPolicy, policyTimeline } = await import("@/lib/policy/correction-read");
   const { reverseJournalEntry } = await import("@/lib/ledger/reverse");
@@ -100,6 +111,21 @@ async function main() {
     console.error(`refusing to run: connected to "${databaseName}", expected the disposable database "corgi_test"`);
     process.exit(1);
   }
+
+  // The same shape as `refusal` below, for the refusals the collection path raises: the customer
+  // gate and the role checks of lib/payments/correction-collection.ts. Both are refusals a screen
+  // prints, never errors, so the check reads the sentence.
+  const checkoutRefusal = async (action: () => Promise<unknown>): Promise<string> => {
+    try {
+      await action();
+      return "no refusal";
+    } catch (error) {
+      if (error instanceof CorrectionCheckoutRefused) {
+        return error.message;
+      }
+      throw error;
+    }
+  };
 
   const refusal = async (action: () => Promise<unknown>): Promise<string> => {
     try {
@@ -598,8 +624,11 @@ async function main() {
     `read back: needs approval ${(await correctionsOfPolicy(cumulative.policyId, runtime))[0]?.money.refundNeedsApproval}`,
   );
 
-  // The customer's side: a raise of 48762 that the customer has not answered, then a correction
-  // that collects 5047. Each is under $500; together they are above it, so the customer decides.
+  // The customer's side, decision 24: a raise of 47643 of premium the customer has not answered
+  // yet, then a correction that adds 4931 more. Neither is above $500 of premium on its own; the
+  // term's additional premium counts them together (38630 applied + 47643 open + 4931), so the
+  // customer decides. This is the same running total an endorsement is judged on, read by
+  // additionalPremiumOfTheTerm.
   const waiting = await endorsedPolicy(DAY_130);
   const waitingBroker: Actor = { userId: waiting.brokerUserId, role: "broker", brokerId: waiting.brokerId, customerId: null };
   const secondRaise = {
@@ -624,16 +653,122 @@ async function main() {
     runtime,
   );
   report(
-    "a difference of 5047 to collect is far under $500 on its own",
-    askedPlan.money.differenceTotalCents === 5047 && askedPlan.money.differenceTotalCents < 50000,
-    `${askedPlan.money.differenceTotalCents} to collect`,
+    "a difference of 4931 of premium is far under $500 on its own",
+    askedPlan.money.differencePremiumCents === 4931 && askedPlan.money.differencePremiumCents < 50000,
+    `${askedPlan.money.differencePremiumCents} of premium, ${askedPlan.money.differenceTotalCents} to collect`,
   );
   report(
-    "and it STILL NEEDS THE CUSTOMER, because 48762 of quotes are already waiting for them",
+    "and it STILL NEEDS THE CUSTOMER: the term already carries 86273 of additional premium",
     askedPlan.money.customerApprovalRequired === true &&
-      askedPlan.money.totals.customerUnapprovedRequestedCents === 48762 &&
-      /still waiting for this customer/.test(askedPlan.approvalSentences.customer ?? ""),
-    `waiting ${askedPlan.money.totals.customerUnapprovedRequestedCents}: ${askedPlan.approvalSentences.customer ?? "no sentence"}`,
+      askedPlan.money.totals.additionalPremiumOfTheTermCents === 38630 + 47643 &&
+      /\$912\.04 of additional premium in this term/.test(askedPlan.approvalSentences.customer ?? ""),
+    `running total ${askedPlan.money.totals.additionalPremiumOfTheTermCents}: ${askedPlan.approvalSentences.customer ?? "no sentence"}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 4b. Decision 24: the endorsement was under $500, the correction difference crosses it
+  // ---------------------------------------------------------------------------
+  //
+  // The endorsement added 38630 of premium and was collected without asking anybody. Moving it
+  // from July 9 back to April 30 re-prices it at 50136, which adds 11506 more: the term's
+  // additional premium becomes 50136, above $500.00, so the customer has to approve BEFORE the
+  // difference is collected. Under the per correction rule this build used to apply, 11506 alone
+  // was under $500 and nobody was ever asked (review finding F-B8-04).
+  const crossing = await endorsedPolicy(DAY_130);
+  const crossingOperator = { userId: crossing.staffUserId, role: "staff_ops" as const };
+  report(
+    "the endorsement itself added 38630 of premium: under $500, collected with no approval",
+    crossing.quote.figures.deltaPremiumCents === 38630 && crossing.quote.figures.customerApprovalRequired === false,
+    `premium ${crossing.quote.figures.deltaPremiumCents}, approval ${crossing.quote.figures.customerApprovalRequired}`,
+  );
+
+  const crossingPlan = await planEndorsementDateCorrection(
+    {
+      policyId: crossing.policyId,
+      correctedEventId: crossing.endorsedEventId,
+      correctedEffectiveAt: CROSSING_DATE,
+      reason: "the endorsement started on April 30, not July 9",
+      actor: crossingOperator,
+    },
+    runtime,
+  );
+  report(
+    "the correction adds 11506 of premium, which is under $500 on its own",
+    crossingPlan.money.differencePremiumCents === 11506 && crossingPlan.money.differenceTotalCents === 11777,
+    `premium ${crossingPlan.money.differencePremiumCents}, total ${crossingPlan.money.differenceTotalCents}`,
+  );
+  report(
+    "but it takes the term's additional premium to 50136, above $500: THE CUSTOMER APPROVES",
+    crossingPlan.money.customerApprovalRequired === true &&
+      crossingPlan.money.totals.additionalPremiumOfTheTermCents === 38630 &&
+      /\$501\.36 of additional premium in this term, above \$500\.00/.test(crossingPlan.approvalSentences.customer ?? ""),
+    `running total ${crossingPlan.money.totals.additionalPremiumOfTheTermCents}: ${crossingPlan.approvalSentences.customer ?? "no sentence"}`,
+  );
+
+  const crossingCorrection = await recordEndorsementDateCorrection(
+    {
+      policyId: crossing.policyId,
+      correctedEventId: crossing.endorsedEventId,
+      correctedEffectiveAt: CROSSING_DATE,
+      reason: "the endorsement started on April 30, not July 9",
+      actor: crossingOperator,
+    },
+    runtime,
+  );
+  const crossingCheckout = {
+    policyId: crossing.policyId,
+    rebookEventId: crossingCorrection.rebookEventId,
+    actor: { userId: crossing.brokerUserId, role: "broker" as const, brokerId: crossing.brokerId },
+  };
+  const refusedBeforeApproval = await checkoutRefusal(() => startCorrectionCheckout(crossingCheckout, runtime));
+  report(
+    "the payment gate refuses to collect the difference before the customer has approved",
+    /the customer has to approve this difference/.test(refusedBeforeApproval) &&
+      (await countOperationEvents(crossingCorrection.collectionOperationId!, "provider_accepted")) === 0,
+    refusedBeforeApproval,
+  );
+
+  const notTheCustomer = await checkoutRefusal(() =>
+    approveCorrectionCollection(
+      {
+        policyId: crossing.policyId,
+        rebookEventId: crossingCorrection.rebookEventId,
+        actor: { userId: crossing.brokerUserId, role: "broker", customerId: null },
+      },
+      runtime,
+    ),
+  );
+  report("only the customer of the policy can approve it, not their broker", /only the customer of this policy/.test(notTheCustomer), notTheCustomer);
+
+  const crossingApproval = await approveCorrectionCollection(
+    {
+      policyId: crossing.policyId,
+      rebookEventId: crossingCorrection.rebookEventId,
+      actor: { userId: crossing.customerUserId, role: "customer", customerId: crossing.customerId },
+    },
+    runtime,
+  );
+  const crossingPaid = await recordSuccessfulCorrectionPayment(
+    {
+      operationId: crossingCorrection.collectionOperationId!,
+      paymentIntentId: `pi_correction_crossing_${crossingCorrection.collectionOperationId!.slice(0, 8)}`,
+      amountReceivedCents: 11777,
+      paidOn: "2028-09-15",
+    },
+    runtime,
+  );
+  report(
+    "once the customer has approved, the same difference is collected and the receivable closes",
+    crossingApproval.alreadyApproved === false &&
+      crossingPaid.kind === "posted" &&
+      (await premiumReceivableBalance(runtime, crossing.policyId)) === 0,
+    `approved ${crossingApproval.approvedEventId}, payment ${crossingPaid.kind}, receivable ${await premiumReceivableBalance(runtime, crossing.policyId)}`,
+  );
+  report(
+    "the verdict and the running total behind it are written on the correction event",
+    (await correctionsOfPolicy(crossing.policyId, runtime))[0]?.money.customerApprovalRequired === true &&
+      (await correctionsOfPolicy(crossing.policyId, runtime))[0]?.money.totals.additionalPremiumOfTheTermCents === 38630,
+    `read back: needs the customer ${(await correctionsOfPolicy(crossing.policyId, runtime))[0]?.money.customerApprovalRequired}`,
   );
 
   // ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ import { issueRefundsAtStripe, policyRefundTotals, refundIntent, type RefundIssu
 import { collectionsStillRefundable, countRefundOperations } from "./cancel";
 import { foldPolicyEvents, refreshPolicyCurrent } from "./current";
 import { expireOpenEndorsementCheckouts } from "./endorse";
-import { endorsementRequestPayload, figuresFromPayload } from "./endorsement-requests";
+import { additionalPremiumOfTheTerm, endorsementRequestPayload, figuresFromPayload } from "./endorsement-requests";
 import { policyWasVoided } from "./status";
 import { policyTermsFromPayload } from "./terms";
 import type { UserRole } from "@/lib/auth/current-user";
@@ -208,15 +208,24 @@ export async function planEndorsementDateCorrection(
     );
   }
 
-  // THE TWO THRESHOLDS ARE READ AGAINST THE POLICY, NOT AGAINST THIS CORRECTION (review finding
-  // F-B8-02, the rule endorsements and cancellations already follow). This is the GATE, so the
-  // totals are read here, now, and passed to the pure function; the screens read them back from
-  // the correction event afterwards rather than asking the question a second time.
+  // THE TWO THRESHOLDS ARE READ AGAINST THE POLICY, NOT AGAINST THIS CORRECTION (review findings
+  // F-B8-02 and F-B8-04, the rule endorsements and cancellations already follow). This is the
+  // GATE, so the totals are read here, now, and passed to the pure function; the screens read them
+  // back from the correction event afterwards rather than asking the question a second time.
   const refundsSoFar = await policyRefundTotals(database, input.policyId);
   const totals: CorrectionThresholdTotals = {
     policyRefundedCents: refundsSoFar.refundedCents,
     policyPendingRefundCents: refundsSoFar.pendingCents,
-    customerUnapprovedRequestedCents: await moneyStillWaitingForTheCustomer(database, input.policyId, null),
+    // The customer threshold is read against the term's additional premium, through the SAME
+    // query the endorsement path uses (decision 24). Nothing is excluded: the endorsement being
+    // corrected is still in force at this moment, so its premium as booked is in this total, and
+    // adding the difference to it gives exactly the total the term will carry once the re-book
+    // has replaced it.
+    additionalPremiumOfTheTermCents: await additionalPremiumOfTheTerm(database, {
+      policyId: input.policyId,
+      termStart: wrongEvent.figures.termStart,
+      exceptRequestEventId: null,
+    }),
   };
 
   let money: EndorsementDateCorrection;
@@ -480,7 +489,12 @@ function rebookPayload(
     // recomputing a threshold with today's totals and contradicting the approval event beside it.
     difference_customer_approval_required: plan.money.customerApprovalRequired,
     difference_refund_needs_approval: plan.money.refundNeedsApproval,
-    customer_unapproved_requested_cents: plan.money.totals.customerUnapprovedRequestedCents,
+    // The running total BEFORE this difference. A NEW key beside the old ones rather than the old
+    // `customer_unapproved_requested_cents` reused: that key meant something else (money waiting
+    // for the customer, tax included), and a stored figure never changes meaning under the same
+    // name. Corrections recorded before decision 24 simply do not carry this one, and
+    // lib/policy/correction-read.ts says so on the screen instead of inventing a figure.
+    additional_premium_of_the_term_before_difference_cents: plan.money.totals.additionalPremiumOfTheTermCents,
     policy_refunded_cents: plan.money.totals.policyRefundedCents,
     policy_pending_refund_cents: plan.money.totals.policyPendingRefundCents,
   };
@@ -788,48 +802,6 @@ async function anyEntryAlreadyReversed(database: Queryable, entryIds: string[]):
     select count(*)::text as count from journal_entries where reverses_entry_id in ${database(entryIds)}
   `;
   return Number(row.count) > 0;
-}
-
-// Money on this policy that is still waiting for this customer to say yes, this correction
-// excluded. It is the base of the customer-approval threshold, which is read against the POLICY
-// and not against one change at a time (review findings F-B4-09 and F-B8-02): two raises of $400
-// collect $800 from a customer nobody ever asked.
-//
-// Two kinds of thing can be waiting, and both are read from the events rather than from a flag:
-//   an endorsement quote  requested, above the threshold, and neither approved nor applied;
-//   a correction difference  a re-book whose difference is still unpaid and unapproved.
-export async function moneyStillWaitingForTheCustomer(
-  database: Queryable,
-  policyId: string,
-  exceptRebookEventId: string | null,
-): Promise<number> {
-  const [row] = await database<{ waiting_cents: string }[]>`
-    select coalesce(sum(waiting.amount_cents), 0)::text as waiting_cents
-      from (
-             -- endorsement quotes the customer has not answered yet
-             select (request.payload ->> 'delta_total_cents')::bigint as amount_cents
-               from policy_events request
-              where request.policy_id = ${policyId}
-                and request.event_type = 'endorsement_requested'
-                and (request.payload ->> 'delta_total_cents')::bigint > 0
-                and not exists (select 1 from policy_events answered
-                                 where answered.policy_id = request.policy_id
-                                   and answered.event_type in ('endorsement_approved', 'endorsed')
-                                   and answered.payload ->> 'request_event_id' = request.id::text)
-             union all
-             -- differences from other corrections, still unpaid and still unapproved
-             select link.amount_cents
-               from correction_collections link
-              where link.policy_id = ${policyId}
-                and (${exceptRebookEventId}::uuid is null or link.correction_rebook_event_id <> ${exceptRebookEventId}::uuid)
-                and not exists (select 1 from money_operation_events paid
-                                 where paid.operation_id = link.collection_operation_id and paid.status = 'succeeded')
-                and not exists (select 1 from policy_events approval
-                                 where approval.event_type = 'correction_approved'
-                                   and approval.payload ->> 'correction_rebook_event_id' = link.correction_rebook_event_id::text)
-           ) waiting
-  `;
-  return centsFromDatabase(row.waiting_cents, "waiting_cents");
 }
 
 // True while a refund opened by an earlier correction has not been reported as completed by
