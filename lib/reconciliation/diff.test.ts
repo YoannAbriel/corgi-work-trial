@@ -397,4 +397,11 @@ test("the operation id the provider carries back still pairs, even when the refe
   const paired = items.find((item) => item.ledgerRef === "OP_PAID" && item.providerRef === "pi_paid");
   assert.ok(paired);
   assert.equal(paired.classification, "matched");
+  // And the record that was NOT paired says why, for itself (review finding F-B13-12): the other
+  // one was paired by its operation id, so "the reference could not pair either of them" would be
+  // untrue here.
+  const unpaired = items.find((item) => item.ledgerRef === "OP_OTHER");
+  assert.ok(unpaired);
+  assert.match(unpaired.note, /was paired by the operation id the provider named/);
+  assert.doesNotMatch(unpaired.note, /could not pair either of them/);
 });

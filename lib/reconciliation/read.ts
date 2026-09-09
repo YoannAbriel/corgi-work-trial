@@ -167,20 +167,31 @@ export const A_LATER_RUN_RE_EXAMINED_IT = `
   )
 `;
 
+// The columns of one break row, qualified so the same list reads correctly in a query that
+// joins something else beside it. Shared for the ordinary reason: three readers return this shape
+// (BreakRowShape below), and a column added to one of them and not the others would give the
+// three lists of the same screen three different meanings.
+const THE_COLUMNS_OF_A_BREAK_ROW = `
+  latest_report.source, latest_report.classification, latest_report.break_key,
+  latest_report.provider_ref, latest_report.ledger_ref,
+  latest_report.provider_amount_cents::text as provider_amount_cents,
+  latest_report.ledger_amount_cents::text as ledger_amount_cents,
+  latest_report.difference_cents::text as difference_cents,
+  latest_report.record_at, latest_report.first_seen_at, latest_report.last_reported_at,
+  latest_report.note
+`;
+
 // Everything still unexplained: reported as a break by some complete run, and not re-examined
 // since by a run that covered it.
-// Deliberately not limited: this is the one list whose whole purpose is that nothing is
-// forgotten, so it never silently drops a row. Finding F-B10-07 (unbounded reads) is left open
-// and recorded; a bound here would trade a real guarantee for a performance worry that trial
-// volumes do not have.
+//
+// STILL DELIBERATELY UNBOUNDED, and it is the callers that decide. The inbox, the MCP tool and
+// the daily job ask this question because they must not miss a break, so the answer is complete
+// by construction. A screen showing a page of it asks `openBreaksPage` below, which bounds the
+// read and says so on the page rather than dropping rows in silence (finding F-B10-07).
 export async function openBreaks(database: postgres.Sql): Promise<ReconciliationBreakRow[]> {
   const rows = await database<BreakRowShape[]>`
     with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
-    select source, classification, break_key, provider_ref, ledger_ref,
-           provider_amount_cents::text as provider_amount_cents,
-           ledger_amount_cents::text as ledger_amount_cents,
-           difference_cents::text as difference_cents,
-           record_at, first_seen_at, last_reported_at, note
+    select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)}
       from latest_report
      where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
      order by first_seen_at, source, break_key
@@ -188,35 +199,103 @@ export async function openBreaks(database: postgres.Sql): Promise<Reconciliation
   return rows.map(toBreakRow);
 }
 
+// A resolved row and an open row TOUCH THE SAME REFERENCE. Written once, used three times
+// below, because the two answers it decides (drop, or annotate) must rest on one definition.
+//
+// A break key is built from the source and a reference, so two rows can name the same money
+// under two different keys: that is the whole of finding F-B10-11, where items stored before the
+// key changed shape keep the old key for ever. The reference is compared both ways round
+// (a provider reference on one side can be the ledger reference on the other) because the two
+// halves of one money movement are filed from opposite sides.
+const SHARES_A_REFERENCE_WITH_THE_RESOLVED_ROW = `
+  open_report.source = latest_report.source
+  and open_report.break_key <> latest_report.break_key
+  and (
+        (open_report.provider_ref is not null
+         and (open_report.provider_ref = latest_report.provider_ref or open_report.provider_ref = latest_report.ledger_ref))
+     or (open_report.ledger_ref is not null
+         and (open_report.ledger_ref = latest_report.provider_ref or open_report.ledger_ref = latest_report.ledger_ref))
+      )
+`;
+
+// True when the two rows CANNOT BE TOLD APART as two different money movements: one of them does
+// not name a money operation at all, or they name the same one. That is the F-B10-11 shape, the
+// same money seen twice, and the resolved half of it is not a resolution.
+//
+// When both rows name an operation and the operations differ, they are two different movements
+// that happen to carry one provider reference (the case lib/reconciliation/diff.ts refuses to
+// pair, finding F-B10-09). One of them really did stop being reported, and dropping its line
+// would hide a resolution rather than a problem (finding F-PP-12): it is listed, annotated.
+const IS_THE_SAME_MONEY_AS_THE_RESOLVED_ROW = `
+  open_report.ledger_ref is null
+  or latest_report.ledger_ref is null
+  or open_report.ledger_ref = latest_report.ledger_ref
+`;
+
 // Breaks a later covering run looked at again and no longer reports. The row shown is the last one
 // that reported the break, so the screen can say what it was and when it was last seen. Nothing is
 // deleted or updated to get here: this is the absence of a break in a run that DID compare it.
+//
+// The open list is correlated IN SQL rather than read whole and filtered in JavaScript (finding
+// F-PP-11): the old shape read every open break on every page load, so the screen slowed down
+// exactly as the number that matters grew. `open_report` is the same rule the open list uses,
+// declared once above, so the two lists cannot drift apart.
 export async function resolvedBreaks(database: postgres.Sql, limit: number): Promise<ReconciliationBreakRow[]> {
-  const rows = await database<BreakRowShape[]>`
-    with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
-    select source, classification, break_key, provider_ref, ledger_ref,
-           provider_amount_cents::text as provider_amount_cents,
-           ledger_amount_cents::text as ledger_amount_cents,
-           difference_cents::text as difference_cents,
-           record_at, first_seen_at, last_reported_at, note
+  const rows = await database<(BreakRowShape & { open_break_key: string | null; open_shared_ref: string | null })[]>`
+    with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)}),
+         open_report as (
+           select source, break_key, provider_ref, ledger_ref
+             from latest_report
+            where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+         )
+    select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)},
+           still_open.break_key as open_break_key,
+           still_open.shared_ref as open_shared_ref
       from latest_report
+      -- The open break of ANOTHER money movement that carries one of this row's references, when
+      -- there is one. It annotates the line; it never removes it.
+      left join lateral (
+        select open_report.break_key,
+               case
+                 when open_report.provider_ref is not null
+                  and (open_report.provider_ref = latest_report.provider_ref
+                       or open_report.provider_ref = latest_report.ledger_ref)
+                 then open_report.provider_ref
+                 else open_report.ledger_ref
+               end as shared_ref
+          from open_report
+         where ${database.unsafe(SHARES_A_REFERENCE_WITH_THE_RESOLVED_ROW)}
+           and not (${database.unsafe(IS_THE_SAME_MONEY_AS_THE_RESOLVED_ROW)})
+         order by open_report.break_key
+         limit 1
+      ) still_open on true
      where ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
-     order by last_reported_at desc
+       -- The same money, still open under another key, is not resolved at all (F-B10-11): that
+       -- row is left out, which is what stops one break showing twice, open and "went away".
+       and not exists (
+         select 1
+           from open_report
+          where ${database.unsafe(SHARES_A_REFERENCE_WITH_THE_RESOLVED_ROW)}
+            and (${database.unsafe(IS_THE_SAME_MONEY_AS_THE_RESOLVED_ROW)})
+       )
+     order by latest_report.last_reported_at desc
      limit ${limit}
   `;
-  // Items written before the break key changed shape (review finding F-B10-02) are stored under
-  // the old key and can never be rewritten. Without this filter such a break shows twice: open
-  // under its new key with a fresh age, and "went away" under its old key (review finding
-  // F-B10-11). The reference is the same money in both rows, so a reference that is still open
-  // is not resolved, whatever key an earlier run filed it under. Decided in the read, not by
-  // touching the stored rows.
-  const open = await openBreaks(database);
-  const stillOpen = new Set(
-    open.flatMap((row) => [row.providerRef, row.ledgerRef].filter((ref): ref is string => ref !== null).map((ref) => `${row.source}|${ref}`)),
-  );
-  return rows
-    .map(toBreakRow)
-    .filter((row) => ![row.providerRef, row.ledgerRef].some((ref) => ref !== null && stillOpen.has(`${row.source}|${ref}`)));
+  return rows.map((row) => {
+    const resolved = toBreakRow(row);
+    if (!row.open_break_key) {
+      return resolved;
+    }
+    // Worded for THIS record: what stopped being reported is this one, and the reference it
+    // shares is still open on another break, which the reader has to be sent to.
+    return {
+      ...resolved,
+      note:
+        `${resolved.note}; ANOTHER BREAK ON THIS SOURCE IS STILL OPEN CARRYING THE SAME REFERENCE ` +
+        `${row.open_shared_ref ?? "(unnamed)"} (break ${row.open_break_key}), so this line says that THIS record ` +
+        `stopped being reported, and nothing about the money behind that other break`,
+    };
+  });
 }
 
 // The oldest record date among the open breaks of EVERY source, or null when nothing is open. The
@@ -224,11 +303,45 @@ export async function resolvedBreaks(database: postgres.Sql, limit: number): Pro
 // instead of leaving it unlooked at for ever (finding F-B10-01). One window for both sources,
 // because the job runs them on the same window and the older of the two is what decides.
 export async function oldestOpenBreakRecordDate(database: postgres.Sql): Promise<Date | null> {
-  const breaks = await openBreaks(database);
-  if (breaks.length === 0) {
-    return null;
-  }
-  return breaks.reduce((oldest, row) => (row.recordAt < oldest ? row.recordAt : oldest), breaks[0].recordAt);
+  // One aggregate, not every open row read back to take a minimum of it (finding F-B10-07). The
+  // rule is the shared one, so this date and the open list can never disagree.
+  const [row] = await database<{ oldest: Date | null }[]>`
+    with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+    select min(record_at) as oldest
+      from latest_report
+     where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+  `;
+  return row.oldest ?? null;
+}
+
+// The page of open breaks a screen shows, and whether there are more than it asked for.
+//
+// The open list itself is unbounded on purpose (openBreaks above), because the inbox, the MCP
+// tool and the daily job must not miss one. A screen is a different question: it renders a table
+// a person reads, and reading every open break to draw twenty of them is the cost finding
+// F-B10-07 recorded. So the read is bounded here, and the bound is REPORTED rather than hidden:
+// `totalOpen` is counted with the same rule, and `capped` is true when the page does not hold
+// every open break, so the screen can print the sentence instead of quietly showing a part of the
+// list as if it were the whole of it.
+export type OpenBreaksPage = {
+  rows: ReconciliationBreakRow[];
+  totalOpen: number;
+  capped: boolean; // totalOpen > rows.length: the screen must say so
+};
+
+export async function openBreaksPage(database: postgres.Sql, limit: number): Promise<OpenBreaksPage> {
+  const [rows, totalOpen] = await Promise.all([
+    database<BreakRowShape[]>`
+      with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+      select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)}
+        from latest_report
+       where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
+       order by first_seen_at, source, break_key
+       limit ${limit}
+    `,
+    countOpenBreaks(database),
+  ]);
+  return { rows: rows.map(toBreakRow), totalOpen, capped: totalOpen > rows.length };
 }
 
 export type BreakRowShape = {

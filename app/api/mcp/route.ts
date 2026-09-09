@@ -127,7 +127,9 @@ async function handlePost(request: Request, _context: unknown, activity: Activit
     startedAtMs,
   });
   if (!recorded) {
-    return notRecorded();
+    // The id the message carried, read back from the answer that was built for it. A
+    // notification has no answer and no id, and null is then the right value.
+    return notRecorded(handled.response?.id ?? null);
   }
 
   // A notification is answered with 202 and no body, as the transport requires.
@@ -232,11 +234,17 @@ async function logCall(input: {
 // the caller is told the work may already have been done, so a retry is a decision and not a
 // reflex. Nothing this surface exposes moves money on its own; the write tool creates an
 // approval request, which is visible on the approvals screen.
-function notRecorded(): Response {
+//
+// IT CARRIES THE REQUEST'S OWN ID when the body was parsed and had one (review finding
+// F-B13-11). JSON-RPC 2.0 reserves a null id for a message whose id could not be read, so a
+// client matching answers to requests by id used to see this one as unsolicited; this is exactly
+// the moment it needs to know WHICH call may already have been carried out. It stays null on the
+// paths that never read an id: no bearer token, a rejected protocol header, an unparseable body.
+function notRecorded(id: string | number | null = null): Response {
   return jsonResponse(
     {
       jsonrpc: "2.0",
-      id: null,
+      id,
       error: {
         code: -32603,
         message:

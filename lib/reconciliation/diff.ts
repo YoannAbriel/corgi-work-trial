@@ -143,9 +143,20 @@ export function diffProviderAgainstLedger(input: DiffInput): DiffItem[] {
   // 2. Every ledger record the provider said nothing about.
   for (const ledgerRecord of input.ledger) {
     if (!ledgerAlreadyPaired.has(ledgerRecord.operationId)) {
-      items.push(
-        classifyLedgerAlone(ledgerRecord, input, ledgerRecord.providerRef !== null && sharedProviderRefs.has(ledgerRecord.providerRef)),
-      );
+      const refIsShared = ledgerRecord.providerRef !== null && sharedProviderRefs.has(ledgerRecord.providerRef);
+      // Did the OTHER record carrying this reference get paired anyway, by the operation id the
+      // provider named? Then the reference failed to pair this record, and only this one: saying
+      // it "could not pair either of them" would send the operator looking for a second problem
+      // that was in fact solved (review finding F-B13-12).
+      const theOtherOneWasPairedByItsOperationId =
+        refIsShared &&
+        input.ledger.some(
+          (other) =>
+            other.operationId !== ledgerRecord.operationId &&
+            other.providerRef === ledgerRecord.providerRef &&
+            ledgerAlreadyPaired.has(other.operationId),
+        );
+      items.push(classifyLedgerAlone(ledgerRecord, input, refIsShared, theOtherOneWasPairedByItsOperationId));
     }
   }
 
@@ -240,11 +251,20 @@ function classifyProviderAlone(provider: ProviderRecord, refIsShared = false): D
   return item("provider_only", `the provider shows a ${provider.statusWord} ${provider.label} of ${provider.amountCents} cents with no cash movement in the ledger; ${identity}`);
 }
 
-function classifyLedgerAlone(ledger: LedgerRecord, input: DiffInput, refIsShared = false): DiffItem {
-  // Said on every line of a shared reference, so the two halves of the problem name each other.
-  const sharedRefNote = refIsShared
-    ? "; ANOTHER LEDGER RECORD CARRIES THE SAME PROVIDER REFERENCE, so the reference could not pair either of them"
-    : "";
+function classifyLedgerAlone(
+  ledger: LedgerRecord,
+  input: DiffInput,
+  refIsShared = false,
+  theOtherOneWasPairedByItsOperationId = false,
+): DiffItem {
+  // Said on every line of a shared reference, so the two halves of the problem name each other,
+  // and worded for THIS record: whether the other one is unpaired too is a different fact, and
+  // stating it wrongly points the investigation away from the answer (review finding F-B13-12).
+  const sharedRefNote = !refIsShared
+    ? ""
+    : theOtherOneWasPairedByItsOperationId
+      ? "; ANOTHER LEDGER RECORD CARRIES THE SAME PROVIDER REFERENCE and was paired by the operation id the provider named, so the reference could not be used to pair THIS record"
+      : "; ANOTHER LEDGER RECORD CARRIES THE SAME PROVIDER REFERENCE, so the reference could not pair either of them";
   const item = (classification: Classification, note: string): DiffItem => ({
     classification,
     providerRef: ledger.providerRef,
