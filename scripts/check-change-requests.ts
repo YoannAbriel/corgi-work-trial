@@ -128,6 +128,14 @@ async function main() {
   );
   report("a request with no line ticked is refused", /tick at least one line/.test(noLine), noLine);
 
+  const repeatedLine = await refused(() =>
+    createChangeRequest(
+      { policyId: fixture.policyId, lines: ["other", "other"], comment: COMMENT, actor: customer },
+      runtime,
+    ),
+  );
+  report("a line named twice is refused by the application", /only be named once/.test(repeatedLine), repeatedLine);
+
   const forgedLine = await refused(() =>
     createChangeRequest({ policyId: fixture.policyId, lines: ["broker_commission"], comment: COMMENT, actor: customer }, runtime),
   );
@@ -396,6 +404,26 @@ async function main() {
     "a client-supplied recorded_at is ignored: the database clock wins",
     Math.abs(secondsSince) < 120,
     `${backdated.recorded_at.toISOString()}, ${secondsSince.toFixed(1)}s from now`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 8. The gap this slice leaves open, stated rather than hidden
+  // ---------------------------------------------------------------------------
+
+  // F-B13-04, LOW: the CHECK of migration 0019 counts and contains, it does not forbid a repeat,
+  // so a direct INSERT can still store ['other','other'] and both panels would print the label
+  // twice. Uniqueness is an application invariant here, not a database one. This runs last,
+  // because it stores a row. Migration 0019 is applied on the trial database and is not rewritten.
+  const repeatedInDatabase = await refused(
+    () => owner`
+      insert into policy_change_requests (policy_id, requested_by, lines, comment)
+      values (${fixture.policyId}, ${fixture.customerUserId}, ${["other", "other"]}, ${COMMENT})
+    `,
+  );
+  report(
+    "known gap, stated: the database still accepts a repeated line on a direct INSERT",
+    repeatedInDatabase === "NOTHING WAS REFUSED: the call succeeded",
+    repeatedInDatabase,
   );
 }
 

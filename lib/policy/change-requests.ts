@@ -151,10 +151,24 @@ export async function createChangeRequest(
   return { requestId: row.id };
 }
 
-// At least one line, every line inside the closed list, each line once. The order is the order of
-// CHANGE_REQUEST_LINES, so two identical requests store identical arrays.
+// At least one line, every line inside the closed list, each line named once. The order is the
+// order of CHANGE_REQUEST_LINES, so two identical requests store identical arrays.
+//
+// A REPEAT IS REFUSED, NOT FOLDED AWAY. The form cannot produce one (a checkbox is ticked or it
+// is not), so a repeated value means a hand-made request, and answering it with a refusal says
+// more than silently storing a shortened array the sender never asked for.
+//
+// KNOWN GAP, deliberately not closed: the CHECK of migration 0019 is `cardinality between 1 and
+// 7` plus `lines <@ <the closed list>`, which a direct INSERT of ['other','other'] satisfies, and
+// both panels would then print the label twice (review finding F-B13-04, LOW). Uniqueness is an
+// application invariant here, not a database one. Migration 0019 is applied on the trial database
+// and is never rewritten, and a repeat is unreachable through every door the application opens,
+// so this stays as it is rather than becoming a migration on the last day.
 function checkedLines(fromForm: string[]): ChangeRequestLine[] {
   const ticked = new Set(fromForm);
+  if (ticked.size !== fromForm.length) {
+    throw new ChangeRequestRefused("a line can only be named once in a request");
+  }
   for (const line of ticked) {
     if (!(CHANGE_REQUEST_LINES as readonly string[]).includes(line)) {
       throw new ChangeRequestRefused("that is not a line of this policy");
