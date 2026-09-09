@@ -130,7 +130,14 @@ export function AmountExplainedMotion({
   // animation borrows the cell for 600 ms to draw the intermediate frames, then writes that exact
   // text back. Nothing else in the application reads this cell.
   function countUpResultCell(resultCell: HTMLElement) {
-    const textFromServer = resultCell.dataset.finalAmount ?? resultCell.textContent ?? "";
+    // NO FALLBACK (review finding F-B12-15). A cell that does not carry the server's own string is
+    // not animated at all. Falling back to its current text would mean that a cell interrupted
+    // mid-count could be read back as "the server's text" on the next open, and a frame of the
+    // count would become the permanent content of a money cell.
+    const textFromServer = resultCell.dataset.finalAmount;
+    if (!textFromServer) {
+      return;
+    }
     const digits = textFromServer.replace(/[^0-9]/g, "");
     if (digits === "") {
       return;
@@ -279,7 +286,8 @@ export function AmountExplainedMotion({
     for (const row of panel.querySelectorAll<HTMLElement>("tr[data-formula-line]")) {
       row.classList.remove("operand-lit");
     }
-    // Whatever frame the count-up stopped on, the cell goes back to the server's text.
+    // Whatever frame the count-up stopped on, the cell goes back to the server's text. It is the
+    // same attribute the count refused to start without, so there is always one to go back to.
     const resultCell = panel.querySelector<HTMLElement>("tr[data-formula-result] td.amount");
     if (resultCell?.dataset.finalAmount) resultCell.textContent = resultCell.dataset.finalAmount;
   }
