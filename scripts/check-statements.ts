@@ -697,6 +697,134 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
+  // 7b. A correction refund split over two Stripe payments (review finding F-B8-08)
+  // ---------------------------------------------------------------------------
+  //
+  // Broker E repeats broker D's chain, then corrects the correction the other way: the
+  // endorsement moves forward to 2028-08-09, so 10262 goes back to the customer. A refund is
+  // allocated newest collection first, and the newest collection is the 5047 difference, which
+  // does not cover it. So 5047 comes off that PaymentIntent and 5215 off the endorsement's, and
+  // ONE correction opens TWO Stripe refunds and posts TWO refund_completed entries.
+  //
+  // The figure under test is the "of which premium" printed on each of those two lines, which is
+  // the base the clawback beside it was computed on. Each line must carry its OWN slice, 4931 and
+  // 5096, and not the correction's total of 10027 twice.
+
+  const brokerE = await createBroker("Statement check broker E");
+  const policyE = await createPaidPolicy(recordSuccessfulPayment, brokerE);
+  const raiseE = { ...raise, policyId: policyE.policyId };
+  const quoteE = await planEndorsement(raiseE, runtime);
+  const requestedE = await recordEndorsementRequest(
+    { ...raiseE, expectedQuoteHash: quoteE.figures.quoteHash },
+    runtime,
+  );
+  const deltaQuoteE = (await readEndorsementRequest(runtime, policyE.policyId, requestedE.requestEventId))!;
+  const deltaAttemptE = await createEndorsementCheckoutOperation(
+    { quote: deltaQuoteE, userId: staffUserId, attempt: 1 },
+    runtime,
+  );
+  await recordSuccessfulEndorsementPayment(
+    {
+      operationId: deltaAttemptE.operationId,
+      paymentIntentId: `pi_statements_e_delta_${deltaAttemptE.operationId.slice(0, 8)}`,
+      amountReceivedCents: 39537,
+      paidOn: "2028-07-09",
+    },
+    runtime,
+  );
+  const [endorsedEventE] = await owner<{ id: string }[]>`
+    select id from policy_events where policy_id = ${policyE.policyId} and event_type = 'endorsed'
+  `;
+  const backdated = await recordEndorsementDateCorrection(
+    {
+      policyId: policyE.policyId,
+      correctedEventId: endorsedEventE.id,
+      correctedEffectiveAt: "2028-06-09",
+      reason: "the broker's instruction said June 9; it was keyed as July 9",
+      actor: { userId: staffUserId, role: "staff_ops" },
+    },
+    runtime,
+  );
+  await recordSuccessfulCorrectionPayment(
+    {
+      operationId: backdated.collectionOperationId!,
+      paymentIntentId: `pi_statements_e_difference_${backdated.collectionOperationId!.slice(0, 8)}`,
+      amountReceivedCents: 5047,
+      paidOn: "2028-09-15",
+    },
+    runtime,
+  );
+
+  const givenBack = await recordEndorsementDateCorrection(
+    {
+      policyId: policyE.policyId,
+      correctedEventId: backdated.rebookEventId,
+      correctedEffectiveAt: "2028-08-09",
+      reason: "the instruction actually said August 9; June 9 was the second mistake",
+      actor: { userId: staffUserId, role: "staff_ops" },
+    },
+    runtime,
+  );
+  report(
+    "a correction giving back 10262 needs more than the newest collection holds, so it opens TWO Stripe refunds",
+    givenBack.plan.money.differenceTotalCents === -10262 && givenBack.refundOperationIds.length === 2,
+    `difference ${givenBack.plan.money.differenceTotalCents}, ${givenBack.refundOperationIds.length} refund operation(s)`,
+  );
+  const allocatedPremiums: number[] = [];
+  let bothRefundsPosted = true;
+  for (const refundOperationId of givenBack.refundOperationIds) {
+    const [allocation] = await owner<{ amount_cents: string; refunded_premium_cents: string }[]>`
+      select amount_cents, refunded_premium_cents
+        from refund_allocations where refund_operation_id = ${refundOperationId}
+    `;
+    allocatedPremiums.push(Number(allocation.refunded_premium_cents));
+    const completed = await recordCompletedRefund(
+      {
+        operationId: refundOperationId,
+        refundId: `re_statements_e_${refundOperationId.slice(0, 8)}`,
+        amountCents: Number(allocation.amount_cents),
+        refundedOn: "2028-10-15",
+      },
+      runtime,
+    );
+    bothRefundsPosted = bothRefundsPosted && completed.kind === "posted";
+  }
+  report(
+    "the two refunds give back 4931 and 5096 of premium, decided once at correction time",
+    bothRefundsPosted && [...allocatedPremiums].sort((a, b) => a - b).join("/") === "4931/5096",
+    `posted ${bothRefundsPosted}, allocations ${allocatedPremiums.join(", ")}`,
+  );
+
+  const october = await runStatement(
+    { brokerId: brokerE, statementMonth: "2028-10", actorUserId: staffUserId },
+    runtime,
+  );
+  const octoberRun = await statementRun(runtime, october.runId);
+  const refundBases = (octoberRun?.lines ?? [])
+    .filter((line) => line.kind === "refund")
+    .map((line) => line.commissionBaseCents ?? 0)
+    .sort((a, b) => a - b);
+  report(
+    "EACH REFUND LINE CARRIES ITS OWN PREMIUM, not the whole correction's: -5096 and -4931, not -10027 twice",
+    refundBases.length === 2 && refundBases[0] === -5096 && refundBases[1] === -4931,
+    `${refundBases.length} refund line(s), premium bases ${refundBases.join(", ")}`,
+  );
+  report(
+    "and the two bases still add up to the premium the correction gave back, 10027",
+    refundBases.reduce((total, base) => total + base, 0) === -10027,
+    `${refundBases.join(" + ")} = ${refundBases.reduce((total, base) => total + base, 0)}`,
+  );
+  const octoberLedgerMovement = await commissionPayableMovementCents(
+    { brokerId: brokerE, statementMonth: "2028-10", knowledgeCutoff: october.knowledgeCutoff },
+    runtime,
+  );
+  report(
+    "October still ties to the ledger: the clawbacks are the movement of commission_payable",
+    octoberLedgerMovement === october.totals.netDueCents && october.totals.adjustmentCents === 0,
+    `statement ${october.totals.netDueCents}, journal ${octoberLedgerMovement}, adjustment ${october.totals.adjustmentCents}`,
+  );
+
+  // ---------------------------------------------------------------------------
   // 8. The document
   // ---------------------------------------------------------------------------
 
