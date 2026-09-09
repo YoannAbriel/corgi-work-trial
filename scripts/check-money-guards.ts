@@ -425,6 +425,33 @@ async function main() {
     );
   }
 
+  // 2b. THE TWO RATE COLUMNS, BY NAME (review finding F-INT-09). The loop above already changes a
+  //     row of `brokers` and a row of `state_tax_rates`, so the guard is proven for both tables.
+  //     It changes `id`, though, and the finding is about two other columns: the broker commission
+  //     rate and the state premium tax rate, the two persisted facts that decide how much
+  //     commission and how much tax a future posting computes. These two checks name them, so the
+  //     evidence answers the finding in its own words rather than by implication. A rate change is
+  //     a NEW ROW with its own effective date, never an UPDATE.
+  const commissionRateError = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`update brokers set commission_rate_bps = 2000 where id = ${fixture.brokers}`;
+  });
+  report(
+    "owner cannot UPDATE brokers.commission_rate_bps",
+    !!commissionRateError && commissionRateError.includes("append-only"),
+    commissionRateError ?? "no error raised",
+  );
+
+  const taxRateError = await expectError(owner, async (tx) => {
+    const fixture = await insertFixtureRows(tx);
+    await tx`update state_tax_rates set rate_bps = 999 where id = ${fixture.state_tax_rates}`;
+  });
+  report(
+    "owner cannot UPDATE state_tax_rates.rate_bps",
+    !!taxRateError && taxRateError.includes("append-only"),
+    taxRateError ?? "no error raised",
+  );
+
   // 3. Runtime role: the privileges are simply not there. `where false` matches no row, so
   //    this proves the refusal comes from the grant and not from a trigger.
   for (const table of PROTECTED_TABLES) {
