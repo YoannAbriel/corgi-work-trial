@@ -8,7 +8,9 @@ import { requireStaff } from "@/lib/console/guard";
 import {
   CONSOLE_EVENT_KINDS,
   MOST_FEED_ROWS,
+  MOST_PROBLEM_ROWS,
   UNKNOWN_OUTCOME_AFTER_MINUTES,
+  UNRESOLVED_OPERATIONS_FLOOR_DAYS,
   LATENCY_WINDOW_HOURS,
   acceptedAndUnconfirmedOperations,
   consoleFeed,
@@ -75,7 +77,10 @@ export default async function OperationsConsolePage({
   // the operations under the threshold, and the errors panel shows the ones over it as unknown
   // outcomes. Reading it once and passing it down is the correction of review finding F-B13-23;
   // before it, this page asked the same question twice on every ten-second refresh.
-  const inFlight = await attempt("the operations in flight", acceptedAndUnconfirmedOperations(sql, { since }));
+  //
+  // It takes no cursor (review finding F-B13-50): an operation nobody has confirmed stays on
+  // this page until a human resolves it, whatever window the operator is reading the feed in.
+  const inFlight = await attempt("the operations in flight", acceptedAndUnconfirmedOperations(sql));
   const { checking, unknownOutcome } = valueOr(inFlight, { checking: [], unknownOutcome: [] });
 
   const [feed, tiles, problems] = await Promise.all([
@@ -109,7 +114,11 @@ export default async function OperationsConsolePage({
         chips={
           <>
             <Chip tone={problemRows.length > 0 ? "warn" : "ok"}>
-              {problemRows.length === 0 ? "nothing failing" : `${problemRows.length} to look at`}
+              {problemRows.length === 0
+                ? "nothing failing"
+                : problemRows.length >= MOST_PROBLEM_ROWS
+                  ? `${MOST_PROBLEM_ROWS} or more to look at`
+                  : `${problemRows.length} to look at`}
             </Chip>
             <Chip tone={checking.length > 0 ? "warn" : "neutral"}>
               {checking.length} being checked
@@ -236,6 +245,12 @@ export default async function OperationsConsolePage({
                   </table>
                 </div>
               )}
+              {problemRows.length >= MOST_PROBLEM_ROWS ? (
+                <p className="note">
+                  Showing {MOST_PROBLEM_ROWS} rows, which is the hard limit of this panel. There are probably more:
+                  narrow the window to see the rest.
+                </p>
+              ) : null}
               <Disclosure title="What counts as a problem here">
                 <p>
                   A money operation whose last provider answer was <strong>failed</strong> or <strong>unknown</strong>;
@@ -245,6 +260,11 @@ export default async function OperationsConsolePage({
                   <strong>refused</strong>; a <strong>failed reconciliation run</strong>, which compared nothing and
                   must never read as clean; and an operation the provider accepted more than{" "}
                   {UNKNOWN_OUTCOME_AFTER_MINUTES} minutes ago that has said nothing since.
+                </p>
+                <p>
+                  Every line here is inside the window above <strong>except the unknown outcomes</strong>: those are
+                  read over a fixed floor of {UNRESOLVED_OPERATIONS_FLOOR_DAYS} days, whatever window the feed is
+                  showing, because an operation nobody has confirmed must stay visible until a human resolves it.
                 </p>
                 <p>
                   The {UNKNOWN_OUTCOME_AFTER_MINUTES}-minute threshold is <strong>an assumption of this build</strong>,
@@ -310,9 +330,9 @@ export default async function OperationsConsolePage({
               <p className="note">
                 A temporary status, not a problem: the provider has taken the request and we are waiting for the event
                 that confirms it. Past {UNKNOWN_OUTCOME_AFTER_MINUTES} minutes the same operation moves up into the
-                errors panel as an unknown outcome. This list is bounded by the window above, widened by those{" "}
-                {UNKNOWN_OUTCOME_AFTER_MINUTES} minutes: an operation accepted before the window is not shown here.
-                Ask for a wider window (<code>7d</code>) to see the older ones.
+                errors panel as an unknown outcome. This list <strong>ignores the window above</strong>: it is read
+                over a fixed floor of {UNRESOLVED_OPERATIONS_FLOOR_DAYS} days, so an operation the provider accepted
+                and never confirmed stays on this page whatever window the feed is showing.
               </p>
             </Panel>
 
