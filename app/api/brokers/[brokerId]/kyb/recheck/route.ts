@@ -18,7 +18,7 @@ import { withActivity } from "@/lib/observability/log";
 //
 // Who may press it: the broker it is about, or staff. The action is audited, because the
 // status row it can append carries `created_by` (migration 0006).
-export const POST = withActivity({ route: "/api/brokers/[brokerId]/kyb/recheck", subject: "broker" }, handlePost);
+export const POST = withActivity({ route: "/api/brokers/[brokerId]/kyb/recheck", rule: "broker verification", subject: "broker" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ brokerId: string }> }) {
   const user = await currentUser();

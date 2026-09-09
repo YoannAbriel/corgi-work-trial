@@ -7,7 +7,7 @@ import { withActivity } from "@/lib/observability/log";
 // POST /api/policies, called by the form on /broker/policies/new.
 // Three steps, each with its own visible failure path: who is asking, is the form usable,
 // can the draft be priced.
-export const POST = withActivity({ route: "/api/policies" }, handlePost);
+export const POST = withActivity({ route: "/api/policies", rule: "policy draft" }, handlePost);
 
 async function handlePost(request: Request) {
   const user = await currentUser();

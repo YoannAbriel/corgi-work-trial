@@ -14,7 +14,7 @@ import { withActivity } from "@/lib/observability/log";
 // skipped, and between two endorsements the declarations page shows the premium and limits in
 // force on that date (lib/documents/policy-as-of.ts). Who may read: the owning broker, the
 // policy's customer, and staff. The names printed come from the seeded synthetic parties.
-export const GET = withActivity({ route: "/api/policies/[policyId]/documents/[document]", subject: "policy" }, handleGet);
+export const GET = withActivity({ route: "/api/policies/[policyId]/documents/[document]", rule: "ownership", subject: "policy" }, handleGet);
 
 async function handleGet(request: Request, context: { params: Promise<{ policyId: string; document: string }> }) {
   const user = await currentUser();

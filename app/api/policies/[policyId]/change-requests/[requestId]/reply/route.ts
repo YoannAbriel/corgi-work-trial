@@ -8,7 +8,7 @@ import { withActivity } from "@/lib/observability/log";
 // The owning broker (or staff operations) answers one change request: 'answered' or 'done', and
 // the words the customer reads. A request is answered once, and that is a unique constraint in
 // the database (migration 0019), not a check this route makes.
-export const POST = withActivity({ route: "/api/policies/[policyId]/change-requests/[requestId]/reply", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/change-requests/[requestId]/reply", rule: "change request", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string; requestId: string }> }) {
   const user = await currentUser();

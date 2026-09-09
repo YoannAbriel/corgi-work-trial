@@ -11,7 +11,7 @@ import { withActivity } from "@/lib/observability/log";
 // same authorisation, the same refusal handling and the same redirect, and a reader can see all
 // four in one screen. The action never carries authority: `currentUser()` reads the signed
 // session cookie and the money functions check the role again themselves.
-export const POST = withActivity({ route: "/api/claims/[claimId]", subject: "claim" }, handlePost);
+export const POST = withActivity({ route: "/api/claims/[claimId]", rule: "claim rules", subject: "claim" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ claimId: string }> }) {
   const user = await currentUser();

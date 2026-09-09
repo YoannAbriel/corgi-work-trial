@@ -9,7 +9,7 @@ import { withActivity } from "@/lib/observability/log";
 // customer id comes from the session and is compared with the policy's; the broker, staff and an
 // agent are all refused. The approval is written as its own policy event, so it is part of the
 // policy's history like everything else.
-export const POST = withActivity({ route: "/api/policies/[policyId]/corrections/[rebookEventId]/approve", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/corrections/[rebookEventId]/approve", rule: "correction", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string; rebookEventId: string }> }) {
   const { policyId, rebookEventId } = await context.params;

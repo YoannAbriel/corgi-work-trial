@@ -7,7 +7,7 @@ import { withActivity } from "@/lib/observability/log";
 // Three steps, each with its own visible failure path: who is asking, is the form usable, does
 // Stripe accept the company. The signed-in user's own broker is the only one that can be
 // submitted: the broker id comes from the session, never from the form.
-export const POST = withActivity({ route: "/api/brokers/kyb" }, handlePost);
+export const POST = withActivity({ route: "/api/brokers/kyb", rule: "broker verification" }, handlePost);
 
 async function handlePost(request: Request) {
   const user = await currentUser();

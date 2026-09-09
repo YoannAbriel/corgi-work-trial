@@ -9,7 +9,7 @@ import { withActivity } from "@/lib/observability/log";
 // comment. Nothing is priced and nothing moves; the request is a message stored append-only
 // (migration 0019). Only the policy's customer, read from the session, can send one; the broker,
 // staff and any agent are refused by createChangeRequest.
-export const POST = withActivity({ route: "/api/policies/[policyId]/change-requests", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/change-requests", rule: "change request", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();

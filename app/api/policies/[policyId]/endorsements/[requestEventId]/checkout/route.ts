@@ -8,7 +8,7 @@ import { withActivity } from "@/lib/observability/log";
 // button. Authorisation, eligibility, the customer's approval and the quote hash are all
 // checked inside startEndorsementCheckout: a direct call to this URL goes through exactly the
 // same gates as the button.
-export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/checkout", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/checkout", rule: "endorsement", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
   const user = await currentUser();

@@ -13,7 +13,7 @@ import { withActivity } from "@/lib/observability/log";
 // Restricted to staff operations, and the eligibility question is asked again inside
 // retryBindingAfterEligibility, so calling this URL directly goes through the same gate as the
 // button.
-export const POST = withActivity({ route: "/api/policies/[policyId]/bind", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/bind", rule: "broker eligibility", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();

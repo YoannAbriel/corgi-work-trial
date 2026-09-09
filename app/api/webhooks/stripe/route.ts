@@ -53,7 +53,7 @@ import { withActivity } from "@/lib/observability/log";
 // which account to go and read again. Adding a thin-event route would add a secret and a
 // surface without changing a single decision.
 
-export const POST = withActivity({ route: "/api/webhooks/stripe", actor: "stripe" }, handlePost);
+export const POST = withActivity({ route: "/api/webhooks/stripe", rule: "webhook signature", actor: "stripe" }, handlePost);
 
 async function handlePost(request: Request) {
   const rawBody = await request.text();

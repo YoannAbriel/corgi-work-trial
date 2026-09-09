@@ -15,7 +15,7 @@ import { withActivity } from "@/lib/observability/log";
 //
 // Restricted to staff operations: sending money is an operations decision. The approver's job is
 // to approve, and letting the checker also execute would blur the two roles.
-export const POST = withActivity({ route: "/api/policies/[policyId]/refunds/[operationId]/send", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/refunds/[operationId]/send", rule: "refund gate", subject: "policy" }, handlePost);
 
 async function handlePost(
   request: Request,

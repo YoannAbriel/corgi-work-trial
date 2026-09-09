@@ -8,7 +8,7 @@ import { withActivity } from "@/lib/observability/log";
 // LOCAL SIMULATOR. The job that plays the part of the bank telling us that a claim payment has
 // settled. The work itself, and the reasons a rerun is harmless, are in
 // lib/claims/settle-due-payouts.ts, so the daily job runs this exact code too.
-export const POST = withActivity({ route: "/api/jobs/settle-simulated-payouts", actor: "cron" }, handlePost);
+export const POST = withActivity({ route: "/api/jobs/settle-simulated-payouts", rule: "cron secret", actor: "cron" }, handlePost);
 
 async function handlePost(request: Request) {
   try {

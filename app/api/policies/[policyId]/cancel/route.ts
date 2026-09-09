@@ -8,7 +8,7 @@ import { withActivity } from "@/lib/observability/log";
 // The form carries three fields: the effective date, the calculation method (pro-rata) and the
 // policy version the preview was computed against. Everything is checked again on the server,
 // so calling this URL directly goes through exactly the same gates as the button.
-export const POST = withActivity({ route: "/api/policies/[policyId]/cancel", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/cancel", rule: "cancellation", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();

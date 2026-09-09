@@ -18,7 +18,7 @@ import { withActivity } from "@/lib/observability/log";
 // Nothing here can move money: the job reads the provider, reads the ledger and appends to its
 // own two tables. The reason it is authorised at all is that it is not free (it calls Stripe) and
 // that its runs are records of what we knew, which nobody unauthenticated should be able to write.
-export const POST = withActivity({ route: "/api/jobs/reconcile", actor: "cron" }, handlePost);
+export const POST = withActivity({ route: "/api/jobs/reconcile", rule: "cron secret", actor: "cron" }, handlePost);
 
 async function handlePost(request: Request) {
   const user = await currentUser();

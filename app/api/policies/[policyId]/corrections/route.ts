@@ -10,7 +10,7 @@ import { withActivity } from "@/lib/observability/log";
 // recomputed on the server under a lock, so calling this URL directly goes through the same
 // gates as the button: staff operations only, one correction per endorsement, dates inside the
 // term, and no correction on a cancelled or voided policy.
-export const POST = withActivity({ route: "/api/policies/[policyId]/corrections", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/corrections", rule: "correction", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const { policyId } = await context.params;

@@ -18,7 +18,7 @@ import { withActivity } from "@/lib/observability/log";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const GET = withActivity({ route: "/api/statements/[runId]/pdf" }, handleGet);
+export const GET = withActivity({ route: "/api/statements/[runId]/pdf", rule: "ownership" }, handleGet);
 
 async function handleGet(request: Request, context: { params: Promise<{ runId: string }> }) {
   const user = await currentUser();

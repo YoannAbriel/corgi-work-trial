@@ -31,13 +31,13 @@ import { withActivity } from "@/lib/observability/log";
 //
 // Each step is independent and safe to rerun; a step that throws stops the job and is reported,
 // because a reconciliation run made on a half-recovered ledger would be misleading.
-export const GET = withActivity({ route: "/api/jobs/daily", actor: "cron" }, handleGet);
+export const GET = withActivity({ route: "/api/jobs/daily", rule: "cron secret", actor: "cron" }, handleGet);
 
 async function handleGet(request: Request) {
   return runDailyJob(request);
 }
 
-export const POST = withActivity({ route: "/api/jobs/daily", actor: "cron" }, handlePost);
+export const POST = withActivity({ route: "/api/jobs/daily", rule: "cron secret", actor: "cron" }, handlePost);
 
 async function handlePost(request: Request) {
   return runDailyJob(request);
