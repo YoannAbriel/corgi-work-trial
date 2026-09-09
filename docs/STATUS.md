@@ -394,6 +394,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 - The builder moved the decorative illustrations to next/image with static file imports (intrinsic width and height from the bytes, which closes F-IL-05 without shipping the 444 KB catalog to the browser), per-variant sizes, no eager or priority anywhere, the dead class removed; seven files, nothing under lib/, db/ or app/api/. Local measurement with the reviewer's method: the home from 500.6 KiB to 2.8 KiB, /broker from 743.6 KiB to 7.7 KiB, /customer from 691.2 KiB to 7.6 KiB, /login at 375 px from 141.6 KiB to nothing, the 404 from 39.7 KiB to 2.6 KiB, 0 preload links on every route, 21 of 21 layout readings without overflow. Typecheck, 456 tests and the production build clean. The builder reports one incident: a stray checkout reverted its tree mid-session and it rewrote the same edits before measuring again.
 - Merged with --no-ff, pushed as code alone, deployed and confirmed by /api/health at 09:34Z; the illustrations reviewer re-measures on production (Vercel image optimisation) at 5fa3d49.
 
+## 2026-09-09T09:40:00+00:00 | Illustrations PASS on production at 5fa3d49
+
+- The illustrations reviewer re-measured production after the fix: 3,288,716 bytes of images over the seven routes before, 43,642 after at 1280 px and 32,544 at 375 px (98.7 percent less), zero image preload on 21 loads, 21 of 21 layouts without horizontal overflow at 375, 768 and 1280 px, no image in any table, every decorative alt empty, the sandbox sentence intact, optimised variants served with a one-year immutable cache (MISS then HIT). Verdict PASS, F-IL-01, 02, 05 and 06 closed; F-IL-03, 04 and 07 stay disclosed as LOW. YOA-639 done.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
