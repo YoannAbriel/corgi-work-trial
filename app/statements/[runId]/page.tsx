@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { AmountExplained } from "@/components/amount-explained";
 import { Disclosure, SandboxReferences } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Facts, Panel } from "@/components/detail-layout";
 import Link from "next/link";
@@ -6,7 +7,8 @@ import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { collectedFigures } from "@/lib/statements/compute";
+import { explainStatementTotal } from "@/lib/money/explain";
+import { CANONICAL_STATEMENT_VERSION, collectedFigures } from "@/lib/statements/compute";
 import { commissionPayableMovementCents } from "@/lib/statements/journal";
 import { isUuid } from "@/lib/http/path-ids";
 import {
@@ -84,6 +86,17 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
   // "changed" is an answer about them (review finding F-B9-09).
   const formatChanged =
     run.previousCanonicalVersion !== null && run.previousCanonicalVersion !== run.canonicalVersion;
+  // Slice B12-2: a fold under a total is only offered on a run written in the current format.
+  // On a v1 run the stored columns meant something else, and explaining a figure with the wrong
+  // meaning would be worse than not explaining it.
+  const explainable = run.canonicalVersion >= CANONICAL_STATEMENT_VERSION;
+  const totalsForExplanation = {
+    lines,
+    commissionEarnedCents: run.commissionEarnedCents,
+    clawbackCents: run.clawbackCents,
+    adjustmentCents: run.adjustmentCents,
+    netDueCents: run.netDueCents,
+  };
 
   const listHref = isStaff ? "/ops/statements" : "/broker/statements";
   return (
@@ -131,17 +144,78 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
         main={
           <>
             <Panel title="Totals">
+              {/* Slice B12-2: each total carries a fold naming the stored statement lines it is
+                  made of and the rounding the ledger posted with. A run written in the older
+                  format (v1) gets no fold: its premium column meant something else, and a fold
+                  that had to explain that would be the mistake collectedFigures exists to
+                  prevent. */}
               <Facts
                 items={[
-                  { label: "Cash collected from customers (premium, tax and fee)", value: formatCentsAsUsd(collected.cashCollectedCents) },
+                  {
+                    label: "Cash collected from customers (premium, tax and fee)",
+                    value: explainable ? (
+                      <AmountExplained
+                        amountCents={collected.cashCollectedCents}
+                        label={`Cash collected from customers in ${run.statementMonth}`}
+                        explanation={explainStatementTotal({ ...totalsForExplanation, key: "cash_collected" })}
+                      />
+                    ) : (
+                      formatCentsAsUsd(collected.cashCollectedCents)
+                    ),
+                  },
                   {
                     label: "Premium collected, the commission base",
-                    value: collected.premiumCollectedCents === null ? "not stored on this revision" : formatCentsAsUsd(collected.premiumCollectedCents),
+                    value:
+                      collected.premiumCollectedCents === null ? (
+                        "not stored on this revision"
+                      ) : explainable ? (
+                        <AmountExplained
+                          amountCents={collected.premiumCollectedCents}
+                          label={`Premium collected in ${run.statementMonth}, the commission base`}
+                          explanation={explainStatementTotal({ ...totalsForExplanation, key: "premium_collected" })}
+                        />
+                      ) : (
+                        formatCentsAsUsd(collected.premiumCollectedCents)
+                      ),
                   },
-                  { label: `Commission earned${collected.premiumCollectedCents === null ? "" : " on that premium"}`, value: formatCentsAsUsd(run.commissionEarnedCents) },
-                  { label: "Commission clawed back on refunded premium", value: formatCentsAsUsd(-run.clawbackCents) },
+                  {
+                    label: `Commission earned${collected.premiumCollectedCents === null ? "" : " on that premium"}`,
+                    value: explainable ? (
+                      <AmountExplained
+                        amountCents={run.commissionEarnedCents}
+                        label={`Commission earned in ${run.statementMonth}`}
+                        explanation={explainStatementTotal({ ...totalsForExplanation, key: "commission_earned" })}
+                      />
+                    ) : (
+                      formatCentsAsUsd(run.commissionEarnedCents)
+                    ),
+                  },
+                  {
+                    label: "Commission clawed back on refunded premium",
+                    value: explainable ? (
+                      <AmountExplained
+                        amountCents={-run.clawbackCents}
+                        label={`Commission clawed back in ${run.statementMonth}`}
+                        explanation={explainStatementTotal({ ...totalsForExplanation, key: "clawback" })}
+                      />
+                    ) : (
+                      formatCentsAsUsd(-run.clawbackCents)
+                    ),
+                  },
                   ...(run.adjustmentCents === 0 ? [] : [{ label: "Other adjustments to the commission owed", value: formatCentsAsUsd(run.adjustmentCents) }]),
-                  { label: "Net due to the broker", value: formatCentsAsUsd(run.netDueCents), emphasis: true },
+                  {
+                    label: "Net due to the broker",
+                    value: explainable ? (
+                      <AmountExplained
+                        amountCents={run.netDueCents}
+                        label={`Net due to ${run.brokerName} for ${run.statementMonth}`}
+                        explanation={explainStatementTotal({ ...totalsForExplanation, key: "net_due" })}
+                      />
+                    ) : (
+                      formatCentsAsUsd(run.netDueCents)
+                    ),
+                    emphasis: true,
+                  },
                 ]}
               />
               <p className="note">
