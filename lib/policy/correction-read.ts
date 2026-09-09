@@ -236,7 +236,10 @@ async function collectionOfCorrection(database: Queryable, rebookEventId: string
   return {
     operationId: link.operation_id,
     amountCents,
-    latestStatus: events.length > 0 ? events[events.length - 1].status : null,
+    // A final status wins over a later step (F-B2-20, F-B2-21): rows written before the guard
+    // keep their order forever, and what the screen calls the last status is the furthest the
+    // operation got.
+    latestStatus: succeeded ? "succeeded" : events.length > 0 ? events[events.length - 1].status : null,
     checkoutUrl: accepted ? String(accepted.payload.checkout_url) : null,
     paidOn: succeeded && typeof succeeded.payload.paid_on === "string" ? succeeded.payload.paid_on : null,
     isDead: events.some((event) => event.status === "failed" && event.payload.reason === "expired"),

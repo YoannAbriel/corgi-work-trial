@@ -323,6 +323,9 @@ async function postDeltaAndApply(
 ): Promise<EndorsementCollectionOutcome> {
   try {
     await database.begin(async (transaction) => {
+      // One lock per money operation (F-B2-21): the late checkout.session.completed handler takes
+      // the same lock, so it can only look at the operation after this posting has committed.
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.operationId}))`;
       const { terms } = await foldPolicyEvents(transaction, link.policyId);
       // Was this delta parked in the suspense account at receipt (rule 14)? Then the cash is
       // applied, not booked a second time.
@@ -571,6 +574,7 @@ async function parkPaymentWithoutApplying(
 ): Promise<void> {
   try {
     await database.begin(async (transaction) => {
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.operationId}))`;
       const parked = unappliedCashReceivedEntry({
         operationId: link.operationId,
         policyId: link.policyId,
