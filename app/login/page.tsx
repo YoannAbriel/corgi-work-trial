@@ -69,7 +69,13 @@ export default async function LoginPage({
           </details>
         </div>
         <section className="login-art-panel">
-          <DecorativeIllustration name="welcome-corgi" variant="banner" eager />
+          {/* app/globals.css hides .login-art-panel below 580 px. A media query cannot cancel a
+              download, so the narrow case asks for the smallest file the optimiser produces. */}
+          <DecorativeIllustration
+            name="welcome-corgi"
+            variant="banner"
+            sizes="(max-width: 580px) 16px, 220px"
+          />
           <h2>
             A clearer view. <em>A better next step.</em>
           </h2>

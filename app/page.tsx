@@ -50,7 +50,7 @@ export default function HomePage() {
             Every policy, followed through.
           </p>
         </div>
-        <DecorativeIllustration name="meadow-path" variant="banner" eager />
+        <DecorativeIllustration name="meadow-path" variant="banner" />
       </section>
     </PortalShell>
   );
