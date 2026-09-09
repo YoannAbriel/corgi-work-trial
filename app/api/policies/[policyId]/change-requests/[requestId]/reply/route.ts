@@ -1,6 +1,6 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
-import { ChangeRequestRefused, replyToChangeRequest } from "@/lib/policy/change-requests";
+import { ChangeRequestRefused, replyToChangeRequest, workspaceHomeOf } from "@/lib/policy/change-requests";
 
 // POST /api/policies/{policyId}/change-requests/{requestId}/reply
 //
@@ -36,6 +36,11 @@ export async function POST(request: Request, context: { params: Promise<{ policy
     return redirectTo(`/policies/${policyId}?changeRequest=answered#customer-requests`);
   } catch (error) {
     if (error instanceof ChangeRequestRefused) {
+      // A refusal goes to a page this person may actually open: a broker who does not write this
+      // policy is redirected away from it, and the message would go with the redirect (F-B13-02).
+      if (error.readableFrom === "home") {
+        return redirectTo(`${workspaceHomeOf(user.role)}?error=${encodeURIComponent(error.message)}`);
+      }
       return redirectTo(`/policies/${policyId}?error=${encodeURIComponent(error.message)}#customer-requests`);
     }
     throw error;

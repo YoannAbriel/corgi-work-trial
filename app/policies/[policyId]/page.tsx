@@ -72,6 +72,8 @@ export default async function PolicyPage({
     // rebuilds the policy for.
     correction?: string;
     asOf?: string;
+    // Slice B13-6: the broker has just answered a customer's change request.
+    changeRequest?: string;
   }>;
 }) {
   const user = await currentUser();
@@ -199,6 +201,12 @@ export default async function PolicyPage({
       </p>
     ) : null,
     query.payment === "cancelled" ? <p key="left" className="note" role="status">The payment page was left without paying.</p> : null,
+    query.changeRequest === "answered" ? (
+      <p key="changeRequest" className="note" role="status">
+        Your answer is on the customer&apos;s policy page, under the request it answers. It changed nothing on the
+        policy itself: a change goes through Endorse.
+      </p>
+    ) : null,
     query.cancelled ? <p key="cancelled" className="note" role="status">{cancellationRefundNotice(refunds)}</p> : null,
     query.reissued ? (
       <p key="reissued" className="note">

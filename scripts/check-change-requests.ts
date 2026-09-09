@@ -59,12 +59,24 @@ async function main() {
   // Imported here rather than at the top of the file: the module opens the application
   // connection pool as soon as it is loaded, which needs the environment read first.
   const {
+    ChangeRequestRefused,
     createChangeRequest,
     replyToChangeRequest,
     changeRequestsOfPolicy,
     openChangeRequestsOfPolicy,
     countOpenChangeRequests,
   } = await import("@/lib/policy/change-requests");
+
+  // Where a refusal can be read. An ownership refusal cannot be shown on the policy page, because
+  // that page redirects the person away and the message goes with the redirect (F-B13-02).
+  const refusalPlace = async (attempt: () => Promise<unknown>): Promise<string> => {
+    try {
+      await attempt();
+      return "NOTHING WAS REFUSED";
+    } catch (error) {
+      return error instanceof ChangeRequestRefused ? error.readableFrom : "not a change request refusal";
+    }
+  };
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
     select current_database()
@@ -116,6 +128,14 @@ async function main() {
   );
   report("a request with no line ticked is refused", /tick at least one line/.test(noLine), noLine);
 
+  const repeatedLine = await refused(() =>
+    createChangeRequest(
+      { policyId: fixture.policyId, lines: ["other", "other"], comment: COMMENT, actor: customer },
+      runtime,
+    ),
+  );
+  report("a line named twice is refused by the application", /only be named once/.test(repeatedLine), repeatedLine);
+
   const forgedLine = await refused(() =>
     createChangeRequest({ policyId: fixture.policyId, lines: ["broker_commission"], comment: COMMENT, actor: customer }, runtime),
   );
@@ -138,6 +158,16 @@ async function main() {
     createChangeRequest({ policyId: fixture.policyId, lines: ["annual_premium"], comment: "too short", actor: customer }, runtime),
   );
   report("a comment under ten characters is refused", /at least 10 characters/.test(tooShort), tooShort);
+
+  const ownershipPlace = await refusalPlace(() =>
+    createChangeRequest({ policyId: fixture.policyId, lines: ["annual_premium"], comment: COMMENT, actor: otherCustomer }, runtime),
+  );
+  report("an ownership refusal is sent to the actor's own workspace, not to a page they cannot open", ownershipPlace === "home", ownershipPlace);
+
+  const formPlace = await refusalPlace(() =>
+    createChangeRequest({ policyId: fixture.policyId, lines: [], comment: COMMENT, actor: customer }, runtime),
+  );
+  report("a form refusal stays on the policy page, where the form is", formPlace === "policy", formPlace);
 
   const tooLong = await refused(() =>
     createChangeRequest(
@@ -288,6 +318,39 @@ async function main() {
   );
   report("staff operations can answer a request on any policy", Boolean(staffReply.replyId), staffReply.replyId);
 
+  // F-B13-03: "answered" is the existence of the reply row, not the truthiness of the display
+  // names joined next to it. users.display_name is `not null` with no non-empty CHECK, so an
+  // operator whose name is the empty string used to make an answered request render as open.
+  const [namelessOperator] = await owner<{ id: string }[]>`
+    insert into users (email, display_name, role)
+    values ('change-requests-check-' || gen_random_uuid()::text || '@example.invalid', '', 'staff_ops')
+    returning id
+  `;
+  const requestAnsweredByANamelessOperator = await createChangeRequest(
+    { policyId: fixture.policyId, lines: ["insured_name"], comment: COMMENT, actor: customer },
+    runtime,
+  );
+  await replyToChangeRequest(
+    {
+      policyId: fixture.policyId,
+      requestId: requestAnsweredByANamelessOperator.requestId,
+      outcome: "answered",
+      text: "noted, your broker will confirm",
+      actor: actor(namelessOperator.id, "staff_ops", null, null),
+    },
+    runtime,
+  );
+  const withANamelessReplier = (await changeRequestsOfPolicy(fixture.policyId, runtime)).find(
+    (request) => request.requestId === requestAnsweredByANamelessOperator.requestId,
+  );
+  const stillOpen = await openChangeRequestsOfPolicy(fixture.policyId, runtime);
+  report(
+    "a reply from an operator with an empty display name still reads as answered",
+    withANamelessReplier?.reply !== null &&
+      stillOpen.every((request) => request.requestId !== requestAnsweredByANamelessOperator.requestId),
+    `reply ${withANamelessReplier?.reply === null ? "missing" : "read"}, ${stillOpen.length} still open on the policy`,
+  );
+
   // ---------------------------------------------------------------------------
   // 6. Nothing can be rewritten, by anybody
   // ---------------------------------------------------------------------------
@@ -341,6 +404,64 @@ async function main() {
     "a client-supplied recorded_at is ignored: the database clock wins",
     Math.abs(secondsSince) < 120,
     `${backdated.recorded_at.toISOString()}, ${secondsSince.toFixed(1)}s from now`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 8. The gap this slice leaves open, stated rather than hidden
+  // ---------------------------------------------------------------------------
+
+  // F-B13-04, LOW: the CHECK of migration 0019 counts and contains, it does not forbid a repeat,
+  // so a direct INSERT can still store ['other','other'] and both panels would print the label
+  // twice. Uniqueness is an application invariant here, not a database one. This runs last,
+  // because it stores a row. Migration 0019 is applied on the trial database and is not rewritten.
+  const repeatedInDatabase = await refused(
+    () => owner`
+      insert into policy_change_requests (policy_id, requested_by, lines, comment)
+      values (${fixture.policyId}, ${fixture.customerUserId}, ${["other", "other"]}, ${COMMENT})
+    `,
+  );
+  report(
+    "known gap, stated: the database still accepts a repeated line on a direct INSERT",
+    repeatedInDatabase === "NOTHING WAS REFUSED: the call succeeded",
+    repeatedInDatabase,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 9. The customer's timeline never reprints what an operator typed
+  // ---------------------------------------------------------------------------
+
+  // F-B13-06: a correction reason is written by a staff operator FOR operations, and on the trial
+  // data it names a payment intent, a review finding and "the coordinator". The customer reads
+  // the correction, its two dates and its amounts; never those words.
+  const { policyTimeline } = await import("@/lib/policy/correction-read");
+  const OPERATOR_WORDS = "Reversed by the coordinator per review finding F-B2-01 (pi_local_reference)";
+  await runtime`
+    insert into policy_events (policy_id, event_type, effective_at, payload)
+    values (${fixture.policyId}, 'correction_reversal', '2028-03-01',
+            ${runtime.json({ reason: OPERATOR_WORDS })})
+  `;
+  const forTheOperator = await policyTimeline(fixture.policyId, runtime, "operator");
+  const forTheCustomer = await policyTimeline(fixture.policyId, runtime, "customer");
+  const correctionForTheOperator = forTheOperator.find((row) => row.eventType === "correction_reversal");
+  const correctionForTheCustomer = forTheCustomer.find((row) => row.eventType === "correction_reversal");
+  report(
+    "the operator reads the correction reason as it was typed",
+    correctionForTheOperator?.summary.includes(OPERATOR_WORDS) === true,
+    correctionForTheOperator?.summary ?? "no correction row",
+  );
+  report(
+    "the customer reads the same correction without the operator's words or the internal references",
+    correctionForTheCustomer !== undefined &&
+      !correctionForTheCustomer.summary.includes(OPERATOR_WORDS) &&
+      !/pi_local|F-B2-01|coordinator/.test(correctionForTheCustomer.summary) &&
+      correctionForTheCustomer.summary.startsWith("Correction:"),
+    correctionForTheCustomer?.summary ?? "no correction row",
+  );
+  report(
+    "both audiences see the same events and the same dates",
+    forTheOperator.length === forTheCustomer.length &&
+      forTheOperator.every((row, index) => row.eventId === forTheCustomer[index].eventId && row.effectiveAt === forTheCustomer[index].effectiveAt),
+    `${forTheOperator.length} events on both sides`,
   );
 }
 
