@@ -76,7 +76,7 @@ export async function Inspector({
       ) : null}
 
       {nothingFound && !context ? (
-        <EmptyState illustration="broken-link">Nothing in this database matches that reference.</EmptyState>
+        <EmptyState illustration="search-corgi">Nothing in this database matches that reference.</EmptyState>
       ) : null}
 
       {found.ok

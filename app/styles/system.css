@@ -682,15 +682,21 @@ button.sidebar-toggle:hover {
 .band-meta {
   display: flex;
   flex-wrap: nowrap;
-  overflow: hidden;
+  overflow-x: auto;
+  scrollbar-width: none;
   align-items: center;
   gap: 4px 6px;
   margin-top: 4px;
   font-size: 12.5px;
   color: var(--ink-2);
 }
-.band-meta .badge {
+.band-meta::-webkit-scrollbar {
+  display: none;
+}
+.band-meta .badge,
+.band-meta .chip {
   margin: 0;
+  white-space: nowrap;
 }
 /* The actions stay on one row and keep their width; the title shrinks instead (round 1, HIGH:
    two buttons stacked took the band to 139 px). */
@@ -759,10 +765,12 @@ main:focus {
    Stat tiles
    --------------------------------------------------------------------------- */
 /* A tile is never wider than 360 px: two tiles at 1920 px used to stretch to 700 px each and
-   put one "0" in a half-screen box (round 1, MEDIUM). */
+   put one "0" in a half-screen box (round 1, MEDIUM). The cap is on the tile, not on the track:
+   `minmax(168px, 360px)` counts its tracks at 360 px and left four tiles in one column at
+   1024 px (measured 2026-09-09 on /ops/console/ledger). */
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(168px, 360px));
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: 12px;
   margin: 0 0 16px;
 }
@@ -771,6 +779,7 @@ main:focus {
   flex-direction: column;
   gap: 3px;
   min-height: 92px;
+  max-width: 360px;
   padding: 14px 16px;
   background: white;
   border: 1px solid var(--line);
@@ -1704,9 +1713,9 @@ table.entry-lines > thead > tr > th.amount {
 .drawer {
   position: fixed;
   right: 0;
-  top: 0;
+  top: var(--top-h);
   z-index: 40;
-  height: 100dvh;
+  height: calc(100dvh - var(--top-h));
   width: min(440px, calc(100vw - 24px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -2422,6 +2431,21 @@ button.secondary.is-working::after {
   :root {
     --content-x: 24px;
   }
+  /* Under 1200 px the suffix takes its own line rather than sharing the title's: sharing it,
+     the browser broke the policy number itself in half ("Policy CGP-" / "01707", round 1
+     HIGH), because a hyphen is a break opportunity and no CSS property removes it. */
+  .band-title h1 small,
+  .band-suffix {
+    display: block;
+    margin-left: 0;
+    max-width: 100%;
+  }
+  .breadcrumb {
+    display: none;
+  }
+  .topbar-search {
+    flex: 0 1 200px;
+  }
   .layout-2 {
     grid-template-columns: minmax(0, 1fr) 300px;
   }
@@ -2551,6 +2575,10 @@ button.secondary.is-working::after {
   .topbar {
     position: static;
   }
+  .drawer {
+    top: 0;
+    height: 100dvh;
+  }
   .page-band {
     position: static;
     flex-wrap: wrap;
@@ -2565,7 +2593,7 @@ button.secondary.is-working::after {
   }
   .band-meta {
     flex-wrap: wrap;
-    overflow: visible;
+    overflow-x: visible;
   }
   .band-art {
     width: 40px;
