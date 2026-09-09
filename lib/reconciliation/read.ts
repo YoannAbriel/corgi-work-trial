@@ -656,3 +656,20 @@ export async function countOpenBreaks(database: postgres.Sql): Promise<number> {
   `;
   return row.open_breaks;
 }
+
+// The same count split by source, for the tiles of the breaks board. The board lists at most
+// one page of breaks (openBreaksPage), so a tile that counted the rows drawn would understate a
+// source as soon as the page was capped; this count reads the whole open set, with the same rule
+// as the badge, and the page can say "of N" honestly.
+export async function countOpenBreaksBySource(database: postgres.Sql): Promise<Record<string, number>> {
+  const rows = await database<{ source: string; open_breaks: number }[]>`
+    with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+    select source, count(*)::int as open_breaks
+      from latest_report
+     where ${database.unsafe(IT_IS_A_BREAK_TO_ACT_ON)}
+     group by source
+  `;
+  const bySource: Record<string, number> = {};
+  for (const row of rows) bySource[row.source] = row.open_breaks;
+  return bySource;
+}
