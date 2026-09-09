@@ -236,6 +236,10 @@ Yoann sent the T+24h email on the candidate thread at 22:34 Europe/Zurich (20:34
 
 Every delegate worktree under .claude/worktrees was checked (branch merged into main, working tree clean) and removed with its branch: builders B4, B7, B8, B10, B11, B12-1, UI polish and the PDF pass, reviewers B1 to B11, the design review, the interface reviews, the rebuild review. No .env.local copy remains under .claude/worktrees (a B14 item done early). The two Codex worktrees are Yoann's and stay: .worktrees/corgi-interface (branch merged at 856e75c) and .worktrees/corgi-illustrations (one unmerged commit, an illustration library started on the Spark, not part of the submission). No delegate is running; the finished ones in the roster hold no process.
 
+## 2026-09-09T06:17:03+00:00 | Day 2 opens: the scheduled reconciliation ran on its own at 06:00 UTC
+
+Production at 4ddb33b, healthy. The Vercel cron called /api/jobs/daily at 06:00 UTC: two reconciliation runs stored at 06:00:12Z, stripe complete and claims_rail complete, run_by empty (the screen shows "scheduled job"). No approval waiting. Freeze in about 23 hours 30 minutes (September 10, 07:50 Europe/Zurich).
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
