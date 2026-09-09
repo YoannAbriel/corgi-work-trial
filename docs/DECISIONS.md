@@ -22,7 +22,7 @@ Three independent Sol reviewers compared the old preparation with the released b
 
 ## 2026-09-08T07:10:53+00:00 | Explicit user decision | Track 1 selected
 
-Yoann selected Track 1 — Policy administration. Product direction: combine impact preview before an endorsement/correction/cancellation with a traceable explanation of the resulting amounts, using the same financial calculation. This is one differentiating extension, subordinate to the mandatory core; the other brainstormed enhancements are not five mandatory deliverables. Stack and provider choices are deliberately deferred to the next session. Current request: simplify Linear's overview and prepare a handoff prompt plus an unsent track-confirmation email; do not write the attack plan or start product implementation in this session.
+Yoann selected Track 1: Policy administration. Product direction: combine impact preview before an endorsement/correction/cancellation with a traceable explanation of the resulting amounts, using the same financial calculation. This is one differentiating extension, subordinate to the mandatory core; the other brainstormed enhancements are not five mandatory deliverables. Stack and provider choices are deliberately deferred to the next session. Current request: simplify Linear's overview and prepare a handoff prompt plus an unsent track-confirmation email; do not write the attack plan or start product implementation in this session.
 
 ## 2026-09-08T07:39:37+00:00 | Explicit user decision | Stack: Next.js on Vercel, Postgres on Neon, hand-written SQL
 
