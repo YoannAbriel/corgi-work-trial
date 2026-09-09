@@ -71,6 +71,10 @@ A rehearsed live demonstration for the debrief is written up in [docs/handoffs/b
 
 `/inbox` is the notification centre of the signed-in role: every waiting item on one page, grouped by screen, with the link that does the work (a policy to pay, an endorsement delta to pay, a correction difference to collect, a quote waiting for the customer, a change request to answer; an endorsement or a correction to approve for a customer; approval requests, policies paid and not bound, endorsements paid and not applied, claims with a payment to move and the open breaks for staff). The sidebar counts and the "what needs you" block point at it. Every count is the length of the list it points at, read with the same readers the screens use, so a badge and its list cannot disagree.
 
+## Explain this amount, animated
+
+Clicking a figure opens its explanation and builds it line by line; the result counts up to the figure; a connector is drawn to the journal entry block that proves it, and "Trace to the ledger" scrolls to that entry. No money is computed in the browser: every string the animation shows was rendered on the server and arrives in a prop or a data attribute, which lib/money/amount-explained-motion.test.ts asserts against the source of the client component. With JavaScript off the fold is the same static details element with every line visible; prefers-reduced-motion shows the finished state at once. Frames under docs/evidence/b12-4/.
+
 ## Customer change requests
 
 A customer signed in on `customer@example.com` opens their own policy at `/policies/{id}` and reads it: the terms in force, the endorsement schedule, the documents as of any date and the timeline. No journal, no ledger sums, no action but one, "Request a change": they tick the lines the request is about (insured name, mailing address, per-occurrence limit, aggregate limit, annual premium, effective date, other) and write a comment. The owning broker sees it on the same policy page, above the endorsement schedule, and as "N change requests to answer" in "what needs you"; they answer it once, either with an answer or by saying the change has been made.
