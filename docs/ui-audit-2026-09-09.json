@@ -4,10 +4,10 @@
   "language": "en",
   "target_url": "https://corgi-work-trial-iota.vercel.app/",
   "branding_reference_url": "https://app.corgi.insure/portal/coverage",
-  "generated_at": "2026-09-09T09:48:25.759Z",
+  "generated_at": "2026-09-09T09:54:23.779397+00:00",
   "observation_window_utc": {
     "first": "2026-09-09T09:12:58.905Z",
-    "last": "2026-09-09T09:44:29.363Z"
+    "last": "2026-09-09T09:52:51.686Z"
   },
   "scope": {
     "mode": "Observed desktop UI and navigation. Findings describe rendered behavior, not inferred implementation causes.",
@@ -33,18 +33,22 @@
       {
         "revision_prefix": "5fa3d49f7e7a",
         "evidence_id": "console-infrastructure-help"
+      },
+      {
+        "revision_prefix": "a1e525ddd02e",
+        "evidence_id": "final-deployment-recheck"
       }
     ],
-    "revision_note": "The deployment changed during the audit. Each finding is tied to timestamped evidence, not a claim that every capture belongs to one immutable revision. Login was checked again after the later revision was observed.",
+    "revision_note": "The deployment changed during the audit. Each finding is tied to timestamped evidence. At closing, the affected console and customer states were rechecked on a1e525ddd02e. UI-027 was removed after its displayed contradiction disappeared. UI-035 and UI-036 describe the remaining issues after that recheck. Other findings retain their observation timestamps; this is not a certification of a single immutable deployment.",
     "reference_usage": "The connected Corgi portal was used as a visual reference, not as a second defect backlog.",
     "financial_or_access_changes_performed": false,
     "linear_tickets_created": 0,
     "application_code_changes": 0
   },
   "summary": {
-    "unique_issue_count": 36,
+    "unique_issue_count": 35,
     "priority_counts": {
-      "1": 8,
+      "1": 7,
       "2": 19,
       "3": 9
     },
@@ -98,7 +102,7 @@
               "observation_id": "ref-coverage",
               "url": "https://app.corgi.insure/portal/coverage",
               "captured_at": "2026-09-09T09:12:58.905Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-coverage.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-coverage.jpg",
               "viewport": {
                 "width": 1512,
                 "height": 754,
@@ -109,7 +113,7 @@
               "observation_id": "public-home",
               "url": "https://corgi-work-trial-iota.vercel.app/",
               "captured_at": "2026-09-09T09:39:55.002Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/public-home.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/public-home.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -120,7 +124,7 @@
               "observation_id": "login-current",
               "url": "https://corgi-work-trial-iota.vercel.app/login",
               "captured_at": "2026-09-09T09:44:26.202Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -131,7 +135,7 @@
               "observation_id": "broker-statements-help",
               "url": "https://corgi-work-trial-iota.vercel.app/broker/statements",
               "captured_at": "2026-09-09T09:32:41.962Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-statements-help.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-statements-help.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -155,7 +159,7 @@
               "observation_id": "ref-coverage",
               "url": "https://app.corgi.insure/portal/coverage",
               "captured_at": "2026-09-09T09:12:58.905Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-coverage.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-coverage.jpg",
               "viewport": {
                 "width": 1512,
                 "height": 754,
@@ -166,7 +170,7 @@
               "observation_id": "ref-quotes",
               "url": "https://app.corgi.insure/portal/quotes",
               "captured_at": "2026-09-09T09:13:34.165Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-quotes.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-quotes.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -177,7 +181,7 @@
               "observation_id": "ops-overview",
               "url": "https://corgi-work-trial-iota.vercel.app/ops",
               "captured_at": "2026-09-09T09:13:55.709Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-overview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-overview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -188,7 +192,7 @@
               "observation_id": "broker-overview",
               "url": "https://corgi-work-trial-iota.vercel.app/broker",
               "captured_at": "2026-09-09T09:32:00.273Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -199,7 +203,7 @@
               "observation_id": "broker-statements",
               "url": "https://corgi-work-trial-iota.vercel.app/broker/statements",
               "captured_at": "2026-09-09T09:32:27.029Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-statements.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-statements.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -210,7 +214,7 @@
               "observation_id": "ops-policies",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/policies",
               "captured_at": "2026-09-09T09:15:06.674Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -221,7 +225,7 @@
               "observation_id": "ops-mcp-keys",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/mcp-keys",
               "captured_at": "2026-09-09T09:19:10.009Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-mcp-keys.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-mcp-keys.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -282,7 +286,7 @@
               "observation_id": "login-current",
               "url": "https://corgi-work-trial-iota.vercel.app/login",
               "captured_at": "2026-09-09T09:44:26.202Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -293,7 +297,7 @@
               "observation_id": "login-current-expanded",
               "url": "https://corgi-work-trial-iota.vercel.app/login",
               "captured_at": "2026-09-09T09:44:29.363Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current-expanded.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current-expanded.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -360,7 +364,7 @@
               "observation_id": "ops-policies-help",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/policies",
               "captured_at": "2026-09-09T09:15:22.487Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies-help.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies-help.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -371,7 +375,7 @@
               "observation_id": "policy-bound",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:20:21.937Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -382,7 +386,7 @@
               "observation_id": "broker-overview",
               "url": "https://corgi-work-trial-iota.vercel.app/broker",
               "captured_at": "2026-09-09T09:32:00.273Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -446,7 +450,7 @@
               "observation_id": "ops-claims",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/claims",
               "captured_at": "2026-09-09T09:16:11.130Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-claims.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-claims.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -457,7 +461,7 @@
               "observation_id": "claim-detail",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
               "captured_at": "2026-09-09T09:16:31.634Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-detail.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-detail.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -468,7 +472,7 @@
               "observation_id": "ops-policies",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/policies",
               "captured_at": "2026-09-09T09:15:06.674Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -479,7 +483,7 @@
               "observation_id": "policy-cancelled",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/104d2966-be96-4c36-9956-caf0762f8b15",
               "captured_at": "2026-09-09T09:23:34.013Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-cancelled.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-cancelled.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -490,7 +494,7 @@
               "observation_id": "policy-voided",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad",
               "captured_at": "2026-09-09T09:24:39.402Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-voided.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-voided.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -543,7 +547,7 @@
               "observation_id": "claim-lower",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
               "captured_at": "2026-09-09T09:16:59.038Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-lower.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-lower.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -554,7 +558,7 @@
               "observation_id": "claim-simulator-menu",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
               "captured_at": "2026-09-09T09:17:23.611Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-simulator-menu.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-simulator-menu.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -579,7 +583,7 @@
               "observation_id": "claim-explanation",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
               "captured_at": "2026-09-09T09:16:45.624Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-explanation.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-explanation.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -590,7 +594,7 @@
               "observation_id": "claim-payments-actions",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
               "captured_at": "2026-09-09T09:16:46.183Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-payments-actions.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-payments-actions.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -601,7 +605,7 @@
               "observation_id": "policy-fee-explanation",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:40:52.402Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-fee-explanation.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-fee-explanation.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -612,7 +616,7 @@
               "observation_id": "statement-explanation-settled",
               "url": "https://corgi-work-trial-iota.vercel.app/statements/c775c8ce-34a3-48a3-bea5-558b4d63a546",
               "captured_at": "2026-09-09T09:33:09.251Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-explanation-settled.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-explanation-settled.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -662,7 +666,7 @@
               "observation_id": "ops-approvals",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
               "captured_at": "2026-09-09T09:17:33.366Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-approvals.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-approvals.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -673,7 +677,7 @@
               "observation_id": "approver-queue",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
               "captured_at": "2026-09-09T09:37:21.577Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/approver-queue.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/approver-queue.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -698,7 +702,7 @@
               "observation_id": "ops-approvals",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
               "captured_at": "2026-09-09T09:17:33.366Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-approvals.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-approvals.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -709,7 +713,7 @@
               "observation_id": "approval-intent",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
               "captured_at": "2026-09-09T09:17:44.277Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/approval-intent.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/approval-intent.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -733,7 +737,7 @@
               "observation_id": "approval-intent",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
               "captured_at": "2026-09-09T09:17:44.277Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/approval-intent.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/approval-intent.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -781,7 +785,7 @@
               "observation_id": "ops-reconciliation",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/reconciliation",
               "captured_at": "2026-09-09T09:17:47.792Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-reconciliation.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-reconciliation.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -806,7 +810,7 @@
               "observation_id": "inbox-investigate-destination",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/reconciliation",
               "captured_at": "2026-09-09T09:19:49.966Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-investigate-destination.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-investigate-destination.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -817,7 +821,7 @@
               "observation_id": "ops-statements",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/statements",
               "captured_at": "2026-09-09T09:18:23.128Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-statements.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-statements.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -828,7 +832,7 @@
               "observation_id": "customer-policy-schedule",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:36:03.923Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy-schedule.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy-schedule.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -875,7 +879,7 @@
               "observation_id": "ops-statements",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/statements",
               "captured_at": "2026-09-09T09:18:23.128Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-statements.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-statements.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -930,7 +934,7 @@
               "observation_id": "statement-movements",
               "url": "https://corgi-work-trial-iota.vercel.app/statements/c775c8ce-34a3-48a3-bea5-558b4d63a546",
               "captured_at": "2026-09-09T09:32:54.410Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-movements.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-movements.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -941,7 +945,7 @@
               "observation_id": "statement-help",
               "url": "https://corgi-work-trial-iota.vercel.app/statements/c775c8ce-34a3-48a3-bea5-558b4d63a546",
               "captured_at": "2026-09-09T09:32:55.947Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-help.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-help.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -987,7 +991,7 @@
               "observation_id": "ops-mcp-keys",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/mcp-keys",
               "captured_at": "2026-09-09T09:19:10.009Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-mcp-keys.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-mcp-keys.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1037,7 +1041,7 @@
               "observation_id": "ops-inbox",
               "url": "https://corgi-work-trial-iota.vercel.app/inbox",
               "captured_at": "2026-09-09T09:19:28.054Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-inbox.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-inbox.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1048,7 +1052,7 @@
               "observation_id": "inbox-breaks",
               "url": "https://corgi-work-trial-iota.vercel.app/inbox",
               "captured_at": "2026-09-09T09:19:37.894Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-breaks.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-breaks.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1074,7 +1078,7 @@
               "observation_id": "inbox-breaks",
               "url": "https://corgi-work-trial-iota.vercel.app/inbox",
               "captured_at": "2026-09-09T09:19:37.894Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-breaks.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-breaks.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1085,7 +1089,7 @@
               "observation_id": "inbox-investigate-destination",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/reconciliation",
               "captured_at": "2026-09-09T09:19:49.966Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-investigate-destination.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-investigate-destination.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1109,7 +1113,7 @@
               "observation_id": "ops-inbox",
               "url": "https://corgi-work-trial-iota.vercel.app/inbox",
               "captured_at": "2026-09-09T09:19:28.054Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-inbox.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-inbox.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1120,7 +1124,7 @@
               "observation_id": "broker-inbox",
               "url": "https://corgi-work-trial-iota.vercel.app/inbox",
               "captured_at": "2026-09-09T09:33:12.943Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-inbox.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-inbox.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1131,7 +1135,7 @@
               "observation_id": "customer-inbox",
               "url": "https://corgi-work-trial-iota.vercel.app/inbox",
               "captured_at": "2026-09-09T09:36:50.415Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-inbox.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-inbox.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1185,7 +1189,7 @@
               "observation_id": "policy-schedule",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:40:53.026Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-schedule.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-schedule.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1196,7 +1200,7 @@
               "observation_id": "policy-endorsement-explained",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:22:08.466Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-endorsement-explained.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-endorsement-explained.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1222,7 +1226,7 @@
               "observation_id": "policy-asof",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-10-08#as-of",
               "captured_at": "2026-09-09T09:23:14.871Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-asof.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-asof.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1233,7 +1237,7 @@
               "observation_id": "policy-asof-submit-stale",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-09#as-of",
               "captured_at": "2026-09-09T09:23:32.138Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-asof-submit-stale.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-asof-submit-stale.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1258,7 +1262,7 @@
               "observation_id": "policy-sandbox-references",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:40:53.432Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-sandbox-references.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-sandbox-references.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1283,7 +1287,7 @@
               "observation_id": "policy-voided",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad",
               "captured_at": "2026-09-09T09:24:39.402Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-voided.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-voided.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1329,7 +1333,7 @@
               "observation_id": "policy-endorse",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/endorse",
               "captured_at": "2026-09-09T09:20:35.856Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-endorse.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-endorse.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1340,7 +1344,7 @@
               "observation_id": "endorsement-preview-default",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/endorse?newAnnualPremium=2%2C400.00&newPerOccurrenceLimit=2%2C000%2C000.00&newAggregateLimit=4%2C000%2C000.00&effectiveAt=2026-09-09&reason=",
               "captured_at": "2026-09-09T09:20:47.538Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/endorsement-preview-default.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/endorsement-preview-default.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1403,7 +1407,7 @@
               "observation_id": "correction-preview",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/corrections/new?endorsedEventId=e3e7c572-def4-47c0-940d-69b10df35d90&correctedEffectiveAt=2026-09-17&reason=UI+audit+preview+only%3B+no+correction+recorded.",
               "captured_at": "2026-09-09T09:22:47.470Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/correction-preview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/correction-preview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1452,7 +1456,8 @@
         "console-filters",
         "console-help",
         "console-navigation-before",
-        "console-navigation-after"
+        "console-navigation-after",
+        "console-feed-recheck"
       ],
       "issues": [
         {
@@ -1472,7 +1477,7 @@
               "observation_id": "console-navigation-before",
               "url": "https://corgi-work-trial-iota.vercel.app/ops",
               "captured_at": "2026-09-09T09:29:28.235Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-navigation-before.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-navigation-before.jpg",
               "viewport": {
                 "height": 754,
                 "scrollWidth": 1512,
@@ -1483,7 +1488,7 @@
               "observation_id": "console-navigation-after",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
               "captured_at": "2026-09-09T09:29:49.921Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-navigation-after.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-navigation-after.jpg",
               "viewport": {
                 "height": 754,
                 "scrollWidth": 1512,
@@ -1511,7 +1516,7 @@
               "observation_id": "console-errors",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
               "captured_at": "2026-09-09T09:29:13.994Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-errors.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-errors.jpg",
               "viewport": {
                 "height": 754,
                 "scrollWidth": 1512,
@@ -1522,53 +1527,7 @@
               "observation_id": "console-help",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
               "captured_at": "2026-09-09T09:43:41.953Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-help.png",
-              "viewport": {
-                "height": 698,
-                "scrollWidth": 1512,
-                "width": 1512
-              }
-            }
-          ]
-        },
-        {
-          "id": "UI-027",
-          "priority": 1,
-          "category": "displayed_information",
-          "title": "The console reports CGP-01707 as unknown although its payment is shown as succeeded elsewhere",
-          "observed": "The console lists CGP-01707's original checkout as accepted and unconfirmed. Its Policy 360 row says provider_accepted while also reporting 26.3s from acceptance to success. The ordinary policy screen says the premium payment succeeded.",
-          "reproduction_steps": [
-            "Compare CGP-01707 in the console Errors panel, Policy 360 money operations and its ordinary policy detail."
-          ],
-          "impact": "The operator receives conflicting guidance about whether this payment needs recovery.",
-          "evidence": [
-            {
-              "observation_id": "console-feed",
-              "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
-              "captured_at": "2026-09-09T09:28:52.633Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-feed.png",
-              "viewport": {
-                "height": 754,
-                "scrollWidth": 1512,
-                "width": 1512
-              }
-            },
-            {
-              "observation_id": "console-policy",
-              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
-              "captured_at": "2026-09-09T09:25:01.890Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy.png",
-              "viewport": {
-                "height": 698,
-                "scrollWidth": 1512,
-                "width": 1512
-              }
-            },
-            {
-              "observation_id": "policy-bound",
-              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
-              "captured_at": "2026-09-09T09:20:21.937Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-help.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1620,7 +1579,7 @@
               "observation_id": "console-search-policy",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/search?reference=CGP-01707",
               "captured_at": "2026-09-09T09:24:49.802Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-policy.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-policy.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1631,7 +1590,7 @@
               "observation_id": "console-search-claim",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/search?reference=CLM-00212",
               "captured_at": "2026-09-09T09:30:10.500Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-claim.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-claim.jpg",
               "viewport": {
                 "height": 754,
                 "scrollWidth": 1512,
@@ -1642,7 +1601,7 @@
               "observation_id": "console-policy",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:25:01.890Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1653,7 +1612,7 @@
               "observation_id": "console-claim",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/claim/2f78c23c-17fc-4746-85dd-77f64d6db45a",
               "captured_at": "2026-09-09T09:30:29.632Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-claim.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-claim.jpg",
               "viewport": {
                 "height": 754,
                 "scrollWidth": 1512,
@@ -1664,7 +1623,7 @@
               "observation_id": "policy-cancelled",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/104d2966-be96-4c36-9956-caf0762f8b15",
               "captured_at": "2026-09-09T09:23:34.013Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-cancelled.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-cancelled.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1675,7 +1634,7 @@
               "observation_id": "policy-bound",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:20:21.937Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1703,7 +1662,7 @@
               "observation_id": "console-search-claim",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/search?reference=CLM-00212",
               "captured_at": "2026-09-09T09:30:10.500Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-claim.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-claim.jpg",
               "viewport": {
                 "height": 754,
                 "scrollWidth": 1512,
@@ -1756,7 +1715,7 @@
               "observation_id": "console-policy",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:25:01.890Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1767,7 +1726,7 @@
               "observation_id": "console-claim",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/claim/2f78c23c-17fc-4746-85dd-77f64d6db45a",
               "captured_at": "2026-09-09T09:30:29.632Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-claim.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-claim.jpg",
               "viewport": {
                 "height": 754,
                 "scrollWidth": 1512,
@@ -1778,7 +1737,7 @@
               "observation_id": "console-broker",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/broker/edae60d2-2192-4347-8083-945818e10ce8",
               "captured_at": "2026-09-09T09:31:16.642Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-broker.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-broker.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1789,7 +1748,7 @@
               "observation_id": "console-customer",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/customer/5f55b8dd-c25c-4fec-8843-5a0e43603c97",
               "captured_at": "2026-09-09T09:31:30.200Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-customer.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-customer.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1800,7 +1759,7 @@
               "observation_id": "console-customer-timeline",
               "url": "https://corgi-work-trial-iota.vercel.app/ops/console/customer/5f55b8dd-c25c-4fec-8843-5a0e43603c97",
               "captured_at": "2026-09-09T09:31:30.538Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-customer-timeline.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-customer-timeline.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1829,7 +1788,8 @@
       "evidence_ids": [
         "console-infrastructure",
         "console-infrastructure-lower",
-        "console-infrastructure-help"
+        "console-infrastructure-help",
+        "final-deployment-recheck"
       ],
       "issues": []
     },
@@ -1868,7 +1828,7 @@
               "observation_id": "broker-failed-overview",
               "url": "https://corgi-work-trial-iota.vercel.app/broker",
               "captured_at": "2026-09-09T09:33:36.933Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-failed-overview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-failed-overview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1879,7 +1839,7 @@
               "observation_id": "broker3-overview",
               "url": "https://corgi-work-trial-iota.vercel.app/broker",
               "captured_at": "2026-09-09T09:34:22.133Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker3-overview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker3-overview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1903,7 +1863,7 @@
               "observation_id": "broker-overview",
               "url": "https://corgi-work-trial-iota.vercel.app/broker",
               "captured_at": "2026-09-09T09:32:00.273Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1914,7 +1874,7 @@
               "observation_id": "customer-overview",
               "url": "https://corgi-work-trial-iota.vercel.app/customer",
               "captured_at": "2026-09-09T09:35:47.581Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -1984,7 +1944,7 @@
               "observation_id": "broker-kyb-resubmit-lower",
               "url": "https://corgi-work-trial-iota.vercel.app/broker/kyb",
               "captured_at": "2026-09-09T09:33:58.150Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-kyb-resubmit-lower.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-kyb-resubmit-lower.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -2050,7 +2010,7 @@
               "observation_id": "customer-overview",
               "url": "https://corgi-work-trial-iota.vercel.app/customer",
               "captured_at": "2026-09-09T09:35:47.581Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -2061,7 +2021,7 @@
               "observation_id": "customer-policy",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:35:48.093Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -2072,7 +2032,7 @@
               "observation_id": "customer-change-request",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
               "captured_at": "2026-09-09T09:36:04.236Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-change-request.png",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-change-request.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -2104,26 +2064,28 @@
         "customer-change-request",
         "customer-policy-help",
         "customer-policy-voided",
-        "customer-cancelled-policy"
+        "customer-cancelled-policy",
+        "customer-policy-recheck",
+        "customer-voided-recheck"
       ],
       "issues": [
         {
           "id": "UI-035",
           "priority": 1,
           "category": "displayed_information",
-          "title": "The customer is shown a future endorsement as today's terms",
-          "observed": "On 2026-09-09, CGP-01707's customer list shows Annual premium in force $2,400.00. Its customer detail says 'These are the terms in force today' above $2,400.00 and the increased limits. Its own schedule dates those changes 2026-10-08. The operations detail shows $1,200.00 for 2026-09-09 with an explicit future-change notice.",
+          "title": "The customer list shows a future premium as in force, while the detail shows today's amount",
+          "observed": "On 2026-09-09, CGP-01707's customer list still shows Annual premium in force $2,400.00. After deployment a1e525ddd02e, its detail correctly shows $1,200.00 for 2026-09-09 and says the $2,400.00 endorsement becomes effective on 2026-10-08. The list and detail remain contradictory.",
           "reproduction_steps": [
-            "View CGP-01707 as customer@example.com.",
-            "Compare its terms, dated endorsement schedule and operations detail."
+            "Sign in as customer@example.com and read CGP-01707 in /customer.",
+            "Open its policy detail and compare the dated current premium and the future endorsement notice."
           ],
-          "impact": "The customer receives a different statement of current premium and limits from the dated policy view.",
+          "impact": "The list overstates the current annual premium and disagrees with the dated customer detail.",
           "evidence": [
             {
-              "observation_id": "customer-overview",
+              "observation_id": "customer-overview-recheck",
               "url": "https://corgi-work-trial-iota.vercel.app/customer",
-              "captured_at": "2026-09-09T09:35:47.581Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview.png",
+              "captured_at": "2026-09-09T09:52:39.838Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview-recheck.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
@@ -2131,76 +2093,53 @@
               }
             },
             {
-              "observation_id": "customer-policy",
+              "observation_id": "customer-policy-recheck",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
-              "captured_at": "2026-09-09T09:35:48.093Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy.png",
-              "viewport": {
-                "height": 698,
-                "scrollWidth": 1512,
-                "width": 1512
-              }
-            },
-            {
-              "observation_id": "policy-bound",
-              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
-              "captured_at": "2026-09-09T09:20:21.937Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.png",
+              "captured_at": "2026-09-09T09:52:50.335Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy-recheck.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
                 "width": 1512
               }
             }
-          ]
+          ],
+          "also_affected_routes": [
+            "/customer"
+          ],
+          "recheck": {
+            "revision_prefix": "a1e525ddd02e",
+            "result": "Partially corrected during the audit; the list issue remains."
+          }
         },
         {
           "id": "UI-036",
           "priority": 2,
           "category": "displayed_information",
-          "title": "Voided and not-yet-effective customer policies are described as in force today",
-          "observed": "CGP-01061 is marked voided, has a term beginning in 2028, and still says 'Terms in force' and 'These are the terms in force today'. CGP-01274's customer view uses the same wording even though the audit date precedes its 2026-09-17 term start. The voided customer view lacks the explanatory warning visible to operations.",
+          "title": "The voided customer policy labels its fallback figures as terms in force",
+          "observed": "On CGP-01061, the status is voided and the section is still headed Terms in force with the sentence These are the terms in force on that date. A later paragraph now explains that the policy cannot be rebuilt for 2028-03-01 and that the displayed figures are from the policy record, not cover in force on a date. The section heading and first sentence contradict that warning.",
           "reproduction_steps": [
-            "Open CGP-01061 as its customer.",
-            "Compare the status, term dates and Terms in force copy.",
-            "Compare CGP-01274's customer detail and its term start."
+            "Open CGP-01061 as customer@example.com.",
+            "Compare the voided status, Terms in force heading, first explanatory sentence and the warning below."
           ],
-          "impact": "The customer-facing copy does not communicate whether coverage is currently effective.",
+          "impact": "The same section presents fallback policy-record values as effective coverage and then denies that interpretation.",
           "evidence": [
             {
-              "observation_id": "customer-policy-voided",
+              "observation_id": "customer-voided-recheck",
               "url": "https://corgi-work-trial-iota.vercel.app/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad",
-              "captured_at": "2026-09-09T09:36:05.643Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy-voided.png",
-              "viewport": {
-                "height": 697,
-                "scrollWidth": 1512,
-                "width": 1512
-              }
-            },
-            {
-              "observation_id": "customer-cancelled-policy",
-              "url": "https://corgi-work-trial-iota.vercel.app/policies/104d2966-be96-4c36-9956-caf0762f8b15",
-              "captured_at": "2026-09-09T09:37:06.769Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-cancelled-policy.png",
-              "viewport": {
-                "height": 698,
-                "scrollWidth": 1512,
-                "width": 1512
-              }
-            },
-            {
-              "observation_id": "policy-voided",
-              "url": "https://corgi-work-trial-iota.vercel.app/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad",
-              "captured_at": "2026-09-09T09:24:39.402Z",
-              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-voided.png",
+              "captured_at": "2026-09-09T09:52:51.686Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-voided-recheck.jpg",
               "viewport": {
                 "height": 698,
                 "scrollWidth": 1512,
                 "width": 1512
               }
             }
-          ]
+          ],
+          "recheck": {
+            "revision_prefix": "a1e525ddd02e",
+            "result": "Warning added during the audit; contradictory section wording remains."
+          }
         }
       ]
     },
@@ -2253,7 +2192,7 @@
           "observation_id": "pdf-browser-block",
           "url": "https://corgi-work-trial-iota.vercel.app/api/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad/documents/declarations?asOf=2028-03-01",
           "captured_at": "2026-09-09T09:36:49.203Z",
-          "screenshot": "docs/evidence/ui-audit-2026-09-09/pdf-browser-block.png",
+          "screenshot": "docs/evidence/ui-audit-2026-09-09/pdf-browser-block.jpg",
           "viewport": {
             "width": 1512,
             "height": 697
@@ -2300,5 +2239,47 @@
     "Only directly observed issues are listed. No code fix, deployment, commit, push or Linear write was performed by this audit.",
     "Screenshots include synthetic trial data. Reference sidebar details were excluded from retained branding evidence.",
     "Some amount-disclosure captures include animation in progress. Findings concern the persistent narrow layout, not intermediate animated values."
-  ]
+  ],
+  "closing_recheck": {
+    "revision_prefix": "a1e525ddd02e",
+    "excluded_resolved_issue_ids": [
+      "UI-027"
+    ],
+    "reason": "Both CGP-01707 operations now show succeeded in Policy 360; the console no longer reports either as accepted and unconfirmed. This former finding is excluded from the current issue list and counts.",
+    "evidence": [
+      {
+        "observation_id": "final-deployment-recheck",
+        "url": "https://corgi-work-trial-iota.vercel.app/ops/console/infra",
+        "captured_at": "2026-09-09T09:52:12.673Z",
+        "screenshot": "docs/evidence/ui-audit-2026-09-09/final-deployment-recheck.jpg",
+        "viewport": {
+          "height": 698,
+          "scrollWidth": 1512,
+          "width": 1512
+        }
+      },
+      {
+        "observation_id": "console-policy-recheck",
+        "url": "https://corgi-work-trial-iota.vercel.app/ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+        "captured_at": "2026-09-09T09:52:20.427Z",
+        "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy-recheck.jpg",
+        "viewport": {
+          "height": 698,
+          "scrollWidth": 1512,
+          "width": 1512
+        }
+      },
+      {
+        "observation_id": "console-feed-recheck",
+        "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
+        "captured_at": "2026-09-09T09:52:27.694Z",
+        "screenshot": "docs/evidence/ui-audit-2026-09-09/console-feed-recheck.jpg",
+        "viewport": {
+          "height": 698,
+          "scrollWidth": 1512,
+          "width": 1512
+        }
+      }
+    ]
+  }
 }
