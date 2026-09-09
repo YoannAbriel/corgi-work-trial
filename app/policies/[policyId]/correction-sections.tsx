@@ -426,7 +426,15 @@ export function CorrectionsExplained({
                 The effective dates are business dates in the past; the recording time is when we learned we were
                 wrong. Every figure here is the one stored on those events and posted to the journal.
               </p>
-              <FormulaLinesTable lines={correction.lines} />
+              {/* The same reading as the preview and the customer's approval screen (Yoann,
+                  2026-09-09): the differences carry their sign and their direction colour, what was
+                  booked and what the corrected date prices step back, the total is bold. */}
+              <FormulaLinesTable
+                lines={correction.lines}
+                highlightKey="difference_total"
+                signedKeys={["premium_difference", "tax_difference", "difference_total"]}
+                referenceKeys={["premium_as_booked", "premium_corrected"]}
+              />
             </Disclosure>
 
             {/* THE ENTRIES, FOLDED AND PAIRED. A correction posts entries that undo the wrong

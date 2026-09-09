@@ -1,6 +1,8 @@
 import "@/app/styles/policy-detail.css";
+import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { formatSignedCentsAsUsd, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Stat, Stats } from "@/components/ui/stat";
@@ -113,10 +115,13 @@ export default async function ApproveEndorsementPage({
 
       <Stats>
         <Stat label="Annual premium" value={formatCentsAsUsd(figures.newAnnualPremiumCents)} note={`from ${formatCentsAsUsd(figures.oldAnnualPremiumCents)}`} />
+        {/* The same convention as every other money screen (Yoann, 2026-09-09): what the customer
+            owes MORE is green and carries a plus. */}
         <Stat
           label="You would pay"
-          tone="accent"
-          value={formatCentsAsUsd(figures.deltaTotalCents)}
+          tone={signedTone(figures.deltaTotalCents)}
+          valueIcon={signedArrow(figures.deltaTotalCents)}
+          value={formatSignedCentsAsUsd(figures.deltaTotalCents)}
           note={`${figures.daysRemaining} of ${figures.termDays} days remain`}
         />
         <Stat label="Effective" value={figures.effectiveAt} note="the day the change starts" />
@@ -142,7 +147,13 @@ export default async function ApproveEndorsementPage({
               {figures.daysRemaining} of {figures.termDays} days of the term remain from {figures.effectiveAt}. Every
               figure is the one stored on the request; none of it is recomputed for display.
             </p>
-            <FormulaLinesTable lines={endorsementFormulaLines(figures)} />
+            {/* Same reading as the broker's own preview: the prorated lines and the total carry
+                the direction, the annual rate they are read against steps back. */}
+            <FormulaLinesTable
+              lines={endorsementFormulaLines(figures)}
+              signedKeys={["delta_premium", "delta_tax", "delta_total"]}
+              referenceKeys={["annual_difference"]}
+            />
           </section>
         </div>
 

@@ -1,0 +1,82 @@
+/* The sign convention of the money screens (Yoann, 2026-09-09, from his read of the correction
+   preview on production): what is ADDED to what the customer owes is green, what is TAKEN AWAY
+   and goes back to them is red, and the lines a movement is read against step back into the
+   secondary ink so the movement is what the eye lands on.
+
+   EXISTING TOKENS ONLY: --ok and --danger, the accent, and --ink-2, all defined in
+   app/styles/system.css; the red is the one .badge-danger already uses in app/globals.css.
+   No new palette. */
+
+.signed-ok {
+  color: var(--ok);
+}
+.signed-danger {
+  color: var(--danger);
+}
+/* Zero has no direction, so it keeps the ink around it. The class exists so a caller never has to
+   test for the case itself. */
+.signed-neutral {
+  color: inherit;
+}
+
+/* ---------------------------------------------------------------------------
+   The formula table (components/formula-lines.tsx)
+   --------------------------------------------------------------------------- */
+
+/* A movement is bold as well as coloured: on a table of six rows the colour alone did not carry
+   at a glance. The highlighted total is already bold (app/globals.css, table.formula tr.total). */
+table.formula td.amount.signed-ok,
+table.formula td.amount.signed-danger {
+  font-weight: 600;
+}
+
+/* The reference lines: on a correction, the premium as booked and the premium at the corrected
+   date. Still readable, no longer competing with the difference they explain. */
+table.formula tr.formula-reference td,
+table.formula tr.formula-reference code {
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------------------
+   The tiles (components/ui/stat.tsx)
+   --------------------------------------------------------------------------- */
+
+/* The arrow beside the figure, saying the direction again for a reader who does not separate the
+   two colours. */
+.stat-value-icon {
+  vertical-align: -2px;
+  margin-left: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+   Reversal, then re-book (the correction preview)
+   --------------------------------------------------------------------------- */
+
+/* What the correction will reverse: the amount is struck through and steps back, because it is
+   the figure that stops being what the customer was billed. The entry itself is never deleted,
+   which is what the sentence under the table says. */
+tr.dt-row.will-be-reversed td {
+  color: var(--ink-2);
+}
+tr.dt-row.will-be-reversed td.num {
+  text-decoration: line-through;
+}
+
+/* What the correction will book instead: a preview, not a record, so the row is dashed and sits
+   on a faint ground rather than looking like a row that already exists. */
+tr.dt-row.rebook-preview td {
+  border-top: 1px dashed #c9cbd1;
+  border-bottom: 1px dashed #c9cbd1;
+  background: #fbfcfb;
+}
+tr.dt-row.rebook-preview td.num {
+  font-weight: 600;
+}
+
+/* The two chips sit beside the entry name rather than under it, and stay on one line. */
+.entry-move {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}

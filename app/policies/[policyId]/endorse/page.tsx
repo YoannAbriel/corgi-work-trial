@@ -1,6 +1,8 @@
 import "@/app/styles/policy-detail.css";
+import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { formatSignedCentsAsUsd, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -111,10 +113,14 @@ export default async function EndorsePolicyPage({
     >
       <Stats>
         <Stat label="Annual premium" value={formatCentsAsUsd(figures.newAnnualPremiumCents)} note={`from ${formatCentsAsUsd(figures.oldAnnualPremiumCents)}`} />
+        {/* The same convention as the correction preview (Yoann, 2026-09-09): green and a plus
+            when the customer pays more, red and a minus when money goes back. The sign is now in
+            the figure, so the absolute value that used to hide it is gone. */}
         <Stat
           label={figures.direction === "refund" ? "Given back" : "To collect"}
-          tone="accent"
-          value={formatCentsAsUsd(Math.abs(figures.deltaTotalCents))}
+          tone={signedTone(figures.deltaTotalCents)}
+          valueIcon={signedArrow(figures.deltaTotalCents)}
+          value={formatSignedCentsAsUsd(figures.deltaTotalCents)}
           note={`${figures.daysRemaining} of ${figures.termDays} days remain`}
         />
         <Stat label="Effective" value={figures.effectiveAt} note="the money is priced from this date" />
@@ -139,7 +145,14 @@ export default async function EndorsePolicyPage({
           <section className="card">
             <h2>Impact, line by line</h2>
             <p className="pd-note">{direction}.</p>
-            <FormulaLinesTable lines={plan.lines} />
+            {/* The prorated lines and the total are what moves; the annual difference above them
+                is the yearly rate the proration is read against, so it steps back. The commission
+                line stays in the ordinary ink: it is the broker's money, not the customer's. */}
+            <FormulaLinesTable
+              lines={plan.lines}
+              signedKeys={["delta_premium", "delta_tax", "delta_total"]}
+              referenceKeys={["annual_difference"]}
+            />
             {figures.taxRefundWasCappedAtCharged ? (
               <p className="pd-note">
                 The tax refund is capped at the premium tax still held on this policy: rounding it up would otherwise
