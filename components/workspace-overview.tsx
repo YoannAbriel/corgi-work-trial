@@ -26,6 +26,15 @@ export function WorkspaceOverview({
           Review verification, follow claims and move requests to the right
           person.
         </p>
+        {/*
+          The clearest AF-03 statement an operator ever reads, and the interface pass had left it
+          only in the page's meta description, where nobody sees it (review finding F-UI-03).
+        */}
+        <p className="note">
+          Every screen here reads append-only tables: nothing on these pages
+          edits or deletes a money row. Corrections are reversals plus
+          re-bookings.
+        </p>
       </div>
       {/* What is waiting comes first: the map of the screens is below it. */}
       <WhatNeedsYou tasks={tasks} />

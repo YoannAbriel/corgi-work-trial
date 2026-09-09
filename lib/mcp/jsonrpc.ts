@@ -1,7 +1,7 @@
 import { hashArguments } from "./keys";
 import { NEVER_DELEGATED, NEVER_DELEGATED_SUMMARY } from "./never-delegated";
 import { findTool, MCP_TOOLS } from "./tools";
-import { ToolRefused, type ToolContext } from "./tools/tool";
+import { argumentsSchemaRefusal, ToolRefused, type ToolContext } from "./tools/tool";
 
 // The Model Context Protocol, the part of it this application needs, written out.
 //
@@ -36,6 +36,21 @@ import { ToolRefused, type ToolContext } from "./tools/tool";
 //                                   array body is refused with a sentence saying so.
 
 export const LATEST_PROTOCOL_VERSION = "2025-11-25";
+
+// The methods this server knows about. It is also the allow-list used before a method name is
+// written into mcp_calls: that table has an UPDATE trigger, a DELETE trigger and a TRUNCATE
+// trigger, so anything stored in it is stored forever, and a caller must never be able to choose
+// what goes in (review finding F-B11-02). A caller who pastes a credential into "method" or into
+// a tool name gets it echoed back in the answer it asked for, and nowhere else.
+const KNOWN_METHODS = ["initialize", "notifications/initialized", "ping", "tools/list", "tools/call"];
+
+// The method name as the audit row will keep it: ours when we recognise it, one fixed word when
+// we do not. "unknown" is what the envelope refusals already record, so a reader sees three
+// values only: a real method, "unrecognised" (a method we do not implement) and "unknown" (a
+// message so malformed it never named one).
+function methodForTheRecord(method: string): string {
+  return KNOWN_METHODS.includes(method) ? method : "unrecognised";
+}
 
 // The revisions this endpoint answers. They agree on everything it implements (the JSON-RPC
 // envelope, initialize, tools/list and tools/call), so a client asking for any of them gets the
@@ -108,7 +123,10 @@ export async function handleJsonRpcMessage(message: unknown, context: ToolContex
   // notifications/initialized, and anything else is accepted and ignored rather than answered,
   // which is what the JSON-RPC rule for notifications says.
   if (envelope.id === undefined) {
-    return { response: null, log: { method, tool: null, argumentsHash: null, outcome: "ok", detail: "notification accepted" } };
+    return {
+      response: null,
+      log: { method: methodForTheRecord(method), tool: null, argumentsHash: null, outcome: "ok", detail: "notification accepted" },
+    };
   }
 
   switch (method) {
@@ -125,7 +143,16 @@ export async function handleJsonRpcMessage(message: unknown, context: ToolContex
       return callTool(id, params, context);
 
     default:
-      return refuse(id, method, METHOD_NOT_FOUND, `this server does not implement "${method}"`);
+      // The answer names the method, because the caller sent it and has to read it. The row
+      // does not: it records that an unimplemented method was called, and nothing the caller
+      // chose the text of.
+      return refuse(
+        id,
+        methodForTheRecord(method),
+        METHOD_NOT_FOUND,
+        `this server does not implement "${method}"`,
+        "method not implemented",
+      );
   }
 }
 
@@ -195,7 +222,20 @@ async function callTool(
   if (!tool) {
     return {
       response: error(id, INVALID_PARAMS, `unknown tool "${name}"`),
-      log: log("tools/call", name || null, argumentsHash, "refused", "unknown tool"),
+      // The tool column stays null: the name is the caller's own string, and the detail beside
+      // it already says what happened (review finding F-B11-02).
+      log: log("tools/call", null, argumentsHash, "refused", "unknown tool"),
+    };
+  }
+
+  // The schema the tool advertises is enforced here, once, before the tool sees anything (review
+  // finding F-B11-06). A field the tool does not declare is refused rather than ignored, so no
+  // future tool can be written against a guarantee that was never checked.
+  const schemaRefusal = argumentsSchemaRefusal(tool.inputSchema, args);
+  if (schemaRefusal) {
+    return {
+      response: ok(id, { content: [{ type: "text", text: schemaRefusal }], isError: true }),
+      log: log("tools/call", tool.name, argumentsHash, "refused", schemaRefusal),
     };
   }
 
@@ -245,8 +285,17 @@ function error(id: string | number | null, code: number, message: string): JsonR
   return { jsonrpc: "2.0", id, error: { code, message } };
 }
 
-function refuse(id: string | number | null, method: string, code: number, message: string): HandledMessage {
-  return { response: error(id, code, message), log: log(method, null, null, "refused", message) };
+// `message` is what the caller reads. `loggedDetail` is what the append-only row keeps, and it
+// defaults to the message because most refusals here are fixed sentences with nothing of the
+// caller's in them; the ones that quote the caller pass their own fixed sentence instead.
+function refuse(
+  id: string | number | null,
+  method: string,
+  code: number,
+  message: string,
+  loggedDetail: string = message,
+): HandledMessage {
+  return { response: error(id, code, message), log: log(method, null, null, "refused", loggedDetail) };
 }
 
 function log(
