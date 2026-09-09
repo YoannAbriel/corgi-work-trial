@@ -240,7 +240,7 @@ export default async function PolicyPage({
   // itself is still the band's own "Pay with Stripe", where it has always been.
   const billingHref = `${path}?view=billing`;
   // The band names one correction when it offers one, and the card that holds them all otherwise.
-  // F-BL-12: the second branch is not dead code — the card carries `id={COLLECT_ANCHOR}` below,
+  // F-BL-12: the second branch is not dead code, since the card carries `id={COLLECT_ANCHOR}` below,
   // which is also where an inbox row rendered before F-EV2-05 lands.
   const collectHref = collectableNow
     ? `${billingHref}#${collectAnchorFor(collectableNow.correction.rebookEventId)}`
