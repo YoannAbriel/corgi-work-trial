@@ -1,3 +1,5 @@
+import "@/app/styles/lists.css";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
@@ -5,14 +7,13 @@ import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Inspector } from "@/components/ui/inspector";
 import { Legend } from "@/components/ui/legend";
-import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DataTable, Primary, Ref, Row } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import { currentUser } from "@/lib/auth/current-user";
 import { KYB_NOT_LIVE_LABEL } from "@/lib/broker/eligibility";
 import { brokersWithKybState } from "@/lib/broker/kyb";
-import { closeInspectorHref, inspectedReference, inspectHref, toastsFromQuery, type Query } from "@/lib/ui/views";
+import { closeInspectorHref, firstValue, inspectedReference, inspectHref, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 
 // /ops/brokers: where the operations team sees whether a broker may bind, and why.
 //
@@ -21,6 +22,22 @@ import { closeInspectorHref, inspectedReference, inspectHref, toastsFromQuery, t
 // pressing it twice does not add a second row (POST /api/brokers/{id}/kyb/recheck).
 
 const PATH = "/ops/brokers";
+
+// What each verification status means, one clause each. The legend under the table prints only
+// the ones the rows actually show (round 1, MEDIUM).
+const STATUS_MEANING: Record<string, string> = {
+  approved: "Stripe verified the company; the server allows binding",
+  pending: "Stripe is still checking, or the settling window has not passed",
+  failed: "Stripe refused, with its own requirement codes on the row",
+  unknown: "no status was ever recorded; binding is refused",
+};
+
+// The statuses on the screen, once each, in the order the rows use them.
+function statusesOnScreen(rows: { state: { status: string } }[]): string[] {
+  const seen: string[] = [];
+  for (const row of rows) if (!seen.includes(row.state.status) && STATUS_MEANING[row.state.status]) seen.push(row.state.status);
+  return seen;
+}
 
 export default async function OpsBrokersPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
@@ -37,8 +54,9 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
   const countOf = (status: string) => brokers.filter((broker) => broker.state.status === status).length;
   const approved = countOf("approved");
   const failed = countOf("failed");
-  const neverSubmitted = brokers.filter((broker) => broker.submission === null).length;
-  const held = brokers.filter((broker) => broker.state.heldBySettlingWindow).length;
+  // The form for a new broker is a view of this screen (`?view=new`), so the list stays the
+  // first thing a reader sees and the form can be linked to.
+  const view = firstValue(query.view) === "new" ? "new" : "list";
 
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
@@ -58,13 +76,18 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
       band={{
         title: "Brokers",
         suffix: `${brokers.length} ${brokers.length === 1 ? "broker" : "brokers"}`,
+        // Two chips (cycle 2, decision 1): who may bind, and who was refused. The AF-02 words are
+        // on the top bar; "never submitted" is a sub-label on the broker's own row.
         meta: (
           <>
             <Chip tone={approved > 0 ? "ok" : "neutral"}>{approved} approved</Chip>
             <Chip tone={failed > 0 ? "warn" : "neutral"}>{failed} failed</Chip>
-            <Chip tone="neutral">{neverSubmitted} never submitted</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
           </>
+        ),
+        actions: (
+          <Link className="button-link orange" href={withParams(PATH, query, { view: "new" })} prefetch={false}>
+            New broker
+          </Link>
         ),
       }}
     >
@@ -84,23 +107,45 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
         </div>
       ) : null}
 
-      <Stats>
-        <Stat label="Brokers" value={brokers.length} note="every broker on file" />
-        <Stat label="Approved" value={approved} tone={approved > 0 ? "ok" : "neutral"} note="allowed to bind today" />
-        <Stat label="Failed" value={failed} tone={failed > 0 ? "warn" : "neutral"} note="Stripe refused the check" />
-        <Stat label="Held" value={held} tone={held > 0 ? "warn" : "neutral"} note="approved, inside the settling window" />
-      </Stats>
+      {/* NO TILES (cycle 2, decision 2). Every figure they carried is on the screen already: the
+          total is the band's suffix, approved and failed are its chips, held and never submitted
+          are sub-labels on the row they belong to. A list of three rows does not need a
+          dashboard above it. */}
+
+      {/* Creating a broker: the form the coordinator's route will answer (cycle 2, decision 21).
+          The button is disabled while POST /api/brokers does not exist on this branch, so the
+          card can never post into nothing; the field names are the ones the route expects. */}
+      {view === "new" ? (
+        <section className="card lists-section lists-form-card">
+          <h2>New broker</h2>
+          <form method="post" action="/api/brokers" className="card lists-form">
+            <label htmlFor="name">Broker name</label>
+            <input id="name" name="name" type="text" required maxLength={120} placeholder="Redwood Commercial Brokers" />
+
+            <label htmlFor="email">Contact email</label>
+            <input id="email" name="email" type="email" required maxLength={200} spellCheck={false} autoComplete="email" />
+
+            <label htmlFor="commissionRateBps">Commission rate (basis points)</label>
+            <input id="commissionRateBps" name="commissionRateBps" type="number" required min={0} max={10000} step={1} placeholder="1500" />
+
+            <button type="submit" className="orange" disabled>
+              Create the broker
+            </button>
+            <p className="note">
+              Route pending: <code>POST /api/brokers</code> is not on this branch yet, so the button is disabled. A created
+              broker signs in and submits their business verification from <code>/broker/kyb</code>; you check it here.
+            </p>
+          </form>
+        </section>
+      ) : null}
 
       <DataTable
         ariaLabel="Broker verification"
+        // Only the statuses the rows below print (cycle 2): a legend defining "pending" on a
+        // screen where no broker is pending explains something the reader cannot see.
         legend={
           <Legend
-            items={[
-              { term: "approved", meaning: "Stripe verified the company; the server allows binding" },
-              { term: "pending", meaning: "Stripe is still checking, or the settling window has not passed" },
-              { term: "failed", meaning: "Stripe refused, with its own requirement codes on the row" },
-              { term: "unknown", meaning: "no status was ever recorded; binding is refused" },
-            ]}
+            items={statusesOnScreen(brokers).map((status) => ({ term: status, meaning: STATUS_MEANING[status] }))}
           />
         }
       >
@@ -124,9 +169,13 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
           ) : (
             brokers.map((broker) => (
               <Row key={broker.brokerId}>
-                {/* No row link: the two things a reader opens from here are the Stripe account,
-                    which opens the inspector beside the table, and the re-read form. */}
-                <Primary sub={broker.submission ? `${broker.submission.legalName}, EIN ending ${broker.submission.einLast4}` : "never submitted"}>
+                {/* The row opens everything on this broker: their verification history, policies,
+                    claims, commission and statements (cycle 2). The Stripe account and the
+                    re-read button sit above that link and keep doing their own thing. */}
+                <Primary
+                  href={`/ops/console/broker/${broker.brokerId}`}
+                  sub={broker.submission ? `${broker.submission.legalName}, EIN ending ${broker.submission.einLast4}` : "never submitted"}
+                >
                   {broker.brokerName}
                 </Primary>
                 <td className="num">{(broker.commissionRateBps / 100).toFixed(2)}%</td>
@@ -138,14 +187,21 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
                       acted on yet. Staff see both, so the screen explains itself. */}
                   {broker.state.heldBySettlingWindow ? <span className="dt-sub">recorded {broker.state.recordedStatus}, held</span> : null}
                   {broker.requirementErrorCodes.length > 0 ? (
-                    // Stripe's own codes, quoted rather than paraphrased.
-                    <span className="dt-sub">{broker.requirementErrorCodes.join(", ")}</span>
+                    // Stripe's own codes, quoted rather than paraphrased, on one line with the
+                    // whole list in `title`: a 31-character code took 200 px of a six-column
+                    // table and pushed the Actions column off the screen at 1024 px.
+                    <span className="dt-sub lists-one-line" title={broker.requirementErrorCodes.join(", ")}>
+                      {broker.requirementErrorCodes.join(", ")}
+                    </span>
                   ) : null}
                 </td>
                 <td className="nowrap">
                   <When instant={broker.state.recordedAt} now={now} />
                 </td>
-                <td>
+                {/* The account id is one line, cut, with its whole value in `title`: at 1024 px
+                    with the drawer open this column is narrow and a Stripe id broken in three
+                    read as three ids (cycle 2, decision 7). */}
+                <td className="lists-ref-tight">
                   {broker.state.providerAccountId ? (
                     <Ref
                       value={broker.state.providerAccountId}
@@ -159,10 +215,12 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
                     <span className="dt-sub">{KYB_NOT_LIVE_LABEL}: seeded placeholder</span>
                   )}
                 </td>
-                <td className="dt-actions">
+                {/* One visible button of two words, everything else in the row's menu, so the
+                    column is the same narrow width at 1024 px with the drawer open (cycle 2). */}
+                <td className="dt-actions lists-row-actions">
                   {broker.state.providerAccountId ? (
                     <form method="post" action={`/api/brokers/${broker.brokerId}/kyb/recheck`} className="inline-form">
-                      <SubmitButton className="secondary small">Re-read from Stripe</SubmitButton>
+                      <SubmitButton className="secondary small">Re-read</SubmitButton>
                     </form>
                   ) : (
                     <span className="dt-muted">nothing to read</span>

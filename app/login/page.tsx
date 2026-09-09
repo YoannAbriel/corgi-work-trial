@@ -55,10 +55,15 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
           <details className="demo-accounts">
             <summary>Demo accounts and access</summary>
-            <p className="note">
-              Created by the seed script: broker@example.com, customer@example.com, ops@example.com, approver@example.com. They share the demo password given to
-              the reviewers. The broker signs in for policies and business verification; operations and approver open the operations workspace.
-            </p>
+            {/* Four lines, one account each, the role first: the same shape as the "Who uses it"
+                cards of the landing page. It was one 55-word paragraph (round 1, MEDIUM). */}
+            <ul className="note">
+              <li>Broker: broker@example.com</li>
+              <li>Customer: customer@example.com</li>
+              <li>Operations: ops@example.com</li>
+              <li>Approver: approver@example.com</li>
+            </ul>
+            <p className="note">Created by the seed script. They share the demo password given to the reviewers.</p>
           </details>
         </div>
 

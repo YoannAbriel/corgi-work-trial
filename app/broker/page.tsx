@@ -1,3 +1,4 @@
+import "@/app/styles/lists.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
@@ -43,6 +44,25 @@ function statusTone(status: PolicyStatus): "ok" | "warn" | "neutral" {
   if (status === "bound") return "ok";
   if (status === "cancelled" || status === "voided") return "neutral";
   return "warn";
+}
+
+// What each status means, one clause each, in the broker's words. The legend prints only the
+// ones on the screen (cycle 2: a legend names the statuses a reader can see, and no others).
+const STATUS_MEANING: Record<PolicyStatus, string> = {
+  draft: "quoted, not sent for payment yet",
+  awaiting_payment: "your customer has been asked to pay",
+  payment_failed: "Stripe refused the payment; the policy is not bound",
+  paid_not_bound: "paid while you were not eligible to bind; staff decide",
+  bound: "in force, on the terms this row shows",
+  cancelled: "cover stopped, the unearned premium was refunded",
+  voided: "the issuance was reversed by a correction; the policy never took effect",
+};
+
+// The statuses the rows below actually print, once each, in the order they appear.
+function statusesOnScreen(rows: { status: PolicyStatus }[]): PolicyStatus[] {
+  const seen: PolicyStatus[] = [];
+  for (const row of rows) if (!seen.includes(row.status)) seen.push(row.status);
+  return seen;
 }
 
 export default async function BrokerPage({ searchParams }: { searchParams: Promise<Query> }) {
@@ -143,24 +163,14 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
       band={{
         title: "Your policies",
         suffix: user.displayName,
-        meta: (
-          <>
-            <Chip tone={canBind ? "ok" : "warn"}>{verificationChip}</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-          </>
-        ),
+        // One chip, one action (cycle 2). The AF-02 words are on the top bar of every workspace
+        // screen; business verification and statements are two entries of the sidebar, and a
+        // band that repeats the navigation is the navigation drawn twice.
+        meta: <Chip tone={canBind ? "ok" : "warn"}>{verificationChip}</Chip>,
         actions: (
-          <>
-            <Link className="button-link orange" href="/broker/policies/new" prefetch={false}>
-              New policy
-            </Link>
-            <Link className="button-link secondary" href="/broker/kyb" prefetch={false}>
-              Business verification
-            </Link>
-            <Link className="button-link secondary" href="/broker/statements" prefetch={false}>
-              Statements
-            </Link>
-          </>
+          <Link className="button-link orange" href="/broker/policies/new" prefetch={false}>
+            New policy
+          </Link>
         ),
       }}
     >
@@ -172,9 +182,9 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
         </div>
       ) : null}
 
+      {/* TWO TILES (cycle 2, decision 2): what is waiting on the broker, and what they have on
+          the books. The totals per state are on the filter chips of the toolbar below. */}
       <Stats>
-        <Stat label="Policies" value={policies.length} note="every state" />
-        <Stat label="Bound" value={countByFilter("bound")} tone="ok" href={withParams(PATH, query, { filter: "bound" })} note="in force today" />
         <Stat
           label="Waiting to be paid"
           value={waitingToBePaid}
@@ -182,10 +192,10 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
           href={withParams(PATH, query, { filter: "waiting" })}
           note="drafts, unpaid, failed payment"
         />
-        <Stat label="Annual premium bound" value={formatCentsAsUsd(boundPremiumCents)} tone="accent" note="terms in force today, before tax and fee" />
+        <Stat label="Annual premium bound" value={formatCentsAsUsd(boundPremiumCents)} tone="accent" hint="The terms in force today, before state tax and the flat policy fee." />
       </Stats>
 
-      <WhatNeedsYou tasks={tasks} blocking={verificationBlocking} showEmptyIllustration={false} />
+      <WhatNeedsYou tasks={tasks} blocking={verificationBlocking} />
 
       <DataTable
         ariaLabel="Policies"
@@ -201,7 +211,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
                 </FilterChip>
               ))}
             </ToolbarGroup>
-            <form method="get" action={PATH}>
+            <form method="get" action={PATH} className="lists-search">
               {filter ? <input type="hidden" name="filter" value={filter} /> : null}
               <input type="search" name="q" defaultValue={search} placeholder="Policy number, customer" aria-label="Search your policies" />
               <button type="submit" className="secondary">
@@ -218,6 +228,8 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
           <Legend
             items={[
               { term: "Total", meaning: "annual premium plus state tax and the flat fee, in force today or on the first day of the term" },
+              // Only the statuses the rows below print, in the order they appear.
+              ...statusesOnScreen(shown).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),
               { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
             ]}
           />

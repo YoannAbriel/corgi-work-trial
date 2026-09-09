@@ -36,14 +36,10 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
       toasts={toasts}
       band={{
         title: "New policy",
-        suffix: "commercial general liability",
-        meta: (
-          <>
-            <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>business verification {statusWord}</Chip>
-            <Chip tone="neutral">annual term</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-          </>
-        ),
+        suffix: "commercial general liability, annual term",
+        // One chip (cycle 2, decision 1): whether this broker may bind what they are quoting.
+        // The term is in the band's suffix; the AF-02 words are on the top bar.
+        meta: <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>business verification {statusWord}</Chip>,
       }}
     >
       {query.error ? (
@@ -63,52 +59,49 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
         </div>
       )}
 
-      <div className="layout-2">
-        <section className="card">
-          <h2>The quote</h2>
-          <form method="post" action="/api/policies" className="card lists-form">
-            <label htmlFor="customerName">Customer name</label>
-            <input id="customerName" name="customerName" autoComplete="organization" required maxLength={120} />
+      {/* The form alone in the reading flow (cycle 2, decision 9): what happens after it is
+          submitted is an explanation, and every explanation is in About below. */}
+      <section className="card lists-form-card">
+        <h2>The quote</h2>
+        <form method="post" action="/api/policies" className="card lists-form">
+          <label htmlFor="customerName">Customer name</label>
+          <input id="customerName" name="customerName" autoComplete="organization" required maxLength={120} />
 
-            <label htmlFor="customerEmail">Customer email</label>
-            <input id="customerEmail" name="customerEmail" autoComplete="email" spellCheck={false} type="email" required maxLength={200} />
+          <label htmlFor="customerEmail">Customer email</label>
+          <input id="customerEmail" name="customerEmail" autoComplete="email" spellCheck={false} type="email" required maxLength={200} />
 
-            <label htmlFor="stateCode">State</label>
-            <select id="stateCode" name="stateCode" required>
-              {states.map((stateCode) => (
-                <option key={stateCode} value={stateCode}>
-                  {stateCode}
-                </option>
-              ))}
-            </select>
+          <label htmlFor="stateCode">State</label>
+          <select id="stateCode" name="stateCode" required>
+            {states.map((stateCode) => (
+              <option key={stateCode} value={stateCode}>
+                {stateCode}
+              </option>
+            ))}
+          </select>
 
-            <label htmlFor="effectiveAt">Effective date (term start)</label>
-            <input id="effectiveAt" name="effectiveAt" type="date" required />
+          <label htmlFor="effectiveAt">Effective date (term start)</label>
+          <input id="effectiveAt" name="effectiveAt" type="date" required />
 
-            <label htmlFor="annualPremium">Annual premium (USD)</label>
-            <MoneyAmountInput id="annualPremium" name="annualPremium" required placeholder="1,200.00" />
+          <label htmlFor="annualPremium">Annual premium (USD)</label>
+          <MoneyAmountInput id="annualPremium" name="annualPremium" required placeholder="1,200.00" />
 
-            <label htmlFor="perOccurrenceLimit">Per-occurrence limit (USD)</label>
-            <MoneyAmountInput id="perOccurrenceLimit" name="perOccurrenceLimit" required placeholder="1,000,000" />
+          {/* The hint is said once, under the premium. Printed under all three fields, its
+              example (1,200.00) contradicted these two placeholders (round 1, MEDIUM). */}
+          <label htmlFor="perOccurrenceLimit">Per-occurrence limit (USD)</label>
+          <MoneyAmountInput id="perOccurrenceLimit" name="perOccurrenceLimit" required placeholder="1,000,000" hint={null} />
 
-            <label htmlFor="aggregateLimit">Aggregate limit (USD)</label>
-            <MoneyAmountInput id="aggregateLimit" name="aggregateLimit" required placeholder="2,000,000" />
+          <label htmlFor="aggregateLimit">Aggregate limit (USD)</label>
+          <MoneyAmountInput id="aggregateLimit" name="aggregateLimit" required placeholder="2,000,000" hint={null} />
 
-            <SubmitButton>Create draft</SubmitButton>
-          </form>
-        </section>
-
-        <section className="card">
-          <h2>What happens next</h2>
-          <ul>
-            <li>The draft is priced by the server and written as one immutable quoted event.</li>
-            <li>The customer pays through Stripe, in test mode.</li>
-            <li>The policy binds when the payment is confirmed and the verification is approved.</li>
-          </ul>
-        </section>
-      </div>
+          <SubmitButton>Create draft</SubmitButton>
+        </form>
+      </section>
 
       <About>
+        <h4>What happens next</h4>
+        <p>
+          The draft is priced by the server and written as one immutable quoted event. The customer pays through Stripe, in test mode. The policy binds when the payment is confirmed and the verification is approved.
+        </p>
         <h4>How it is priced</h4>
         <p>
           The premium tax comes from the effective-dated rate on file for the state chosen above. The policy fee is a flat {formatCentsAsUsd(FLAT_POLICY_FEE_CENTS)}, an assumption of this build and not a filed fee.

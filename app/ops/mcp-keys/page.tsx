@@ -5,6 +5,7 @@ import { Chip } from "@/components/detail-layout";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Inspector } from "@/components/ui/inspector";
+import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DataTable, Ref, Row } from "@/components/ui/table";
@@ -27,6 +28,11 @@ import { closeInspectorHref, inspectedReference, inspectHref, toastsFromQuery, t
 // held to is readable by the person handing out the key, not only by the agent.
 
 const PATH = "/ops/mcp-keys";
+
+// The deployed endpoint a client is pointed at. It is the address of the trial deployment, which
+// is what a reader has to type into their own configuration; the route itself is app/api/mcp.
+const MCP_ENDPOINT = "https://corgi-work-trial-iota.vercel.app/api/mcp";
+const connectCommand = `claude mcp add --transport http corgi-trial ${MCP_ENDPOINT} --header "Authorization: Bearer <key>"`;
 
 export default async function McpKeysPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
@@ -56,10 +62,13 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
   const agentKeys = keys.filter((key) => key.principalKind === "agent" && key.revokedAt === null).length;
   const calls = keys.reduce((total, key) => total + key.callCount, 0);
 
+  // The revocation toast says a sentence: `?revoked=1` used to show a toast whose body was the
+  // bare value "1" (feedback audit of 2026-09-09). `toastsFromQuery` puts the parameter's value
+  // in the body, so the wording is set here.
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
     revoked: { tone: "ok", title: "Key revoked" },
-  });
+  }).map((notice) => (notice.param === "revoked" ? { ...notice, text: "It answers 401 from now on." } : notice));
   const inspected = inspectedReference(query.inspect);
 
   return (
@@ -73,11 +82,12 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
       band={{
         title: "MCP keys",
         suffix: `${keys.length} ever created`,
+        // Two chips (cycle 2, decision 1): how many keys answer, and how many an agent holds.
+        // What a write tool may do is a rule, and a rule belongs in About.
         meta: (
           <>
             <Chip tone={live > 0 ? "ok" : "neutral"}>{live} live</Chip>
             <Chip tone={agentKeys > 0 ? "warn" : "neutral"}>{agentKeys} held by an agent</Chip>
-            <Chip tone="neutral">write tools: approval queue only</Chip>
           </>
         ),
       }}
@@ -97,23 +107,46 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
         </div>
       ) : null}
 
+      {/* Two tiles (cycle 2, decision 2). The number of tools is on the list of them below, and
+          the number of calls is the sum of a column of the table. */}
       <Stats>
         <Stat label="Live keys" value={live} tone={live > 0 ? "ok" : "neutral"} note="answer the endpoint today" />
-        <Stat label="Agent keys" value={agentKeys} tone={agentKeys > 0 ? "warn" : "neutral"} note="requests they raise are marked agent-raised" />
-        <Stat label="Calls" value={calls} note="recorded in mcp_calls, refusals included" />
-        <Stat label="Tools" value={MCP_TOOLS.length} note="what any key can do, and nothing more" />
+        <Stat label="Agent keys" value={agentKeys} tone={agentKeys > 0 ? "warn" : "neutral"} note={`${calls} calls recorded in all`} />
       </Stats>
 
+      {/* The screen reads like the settings page of an API provider (cycle 2, decision 20): the
+          endpoint, what a client has to send, and the tools the endpoint exposes. */}
       <section className="card lists-section">
+        <h2>Connect a client</h2>
+        <div className="lists-facts">
+          <div>
+            Endpoint <b>POST {MCP_ENDPOINT}</b>, streamable HTTP, JSON-RPC 2.0
+          </div>
+          <div>
+            Header <b>Authorization: Bearer &lt;key&gt;</b>, the secret shown once when the key is created
+          </div>
+          <div>
+            <b>{MCP_TOOLS.length} tools</b> answer <code>tools/list</code>, with what each one may do
+          </div>
+        </div>
+        <code className="lists-snippet">{connectCommand}</code>
+        <p className="note">
+          The MCP Inspector takes the same URL and the same header. A GET answers 405; a wrong or revoked key answers 401.
+        </p>
+      </section>
+
+      <section className="card lists-section lists-form-card">
         <h2>Create a key</h2>
         <form method="post" action="/api/mcp-keys" className="card lists-form">
           <input type="hidden" name="action" value="create" />
 
+          {/* Short options: a select cuts what does not fit, mid-word and with no ellipsis, so
+              an option is a name and a role and nothing more (round 1, MEDIUM). */}
           <label htmlFor="userId">Whose eyes this key has</label>
           <select id="userId" name="userId" required>
             {holders.map((holder) => (
               <option key={holder.id} value={holder.id}>
-                {holder.display_name} ({holder.role}) {holder.email}
+                {holder.display_name}, {holder.role}
               </option>
             ))}
           </select>
@@ -123,7 +156,7 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
 
           <label htmlFor="principalKind">Who holds it</label>
           <select id="principalKind" name="principalKind" required defaultValue="agent">
-            <option value="agent">An autonomous agent (requests it raises are marked as agent-raised)</option>
+            <option value="agent">An autonomous agent</option>
             <option value="human">A person using an MCP client</option>
           </select>
 
@@ -131,7 +164,17 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
         </form>
       </section>
 
-      <DataTable ariaLabel="MCP API keys">
+      <DataTable
+        ariaLabel="MCP API keys"
+        legend={
+          <Legend
+            items={[
+              { term: "live", meaning: "answers the endpoint today" },
+              { term: "revoked", meaning: "answers 401 from now on; the row stays for ever" },
+            ]}
+          />
+        }
+      >
         <thead>
           <tr>
             <th>Prefix</th>
@@ -156,7 +199,12 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
               <Row key={key.keyId}>
                 <td>
                   <Ref value={key.keyPrefix} inspectHref={inspectHref(PATH, query, key.keyPrefix)} open={inspected === key.keyPrefix} />
-                  <span className="dt-sub">{key.label}</span>
+                  {/* The label the operator typed, on one line, whole value in `title`: broken
+                      across lines it split a date in half, "2026-" then "09-08" (round 1). The
+                      key's own instant is the Created column, through `When`. */}
+                  <span className="dt-sub lists-one-line" title={key.label}>
+                    {key.label}
+                  </span>
                 </td>
                 <td>
                   {key.holderName}
@@ -203,6 +251,10 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
         <h4>The endpoint</h4>
         <p>
           <code>POST /api/mcp</code>, streamable HTTP, JSON-RPC 2.0, with <code>Authorization: Bearer &lt;key&gt;</code>. A wrong or revoked key answers 401. Every call is recorded in <code>mcp_calls</code>, including the ones that were refused.
+        </p>
+        <h4>Who holds the key</h4>
+        <p>
+          An autonomous agent, or a person using an MCP client. A request raised with an agent&apos;s key is marked agent-raised, and a write tool never does more than put a request in the approval queue: a second, human approver decides.
         </p>
         <h4>An agent key for an approver</h4>
         <p>The database refuses it: an agent must never hold the visibility of the one role that can approve money out.</p>
