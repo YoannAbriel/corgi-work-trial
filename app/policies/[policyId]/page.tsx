@@ -66,6 +66,7 @@ import {
   REFUNDS_ANCHOR,
   pendingEndorsementNotice,
   pendingEndorsementState,
+  type PolicyAudience,
   correctionHref,
   correctionViews,
   firstOpenCollection,
@@ -221,6 +222,9 @@ export default async function PolicyPage({
   // operations. The corrections block below draws its button from exactly this, and the API
   // checks it again when the form is posted.
   const canPayTheDifference = isOwningBroker || user.role === "staff_ops";
+  // F-LT-01: who is reading, for the sentences and the counts that differ between them. The
+  // owning broker is the one who pays a delta; every other staff reader watches them do it.
+  const policyAudience: PolicyAudience = isOwningBroker ? "owning-broker" : "staff";
   // Money a correction is still waiting to take FROM THIS READER, if any. Yoann could not find
   // the button: it was the last thing in a block sitting far down the Money view, so the Billing
   // view carries it and the band names the amount and links straight to it.
@@ -366,7 +370,7 @@ export default async function PolicyPage({
         standingState: liveEndorsement.standing.state,
         approvedAt: liveEndorsement.standing.approvedAt,
         requestedAt: liveEndorsement.request.recordedAt,
-        audience: "staff",
+        audience: policyAudience,
       })
     : null;
 
@@ -474,7 +478,7 @@ export default async function PolicyPage({
           : // LIVE-9: one, while the change waiting is waiting on THIS reader.
             one === "endorsements" &&
                 liveEndorsement &&
-                endorsementNeedsThisReader(liveEndorsement.standing.state, "staff")
+                endorsementNeedsThisReader(liveEndorsement.standing.state, policyAudience)
               ? 1
               : undefined,
     })),
@@ -988,8 +992,8 @@ export default async function PolicyPage({
                     </Num>
                     <Num>{formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}</Num>
                     <td>
-                      <Chip tone={pendingEndorsementState(liveEndorsement.standing.state, "staff").tone}>
-                        {pendingEndorsementState(liveEndorsement.standing.state, "staff").label}
+                      <Chip tone={pendingEndorsementState(liveEndorsement.standing.state, policyAudience).tone}>
+                        {pendingEndorsementState(liveEndorsement.standing.state, policyAudience).label}
                       </Chip>
                     </td>
                   </>
