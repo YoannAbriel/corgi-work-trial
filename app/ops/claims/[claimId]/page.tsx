@@ -1,4 +1,5 @@
 import { PortalShell } from "@/components/portal-shell";
+import { AmountExplained } from "@/components/amount-explained";
 import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Facts, Panel } from "@/components/detail-layout";
 import { JournalTable } from "@/components/journal-table";
@@ -14,6 +15,7 @@ import { claimPayments, latestClaimantBankAccount } from "@/lib/claims/payments"
 import { journalEntriesOfClaim, reserveHistory } from "@/lib/claims/read";
 import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import { evidenceFromJournal, explainClaimIncurred } from "@/lib/money/explain";
 import { SIMULATED_REACHABLE_ROUTING_NUMBERS } from "@/lib/rails/bank-verification-simulator";
 import { SIMULATED_SETTLEMENT_DELAY_DAYS } from "@/lib/rails/simulator";
 
@@ -126,12 +128,67 @@ export default async function ClaimPage({
         main={
           <>
             <Panel title="What this claim has cost">
+              {/* Slice B12-2: the three figures that make up the position carry a fold. All three
+                  show the same arithmetic (lib/money/explain.ts, explainClaimIncurred) built from
+                  the position this page already folded from the claim's events, and each names the
+                  journal entries that prove it. */}
               <Facts
                 items={[
-                  { label: "Paid, sent on the rail minus anything returned", value: formatCentsAsUsd(claim.position.paidCents) },
+                  {
+                    label: "Paid, sent on the rail minus anything returned",
+                    value: (
+                      <AmountExplained
+                        amountCents={claim.position.paidCents}
+                        label="Paid on this claim"
+                        explanation={{
+                          ...explainClaimIncurred({
+                            ...claim.position,
+                            evidence: evidenceFromJournal(entries, "claims_payable"),
+                          }),
+                          resultKey: "paid",
+                          evidenceLabel:
+                            "Every entry that moved claims payable: a payment sent, its settlement on the rail, and any return.",
+                        }}
+                      />
+                    ),
+                  },
                   { label: "Of which settled by the rail", value: formatCentsAsUsd(claim.position.settledCents) },
-                  { label: "Reserve still outstanding", value: formatCentsAsUsd(claim.position.reserveCents) },
-                  { label: "Incurred = paid + reserve", value: formatCentsAsUsd(claim.position.incurredCents), emphasis: true },
+                  {
+                    label: "Reserve still outstanding",
+                    value: (
+                      <AmountExplained
+                        amountCents={claim.position.reserveCents}
+                        label="Reserve still outstanding on this claim"
+                        explanation={{
+                          ...explainClaimIncurred({
+                            ...claim.position,
+                            evidence: evidenceFromJournal(entries, "claim_reserve"),
+                          }),
+                          resultKey: "reserve",
+                          evidenceLabel:
+                            "Every entry that moved the reserve: the reserve set, each adjustment, and each payment taken out of it.",
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    label: "Incurred = paid + reserve",
+                    value: (
+                      <AmountExplained
+                        amountCents={claim.position.incurredCents}
+                        label="Incurred: what this claim has cost so far"
+                        explanation={{
+                          ...explainClaimIncurred({
+                            ...claim.position,
+                            evidence: evidenceFromJournal(entries, "incurred_loss_expense"),
+                          }),
+                          evidenceLabel:
+                            "The incurred loss expense entries. Their balance is the same figure: the ledger tells the same story in double entry.",
+                        }}
+                      />
+                    ),
+                    emphasis: true,
+                  },
                 ]}
               />
             </Panel>

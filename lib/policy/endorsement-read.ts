@@ -176,7 +176,10 @@ async function latestCollectionOfRequest(database: postgres.Sql, requestEventId:
   return {
     operationId: operation.id,
     amountCents: centsFromDatabase(operation.amount_cents, "amount_cents"),
-    latestStatus: events.length > 0 ? events[events.length - 1].status : null,
+    // A final status wins over a later step (F-B2-20, F-B2-21): rows written before the guard
+    // keep their order forever, and what the screen calls the last status is the furthest the
+    // operation got.
+    latestStatus: succeeded ? "succeeded" : events.length > 0 ? events[events.length - 1].status : null,
     checkoutUrl: accepted ? String(accepted.payload.checkout_url) : null,
     sessionId: accepted?.provider_ref ?? null,
     paymentIntentId: succeeded?.provider_ref ?? null,

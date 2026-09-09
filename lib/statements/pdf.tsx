@@ -3,6 +3,8 @@ import {
   ISSUER_NAME,
   ISSUER_TAGLINE,
   SANDBOX_LABEL,
+  WATERMARK_TEXT,
+  applyPdfTypography,
   createPdfStyles,
 } from "@/lib/documents/pdf-theme";
 import { collectedFigures } from "./compute";
@@ -38,7 +40,8 @@ const KIND_LABEL: Record<StatementLineRow["kind"], string> = {
 };
 
 export async function renderStatementPdf(statement: StatementRunDetail): Promise<Buffer> {
-  const { Document, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  const { Document, Font, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  applyPdfTypography(Font);
   const styles = createPdfStyles(StyleSheet);
   const { run, lines } = statement;
   // A run says which shape its own columns are in (migration 0016). A v1 run stored the cash in
@@ -59,6 +62,11 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
       {/* pageWithTallFooter, not page: this footer carries two long paragraphs, and the footer
           is positioned absolutely, so the page has to reserve the room it occupies. */}
       <Page size="LETTER" style={styles.pageWithTallFooter}>
+        {/* First child of the page, so everything below is drawn on top of it. */}
+        <View style={styles.watermarkLayer} fixed>
+          <Text style={styles.watermarkText}>{WATERMARK_TEXT}</Text>
+        </View>
+
         <View style={styles.issuerHeader} fixed>
           <View style={styles.issuerIdentity}>
             <Text style={styles.issuerName}>{ISSUER_NAME}</Text>
@@ -77,6 +85,12 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
             <Text style={styles.documentSubtitle}>
               {`${run.brokerName}, ${run.statementMonth}, revision ${run.revision}`}
             </Text>
+          </View>
+          {/* The one figure the broker opens the statement for, set apart from the totals
+              block that derives it. Same field, printed twice, formatted once. */}
+          <View style={styles.titleBandIdentifier}>
+            <Text style={styles.microLabel}>Net due for the month</Text>
+            <Text style={styles.summaryValue}>{formatCents(run.netDueCents)}</Text>
           </View>
         </View>
 
@@ -128,12 +142,12 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
             ended up alone at the top of a page with none of its figures. */}
         <Text style={styles.sectionTitle}>Movements</Text>
         <View style={styles.tableHeader}>
-          <Text style={styles.statementDateColumn}>Effective</Text>
-          <Text style={styles.statementKindColumn}>Line</Text>
-          <Text style={styles.statementPolicyColumn}>Policy</Text>
-          <Text style={styles.textColumn}>Description</Text>
-          <Text style={styles.statementAmountColumn}>Amount</Text>
-          <Text style={styles.statementAmountColumn}>Premium in it</Text>
+          <Text style={[styles.statementDateColumn, styles.tableHeaderCell]}>Effective</Text>
+          <Text style={[styles.statementKindColumn, styles.tableHeaderCell]}>Line</Text>
+          <Text style={[styles.statementPolicyColumn, styles.tableHeaderCell]}>Policy</Text>
+          <Text style={[styles.textColumn, styles.tableHeaderCell]}>Description</Text>
+          <Text style={[styles.statementAmountColumn, styles.tableHeaderCell]}>Amount</Text>
+          <Text style={[styles.statementAmountColumn, styles.tableHeaderCell]}>Premium in it</Text>
         </View>
         {lines.length === 0 ? (
           <Text style={styles.emptyState}>
@@ -164,36 +178,47 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
             net due on the next. */}
         <View wrap={false}>
           <Text style={styles.sectionTitle}>Totals</Text>
-          <View style={styles.tableRow} wrap={false}>
-            <Text style={styles.textColumn}>Cash collected from customers (premium, tax and fee)</Text>
-            <Text style={styles.statementTotalAmountColumn}>{formatCents(collected.cashCollectedCents)}</Text>
-          </View>
-          <View style={styles.tableRow} wrap={false}>
-            <Text style={styles.textColumn}>Premium collected, which is the commission base</Text>
-            <Text style={styles.statementTotalAmountColumn}>
-              {collected.premiumCollectedCents === null ? "not stored" : formatCents(collected.premiumCollectedCents)}
-            </Text>
-          </View>
-          <View style={styles.tableRow} wrap={false}>
-            <Text style={styles.textColumn}>
-              {collected.premiumCollectedCents === null ? "Commission earned" : "Commission earned on that premium"}
-            </Text>
-            <Text style={styles.statementTotalAmountColumn}>{formatCents(run.commissionEarnedCents)}</Text>
-          </View>
-          <View style={styles.tableRow} wrap={false}>
-            <Text style={styles.textColumn}>Commission clawed back on refunded premium</Text>
-            <Text style={styles.statementTotalAmountColumn}>{formatCents(-run.clawbackCents)}</Text>
-          </View>
-          {run.adjustmentCents === 0 ? null : (
-            <View style={styles.tableRow} wrap={false}>
-              <Text style={styles.textColumn}>Other adjustments to the commission owed</Text>
-              <Text style={styles.statementTotalAmountColumn}>{formatCents(run.adjustmentCents)}</Text>
+          <View style={styles.moneyBox}>
+            <View style={styles.moneyBoxFirstRow}>
+              <Text style={styles.textColumn}>Cash collected from customers (premium, tax and fee)</Text>
+              <Text style={styles.statementTotalAmountColumn}>{formatCents(collected.cashCollectedCents)}</Text>
             </View>
-          )}
-          <View style={styles.totalRow} wrap={false}>
-            <Text style={styles.textColumn}>Net due to the broker</Text>
-            <Text style={styles.statementTotalAmountColumn}>{formatCents(run.netDueCents)}</Text>
+            <View style={styles.moneyBoxRow}>
+              <Text style={styles.textColumn}>Premium collected, which is the commission base</Text>
+              <Text style={styles.statementTotalAmountColumn}>
+                {collected.premiumCollectedCents === null ? "not stored" : formatCents(collected.premiumCollectedCents)}
+              </Text>
+            </View>
+            <View style={styles.moneyBoxRow}>
+              <Text style={styles.textColumn}>
+                {collected.premiumCollectedCents === null ? "Commission earned" : "Commission earned on that premium"}
+              </Text>
+              <Text style={styles.statementTotalAmountColumn}>{formatCents(run.commissionEarnedCents)}</Text>
+            </View>
+            <View style={styles.moneyBoxRow}>
+              <Text style={styles.textColumn}>Commission clawed back on refunded premium</Text>
+              <Text style={styles.statementTotalAmountColumn}>{formatCents(-run.clawbackCents)}</Text>
+            </View>
+            {run.adjustmentCents === 0 ? null : (
+              <View style={styles.moneyBoxRow}>
+                <Text style={styles.textColumn}>Other adjustments to the commission owed</Text>
+                <Text style={styles.statementTotalAmountColumn}>{formatCents(run.adjustmentCents)}</Text>
+              </View>
+            )}
+            <View style={styles.moneyBoxTotalRow}>
+              <Text style={[styles.textColumn, styles.strongCell]}>Net due to the broker</Text>
+              <Text style={[styles.statementTotalAmountColumn, styles.strongCell]}>
+                {formatCents(run.netDueCents)}
+              </Text>
+            </View>
           </View>
+          {/* The two collected figures in one line, beside the box, because a broker reading
+              the totals should not have to reach the footer to learn why two different
+              amounts are both called "collected". The footer keeps the full explanation. */}
+          <Text style={styles.boxCaption}>
+            Cash collected is premium plus state premium tax plus policy fee; premium collected is the
+            part commission is earned on.
+          </Text>
         </View>
 
         <View style={styles.footer} fixed>

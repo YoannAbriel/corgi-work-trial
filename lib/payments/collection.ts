@@ -141,6 +141,9 @@ async function postCollectionAndBind(
 ): Promise<CollectionOutcome> {
   try {
     await database.begin(async (transaction) => {
+      // One lock per money operation (F-B2-21): the late checkout.session.completed handler takes
+      // the same lock, so it can only look at the operation after this posting has committed.
+      await transaction`select pg_advisory_xact_lock(hashtext(${operation.operationId}))`;
       const { terms } = await foldPolicyEvents(transaction, operation.policyId);
 
       // Was this payment parked at receipt? Then the cash is applied, not booked again.
@@ -336,6 +339,7 @@ async function recordPaymentWithoutBinding(
 ): Promise<void> {
   try {
     await database.begin(async (transaction) => {
+      await transaction`select pg_advisory_xact_lock(hashtext(${operation.operationId}))`;
       const parked = unappliedCashReceivedEntry({
         operationId: operation.operationId,
         policyId: operation.policyId,
@@ -507,19 +511,26 @@ export async function recordCheckoutSessionCompleted(
   // same second and the operation's last status read provider_accepted although the money was
   // posted and the policy bound, F-B2-20). A status never goes backwards: once the operation has
   // reached a final status, this step is recorded as already known and nothing is appended.
-  const appended = await database`
-    insert into money_operation_events (operation_id, status, provider_ref, payload)
-    select ${completion.operationId}, 'provider_accepted', ${completion.sessionId},
-           ${database.json({
-             note: "checkout.session.completed: the hosted page was completed; money posts on payment_intent.succeeded",
-             payment_status: completion.paymentStatus,
-           })}
-     where not exists (
-       select 1 from money_operation_events
-        where operation_id = ${completion.operationId} and status in ('succeeded', 'failed')
-     )
-    returning id
-  `;
+  // Inside a transaction that first takes the operation's lock: the posting of the success runs
+  // under the same lock, so when the two Stripe events arrive within the same second (seen on
+  // the endorsement delta of CGP-01707 on 2026-09-09, 60 ms apart, F-B2-21) this handler waits
+  // for the posting to commit and its "not exists" check reads the committed final status.
+  const appended = await database.begin(async (transaction) => {
+    await transaction`select pg_advisory_xact_lock(hashtext(${completion.operationId}))`;
+    return transaction`
+      insert into money_operation_events (operation_id, status, provider_ref, payload)
+      select ${completion.operationId}, 'provider_accepted', ${completion.sessionId},
+             ${transaction.json({
+               note: "checkout.session.completed: the hosted page was completed; money posts on payment_intent.succeeded",
+               payment_status: completion.paymentStatus,
+             })}
+       where not exists (
+         select 1 from money_operation_events
+          where operation_id = ${completion.operationId} and status in ('succeeded', 'failed')
+       )
+      returning id
+    `;
+  });
   return appended.length === 0 ? { kind: "already_posted" } : { kind: "posted" };
 }
 
