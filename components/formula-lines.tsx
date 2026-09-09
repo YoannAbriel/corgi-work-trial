@@ -1,4 +1,6 @@
+import "@/app/styles/signed.css";
 import type { CSSProperties } from "react";
+import { formatSignedCentsAsUsd, signedTone } from "@/components/signed";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import type { FormulaLine } from "@/lib/money/endorsement";
 
@@ -17,14 +19,28 @@ import type { FormulaLine } from "@/lib/money/endorsement";
 // fold has one (lib/money/explain.ts, runningSubtotals). The browser never computes any of it; it
 // only chooses which of these strings to show. With JavaScript off they are inert attributes and
 // the table reads exactly as it did before.
+//
+// Slice UI-SIGNED (Yoann, 2026-09-09) adds `signedKeys` and `referenceKeys` and nothing else. They
+// classify lines the page already has; no figure is recomputed and no line is added or removed. A
+// table that names neither prints exactly as it printed before the convention existed, which is
+// why the policy page, the statements and the claim folds are untouched by this change.
 export function FormulaLinesTable({
   lines,
   highlightKey = "delta_total",
   subtotalTexts,
+  signedKeys,
+  referenceKeys,
 }: {
   lines: FormulaLine[];
   highlightKey?: string;
   subtotalTexts?: Record<string, string>;
+  // The lines that are a MOVEMENT rather than a step of the arithmetic: their result carries its
+  // sign and the direction colour (components/signed.tsx).
+  signedKeys?: string[];
+  // The lines a movement is READ AGAINST, printed in the secondary ink so the movement is what
+  // the eye lands on: on a correction, the premium as booked and the premium at the corrected
+  // date.
+  referenceKeys?: string[];
 }) {
   return (
     <div className="table-scroll" role="region" aria-label="Amount calculation details" tabIndex={0}>
@@ -37,26 +53,36 @@ export function FormulaLinesTable({
           </tr>
         </thead>
         <tbody>
-          {lines.map((line, index) => (
-            <tr
-              key={line.key}
-              className={line.key === highlightKey ? "total" : undefined}
-              data-formula-line={line.key}
-              data-formula-result={line.key === highlightKey ? "true" : undefined}
-              data-subtotal={subtotalTexts?.[line.key]}
-              // The rank of the line in the table, so the animation can fade the operands in one
-              // after another. It is a position, not an amount.
-              style={{ "--operand-rank": index } as CSSProperties}
-            >
-              <td>{line.label}</td>
-              <td>
-                <code>{line.formula}</code>
-              </td>
-              <td className="amount" data-final-amount={formatCentsAsUsd(line.cents)}>
-                {formatCentsAsUsd(line.cents)}
-              </td>
-            </tr>
-          ))}
+          {lines.map((line, index) => {
+            const isSigned = signedKeys?.includes(line.key) ?? false;
+            const isReference = referenceKeys?.includes(line.key) ?? false;
+            // The one text of this cell: what is printed, and the string the count-up animation
+            // is given to end on (data-final-amount). The two can never disagree.
+            const amountText = isSigned ? formatSignedCentsAsUsd(line.cents) : formatCentsAsUsd(line.cents);
+            const rowClasses = [line.key === highlightKey ? "total" : null, isReference ? "formula-reference" : null]
+              .filter(Boolean)
+              .join(" ");
+            return (
+              <tr
+                key={line.key}
+                className={rowClasses === "" ? undefined : rowClasses}
+                data-formula-line={line.key}
+                data-formula-result={line.key === highlightKey ? "true" : undefined}
+                data-subtotal={subtotalTexts?.[line.key]}
+                // The rank of the line in the table, so the animation can fade the operands in one
+                // after another. It is a position, not an amount.
+                style={{ "--operand-rank": index } as CSSProperties}
+              >
+                <td>{line.label}</td>
+                <td>
+                  <code>{line.formula}</code>
+                </td>
+                <td className={isSigned ? `amount signed-${signedTone(line.cents)}` : "amount"} data-final-amount={amountText}>
+                  {amountText}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

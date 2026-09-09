@@ -1,6 +1,8 @@
 import "@/app/styles/policy-detail.css";
+import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { formatSignedCentsAsUsd, formatSignedDays, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Stat, Stats } from "@/components/ui/stat";
@@ -90,9 +92,18 @@ export default async function ApproveCorrectionPage({
       }}
     >
       <Stats>
-        <Stat label="Charged then" value={formatCentsAsUsd(correction.money.before.deltaTotalCents)} note={`for ${correction.money.before.daysRemaining} days`} />
-        <Stat label="Correct amount" value={formatCentsAsUsd(correction.money.after.deltaTotalCents)} note={`for ${correction.money.after.daysRemaining} days`} />
-        <Stat label="To pay" tone="accent" value={formatCentsAsUsd(correction.collection.amountCents)} note="the difference between the two" />
+        <Stat label="Charged then" value={formatCentsAsUsd(correction.money.before.deltaTotalCents)} note={`${correction.money.before.daysRemaining} days`} />
+        <Stat label="Correct amount" value={formatCentsAsUsd(correction.money.after.deltaTotalCents)} note={`${correction.money.after.daysRemaining} days`} />
+        {/* The tile that carries the direction, read exactly as on the operator's preview: the
+            customer owes more, so it is green with a plus, and the note says the movement in days,
+            which is the two counts beside subtracted and nothing else. */}
+        <Stat
+          label="To pay"
+          tone={signedTone(correction.collection.amountCents)}
+          valueIcon={signedArrow(correction.collection.amountCents)}
+          value={formatSignedCentsAsUsd(correction.collection.amountCents)}
+          note={`the difference between the two, ${formatSignedDays(correction.money.after.daysRemaining - correction.money.before.daysRemaining)}`}
+        />
       </Stats>
 
       <div className="layout-2">
@@ -111,7 +122,14 @@ export default async function ApproveCorrectionPage({
 
           <section className="card">
             <h2>Every figure, and how it was computed</h2>
-            <FormulaLinesTable lines={correction.lines} />
+            {/* Same reading as the operator's preview: the differences carry the direction, what
+                was booked and what the corrected date prices step back, the total is bold. */}
+            <FormulaLinesTable
+              lines={correction.lines}
+              highlightKey="difference_total"
+              signedKeys={["premium_difference", "tax_difference", "difference_total"]}
+              referenceKeys={["premium_as_booked", "premium_corrected"]}
+            />
           </section>
         </div>
 
