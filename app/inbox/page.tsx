@@ -1,5 +1,6 @@
 import "@/app/styles/lists.css";
 import { redirect } from "next/navigation";
+import type { IllustrationName } from "@/components/decorative-illustration";
 import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
 import { EmptyState } from "@/components/ui/empty";
@@ -62,7 +63,13 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
   // rather than an empty screen, exactly as a filter chip that was never clicked would.
   const requested = firstValue(query.section) ?? null;
   const filtered = inbox.sections.some((section) => section.anchor === requested) ? requested : null;
-  const shownSections = filtered ? inbox.sections.filter((section) => section.anchor === filtered) : inbox.sections;
+  // WHAT THE ALL VIEW LISTS: the work, not the queues holding none of it (decision of 2026-09-09).
+  // An empty section still printed its title and its sentence, and five of those in a row pushed
+  // the actual work below the fold, while the chips above already said with a 0 that the category
+  // exists and is empty. A chip at 0 stays clickable and lands on that section's own empty state.
+  const shownSections = filtered
+    ? inbox.sections.filter((section) => section.anchor === filtered)
+    : inbox.sections.filter((section) => section.items.length > 0);
   const showEverything = firstValue(query.all) === "1";
 
   return (
@@ -136,10 +143,12 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             </Toolbar>
           </div>
 
-          {/* Nothing waiting anywhere: one illustration and one sentence, once, above the folded
-              sections (round 1, MEDIUM: the first section drew a card with a 300 px drawing and
-              its siblings drew one-line rows, three shapes for the same fact). */}
-          {inbox.totalWaiting === 0 ? (
+          {/* Nothing waiting anywhere: one illustration and one sentence, once (round 1, MEDIUM:
+              the first section drew a card with a 300 px drawing and its siblings drew one-line
+              rows, three shapes for the same fact). Every section being empty, it is now the only
+              thing under the chips. A filtered view does not draw it: the one section asked for
+              carries its own empty state, and two drawings for one fact is the same mistake. */}
+          {inbox.totalWaiting === 0 && filtered === null ? (
             <div className="card lists-section">
               <EmptyState illustration="all-clear">Nothing is waiting for you.</EmptyState>
             </div>
@@ -159,9 +168,9 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 // checks that pairing.
 //
 // ONE SHAPE FOR EVERY SECTION (cycle 2, decision 13): a card with a bounded table when it holds
-// work, one grey line when it does not. A section with no rows never draws its column headers:
-// four headers over nothing, with the empty state pushed into a cell below them, is a table
-// pretending to have content (round 1, MEDIUM).
+// work, the same card with an empty state when it does not. A section with no rows never draws its
+// column headers: four headers over nothing, with the empty state pushed into a cell below them,
+// is a table pretending to have content (round 1, MEDIUM).
 function InboxSectionCard({
   section,
   now,
@@ -173,12 +182,15 @@ function InboxSectionCard({
   query: Query;
   showEverything: boolean;
 }) {
+  // Only a filtered view reaches this branch, the All view above having kept the sections that
+  // hold work. A chip at 0 is still a question, and it now gets its answer in the same card a
+  // section with rows draws, rather than in one grey line that read as a screen half loaded.
   if (section.items.length === 0) {
     return (
-      <div className="lists-section lists-empty-line" id={section.anchor}>
+      <section className="card lists-section" id={section.anchor}>
         <h2>{section.title}</h2>
-        <p>{section.emptySentence}</p>
-      </div>
+        <EmptyState illustration={EMPTY_SECTION_ILLUSTRATION[section.anchor]}>{section.emptySentence}</EmptyState>
+      </section>
     );
   }
 
@@ -267,6 +279,24 @@ const SIDEBAR_ENTRY_OF_ANCHOR: Record<InboxAnchor, WorkspaceSection> = {
   claims: "claims",
   reconciliation: "reconciliation",
   statements: "statements",
+};
+
+// THE DRAWING AN EMPTY SECTION SHOWS WHEN ITS CHIP AT 0 IS CLICKED. One per anchor, chosen for
+// what that queue is about, so the reader recognises the section before reading its sentence.
+// Written over the anchor union like the map above: a section added in lib/inbox/sections.ts is a
+// type error here rather than a card with no drawing on it.
+const EMPTY_SECTION_ILLUSTRATION: Record<InboxAnchor, IllustrationName> = {
+  policies: "archivist-corgi",
+  "endorsement-deltas": "open-folder",
+  "correction-differences": "balance-scales",
+  "change-requests": "letter-corgi",
+  "waiting-for-the-customer": "sleeping-corgi",
+  corrections: "balance-scales",
+  endorsements: "open-folder",
+  approvals: "checker-corgi",
+  claims: "umbrella-corgi",
+  reconciliation: "magnifying-glass",
+  statements: "accountant-corgi",
 };
 
 // The sidebar's counts, built from the rows this screen lists rather than from a second reading
