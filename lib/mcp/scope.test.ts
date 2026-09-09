@@ -3,10 +3,14 @@ import assert from "node:assert/strict";
 import {
   claimPaymentRequesterRefusal,
   explanationVisibilityRefusal,
+  inspectionVisibilityRefusal,
   isStaff,
   NO_EXPLANATION_FOR_THIS_KEY,
+  NO_INSPECTION_FOR_THIS_KEY,
   POLICY_NOT_VISIBLE,
   policyVisibilityRefusal,
+  REFERENCE_NOT_IN_THIS_BOOK,
+  referenceInBookRefusal,
   staffOnlyRefusal,
   statementBrokerFor,
   type ScopedUser,
@@ -176,6 +180,62 @@ test("a broker, a customer and a bare agent key cannot ask for a claim payment",
   assert.match(claimPaymentRequesterRefusal(brokerKey) ?? "", /only staff operations/);
   assert.match(claimPaymentRequesterRefusal(customerKey) ?? "", /only staff operations/);
   assert.match(claimPaymentRequesterRefusal(agentKey) ?? "", /only staff operations/);
+});
+
+// ---------------------------------------------------------------------------
+// The operational file of a reference (inspect_reference)
+// ---------------------------------------------------------------------------
+//
+// Two rules, and they answer two different questions, exactly like the pair explain_amount
+// applies: who may open a file at all, and which references that key may open.
+
+test("a customer key is refused the whole tool, whatever the reference", () => {
+  assert.equal(inspectionVisibilityRefusal(customerKey), NO_INSPECTION_FOR_THIS_KEY);
+});
+
+test("the customer refusal names the rule and points at the tool that does answer it", () => {
+  const refusal = inspectionVisibilityRefusal(customerKey) ?? "";
+  assert.match(refusal, /never a money operation, a webhook event, a journal entry or a reconciliation report/);
+  assert.match(refusal, /get_policy_as_of/);
+});
+
+test("the rule FAILS CLOSED: a role that is neither broker nor staff is refused", () => {
+  assert.equal(inspectionVisibilityRefusal(agentKey), NO_INSPECTION_FOR_THIS_KEY);
+});
+
+test("a broker key and both staff keys may open a file", () => {
+  assert.equal(inspectionVisibilityRefusal(brokerKey), null);
+  assert.equal(inspectionVisibilityRefusal(opsKey), null);
+  assert.equal(inspectionVisibilityRefusal(approverKey), null);
+});
+
+test("a broker key opens the references of its own book and nothing else", () => {
+  assert.equal(referenceInBookRefusal(brokerKey, BROKER_A), null);
+  assert.equal(referenceInBookRefusal(brokerKey, BROKER_B), REFERENCE_NOT_IN_THIS_BOOK);
+  // A reference nobody's book owns (a provider record with no operation behind it, a request that
+  // named no object) is refused too: unowned means unownable.
+  assert.equal(referenceInBookRefusal(brokerKey, null), REFERENCE_NOT_IN_THIS_BOOK);
+});
+
+test("the refusal names NOTHING about the reference: not its kind, not its owner, not a number", () => {
+  const refusal = referenceInBookRefusal(brokerKey, BROKER_B) ?? "";
+  for (const secret of [BROKER_B, "CGP-", "CLM-", "pi_", "claim number", "policy number"]) {
+    assert.ok(!refusal.includes(secret), `the refusal names "${secret}"`);
+  }
+});
+
+test("a staff key opens any reference, including one nobody's book owns", () => {
+  assert.equal(referenceInBookRefusal(opsKey, BROKER_B), null);
+  assert.equal(referenceInBookRefusal(approverKey, null), null);
+});
+
+test("a broker user with no broker attached passes the role gate and owns nothing", () => {
+  const brokerWithoutABroker = user({ role: "broker" });
+  assert.equal(inspectionVisibilityRefusal(brokerWithoutABroker), null);
+  assert.equal(referenceInBookRefusal(brokerWithoutABroker, BROKER_A), REFERENCE_NOT_IN_THIS_BOOK);
+  // And not even a reference whose owner is null, which is what a null brokerId would match on a
+  // careless equality.
+  assert.equal(referenceInBookRefusal(brokerWithoutABroker, null), REFERENCE_NOT_IN_THIS_BOOK);
 });
 
 test("staff means the two staff roles and nothing else", () => {

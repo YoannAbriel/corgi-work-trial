@@ -139,9 +139,14 @@ export type ReconciliationBreakRow = {
 // the console reads the open breaks of ONE object, bounded and filtered in SQL
 // (openBreaksOfSubject in lib/console/read.ts, review finding F-B13-22), and it must ask the
 // same question this screen asks, not a second version of it.
+//
+// `run.id` is selected here for latestBreakReportsFor below, which answers "which run said this,
+// and when": every other reader picks its columns by name, so the extra column costs them
+// nothing and no reader can end up with a different notion of "the latest report".
 export const LATEST_REPORT_OF_EACH_BREAK = `
   select distinct on (item.break_key)
          run.source,
+         run.id as run_id,
          run.finished_at as last_reported_at,
          coalesce(item.record_at, item.first_seen_at) as record_at,
          item.break_key, item.classification, item.provider_ref, item.ledger_ref,
@@ -672,4 +677,89 @@ export async function countOpenBreaksBySource(database: postgres.Sql): Promise<R
   const bySource: Record<string, number> = {};
   for (const row of rows) bySource[row.source] = row.open_breaks;
   return bySource;
+}
+
+// THE LATEST REPORT OF NAMED BREAKS, whatever state they are in: to act on, probe, or explained.
+//
+// Every reader above answers a screen's question ("what is still work", "what are the probes",
+// "what has been explained"), so each of them filters. The MCP tool inspect_reference asks a
+// different question: an operator hands it one reference and wants what reconciliation has to
+// say about it, including the case where the answer is "a human explained this last Tuesday".
+// Filtering would turn that into an empty list, which reads as "reconciliation never saw it".
+//
+// So this reader filters on the REFERENCES only, and returns the state as two flags plus the
+// note, computed with the very fragments the screens use. Nothing here is a second definition of
+// what an open break is.
+//
+// Bounded by `limit`, and the references are compared in SQL: the caller passes the break keys,
+// the ledger references and the provider references of one object, never the whole system.
+export type LatestBreakReport = ReconciliationBreakRow & {
+  runId: string;
+  isBreakToActOn: boolean;
+  isProbeFromACheckRun: boolean;
+  // The latest note that explains the break AS THE LATEST RUN DESCRIBES IT, or null when no note
+  // does. A note written against an earlier description is deliberately not returned: it explains
+  // a report that no longer stands (review finding F-BREAKSBOARD-01).
+  explanation: { note: string; explainedByName: string; recordedAt: Date } | null;
+};
+
+export async function latestBreakReportsFor(
+  database: postgres.Sql,
+  references: { breakKeys: string[]; ledgerRefs: string[]; providerRefs: string[] },
+  limit: number,
+): Promise<LatestBreakReport[]> {
+  const { breakKeys, ledgerRefs, providerRefs } = references;
+  if (breakKeys.length === 0 && ledgerRefs.length === 0 && providerRefs.length === 0) {
+    return [];
+  }
+  const rows = await database<
+    (BreakRowShape & {
+      run_id: string;
+      is_break_to_act_on: boolean;
+      is_probe: boolean;
+      note_text: string | null;
+      explained_by_name: string | null;
+      note_recorded_at: Date | null;
+    })[]
+  >`
+    with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+    select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)},
+           latest_report.run_id,
+           (${database.unsafe(IT_IS_A_BREAK_TO_ACT_ON)}) as is_break_to_act_on,
+           (${database.unsafe(IT_IS_A_PROBE_FROM_A_CHECK_RUN)}) as is_probe,
+           explanation.note as note_text,
+           explanation.explained_by_name,
+           explanation.recorded_at as note_recorded_at
+      from latest_report
+      -- A left join: a break nobody has explained keeps its line with no note beside it.
+      left join lateral (
+        select note.note, note.recorded_at, author.display_name as explained_by_name
+          from reconciliation_break_notes note
+          left join users author on author.id = note.explained_by
+         where note.break_key = latest_report.break_key
+           and ${database.unsafe(THE_NOTE_EXPLAINS_THE_LATEST_REPORT)}
+         order by note.recorded_at desc
+         limit 1
+      ) explanation on true
+     where latest_report.break_key = any(${breakKeys}::text[])
+        or latest_report.ledger_ref = any(${ledgerRefs}::text[])
+        or latest_report.provider_ref = any(${providerRefs}::text[])
+     order by latest_report.first_seen_at, latest_report.source, latest_report.break_key
+     limit ${limit}
+  `;
+  return rows.map((row) => ({
+    ...toBreakRow(row),
+    runId: row.run_id,
+    isBreakToActOn: row.is_break_to_act_on,
+    isProbeFromACheckRun: row.is_probe,
+    explanation:
+      row.note_text === null || row.note_recorded_at === null
+        ? null
+        : {
+            note: row.note_text,
+            // Read through a left join, so a note whose user row disappeared still shows.
+            explainedByName: row.explained_by_name ?? "a user who no longer exists",
+            recordedAt: row.note_recorded_at,
+          },
+  }));
 }

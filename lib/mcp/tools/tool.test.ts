@@ -14,6 +14,8 @@ const schema = {
     windowDays: { type: "number" },
     // A closed list, the shape explain_amount advertises for its fifteen figure keys.
     figure: { type: "string", enum: ["premium_tax", "policy_fee"] },
+    // The two bounds, the shape inspect_reference advertises for the reference it opens.
+    reference: { type: "string", minLength: 1, maxLength: 20 },
   },
   required: ["policyNumber"],
   additionalProperties: false as const,
@@ -67,4 +69,30 @@ test("a value the advertised enum does not list is refused, and the refusal name
 test("a value the enum does list is accepted, and a field with no enum is unaffected", () => {
   assert.equal(argumentsSchemaRefusal(schema, { policyNumber: "CGP-01274", figure: "policy_fee" }), null);
   assert.equal(argumentsSchemaRefusal(schema, { policyNumber: "CGP-01274", asOf: "anything at all" }), null);
+});
+
+// The advertised lengths are enforced here too, for the same reason as the enum:
+// inspect_reference says in its schema that it opens a reference of 1 to 200 characters, and a
+// bound nothing reads is a promise to the client rather than a control.
+test("a string longer than the advertised maxLength is refused, and the refusal names the BOUND, not the value", () => {
+  const refusal = argumentsSchemaRefusal(schema, {
+    policyNumber: "CGP-01274",
+    reference: "pi_a_reference_far_longer_than_this_tool_accepts",
+  });
+  assert.equal(refusal, '"reference" must be at most 20 characters long');
+  // The value is the caller's own string and this sentence goes into the append-only call log
+  // (finding F-B11-02), so it may name only what the tool declares.
+  assert.ok(!refusal.includes("pi_a_reference"));
+});
+
+test("a string shorter than the advertised minLength is refused, and one inside both bounds is accepted", () => {
+  assert.equal(
+    argumentsSchemaRefusal(schema, { policyNumber: "CGP-01274", reference: "" }),
+    '"reference" must be at least 1 character(s) long',
+  );
+  assert.equal(argumentsSchemaRefusal(schema, { policyNumber: "CGP-01274", reference: "pi_short" }), null);
+});
+
+test("a field with no declared length is unaffected by the bounds check", () => {
+  assert.equal(argumentsSchemaRefusal(schema, { policyNumber: "CGP-01274-and-a-very-long-tail-nobody-bounded" }), null);
 });

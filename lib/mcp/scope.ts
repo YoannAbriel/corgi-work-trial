@@ -126,3 +126,56 @@ export function claimPaymentRequesterRefusal(user: ScopedUser): string | null {
   }
   return `only staff operations can ask for a claim payment; this key belongs to a "${user.role}"`;
 }
+
+// WHO MAY OPEN AN OPERATIONAL FILE ON A REFERENCE (the tool inspect_reference), and it is the
+// same shape of rule as explanationVisibilityRefusal above, for the same reason: the answer is
+// one whole thing, so the honest gate is the whole tool rather than a list of fields.
+//
+// A customer key is refused. The customer's own screens show a policy, its documents, its
+// endorsement schedule and its change requests; they show no money operation, no webhook event,
+// no journal entry and no reconciliation report. There is nothing in an operational file for a
+// customer key to read, and the amounts it may legitimately read are on get_policy_as_of.
+//
+// FAIL CLOSED: only the two roles named here are allowed, so a role added later is refused until
+// somebody decides otherwise, rather than allowed by omission.
+export const NO_INSPECTION_FOR_THIS_KEY =
+  "this key's user reads no operational file: the customer screens show a policy, its documents and its change " +
+  "requests, never a money operation, a webhook event, a journal entry or a reconciliation report, so " +
+  "inspect_reference answers a broker key on its own book of business and a staff key, and nobody else; the policy " +
+  "itself is on get_policy_as_of";
+
+export function inspectionVisibilityRefusal(user: ScopedUser): string | null {
+  if (isStaff(user) || user.role === "broker") {
+    return null;
+  }
+  return NO_INSPECTION_FOR_THIS_KEY;
+}
+
+// WHICH REFERENCES A BROKER KEY MAY OPEN: the ones that resolve to its own book of business. A
+// reference resolving to another broker's policy, claim, money operation or reconciliation break
+// is refused, and so is one that resolves to nothing anybody's book owns (a provider record with
+// no operation behind it, a request that named no object), because unowned means unownable.
+//
+// ONE SENTENCE THAT NAMES NOTHING. It does not say what the reference is, which kind it
+// resolved to, whose it is or what it is worth: a broker learning "this is a claim of another
+// broker" would learn more from the refusal than from an answer. This is deliberately NOT the
+// same sentence as POLICY_NOT_VISIBLE, which says the word "policy" out loud.
+//
+// WHAT IT DOES STILL SAY, written down rather than glossed over: a reference in nobody's book
+// and a reference this key does not own are refused, while a reference that matches no row at
+// all comes back as a "nothing matches" answer. So a broker key can tell that a reference exists
+// somewhere. It learns nothing else about it, and telling a broker chasing a payment reference
+// "not yours" instead of "never heard of it" is what keeps them from raising the wrong question.
+export const REFERENCE_NOT_IN_THIS_BOOK =
+  "this reference is not in this key's own book of business; a broker key opens only references that resolve to " +
+  "its own policies, claims, money operations and reconciliation breaks";
+
+export function referenceInBookRefusal(user: ScopedUser, ownedByBrokerId: string | null): string | null {
+  if (isStaff(user)) {
+    return null;
+  }
+  if (user.role === "broker" && user.brokerId !== null && user.brokerId === ownedByBrokerId) {
+    return null;
+  }
+  return REFERENCE_NOT_IN_THIS_BOOK;
+}
