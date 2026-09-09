@@ -167,6 +167,20 @@ export const A_LATER_RUN_RE_EXAMINED_IT = `
   )
 `;
 
+// The columns of one break row, qualified so the same list reads correctly in a query that
+// joins something else beside it. Shared for the ordinary reason: three readers return this shape
+// (BreakRowShape below), and a column added to one of them and not the others would give the
+// three lists of the same screen three different meanings.
+const THE_COLUMNS_OF_A_BREAK_ROW = `
+  latest_report.source, latest_report.classification, latest_report.break_key,
+  latest_report.provider_ref, latest_report.ledger_ref,
+  latest_report.provider_amount_cents::text as provider_amount_cents,
+  latest_report.ledger_amount_cents::text as ledger_amount_cents,
+  latest_report.difference_cents::text as difference_cents,
+  latest_report.record_at, latest_report.first_seen_at, latest_report.last_reported_at,
+  latest_report.note
+`;
+
 // Everything still unexplained: reported as a break by some complete run, and not re-examined
 // since by a run that covered it.
 //
@@ -177,11 +191,7 @@ export const A_LATER_RUN_RE_EXAMINED_IT = `
 export async function openBreaks(database: postgres.Sql): Promise<ReconciliationBreakRow[]> {
   const rows = await database<BreakRowShape[]>`
     with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
-    select source, classification, break_key, provider_ref, ledger_ref,
-           provider_amount_cents::text as provider_amount_cents,
-           ledger_amount_cents::text as ledger_amount_cents,
-           difference_cents::text as difference_cents,
-           record_at, first_seen_at, last_reported_at, note
+    select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)}
       from latest_report
      where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
      order by first_seen_at, source, break_key
@@ -238,13 +248,7 @@ export async function resolvedBreaks(database: postgres.Sql, limit: number): Pro
              from latest_report
             where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
          )
-    select latest_report.source, latest_report.classification, latest_report.break_key,
-           latest_report.provider_ref, latest_report.ledger_ref,
-           latest_report.provider_amount_cents::text as provider_amount_cents,
-           latest_report.ledger_amount_cents::text as ledger_amount_cents,
-           latest_report.difference_cents::text as difference_cents,
-           latest_report.record_at, latest_report.first_seen_at, latest_report.last_reported_at,
-           latest_report.note,
+    select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)},
            still_open.break_key as open_break_key,
            still_open.shared_ref as open_shared_ref
       from latest_report
@@ -329,11 +333,7 @@ export async function openBreaksPage(database: postgres.Sql, limit: number): Pro
   const [rows, totalOpen] = await Promise.all([
     database<BreakRowShape[]>`
       with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
-      select source, classification, break_key, provider_ref, ledger_ref,
-             provider_amount_cents::text as provider_amount_cents,
-             ledger_amount_cents::text as ledger_amount_cents,
-             difference_cents::text as difference_cents,
-             record_at, first_seen_at, last_reported_at, note
+      select ${database.unsafe(THE_COLUMNS_OF_A_BREAK_ROW)}
         from latest_report
        where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
        order by first_seen_at, source, break_key
