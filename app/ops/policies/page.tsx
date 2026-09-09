@@ -5,7 +5,9 @@ import { Disclosure } from "@/components/disclosures";
 import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import { currentUser } from "@/lib/auth/current-user";
 import { brokersWithKybState } from "@/lib/broker/kyb";
-import { policiesOfBroker } from "@/lib/policy/read";
+import { policiesOfBroker, policyDetail } from "@/lib/policy/read";
+import { policyAsItStoodOn } from "@/lib/policy/correction-read";
+import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 
 // Staff already have access to policy detail. This read-only index makes those
@@ -15,6 +17,8 @@ export default async function StaffPoliciesPage() {
   if (!user) redirect("/login");
   if (user.role !== "staff_ops" && user.role !== "staff_approver") redirect("/broker");
 
+  const today = new Date().toISOString().slice(0, 10);
+
   let policies;
   try {
     const brokers = await brokersWithKybState();
@@ -22,7 +26,24 @@ export default async function StaffPoliciesPage() {
       const rows = await policiesOfBroker(broker.brokerId);
       return rows.map((policy) => ({ ...policy, brokerName: broker.brokerName }));
     }));
-    policies = groups.flat();
+    // UI-004: the total in this column is the one the policy's own page prints under its terms,
+    // folded by the same helper for the same date (lib/policy/terms-in-force.ts). The column used
+    // to come straight from policy_current, which applies every event whatever its effective
+    // date: a policy carrying a future-dated endorsement was listed at next month's total under a
+    // help text that said "as they stand today", and its own page said something else.
+    // It costs two reads per policy, which is what folding a policy's events honestly costs; the
+    // page already reads once per broker and the estate it lists is small.
+    policies = await Promise.all(
+      groups.flat().map(async (policy) => {
+        // The date the policy page uses: today, or the term start when the term has not begun.
+        const onDate = today > policy.effectiveAt ? today : policy.effectiveAt;
+        const [detail, asOfResult] = await Promise.all([
+          policyDetail(policy.policyId),
+          policyAsItStoodOn(policy.policyId, onDate),
+        ]);
+        return { ...policy, terms: detail ? termsInForceOn(detail, asOfResult) : null };
+      }),
+    );
   } catch {
     return (
       <PortalShell user={user} active="policies">
@@ -76,7 +97,18 @@ export default async function StaffPoliciesPage() {
                         {policy.status.replace(/_/g, " ")}
                       </Chip>
                     </td>
-                    <td className="amount">{formatCentsAsUsd(policy.totalChargeCents)}</td>
+                    <td className="amount">
+                      {formatCentsAsUsd(policy.terms ? policy.terms.totalChargeCents : policy.totalChargeCents)}
+                      {policy.terms && policy.terms.onDate === null ? (
+                        // The fold has no answer on that date (the policy was not issued yet, or a
+                        // correction reversed its issuance), so these are the policy record's own
+                        // figures and the row says so rather than calling them cover.
+                        <>
+                          <br />
+                          <span className="note">on the policy record</span>
+                        </>
+                      ) : null}
+                    </td>
                     <td>
                       <Link href={`/policies/${policy.policyId}`} className="button-link secondary small">Open</Link>
                     </td>
@@ -88,8 +120,12 @@ export default async function StaffPoliciesPage() {
         )}
         <Disclosure>
           <p>
-            <strong>Total charge</strong> is the annual premium plus the state premium tax and the flat policy fee, as
-            they stand today; what was actually collected and refunded is on the policy page, in its journal.
+            <strong>Total charge</strong> is the annual premium plus the state premium tax and the flat policy fee{" "}
+            <strong>in force on the date the policy&apos;s own page shows</strong>: today, or the first day of the term
+            when the term has not begun. An endorsement dated later is not in this figure, and the policy page names it
+            under the terms. A row marked <em>on the policy record</em> could not be rebuilt on that date, so its figures
+            are the ones written on the policy. What was actually collected and refunded is on the policy page, in its
+            journal.
           </p>
           <p>
             A policy marked <strong>paid not bound</strong> is the one that needs a person: the customer&apos;s money

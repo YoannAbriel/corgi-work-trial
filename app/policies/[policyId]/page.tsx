@@ -1,3 +1,4 @@
+import "@/app/styles/policy-detail.css";
 import { PortalShell } from "@/components/portal-shell";
 import { AmountExplained } from "@/components/amount-explained";
 import { Disclosure, RowActions, SandboxReferences } from "@/components/disclosures";
@@ -156,7 +157,18 @@ export default async function PolicyPage({
   // so the explanation sits next to the cancellation amounts it explains.
   const openClaims = claims.filter((claim) => !claim.position.isClosed);
   const openClaimReserveCents = openClaims.reduce((total, claim) => total + claim.position.reserveCents, 0);
-  const ledger = ledgerSoFar(entries);
+  // UI-022: what the four sums in the side panel are allowed to add up. An entry a correction
+  // reversed and the reversal that mirrors it cancel each other out, and adding both made a
+  // voided policy read "Collected at Stripe $1,253.20" and "Refunded from Stripe $1,253.20" on a
+  // policy whose own notice says Stripe never collected anything: a reversal is a correction of
+  // our own books, not money coming back from the provider. Both entries stay in the journal
+  // panel below, untouched; only these summary lines leave them out, and the folds that explain
+  // each figure are given the same list, so a fold can never list a line the figure above it
+  // did not count.
+  const entriesStillStanding = entries.filter((entry) => !entry.reversesEntryId && !entry.isReversedByACorrection);
+  // How many pairs were left out, counted on the reversals: one reversal mirrors one entry.
+  const reversedPairCount = entries.filter((entry) => entry.reversesEntryId !== null).length;
+  const ledger = ledgerSoFar(entriesStillStanding);
 
   // WHAT THE POLICY IS TODAY, not what it will be (Yoann's finding F-YA-07). On CGP-01707 the
   // panel printed the $2,400 annual premium and its $56.40 tax on 2026-09-09, although the
@@ -302,7 +314,10 @@ export default async function PolicyPage({
       <DetailGrid
         main={
           <>
-            <Panel title={terms.onDate ? `Terms in force on ${terms.onDate}` : "Terms in force"}>
+            {/* UI-036: when the fold cannot rebuild the policy on the date, these figures are the
+                policy record's and nothing says they were in force. The heading says so instead
+                of promising terms in force and denying it three paragraphs lower. */}
+            <Panel title={terms.onDate ? `Terms in force on ${terms.onDate}` : "Figures on the policy record"}>
               <Facts
                 items={[
                   { label: "Annual premium", value: formatCentsAsUsd(terms.annualPremiumCents) },
@@ -417,11 +432,14 @@ export default async function PolicyPage({
               ) : (
                 <>
                   <div className="table-scroll" role="region" aria-label="Endorsement schedule" tabIndex={0}>
-                    <table>
+                    {/* UI-019: five columns with fixed shares (app/styles/policy-detail.css). The
+                        recording time moved under the effective date it belongs to: both clocks
+                        are still printed, and the column that says what changed is no longer the
+                        only one able to give way to the nowrap amounts beside it. */}
+                    <table className="endorsement-schedule">
                       <thead>
                         <tr>
                           <th>Effective</th>
-                          <th>Recorded (UTC)</th>
                           <th>Change</th>
                           <th className="amount">Prorated delta</th>
                           <th className="amount">New annual premium</th>
@@ -431,8 +449,12 @@ export default async function PolicyPage({
                       <tbody>
                         {schedule.map((row) => (
                           <tr key={row.endorsedEventId}>
-                            <td>{row.effectiveAt}</td>
-                            <td>{row.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
+                            <td>
+                              {row.effectiveAt}
+                              <span className="schedule-recorded">
+                                recorded {row.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC
+                              </span>
+                            </td>
                             <td>
                               {row.description}
                               <br />
@@ -478,7 +500,7 @@ export default async function PolicyPage({
                                     "The Stripe references of the money that moved for this endorsement (the journal entries are in the journal panel below).",
                                 }}
                               />
-                              <span className="note">
+                              <span className="note schedule-split">
                                 {formatCentsAsUsd(row.figures.deltaPremiumCents)} premium, {formatCentsAsUsd(row.figures.deltaTaxCents)} tax
                               </span>
                             </td>
@@ -486,7 +508,10 @@ export default async function PolicyPage({
                             <td>
                               {row.stripeReferences.length > 0 ? "money moved" : "no money moved"}
                               {row.stripeReferences.length > 0 ? (
+                                // UI-021: opened in place, inside its own cell, so the scroll
+                                // container cannot cut the reference in half.
                                 <SandboxReferences
+                                  inline
                                   references={row.stripeReferences.map((reference, index) => ({
                                     label: `Stripe reference ${index + 1}`,
                                     value: reference,
@@ -881,7 +906,20 @@ export default async function PolicyPage({
             {/* --- Slice B8: backdated corrections, both clocks, and the policy on any date --- */}
             <CorrectionsExplained policyId={policy.policyId} canPay={isOwningBroker || user.role === "staff_ops"} />
 
-            <PolicyAsOf policyId={policy.policyId} asOf={query.asOf} termStart={policy.effectiveAt} today={today} />
+            {/* UI-020: the key is the date the page was asked for. Following one of the step
+                links is a client-side navigation, so React keeps the same date input; a field the
+                reader had already typed in keeps what they typed (the browser's dirty value flag)
+                while the panel beside it answers another date, and the next submit silently goes
+                back to the typed one. A new key builds a new field, which starts on the date that
+                was applied. Nothing else changes: the panel is still server-rendered and the form
+                is still a plain GET. */}
+            <PolicyAsOf
+              key={query.asOf ?? "default"}
+              policyId={policy.policyId}
+              asOf={query.asOf}
+              termStart={policy.effectiveAt}
+              today={today}
+            />
 
             <PolicyTimeline policyId={policy.policyId} />
 
@@ -926,11 +964,11 @@ export default async function PolicyPage({
                         size="inline"
                         label="Money that arrived on the Stripe cash account for this policy"
                         explanation={explainAccountSum({
-                          entries,
+                          entries: entriesStillStanding,
                           accountId: "cash_stripe",
                           rule: "debits",
                           totalLabel: "Collected at Stripe, all debits added",
-                          note: "Every debit of cash_stripe on this policy: the premium collection and any endorsement or correction difference the customer paid.",
+                          note: "Every debit of cash_stripe on this policy that a correction has not reversed: the premium collection and any endorsement or correction difference the customer paid.",
                         })}
                       />
                     ),
@@ -943,11 +981,11 @@ export default async function PolicyPage({
                         size="inline"
                         label="Money that left the Stripe cash account for this policy"
                         explanation={explainAccountSum({
-                          entries,
+                          entries: entriesStillStanding,
                           accountId: "cash_stripe",
                           rule: "credits",
                           totalLabel: "Refunded from Stripe, all credits added",
-                          note: "Every credit of cash_stripe on this policy. A refund appears here only once Stripe's webhook confirms the money left.",
+                          note: "Every credit of cash_stripe on this policy that is not the mirror of a reversed entry. A refund appears here only once Stripe's webhook confirms the money left.",
                         })}
                       />
                     ),
@@ -960,11 +998,11 @@ export default async function PolicyPage({
                         size="inline"
                         label="Balance of this broker's commission payable on this policy"
                         explanation={explainAccountSum({
-                          entries,
+                          entries: entriesStillStanding,
                           accountId: "commission_payable",
                           rule: "credits_minus_debits",
                           totalLabel: "Commission payable, credits minus debits",
-                          note: "Commission earned when premium was collected, less every clawback on premium given back.",
+                          note: "Commission earned when premium was collected, less every clawback on premium given back. Entries a correction reversed, and their mirrors, are left out.",
                         })}
                       />
                     ),
@@ -977,11 +1015,11 @@ export default async function PolicyPage({
                         size="inline"
                         label="Balance of unearned premium on this policy"
                         explanation={explainAccountSum({
-                          entries,
+                          entries: entriesStillStanding,
                           accountId: "unearned_premium",
                           rule: "credits_minus_debits",
                           totalLabel: "Unearned premium, credits minus debits",
-                          note: "Premium written and not yet earned: what would be owed back if the policy stopped today.",
+                          note: "Premium written and not yet earned: what would be owed back if the policy stopped today. Entries a correction reversed, and their mirrors, are left out.",
                         })}
                       />
                     ),
@@ -996,6 +1034,17 @@ export default async function PolicyPage({
                 Sums of the journal lines listed on this page: cash at Stripe in and out, the commission payable balance,
                 the unearned premium balance. Nothing here is recomputed from the terms.
               </p>
+              {reversedPairCount > 0 ? (
+                // UI-022: said out loud rather than left to be inferred from four figures that no
+                // longer match the journal line by line.
+                <p className="note">
+                  {reversedPairCount === 1
+                    ? "One entry a correction reversed is left out of these four sums, with the reversal that mirrors it: "
+                    : `${reversedPairCount} entries a correction reversed are left out of these four sums, with the reversals that mirror them: `}
+                  a reversal puts our own books right, it is not money coming back from Stripe. Both sides are in the
+                  journal below, where each reversal names the entry it mirrors.
+                </p>
+              ) : null}
             </Panel>
 
             <Panel title="Broker">

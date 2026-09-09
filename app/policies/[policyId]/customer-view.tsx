@@ -101,7 +101,11 @@ export async function CustomerPolicyView({
       <DetailGrid
         main={
           <>
-            <Panel title={terms.onDate ? `Terms in force on ${terms.onDate}` : "Terms in force"}>
+            {/* UI-036: a voided policy cannot be rebuilt on a date, so the figures below are the
+                ones on the policy record. The section used to be headed "Terms in force", open on
+                "These are the terms in force on that date", and then warn underneath that they
+                were nothing of the kind. The heading and the sentence now follow the fold. */}
+            <Panel title={terms.onDate ? `Terms in force on ${terms.onDate}` : "Figures on your policy record"}>
               <Facts
                 items={[
                   { label: "Annual premium", value: formatCentsAsUsd(terms.annualPremiumCents) },
@@ -118,16 +122,18 @@ export async function CustomerPolicyView({
                   ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
                 ]}
               />
-              <p className="note">
-                These are the terms in force on that date. What you were charged over the life of the policy is in the
-                endorsement schedule below and on your declarations page.
-              </p>
-              {terms.onDate === null ? (
+              {terms.onDate !== null ? (
+                <p className="note">
+                  These are the terms in force on that date. What you were charged over the life of the policy is in the
+                  endorsement schedule below and on your declarations page.
+                </p>
+              ) : (
                 <p className="note">
                   Your policy cannot be rebuilt on {documentDate}: {"error" in termsToday ? termsToday.error : "no answer"}.
-                  The figures above are the ones on the policy record, not the cover in force on a date.
+                  The figures above are the ones written on your policy record. They are not cover in force on a date,
+                  and this policy is {policy.status.replace(/_/g, " ")}.
                 </p>
-              ) : null}
+              )}
               {/* The same sentence the staff page prints (F-YA-07, F-INT-02): what the policy is
                   today, and separately what it becomes. The figures come from the endorsement's
                   own stored event; nothing is recomputed. */}

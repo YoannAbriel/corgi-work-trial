@@ -5,7 +5,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd, parseUsdAmountToCents } from "@/lib/money/cents";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
 import { EndorsementRefused, planEndorsement } from "@/lib/policy/endorse";
-import { endorsementsOfPolicy } from "@/lib/policy/endorsement-read";
+import { endorsementScheduleOfPolicy, endorsementsOfPolicy } from "@/lib/policy/endorsement-read";
 import { policyDetail } from "@/lib/policy/read";
 import { MoneyAmountInput } from "@/components/money-amount-input";
 import { FormulaLinesTable } from "../formula-lines";
@@ -63,12 +63,10 @@ export default async function EndorsePolicyPage({
     if (error instanceof EndorsementRefused || error instanceof FormError) {
       // A refusal is part of the preview: the broker sees why and changes the input. Nothing was
       // written, so there is nothing to undo.
-      return (
-        <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: "Policy", href: `/policies/${policyId}` }, { label: "Endorsement preview" }]}>
-          <h1>Endorsement preview</h1>
-          <p className="error" role="alert">{error.message}</p>
-        </PortalShell>
-      );
+      // UI-023: and the input to change is on the page. This used to be a heading, a red sentence
+      // and nothing else: a dead end the reader had to leave with the browser's back button. The
+      // same form comes back, carrying what was typed, with the refusal above it.
+      return <EndorsementForm policyId={policyId} user={user} refusal={error.message} submitted={query} />;
     }
     throw error;
   }
@@ -100,14 +98,17 @@ export default async function EndorsePolicyPage({
               {formatCentsAsUsd(figures.oldAnnualPremiumCents)} to {formatCentsAsUsd(figures.newAnnualPremiumCents)}
             </td>
           </tr>
+          {/* Same as the correction preview (UI-024): a limit label and a reason are sentences,
+              and the nowrap of the amount class turned this table into one very long line with a
+              44 px label column beside it. */}
           <tr>
             <th>Limits</th>
-            <td className="amount">{plan.newLimitLabel}</td>
+            <td>{plan.newLimitLabel}</td>
           </tr>
           {plan.reason ? (
             <tr>
               <th>Reason</th>
-              <td className="amount">{plan.reason}</td>
+              <td>{plan.reason}</td>
             </tr>
           ) : null}
         </tbody>
@@ -176,11 +177,27 @@ export default async function EndorsePolicyPage({
 async function EndorsementForm({
   policyId,
   user,
+  refusal,
+  submitted,
 }: {
   policyId: string;
   user: NonNullable<Awaited<ReturnType<typeof currentUser>>>;
+  // Why the preview came back instead of a quote (UI-023). Absent on the way in.
+  refusal?: string;
+  // What was typed, so the reader corrects one field instead of retyping four.
+  submitted?: {
+    effectiveAt?: string;
+    newAnnualPremium?: string;
+    newPerOccurrenceLimit?: string;
+    newAggregateLimit?: string;
+    reason?: string;
+  };
 }) {
-  const [policy, endorsements] = await Promise.all([policyDetail(policyId), endorsementsOfPolicy(policyId)]);
+  const [policy, endorsements, schedule] = await Promise.all([
+    policyDetail(policyId),
+    endorsementsOfPolicy(policyId),
+    endorsementScheduleOfPolicy(policyId),
+  ]);
   if (!policy) {
     notFound();
   }
@@ -196,36 +213,65 @@ async function EndorsementForm({
     redirect(`/policies/${policyId}?error=${encodeURIComponent("an endorsement is already in progress on this policy")}`);
   }
   const today = new Date().toISOString().slice(0, 10);
+  // UI-023: the earliest date the server accepts. An endorsement cannot take effect before the
+  // one already in force (lib/policy/endorse.ts says why), so a field that started on today's
+  // date sent the reader straight into that refusal on a policy endorsed for a later date. The
+  // schedule is ordered by effective date, so its last row is the latest endorsement in force.
+  const latestEndorsementEffectiveAt = schedule.length > 0 ? schedule[schedule.length - 1].effectiveAt : null;
+  const earliestEffectiveAt =
+    latestEndorsementEffectiveAt && latestEndorsementEffectiveAt > policy.effectiveAt
+      ? latestEndorsementEffectiveAt
+      : policy.effectiveAt;
+  // Today when the term is running, otherwise the earliest date the server would take.
+  const defaultEffectiveAt =
+    today > earliestEffectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : earliestEffectiveAt;
+  // A refused date is not put back in the field: the field would then start on a value the form
+  // itself refuses. The reader sees the refusal above and a date that would be accepted.
+  const effectiveAtToShow =
+    submitted?.effectiveAt && submitted.effectiveAt >= earliestEffectiveAt && submitted.effectiveAt <= policy.termEnd
+      ? submitted.effectiveAt
+      : defaultEffectiveAt;
 
   return (
     <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` }, { label: "Endorse" }]}>
       <h1>Endorse policy {policy.policyNumber}</h1>
+      {refusal ? (
+        <p className="error" role="alert">
+          {refusal}. Nothing was recorded: change the fields below and ask for the preview again.
+        </p>
+      ) : null}
       <p className="lead">
         Change the annual premium or the limits from a date inside the term ({policy.effectiveAt} to {policy.termEnd}).
         The next screen shows the exact money it moves, line by line, before anything is recorded. The money is always
         priced from the effective date: a backdated endorsement charges more days, never the day it was typed.
       </p>
+      {latestEndorsementEffectiveAt && latestEndorsementEffectiveAt > policy.effectiveAt ? (
+        <p className="note">
+          This policy is already endorsed with effect from {latestEndorsementEffectiveAt}, so a new change cannot take
+          effect before that date; correcting the earlier one is the way to move it.
+        </p>
+      ) : null}
       <form method="get" action={`/policies/${policy.policyId}/endorse`} className="card">
         <label htmlFor="newAnnualPremium">New annual premium (USD)</label>
         <MoneyAmountInput
           id="newAnnualPremium"
           name="newAnnualPremium"
           required
-          defaultValue={(policy.annualPremiumCents / 100).toFixed(2)}
+          defaultValue={submitted?.newAnnualPremium ?? (policy.annualPremiumCents / 100).toFixed(2)}
         />
         <label htmlFor="newPerOccurrenceLimit">New per-occurrence limit (USD)</label>
         <MoneyAmountInput
           id="newPerOccurrenceLimit"
           name="newPerOccurrenceLimit"
           required
-          defaultValue={(policy.perOccurrenceLimitCents / 100).toFixed(2)}
+          defaultValue={submitted?.newPerOccurrenceLimit ?? (policy.perOccurrenceLimitCents / 100).toFixed(2)}
         />
         <label htmlFor="newAggregateLimit">New aggregate limit (USD)</label>
         <MoneyAmountInput
           id="newAggregateLimit"
           name="newAggregateLimit"
           required
-          defaultValue={(policy.aggregateLimitCents / 100).toFixed(2)}
+          defaultValue={submitted?.newAggregateLimit ?? (policy.aggregateLimitCents / 100).toFixed(2)}
         />
         <label htmlFor="endorsementEffectiveAt">Effective date</label>
         <input
@@ -233,12 +279,12 @@ async function EndorsementForm({
           name="effectiveAt"
           type="date"
           required
-          defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}
-          min={policy.effectiveAt}
+          defaultValue={effectiveAtToShow}
+          min={earliestEffectiveAt}
           max={policy.termEnd}
         />
         <label htmlFor="reason">Reason (optional)</label>
-        <input id="reason" name="reason" maxLength={200} />
+        <input id="reason" name="reason" maxLength={200} defaultValue={submitted?.reason ?? ""} />
         <button type="submit">Preview the endorsement</button>
       </form>
     </PortalShell>

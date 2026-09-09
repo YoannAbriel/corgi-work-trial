@@ -238,6 +238,14 @@ export type JournalEntryView = {
   effectiveAt: string;
   recordedAt: Date;
   description: string;
+  // Set on a reversal entry: the entry it mirrors. The column has existed since migration 0001
+  // and is unique, so an entry is reversed at most once.
+  reversesEntryId: string | null;
+  // True when a correction appended a reversal mirroring THIS entry. Read together with the
+  // field above, the pair says which entries cancel each other out, which is what a summary of
+  // provider cash has to leave out: a reversal is a correction of our own books, not money
+  // coming back from Stripe (UI-022).
+  isReversedByACorrection: boolean;
   lines: JournalLineView[];
 };
 
@@ -256,6 +264,7 @@ export async function journalEntriesOfPolicy(policyId: string): Promise<JournalE
       debit_cents: string;
       credit_cents: string;
       line_id: string;
+      reverses_entry_id: string | null;
     }[]
   >`
     select entry.id           as entry_id,
@@ -263,6 +272,7 @@ export async function journalEntriesOfPolicy(policyId: string): Promise<JournalE
            to_char(entry.effective_at, 'YYYY-MM-DD') as effective_at,
            entry.recorded_at,
            entry.description,
+           entry.reverses_entry_id,
            line.id            as line_id,
            line.account_id,
            account.name       as account_name,
@@ -275,6 +285,11 @@ export async function journalEntriesOfPolicy(policyId: string): Promise<JournalE
      order by entry.recorded_at, entry.id, line.id
   `;
 
+  // The entries this policy's corrections reversed. A reversal carries reverses_entry_id, so the
+  // set is read from the same rows: no second query, and an entry and its mirror are always
+  // marked together.
+  const reversedEntryIds = new Set(rows.map((row) => row.reverses_entry_id).filter((id): id is string => id !== null));
+
   const entries: JournalEntryView[] = [];
   for (const row of rows) {
     let entry = entries.find((candidate) => candidate.entryId === row.entry_id);
@@ -285,6 +300,8 @@ export async function journalEntriesOfPolicy(policyId: string): Promise<JournalE
         effectiveAt: row.effective_at,
         recordedAt: row.recorded_at,
         description: row.description,
+        reversesEntryId: row.reverses_entry_id,
+        isReversedByACorrection: reversedEntryIds.has(row.entry_id),
         lines: [],
       };
       entries.push(entry);
