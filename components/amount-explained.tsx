@@ -21,6 +21,7 @@ export function AmountExplained({
   explanation,
   label,
   size = "figure",
+  tracePanelKey = "policy",
 }: {
   // The figure being explained, in integer cents. The component formats it, so the fold and the
   // number above it can never be formatted from two different values.
@@ -30,6 +31,11 @@ export function AmountExplained({
   label: string;
   // "figure" in a facts grid or a panel, "inline" inside a table cell or a side list.
   size?: "figure" | "inline";
+  // Which journal panel on this page the fold points at (review finding F-B12-18). A page can
+  // print the same entry in two panels, so the id of a block carries the panel it is in, and a
+  // fold has to say which of them it means. Every screen but the claim page points at the policy
+  // journal, which is why that is the default.
+  tracePanelKey?: string;
 }) {
   const resultLine = explanationResultLine(explanation);
   // THE CHECK THAT MAKES THE FOLD WORTH TRUSTING: the explanation has to end on the figure it
@@ -56,7 +62,7 @@ export function AmountExplained({
     <AmountExplainedMotion
       finalText={formatCentsAsUsd(amountCents)}
       size={size}
-      traceEntryElementId={traceEntryId ? journalEntryElementId(traceEntryId) : undefined}
+      traceEntryElementId={traceEntryId ? journalEntryElementId(tracePanelKey, traceEntryId) : undefined}
       hasTicker={subtotalTexts !== undefined}
       inWords={
         <>

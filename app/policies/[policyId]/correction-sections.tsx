@@ -104,7 +104,7 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
           <FormulaLinesTable lines={correction.lines} />
 
           <h4>The entries it posted</h4>
-          <JournalTable entries={correction.entries} visibleEntries={6} ariaLabel="Correction entries" />
+          <JournalTable entries={correction.entries} panelKey="correction" visibleEntries={6} ariaLabel="Correction entries" />
           <p className="note">
             The cash entries of the original endorsement are not in this table on purpose: Stripe really does hold that
             money, so reversing them would make the ledger claim it left. What the correction changes is what the

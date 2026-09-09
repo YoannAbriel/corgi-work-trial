@@ -79,16 +79,21 @@ export const DOCUMENTED_LIMITS: DocumentedLimit[] = [
     readOn: DOCUMENTED_READ_ON,
   },
   {
+    // The cell reads "100 CU-hours/project" and nothing more. "per month" is the plan's billing
+    // period, which is true but is OUR reading of the page, so it belongs in `what`, not inside
+    // the quotation (review finding F-B13-29).
     provider: "Neon",
-    what: "Compute, Free plan",
-    documented: "100 CU-hours per project per month; autoscaling up to 2 CU (8 GB RAM)",
+    what: "Compute, Free plan (the plan's allowances are per billing period)",
+    documented: "100 CU-hours/project; autoscaling up to 2 CU (8 GB RAM)",
     sourceUrl: "https://neon.com/docs/introduction/plans",
     readOn: DOCUMENTED_READ_ON,
   },
   {
+    // "public network transfer" is the page's own wording; "public egress" was ours
+    // (recheck finding F-RC-09).
     provider: "Neon",
     what: "Branches and network transfer, Free plan",
-    documented: "10 branches per project; 5 GB public egress per project",
+    documented: "10 branches per project; 5 GB public network transfer per project",
     sourceUrl: "https://neon.com/docs/introduction/plans",
     readOn: DOCUMENTED_READ_ON,
   },
@@ -100,9 +105,19 @@ export const DOCUMENTED_LIMITS: DocumentedLimit[] = [
     readOn: DOCUMENTED_READ_ON,
   },
   {
+    // Two rows on the page, two rows here (review findings F-B13-29 and F-RC-09). The overall
+    // limit IS split by mode on the page; the per-endpoint one is NOT, so filing it under a
+    // "sandbox" heading was our inference and the heading now claims no mode at all.
     provider: "Stripe",
-    what: "API rate limit, sandbox (test mode)",
-    documented: "25 requests per second globally, and 25 requests per second per endpoint (live mode is 100 per second)",
+    what: "API rate limit overall, split by mode on the page",
+    documented: "Live mode: 100 requests per second, Sandbox: 25 requests per second",
+    sourceUrl: "https://docs.stripe.com/rate-limits",
+    readOn: DOCUMENTED_READ_ON,
+  },
+  {
+    provider: "Stripe",
+    what: "API rate limit per endpoint, stated without a mode (so the same figure in both)",
+    documented: "Individual API endpoints (unless otherwise noted): 25 requests per second",
     sourceUrl: "https://docs.stripe.com/rate-limits",
     readOn: DOCUMENTED_READ_ON,
   },

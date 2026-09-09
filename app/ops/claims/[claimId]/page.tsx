@@ -138,6 +138,7 @@ export default async function ClaimPage({
                     label: "Paid, sent on the rail minus anything returned",
                     value: (
                       <AmountExplained
+                        tracePanelKey="claim"
                         amountCents={claim.position.paidCents}
                         label="Paid on this claim"
                         explanation={{
@@ -164,6 +165,7 @@ export default async function ClaimPage({
                     label: "Reserve still outstanding",
                     value: (
                       <AmountExplained
+                        tracePanelKey="claim"
                         amountCents={claim.position.reserveCents}
                         label="Reserve still outstanding on this claim"
                         explanation={{
@@ -182,6 +184,7 @@ export default async function ClaimPage({
                     label: "Incurred = paid + reserve",
                     value: (
                       <AmountExplained
+                        tracePanelKey="claim"
                         amountCents={claim.position.incurredCents}
                         label="Incurred: what this claim has cost so far"
                         explanation={{
@@ -342,7 +345,7 @@ export default async function ClaimPage({
               {entries.length === 0 ? (
                 <Empty>Nothing posted yet: the first entry appears when a reserve is set.</Empty>
               ) : (
-                <JournalTable entries={entries} ariaLabel="Claim journal" />
+                <JournalTable entries={entries} panelKey="claim" ariaLabel="Claim journal" />
               )}
             </Panel>
           </>

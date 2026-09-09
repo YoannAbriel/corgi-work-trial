@@ -130,8 +130,11 @@ export type ReconciliationBreakRow = {
 // request; these are constants of this file, no value from anywhere else touches them, and every
 // value the queries compare is still passed as a parameter. They are shared rather than copied
 // because the rule that decides whether a break is open must exist once: two copies would drift,
-// and a break would end up in both lists or in neither.
-const LATEST_REPORT_OF_EACH_BREAK = `
+// and a break would end up in both lists or in neither. They are exported for that same reason:
+// the console reads the open breaks of ONE object, bounded and filtered in SQL
+// (openBreaksOfSubject in lib/console/read.ts, review finding F-B13-22), and it must ask the
+// same question this screen asks, not a second version of it.
+export const LATEST_REPORT_OF_EACH_BREAK = `
   select distinct on (item.break_key)
          run.source,
          run.finished_at as last_reported_at,
@@ -147,7 +150,7 @@ const LATEST_REPORT_OF_EACH_BREAK = `
 
 // True when some later complete run of the same source covered this record's date and did not
 // report it as a break.
-const A_LATER_RUN_RE_EXAMINED_IT = `
+export const A_LATER_RUN_RE_EXAMINED_IT = `
   exists (
     select 1
       from reconciliation_runs later
@@ -228,7 +231,7 @@ export async function oldestOpenBreakRecordDate(database: postgres.Sql): Promise
   return breaks.reduce((oldest, row) => (row.recordAt < oldest ? row.recordAt : oldest), breaks[0].recordAt);
 }
 
-type BreakRowShape = {
+export type BreakRowShape = {
   source: ReconciliationSourceName;
   classification: Classification;
   break_key: string;
@@ -243,7 +246,7 @@ type BreakRowShape = {
   note: string;
 };
 
-function toBreakRow(row: BreakRowShape): ReconciliationBreakRow {
+export function toBreakRow(row: BreakRowShape): ReconciliationBreakRow {
   return {
     source: row.source,
     classification: row.classification,

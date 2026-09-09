@@ -4,7 +4,7 @@ import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import { JournalTable } from "@/components/journal-table";
-import { EventTable, FailureLine, Masked, formatSeconds, utc } from "@/components/console-parts";
+import { EventTable, FailureLine, IntegrationModes, Masked, formatSeconds, utc } from "@/components/console-parts";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -14,9 +14,11 @@ import {
   changeRequestsOfSubject,
   claimsOfSubject,
   consoleSubject,
+  integrationModeOf,
   journalEntriesOfSubject,
   kybEventsOfBroker,
   mcpCallsOfParty,
+  MOST_BREAKS_ON_A_360_PAGE,
   openBreaksOfSubject,
   operationsOfSubject,
   policiesOfSubject,
@@ -47,7 +49,37 @@ import { attempt, valueOr } from "@/lib/console/safe-read";
 export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: string }) {
   const user = await requireStaff();
 
-  const subject = await consoleSubject(sql, kind, id);
+  // The identity read goes through `attempt` like every other read on this page, and that is
+  // review finding F-B13-24. It was the one exception: a failure here replaced the whole console
+  // page with the framework error page, which is exactly what safe-read.ts exists to prevent.
+  // There is genuinely less to show without it, because the policy and claim ids it returns
+  // scope every other panel, so the page answers with its heading and the named failure.
+  const subjectRead = await attempt("the object itself", consoleSubject(sql, kind, id));
+  if (!subjectRead.ok) {
+    return (
+      <PortalShell user={user} active="console" trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Unreadable" }]}>
+        <DetailHeading
+          title={`This ${kind} could not be read`}
+          lead="The query that identifies the object failed, so the panels that describe it have nothing to be about. Nothing was retried and nothing is hidden."
+          actions={
+            <Link href="/ops/console" prefetch={false} className="button-link">
+              Back to the feed
+            </Link>
+          }
+        />
+        <IntegrationModes />
+        <Panel title="What failed">
+          <FailureLine attempted={subjectRead} />
+          <p className="note">
+            The id in the address is <code>{id}</code>. The feed, the reference search and the other 360 pages are
+            unaffected: each page of this console reads on its own.
+          </p>
+        </Panel>
+      </PortalShell>
+    );
+  }
+  // The read worked and answered "no such object": that is a 404, not a failure.
+  const subject = subjectRead.value;
   if (!subject) {
     notFound();
   }
@@ -113,6 +145,8 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
         }
       />
 
+      <IntegrationModes />
+
       <DetailGrid
         main={
           <>
@@ -142,7 +176,10 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                           <td>
                             {operation.kind}
                             <br />
-                            <span className="note">{operation.provider}</span>
+                            {/* The rail in full words, ON the row (AF-02, recheck finding
+                                F-RC-08). It used to print the bare column value, "simulator",
+                                next to real Stripe references. */}
+                            <span className="note">{integrationModeOf(operation.provider)}</span>
                           </td>
                           <td className="amount">{formatCentsAsUsd(operation.amountCents)}</td>
                           <td>
@@ -257,6 +294,7 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                 <Empty>Nothing has been posted for this object.</Empty>
               ) : (
                 <JournalTable
+                  panelKey="console"
                   entries={valueOr(journalRead, []).map((entry) => ({
                     entryId: entry.entryId,
                     entryType: entry.entryType,
@@ -307,9 +345,16 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                                   {policy.brokerName}
                                 </Link>
                               ) : (
-                                <Link href={`/ops/console/customer/${policy.customerId}`} prefetch={false}>
-                                  <Masked value={policy.customerName} what="customer name" />
-                                </Link>
+                                // The fold and the link SIDE BY SIDE, never nested (review
+                                // finding F-B13-25): Masked renders a details/summary, and
+                                // interactive content inside an anchor is invalid HTML, so the
+                                // click landed on the link and the name could never be revealed.
+                                <>
+                                  <Masked value={policy.customerName} what="customer name" />{" "}
+                                  <Link href={`/ops/console/customer/${policy.customerId}`} prefetch={false}>
+                                    open
+                                  </Link>
+                                </>
                               )}
                             </td>
                             <td>
@@ -413,6 +458,12 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                   ))}
                 </ul>
               )}
+              {breaks.length >= MOST_BREAKS_ON_A_360_PAGE ? (
+                <p className="note">
+                  Showing {MOST_BREAKS_ON_A_360_PAGE} breaks, which is the cap of this panel. There may be more of
+                  them; the reconciliation screen lists every open break of every object.
+                </p>
+              ) : null}
               <p className="note">
                 Read through the same rule the reconciliation screen uses, so the two can never disagree:{" "}
                 <Link href="/ops/reconciliation" prefetch={false}>

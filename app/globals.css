@@ -2020,8 +2020,13 @@ a.as-of-step.current {
    the result. The hidden state exists only inside a panel carrying data-reveal. */
 .amount-explain-panel[data-reveal] .reveal-step {
   opacity: 0;
+  /* Opacity hides, it does not take a control out of the tab order (review finding F-B12-17):
+     for the half second of the build, "Trace to the ledger", the evidence table and the two
+     scrollable regions were focusable and clickable while invisible. `visibility` removes them,
+     and it transitions discretely, so it flips at the end of the delay and the fade still runs. */
+  visibility: hidden;
   transform: translateY(6px);
-  transition: opacity 220ms ease, transform 220ms ease;
+  transition: opacity 220ms ease, transform 220ms ease, visibility 0s linear 220ms;
 }
 .amount-explain-panel[data-reveal="1"] .reveal-step-1,
 .amount-explain-panel[data-reveal="2"] .reveal-step-1,
@@ -2031,7 +2036,9 @@ a.as-of-step.current {
 .amount-explain-panel[data-reveal="3"] .reveal-step-3,
 .amount-explain-panel[data-reveal="4"] .reveal-step {
   opacity: 1;
+  visibility: visible;
   transform: none;
+  transition: opacity 220ms ease, transform 220ms ease, visibility 0s linear 0s;
 }
 
 /* The operands of the formula light up one at a time (the class is added by the animation loop,
@@ -2039,13 +2046,18 @@ a.as-of-step.current {
    opacity only, so no row ever changes height and the panel does not resize while it fills. */
 .amount-explain-panel[data-reveal] tr[data-formula-line] {
   opacity: 0;
-  transition: opacity 260ms ease;
+  visibility: hidden;
+  transition: opacity 260ms ease, visibility 0s linear 260ms;
 }
 .amount-explain-panel[data-reveal] tr[data-formula-line].operand-lit {
   opacity: 1;
+  visibility: visible;
+  transition: opacity 260ms ease, visibility 0s linear 0s;
 }
 .amount-explain-panel[data-reveal="4"] tr[data-formula-result] {
   opacity: 1;
+  visibility: visible;
+  transition: opacity 260ms ease, visibility 0s linear 0s;
   animation: explain-result-land 800ms ease-out;
 }
 @keyframes explain-result-land {
@@ -2178,6 +2190,7 @@ a.as-of-step.current {
   .amount-explain-panel[data-reveal] .reveal-step,
   .amount-explain-panel[data-reveal] tr[data-formula-line] {
     opacity: 1 !important;
+    visibility: visible !important;
     transform: none !important;
   }
   .amount-explain-panel[data-reveal="4"] tr[data-formula-result],

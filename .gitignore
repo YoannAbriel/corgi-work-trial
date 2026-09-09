@@ -27,3 +27,6 @@ skills-lock.json
 
 # Worktrees created by other tools (Codex) at the repository root
 .worktrees/
+
+# F-RC-01: the .env* line above re-ignored the example file; keep it tracked
+!.env.example

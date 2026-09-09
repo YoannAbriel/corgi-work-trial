@@ -12,7 +12,7 @@ export default async function LoginPage({
 }) {
   const user = await currentUser();
   if (user) {
-    redirect(user.role === "staff_ops" || user.role === "staff_approver" ? "/ops" : "/broker");
+    redirect(user.role === "staff_ops" || user.role === "staff_approver" ? "/ops" : user.role === "customer" ? "/customer" : "/broker");
   }
   const { error } = await searchParams;
 
