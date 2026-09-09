@@ -202,3 +202,19 @@ Yoann at 09:47 Europe/Zurich: yes to bumping the canonical statement format to v
 32. Decision 26 amended: the second layer on MCP keys is built now, not in week two: keys record who created them (migration 0024, new nullable column) and the maker-checker trigger refuses a decision by the person who created the key through which the request was raised. Guards on the rate tables (migration 0023) built now too.
 
 Yoann's words at 15:02 local: "on peut partir sur le tableau des écarts ... Le MCP, OK ... Le relevé automatique ... Correction alignée sur ta règle 24, OK, et garde sur les tableaux de taux, trigger créateur. Vas-y, envoie." Built as five slices in parallel worktrees with an adversarial reviewer each (ultracode, his authorisation), merged by the coordinator after the guards are re-proven on an ephemeral database migrated to 0024.
+
+## 2026-09-09T15:20:00+00:00 | Assistant proposals accepted by Yoann (15:15 and 15:40 local) | Interface rework, branch ui-system
+
+Recorded by the coordinator from docs/handoffs/ui-system-notes.md at the merge (489a36d). Presentation layer only: colours, buttons and fonts kept; no form action, method or field name changed; no money path touched.
+
+33. Two-level navigation: the main sidebar folds to an icon rail when a screen declares views; views are ?view=<name> on the existing route, validated server-side (lib/ui/views.ts), one view rendered per request; every existing link keeps working.
+34. A sticky page band on every screen (section illustration, title, chips, primary actions), with the breadcrumb bar; the primary actions are never folded (closes F-YA-05).
+35. An inspector, ?inspect=<reference>, renders beside the table the record and its whole trail through the console's resolveReference; staff screens only, other roles refused by the component.
+36. Charts are server-rendered SVG with no library and no client script, animated once by the stylesheet, each with a hidden table for screen readers.
+37. Native HTML for folds and menus: details for expansions, the popover attribute for row menus and the amount explanation, so nothing opens inside a table cell and nothing is clipped by a scroll container.
+38. Toasts (closes F-YA-09): the redirect query parameters a page receives become toasts through toastsFromQuery; the client Toaster shows them, removes the parameters from the URL and keeps the text in a hidden status region; SubmitButton shows a working state on a posting form; the inline notices block stays for the check scripts.
+39. Illustrations kept and re-placed: one vignette per section in the band and on the overview cards, large in empty states, on the login and the landing; the full-width banners leave the homes.
+40. A read-only ledger section in the console, four views (balances with an as-of date, one account, entries, flows), through lib/ledger/read.ts (SELECT only, bounded).
+41. Landing at /, sign-in card at /login; the sandbox sentence and the five demo logins verbatim.
+
+Exceptions to the "what must not change" list of the interface brief, required by findings: components/journal-table.tsx (F-LU-02, F-LU-03, F-UA-04) and components/amount-explained-motion.tsx (F-B12-20); the browser still computes no money figure (lib/money/amount-explained-motion.test.ts).
