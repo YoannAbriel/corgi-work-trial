@@ -128,7 +128,7 @@ export default async function ReconciliationPage({
                   and found every one of them in the ledger.
                 </Empty>
               ) : (
-                <BreakTable rows={breaks} now={now} ageColumn="Open for" />
+                <BreakTable rows={breaks} now={now} label="Open breaks" ageColumn="Open for" />
               )}
               <Disclosure title="What counts as open">
                 <p>
@@ -207,7 +207,7 @@ export default async function ReconciliationPage({
             </Panel>
 
             <Panel title="Breaks that went away">
-              {resolved.length === 0 ? <Empty>No break has been resolved yet.</Empty> : <BreakTable rows={resolved} now={now} ageColumn="Was open for" />}
+              {resolved.length === 0 ? <Empty>No break has been resolved yet.</Empty> : <BreakTable rows={resolved} now={now} label="Resolved breaks" ageColumn="Was open for" />}
               <Disclosure title="What resolved them">
                 <p>
                   Reported by an earlier run, and looked at again since by a completed run of the same source whose
@@ -334,9 +334,12 @@ function ClearingRow({ balance, now }: { balance: ClearingBalanceRow; now: Date 
   );
 }
 
-function BreakTable({ rows, now, ageColumn }: { rows: ReconciliationBreakRow[]; now: Date; ageColumn: string }) {
+// `label` names the scrolling region, exactly as `ageColumn` names the last column: this table is
+// rendered twice, for the open breaks and for the resolved ones, and a name generated from a
+// counter had both of them announced as "Reconciliation table 3" (review finding F-B13-33).
+function BreakTable({ rows, now, label, ageColumn }: { rows: ReconciliationBreakRow[]; now: Date; label: string; ageColumn: string }) {
   return (
-    <div className="table-scroll" role="region" aria-label="Reconciliation table 3" tabIndex={0}>
+    <div className="table-scroll" role="region" aria-label={label} tabIndex={0}>
 <table className="ledger ops-table">
       <thead>
         <tr>

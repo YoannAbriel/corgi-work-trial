@@ -303,7 +303,7 @@ export async function PolicyAsOf({
       ) : (
         <>
           <h3>{result.asOf}</h3>
-          <div className="table-scroll" role="region" aria-label="Policy details table 3" tabIndex={0}>
+          <div className="table-scroll" role="region" aria-label="The policy on that date" tabIndex={0}>
 <table className="amounts">
             <tbody>
               <tr>
@@ -337,7 +337,7 @@ export async function PolicyAsOf({
 </div>
 
           <h4>Limits in force on {result.asOf}</h4>
-          <div className="table-scroll" role="region" aria-label="Policy details table 4" tabIndex={0}>
+          <div className="table-scroll" role="region" aria-label="Limits in force on that date" tabIndex={0}>
 <table className="amounts">
             <tbody>
               {result.snapshot.coverageLines.map((line) => (
@@ -356,7 +356,7 @@ export async function PolicyAsOf({
             endorsement earns its prorated amount from its own effective date to the end of the term. This is why the
             annual premium in force is not the written premium once a policy has been endorsed.
           </p>
-          <div className="table-scroll" role="region" aria-label="Policy details table 5" tabIndex={0}>
+          <div className="table-scroll" role="region" aria-label="Written premium segments" tabIndex={0}>
 <table>
             <thead>
               <tr>

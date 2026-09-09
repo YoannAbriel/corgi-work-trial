@@ -53,7 +53,7 @@ export default async function BrokerStatementsPage() {
       {runs.length === 0 ? (
         <Empty illustration="open-ledger">No statement has been produced for you yet.</Empty>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label="Your statements" tabIndex={0}>
 <table>
           <thead>
             <tr>

@@ -131,7 +131,7 @@ export default async function OpsStatementsPage({
 
 function RunTable({ runs }: { runs: StatementRunRow[] }) {
   return (
-    <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
+    <div className="table-scroll" role="region" aria-label="Statement runs" tabIndex={0}>
 <table className="ops-table">
       <thead>
         <tr>
