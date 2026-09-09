@@ -318,6 +318,12 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 - Twelve findings F-RC-01 to F-RC-12 registered; six already fixed or fixed before the recheck was read (F-RC-01, 02, 03, 04, 10, 11; the guards proof at migration 0020 is 184/184 PASS at 08:32Z on an ephemeral database), three in cycles (06, 08, 09), two in review or drafting (05, 12), one decision put to Yoann (07, structured redacted logs: build small or cut with disclosure).
 - Launched: the B13-1 screens review (three key screens, five states, 375 px and 1280 px, on production once 5590242 is deployed; findings F-B13-30 upward), the compliance matrix refresh (drafted by a sub-agent, merged by the coordinator), the F-RC-06 fix. The integration review REVIEWER.md requires is launched after the console and inbox fix cycles land, so it reads the tree that will be frozen.
 
+## 2026-09-09T08:36:00+00:00 | Bare corrections page fixed (7b8431c), integration review launched
+
+- F-RC-06: /policies/{id}/corrections/new opened without parameters now renders the correction form (which endorsement, the date it should have carried, why) in the endorse page's shape, then the existing preview and confirmation path; one file, no lib change. Merged with --no-ff, pushed as code alone, deployed and confirmed by /api/health at 08:36Z. This is the entry point of the live-fire backdated correction Yoann drives later today.
+- The integration review REVIEWER.md requires (docs/reviews/integration.md) launched at 08:35Z on 0b92476: one policy through its whole life on the deployed data with every figure compared across screens, the same pure function for preview, execution and explanation, ledger invariants read on production, maker-checker traced from the MCP tool to the trigger, role boundaries probed per role, statements and reconciliation checks once each on corgi_test, the AF gate for the whole tree, and the known gaps stated. Findings F-INT-nn.
+- Note from the builder: the repository has no lint script and no ESLint configuration; typecheck and the test runner are the automated gates.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
