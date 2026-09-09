@@ -26,7 +26,12 @@ import { checkoutOperationOfPolicy, refundOperationsOfPolicy, type PolicyDetail 
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { firstValue, pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 import { AGENCY_BILL_SENTENCE_FOR_CUSTOMER, BillingSummary, billingRows } from "./billing-sections";
-import { PolicyDocuments, PolicyTimeline } from "./correction-sections";
+import {
+  LatestTermsStat,
+  pendingEndorsementState,
+  PolicyDocuments,
+  PolicyTimeline,
+} from "./correction-sections";
 
 // The customer's own view of their policy, and the change requests that go with it (slice B13-6,
 // decided by Yoann on 2026-09-08 at 20:35 UTC).
@@ -92,6 +97,12 @@ export async function CustomerPolicyView({
   // Applied endorsements that have not taken effect yet: the gap between what the policy is today
   // and what policy_current already carries. Named under the facts rather than folded into them.
   const endorsementsNotYetInForce = schedule.filter((row) => row.effectiveAt > documentDate);
+  // The change that is quoted or approved and whose delta has not been collected. The same row
+  // the broker's "Endorsement in progress" card is drawn from, read here for the tile and for the
+  // pending row of the changes table (LIVE-9).
+  const liveEndorsement = endorsements.find(
+    (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
+  );
   const statusTone =
     policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "warn" : "neutral";
 
@@ -155,6 +166,20 @@ export async function CustomerPolicyView({
               value={formatCentsAsUsd(terms.annualPremiumCents)}
               note={terms.onDate ? `in force on ${terms.onDate}` : "on your policy record"}
             />
+            {/* LIVE-9: what is in force today, and beside it what the record already carries.
+                The customer has no endorsements view, so this tile is not a link. */}
+            <LatestTermsStat
+              schedule={schedule}
+              pending={
+                liveEndorsement
+                  ? {
+                      newAnnualPremiumCents: liveEndorsement.request.figures.newAnnualPremiumCents,
+                      effectiveAt: liveEndorsement.request.figures.effectiveAt,
+                      approved: liveEndorsement.standing.state === "approved",
+                    }
+                  : null
+              }
+            />
             <Stat
               label={`${policy.stateCode} premium tax`}
               value={formatCentsAsUsd(terms.taxCents)}
@@ -176,20 +201,9 @@ export async function CustomerPolicyView({
               </p>
             </div>
           ) : null}
-          {/* The same line the staff page prints (F-YA-07, F-INT-02): what the policy is today,
-              and separately what it becomes. One short line here, the rest under its own heading
-              in About (round 1: a 40 word paragraph in the reading flow). The figures come from
-              the endorsement's own stored event; nothing is recomputed. */}
-          {endorsementsNotYetInForce.length > 0 ? (
-            <p className="pd-lead">
-              {endorsementsNotYetInForce.map((row) => (
-                <span key={`not-yet-${row.endorsedEventId}`}>
-                  From {row.effectiveAt} your annual premium becomes{" "}
-                  {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}.{" "}
-                </span>
-              ))}
-            </p>
-          ) : null}
+          {/* F-YA-07's line "From <date> your annual premium becomes <amount>" is the "Latest
+              terms on record" tile above now (LIVE-9): the same date and the same figure, beside
+              the figure it was contradicting instead of under it. */}
 
           {/* The form is tall and the facts beside it are short: `.layout-2` lets the short card
               keep its own height instead of stretching to the form's. */}
@@ -243,7 +257,7 @@ export async function CustomerPolicyView({
                   <span className="toolbar-label">Changes to this policy</span>
                 </ToolbarGroup>
                 <ToolbarSpacer />
-                <ToolbarCount>{schedule.length}</ToolbarCount>
+                <ToolbarCount>{schedule.length + (liveEndorsement ? 1 : 0)}</ToolbarCount>
               </Toolbar>
             }
             legend={
@@ -264,7 +278,7 @@ export async function CustomerPolicyView({
               </tr>
             </thead>
             <tbody>
-              {schedule.length === 0 ? (
+              {schedule.length === 0 && !liveEndorsement ? (
                 <tr>
                   <td colSpan={4} className="dt-empty">
                     <EmptyState illustration="closed-folder">No change has been made since this policy was written.</EmptyState>
@@ -284,6 +298,33 @@ export async function CustomerPolicyView({
                   </tr>
                 ))
               )}
+              {/* LIVE-9: the change that is quoted or approved and not paid for is a row of this
+                  table too, last because its effective date is the furthest away. The chip under
+                  its date is what keeps it from reading as in force: nothing on the policy moves
+                  until the delta is collected, which is what the broker's own card says in a
+                  sentence. Every figure is the request's own stored quote. */}
+              {liveEndorsement ? (
+                <tr key={liveEndorsement.request.eventId} className="dt-row">
+                  <td className="nowrap">
+                    {liveEndorsement.request.figures.effectiveAt}
+                    <span className="dt-sub">
+                      <Chip tone={pendingEndorsementState(liveEndorsement.standing.state, "customer").tone}>
+                        {pendingEndorsementState(liveEndorsement.standing.state, "customer").label}
+                      </Chip>
+                    </span>
+                  </td>
+                  <td>
+                    {formatCentsAsUsd(liveEndorsement.request.figures.oldAnnualPremiumCents)} to{" "}
+                    {formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}
+                    <span className="dt-sub">{liveEndorsement.request.newLimitLabel}</span>
+                  </td>
+                  <td className="num">
+                    {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)}
+                    <span className="dt-sub">to settle</span>
+                  </td>
+                  <td className="num">{formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}</td>
+                </tr>
+              ) : null}
             </tbody>
           </DataTable>
 

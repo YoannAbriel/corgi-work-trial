@@ -58,6 +58,8 @@ import {
 import {
   COLLECT_ANCHOR,
   CorrectionCollectRows,
+  LatestTermsStat,
+  pendingEndorsementState,
   correctionHref,
   correctionViews,
   firstOpenCollection,
@@ -467,6 +469,22 @@ export default async function PolicyPage({
               value={formatCentsAsUsd(terms.annualPremiumCents)}
               note={terms.onDate ? `in force on ${terms.onDate}` : "on the policy record"}
             />
+            {/* LIVE-9: "pourquoi ici je vois 1 200 ?". What is in force today and what the record
+                carries are two questions; this tile answers the second, with the quote that is
+                not paid for yet on a line under it. Same rows the endorsements view reads. */}
+            <LatestTermsStat
+              schedule={schedule}
+              pending={
+                liveEndorsement
+                  ? {
+                      newAnnualPremiumCents: liveEndorsement.request.figures.newAnnualPremiumCents,
+                      effectiveAt: liveEndorsement.request.figures.effectiveAt,
+                      approved: liveEndorsement.standing.state === "approved",
+                    }
+                  : null
+              }
+              href={withParams(path, query, { view: "endorsements" })}
+            />
             <Stat
               label={`${policy.stateCode} premium tax`}
               value={
@@ -544,20 +562,10 @@ export default async function PolicyPage({
               </p>
             </div>
           ) : null}
-          {/* Finding F-YA-07: what the policy is today, and separately what it becomes. One short
-              line beside the tiles, and the rest of it under its own heading in About (round 1,
-              HIGH: a 37 word paragraph sat in the reading flow between the tiles and the cards).
-              The figures come from the endorsement's own stored event; nothing is recomputed. */}
-          {endorsementsNotYetInForce.length > 0 ? (
-            <p className="pd-lead">
-              {endorsementsNotYetInForce.map((row) => (
-                <span key={`not-yet-${row.endorsedEventId}`}>
-                  From {row.effectiveAt} the annual premium becomes {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}.{" "}
-                </span>
-              ))}
-              <Link href={withParams(path, query, { view: "endorsements" })}>The endorsements</Link>
-            </p>
-          ) : null}
+          {/* F-YA-07's one-line answer to "what does it become" is the "Latest terms on record"
+              tile above now (LIVE-9): it carries the same date and the same figure, and it is
+              beside the figure it was contradicting rather than under it. The rest of the
+              explanation stays under its own heading in About. */}
 
           {/* Two stacks rather than one grid row of four: a short card and a tall card sharing a
               grid row left the short one ending far above the row, so the card under it started
@@ -722,7 +730,7 @@ export default async function PolicyPage({
                 <th>Ref</th>
               </tr>
             </thead>
-            {schedule.length === 0 ? (
+            {schedule.length === 0 && !liveEndorsement ? (
               <tbody>
                 <tr>
                   <td colSpan={6} className="dt-empty">
@@ -826,6 +834,61 @@ export default async function PolicyPage({
                 </ExpandRow>
               ))
             )}
+            {/* LIVE-9: the change that is quoted or approved and not paid for is a row of this
+                table too, last because its effective date is the furthest away. The chip in the
+                Ref column, where a settled row shows the Stripe reference of the money that
+                moved, is what keeps it from reading as in force: no money has moved for it yet,
+                and the card above says so in a sentence. Its figures are the request's own
+                stored quote, the same ones the Billing view collects. */}
+            {liveEndorsement ? (
+              <ExpandRow
+                key={liveEndorsement.request.eventId}
+                columns={5}
+                cells={
+                  <>
+                    <td className="nowrap">
+                      {liveEndorsement.request.figures.effectiveAt}
+                      <span className="dt-sub">
+                        <When instant={liveEndorsement.request.recordedAt} now={now} />
+                      </span>
+                    </td>
+                    <td>
+                      {formatCentsAsUsd(liveEndorsement.request.figures.oldAnnualPremiumCents)} to{" "}
+                      {formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}
+                      <span className="dt-sub">{liveEndorsement.request.newLimitLabel}</span>
+                    </td>
+                    <Num sub="to settle">
+                      {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)}
+                    </Num>
+                    <Num>{formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}</Num>
+                    <td>
+                      <Chip tone={pendingEndorsementState(liveEndorsement.standing.state, "staff").tone}>
+                        {pendingEndorsementState(liveEndorsement.standing.state, "staff").label}
+                      </Chip>
+                    </td>
+                  </>
+                }
+              >
+                <FactGrid
+                  items={[
+                    { label: "What changes", value: liveEndorsement.request.description },
+                    { label: "Limits after it", value: liveEndorsement.request.newLimitLabel },
+                    {
+                      label: "Days left in the term",
+                      value: `${liveEndorsement.request.figures.daysRemaining} of ${liveEndorsement.request.figures.termDays}`,
+                    },
+                    { label: "Requested", value: <When instant={liveEndorsement.request.recordedAt} now={now} mode="utc" /> },
+                    ...(liveEndorsement.standing.approvedAt
+                      ? [{ label: "Approved", value: <When instant={liveEndorsement.standing.approvedAt} now={now} mode="utc" /> }]
+                      : []),
+                  ]}
+                />
+                <p className="pd-note">
+                  The policy terms stay as they are until the delta is paid. It is collected on{" "}
+                  <Link href={billingHref}>the Billing view</Link>.
+                </p>
+              </ExpandRow>
+            ) : null}
           </DataTable>
 
           {/* Slice B8: the live-fire test of this view. Staff operations can put a wrong effective

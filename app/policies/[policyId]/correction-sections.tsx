@@ -5,6 +5,7 @@ import { Chip } from "@/components/detail-layout";
 import { Emphasis } from "@/components/emphasis";
 import { JournalTable } from "@/components/journal-table";
 import { DataTable, ExpandHead, ExpandRow, FactGrid } from "@/components/ui/table";
+import { Stat } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { When } from "@/components/ui/time";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -63,6 +64,85 @@ export function customerPolicyViews(policyId: string, formLabel: string, formHre
     { key: "documents", label: "Documents", href: `/policies/${policyId}?view=documents`, current: false },
     { key: "form", label: formLabel, href: formHref, current: true },
   ];
+}
+
+// THE SECOND HEADLINE TILE: the latest annual premium the record carries, and the date it starts.
+//
+// Yoann, live on 2026-09-09: "pourquoi ici je vois 1 200 ?". The first tile answers "what is in
+// force today", which on a policy carrying an endorsement to $2,400.00 effective 2026-09-22 and a
+// quote for $2,700.00 effective 2026-10-01 is $1,200.00 and reads as a stale figure. It is not
+// stale, it is a different question, so the other question gets its own tile beside it.
+//
+// Every figure comes from the endorsement's own stored event; nothing is recomputed and nothing
+// new is read. The tile is not drawn at all when the policy has never been endorsed: a tile
+// saying "same as today" repeats the tile beside it.
+export function LatestTermsStat({
+  schedule,
+  pending,
+  href,
+}: {
+  // The applied endorsements, oldest effective date first, as the page already read them.
+  schedule: { endorsedEventId: string; effectiveAt: string; figures: { newAnnualPremiumCents: number } }[];
+  // The endorsement that is quoted or approved and whose delta has not been collected, if any.
+  pending: {
+    newAnnualPremiumCents: number;
+    effectiveAt: string;
+    // True once the customer has approved the quote: what is left is the payment. Before that,
+    // the change needs a yes as well as the money, and the line says so.
+    approved: boolean;
+  } | null;
+  // Where the detail is. Staff and the broker have an endorsements view; the customer does not.
+  href?: string;
+}) {
+  // The last row of the schedule is the newest effective date: the reader orders by it.
+  const latestApplied = schedule.length > 0 ? schedule[schedule.length - 1] : null;
+  if (!latestApplied && !pending) {
+    return null;
+  }
+  return (
+    <Stat
+      label="Latest terms on record"
+      href={href}
+      value={
+        latestApplied
+          ? formatCentsAsUsd(latestApplied.figures.newAnnualPremiumCents)
+          : formatCentsAsUsd(pending!.newAnnualPremiumCents)
+      }
+      note={
+        <>
+          {latestApplied ? (
+            <span>from {latestApplied.effectiveAt}</span>
+          ) : (
+            <span>nothing applied yet</span>
+          )}
+          {pending ? (
+            <span className="stat-note-line">
+              {formatCentsAsUsd(pending.newAnnualPremiumCents)} from {pending.effectiveAt}{" "}
+              {pending.approved ? "once the delta is paid" : "if it is approved and the delta is paid"}
+            </span>
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
+// THE STATE OF A CHANGE THAT IS NOT IN FORCE YET, in the words of the reader looking at it.
+//
+// LIVE-9: a customer who had already approved a $287.69 quote saw nothing about it in "Changes to
+// this policy"; the change existed only as two lines of the event list at the bottom of the page.
+// It is a row of that table now, and this chip is what keeps the row from reading as in force.
+//
+// The rule it states is the one the "Endorsement in progress" card already states in a sentence:
+// the policy terms stay as they are until the delta is paid.
+export function pendingEndorsementState(
+  standingState: string,
+  audience: "customer" | "staff",
+): { label: string; tone: "warn" | "neutral" } {
+  if (standingState === "awaiting_approval") {
+    return { label: audience === "customer" ? "awaiting your approval" : "awaiting the customer", tone: "neutral" };
+  }
+  return { label: "approved, awaiting payment", tone: "warn" };
 }
 
 // Where the backdated correction lives, named once so the band and every navigation that offers
@@ -201,6 +281,9 @@ function DocumentRow({
       action={`/api/policies/${policyId}/documents/${endpoint}`}
       className="pd-doc-row"
       target="_blank"
+      // F-EV-07: a target="_blank" without this hands the opened tab a window.opener back into
+      // this page. The five anchors that open a PDF already carry it; these two forms did not.
+      rel="noopener"
     >
       <span className="pd-doc-name">{label}</span>
       <input
