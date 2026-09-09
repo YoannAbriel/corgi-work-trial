@@ -93,7 +93,7 @@ export default async function OperationsConsolePage({
   );
 
   return (
-    <PortalShell user={user} active="home" trail={[{ label: "Operations console" }]}>
+    <PortalShell user={user} active="console" trail={[{ label: "Operations console" }]}>
       {/* React hoists this into <head>: the browser reloads the page every ten seconds, with no
           JavaScript of ours and nothing to pay for. */}
       <meta httpEquiv="refresh" content="10" />

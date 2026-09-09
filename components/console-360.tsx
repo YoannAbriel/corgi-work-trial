@@ -84,7 +84,7 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
   return (
     <PortalShell
       user={user}
-      active="home"
+      active="console"
       trail={[{ label: "Operations console", href: "/ops/console" }, { label: subject.title }]}
     >
       <DetailHeading

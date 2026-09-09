@@ -37,7 +37,7 @@ export default async function ConsoleSearchPage({
   const result = found ? valueOr(found, null) : null;
 
   return (
-    <PortalShell user={user} active="home" trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Search" }]}>
+    <PortalShell user={user} active="console" trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Search" }]}>
       <DetailHeading
         title="Find a reference"
         lead="A Stripe id, a connected account, an MCP key prefix, a policy or claim number, an email, or any identifier of this application. All times UTC."

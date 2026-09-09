@@ -54,7 +54,7 @@ export default async function ConsoleInfraPage() {
   const countOn = (rows: { day: string; count: number }[], day: string) => rows.find((row) => row.day === day)?.count ?? 0;
 
   return (
-    <PortalShell user={user} active="home" trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Infrastructure" }]}>
+    <PortalShell user={user} active="console" trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Infrastructure" }]}>
       <DetailHeading
         title="Infrastructure"
         lead="What this deployment is using, measured now, next to what the providers' documentation says the free plans allow. All times UTC."
