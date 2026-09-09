@@ -463,17 +463,24 @@ export function CorrectionCollectRows({
             // The anchor the band's "Collect" link and the broker's inbox item land on.
             id={correction === anchored ? COLLECT_ANCHOR : undefined}
           >
+            {/* The badge stays plain: it is a chip, already short and already scanned by its tone.
+                Only the sentences under it are emphasised (Yoann, 2026-09-09 22:10). They followed
+                the collect form here from the Money view (decision 43) and carry the emphasis with
+                them. */}
             <CorrectionMoneyBadge correction={correction} open={open} />
             {open?.waitingForTheCustomer ? (
               <p className="pd-note">
-                The customer has to approve it from their own screen before it can be collected:{" "}
-                {correction.approvalSentences.customer ?? "it is above the customer approval threshold"}.
+                <Emphasis>
+                  {`The customer has to approve it from their own screen before it can be collected: ${correction.approvalSentences.customer ?? "it is above the customer approval threshold"}.`}
+                </Emphasis>
               </p>
             ) : null}
             {!correction.collection!.paidOn &&
             !correction.collection!.customerApprovalRequired &&
             correction.approvalSentences.customer ? (
-              <p className="pd-note">Customer approval: {correction.approvalSentences.customer}.</p>
+              <p className="pd-note">
+                <Emphasis>{`Customer approval: ${correction.approvalSentences.customer}.`}</Emphasis>
+              </p>
             ) : null}
             {open?.canCollectNow ? (
               <form
