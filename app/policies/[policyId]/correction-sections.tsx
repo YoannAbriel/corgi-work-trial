@@ -40,13 +40,16 @@ import { FormulaLinesTable } from "./formula-lines";
 // The views of a policy, named once. The screen itself cannot hold this list: a Next.js page
 // module may only export the page, and the six form pages need the same list to keep the policy's
 // navigation open while a form is on screen (cycle 2, decision 17).
-export const POLICY_VIEWS = ["overview", "endorsements", "claims", "money", "timeline"] as const;
+// `billing` is decision 43 (Yoann, 2026-09-09): the money a policy owes, has paid and is getting
+// back, with the buttons that take it, in one place between the journal and the history.
+export const POLICY_VIEWS = ["overview", "endorsements", "claims", "money", "billing", "timeline"] as const;
 export type PolicyView = (typeof POLICY_VIEWS)[number];
 export const POLICY_VIEW_LABEL: Record<PolicyView, string> = {
   overview: "Overview",
   endorsements: "Endorsements",
   claims: "Claims",
   money: "Money",
+  billing: "Billing",
   timeline: "Timeline",
 };
 
@@ -55,6 +58,7 @@ export const POLICY_VIEW_LABEL: Record<PolicyView, string> = {
 export function customerPolicyViews(policyId: string, formLabel: string, formHref: string) {
   return [
     { key: "overview", label: "Overview", href: `/policies/${policyId}`, current: false },
+    { key: "billing", label: "Billing", href: `/policies/${policyId}?view=billing`, current: false },
     { key: "documents", label: "Documents", href: `/policies/${policyId}?view=documents`, current: false },
     { key: "form", label: formLabel, href: formHref, current: true },
   ];
@@ -313,28 +317,122 @@ export function firstOpenCollection(corrections: CorrectionView[], canPay: boole
   return null;
 }
 
-export function CorrectionsExplained({
+// Where the money of one correction stands, in one badge. Drawn on the Money view beside the
+// correction it belongs to, and again at the top of the Billing view above the button, so the two
+// screens say the same sentence about the same money.
+function CorrectionMoneyBadge({
+  correction,
+  open,
+}: {
+  correction: CorrectionView;
+  open: ReturnType<typeof openCollectionOf>;
+}) {
+  const collection = correction.collection;
+  if (!collection) {
+    return null;
+  }
+  return (
+    <p
+      className={
+        collection.paidOn ? "badge badge-ok" : open?.waitingForTheCustomer ? "badge badge-neutral" : "badge badge-warn"
+      }
+    >
+      {collection.paidOn
+        ? `The difference of ${formatCentsAsUsd(collection.amountCents)} was collected on ${collection.paidOn}`
+        : open?.waitingForTheCustomer
+          ? `${formatCentsAsUsd(collection.amountCents)} waiting for the customer's approval`
+          : `${formatCentsAsUsd(collection.amountCents)} still to collect from the customer`}
+    </p>
+  );
+}
+
+// THE ACTION ROW OF A CORRECTION, on the Billing view: the state, why it is waiting if it is, and
+// the button that opens the Stripe page. Same POST, same route, same absence of fields as when it
+// sat at the bottom of the Money view; only where it is drawn changed (decision 43).
+export function CorrectionCollectRows({
   corrections,
   policyId,
   canPay,
-  now,
 }: {
-  // Read once by the page, so the band's "Collect $X" and the button in this block are the same
-  // figure from the same rows.
   corrections: CorrectionView[];
   policyId: string;
+  // Whether this reader may take the money: the owning broker or staff operations. The API checks
+  // it again when the form is posted.
   canPay: boolean;
-  now: Date;
 }) {
-  if (corrections.length === 0) {
+  // Only what is still open: a difference already collected belongs in "What was paid", not
+  // under a heading that says something needs paying.
+  const stillOpen = corrections.filter((correction) => openCollectionOf(correction, canPay) !== null);
+  if (stillOpen.length === 0) {
     return null;
   }
   const anchored = firstOpenCollection(corrections, canPay)?.correction ?? null;
 
   return (
     <>
-      {corrections.map((correction) => {
+      {stillOpen.map((correction) => {
         const open = openCollectionOf(correction, canPay);
+        return (
+          <div
+            className="pd-collect"
+            key={correction.rebookEventId}
+            // The anchor the band's "Collect" link and the broker's inbox item land on.
+            id={correction === anchored ? COLLECT_ANCHOR : undefined}
+          >
+            <CorrectionMoneyBadge correction={correction} open={open} />
+            {open?.waitingForTheCustomer ? (
+              <p className="pd-note">
+                The customer has to approve it from their own screen before it can be collected:{" "}
+                {correction.approvalSentences.customer ?? "it is above the customer approval threshold"}.
+              </p>
+            ) : null}
+            {!correction.collection!.paidOn &&
+            !correction.collection!.customerApprovalRequired &&
+            correction.approvalSentences.customer ? (
+              <p className="pd-note">Customer approval: {correction.approvalSentences.customer}.</p>
+            ) : null}
+            {open?.canCollectNow ? (
+              <form
+                method="post"
+                action={`/api/policies/${policyId}/corrections/${correction.rebookEventId}/checkout`}
+                className="inline-form"
+              >
+                <SubmitButton>
+                  {correction.collection!.checkoutUrl && !correction.collection!.isDead
+                    ? "Continue the payment of the difference at Stripe"
+                    : `Collect the difference (${formatCentsAsUsd(correction.collection!.amountCents)}) with Stripe (test mode)`}
+                </SubmitButton>
+              </form>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+export function CorrectionsExplained({
+  corrections,
+  billingHref,
+  now,
+}: {
+  // Read once by the page, so the band's "Collect $X", this block and the Billing view are all
+  // the same figures from the same rows.
+  corrections: CorrectionView[];
+  // Where the button that takes the money lives (decision 43).
+  billingHref: string;
+  now: Date;
+}) {
+  if (corrections.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {corrections.map((correction) => {
+        // Asked with canPay = true because this badge states a fact about the money, not what
+        // this reader may press: the button and its permission check are on the Billing view.
+        const open = openCollectionOf(correction, true);
         return (
           <section className="card pd-correction" key={correction.rebookEventId}>
             <h2>
@@ -358,52 +456,15 @@ export function CorrectionsExplained({
               ]}
             />
 
-            {/* WHERE THE MONEY STANDS, AND THE BUTTON, BEFORE ANY ARITHMETIC. The state and the
-                action used to be the last thing in the block, under the formula and the four
-                journal entries: the broker had to scroll past all of it to learn that $53.84 was
-                owed and how to take it (Yoann, 2026-09-09). The block now reads title, state,
-                amount, button, and the detail is folded underneath for whoever wants it. */}
+            {/* Where the money of this correction stands, said here, with no button: taking it is
+                the Billing view's job (decision 43). The state is a fact about the correction and
+                belongs beside it; the action belongs where the reader is told whose card pays. */}
             {correction.money.settlement === "collect" && correction.collection ? (
-              <div className="pd-collect" id={correction === anchored ? COLLECT_ANCHOR : undefined}>
-                <p
-                  className={
-                    correction.collection.paidOn
-                      ? "badge badge-ok"
-                      : open?.waitingForTheCustomer
-                        ? "badge badge-neutral"
-                        : "badge badge-warn"
-                  }
-                >
-                  {correction.collection.paidOn
-                    ? `The difference of ${formatCentsAsUsd(correction.collection.amountCents)} was collected on ${correction.collection.paidOn}`
-                    : open?.waitingForTheCustomer
-                      ? `${formatCentsAsUsd(correction.collection.amountCents)} waiting for the customer's approval`
-                      : `${formatCentsAsUsd(correction.collection.amountCents)} still to collect from the customer`}
+              <div className="pd-collect">
+                <CorrectionMoneyBadge correction={correction} open={open} />
+                <p className="pd-note">
+                  <Link href={billingHref}>Pay and collect on the Billing view</Link>
                 </p>
-                {open?.waitingForTheCustomer ? (
-                  <p className="pd-note">
-                    The customer has to approve it from their own screen before it can be collected:{" "}
-                    {correction.approvalSentences.customer ?? "it is above the customer approval threshold"}.
-                  </p>
-                ) : null}
-                {!correction.collection.paidOn &&
-                !correction.collection.customerApprovalRequired &&
-                correction.approvalSentences.customer ? (
-                  <p className="pd-note">Customer approval: {correction.approvalSentences.customer}.</p>
-                ) : null}
-                {open?.canCollectNow ? (
-                  <form
-                    method="post"
-                    action={`/api/policies/${policyId}/corrections/${correction.rebookEventId}/checkout`}
-                    className="inline-form"
-                  >
-                    <SubmitButton>
-                      {correction.collection.checkoutUrl && !correction.collection.isDead
-                        ? "Continue the payment of the difference at Stripe"
-                        : `Collect the difference (${formatCentsAsUsd(correction.collection.amountCents)}) with Stripe (test mode)`}
-                    </SubmitButton>
-                  </form>
-                ) : null}
               </div>
             ) : null}
             {correction.money.settlement === "refund" ? (
