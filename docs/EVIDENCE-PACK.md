@@ -1,8 +1,8 @@
 # Evidence pack (slice B14)
 
 Index of every independent review record, every evidence file and every external sandbox reference
-this repository cites. Written on branch `freeze-package`, refreshed from `main` at `c4618e5`
-(tonight's live-fire evidence and the live-integration pack) after passes at `49ec797` and `b33edbc`.
+this repository cites. Written on branch `freeze-package`, refreshed from `main` at `5b2969e`
+(LIVE-10 and the last merges of the night) after passes at `49ec797`, `b33edbc` and `c4618e5`.
 
 **What this is.** The README says "Evidence for the live slots is in `docs/STATUS.md` (event ids,
 payment intent and refund ids, amounts) and in the evidence pack." This is that pack. A reviewer
@@ -41,15 +41,14 @@ No `.env.local`, no `.env.vercel.local` and nothing under `.local/` was opened.
 an image, a PDF, a JSON manifest or a `.txt`. That is deliberate rather than tidy: in
 `docs/evidence/live-fire-day2/` the `.txt` files are the **primary** evidence, because they are the
 GET readings taken before and after each of Yoann's clicks, and the screenshots illustrate them.
-Counting images only would report 297 files and would drop the very readings the live-fire steps
-rest on. Where a folder's own reading guide counts differently (the live-integration pack counts
+Counting images only would drop the very readings the live-fire steps rest on. Where a folder's own reading guide counts differently (the live-integration pack counts
 "10 fresh Stripe captures and 4 earlier application captures"), both numbers are given.
 
 | | |
 |---|---|
 | Records walked | **84** (51 review, 29 handoff, 2 checkpoint, STATUS, COMPLIANCE-MATRIX) |
 | Review records carrying a verdict | **50** (`instructions-2026-09-08.md` is an instruction-review record, not a slice review) |
-| Evidence files under `docs/evidence/` | **371**, 34.1 MB, in 10 directories |
+| Evidence files under `docs/evidence/` | **384**, 34.7 MB, in 10 directories |
 | Evidence files named individually by a record or its own manifest | **145** |
 | of which by an index or manifest the folder carries itself | **139** (`observations.json` 121, `evidence-manifest.json` and `SHA256SUMS.txt` 14, the cycle-2 md5 table 24, overlapping) |
 | Evidence files covered by their directory's citation, a stated count or a step record | **226** |
@@ -624,12 +623,12 @@ verdict **verbatim**, the evidence the record cites, and the external references
 
 # 2. Evidence files
 
-371 files, 34.1 MB, in ten directories. Every one is reachable from a record. Sizes are from
+384 files, 34.7 MB, in ten directories. Every one is reachable from a record. Sizes are from
 `stat`, pixel sizes from `sips`.
 
 | Directory | Files | Bytes | The record that cites it |
 |---|---|---|---|
-| `docs/evidence/live-fire-day2/` | 90 | 5.0 MB | `docs/handoffs/live-fire-day2.md`, which names every step folder and its files. Five steps: LIVE-0, LIVE-8, LIVE-9, LIVE-7, LIVE-3 |
+| `docs/evidence/live-fire-day2/` | 103 | 5.6 MB | `docs/handoffs/live-fire-day2.md`, which names every step folder and its files. Six steps: LIVE-0, LIVE-8, LIVE-9, LIVE-7, LIVE-3, LIVE-10 |
 | `docs/evidence/live-integration-2026-09-09/` | 18 | 1.9 MB | Carries its own reading guide (`00-START-HERE.md`), manifest, `SHA256SUMS.txt` and an independent Codex review (`REVIEW-NOTES.md`) |
 | `docs/evidence/ui-audit-2026-09-09/` | 124 | 10.3 MB | `docs/ui-audit-2026-09-09.json` (the audit report) and `docs/STATUS.md` at 09:57:00Z; replayed by `docs/reviews/b13-13-ui-audit.md` |
 | `docs/evidence/ui-cycle-2/` | 24 | 4.0 MB | `docs/reviews/ui-cycle-2.md` section 11, which names all 24 with their md5. Six were recaptured to close F-UI2-08, section 4.3 |
@@ -718,7 +717,7 @@ in the same sentence, that the verdict "does not complete B14, certify the produ
 or submission", which is the right scope for it and the reason this pack quotes it rather than
 leaning on it.
 
-## `docs/evidence/live-fire-day2/` (90 files, 5 step folders)
+## `docs/evidence/live-fire-day2/` (103 files, 6 step folders)
 
 Tonight's live-fire session: Yoann clicks in the deployed interface, a co-pilot session computes the
 expected figures **before** each click from the repository's own pure functions and reads the result
@@ -735,6 +734,7 @@ files illustrate them, which is why the counting rule above counts text files.
 | `LIVE-9/` | 15 | the **second endorsement** ($2,400 to $2,700, effective 2026-10-01) and **three as-of dates** | **LF-5** |
 | `LIVE-7/` | 15 | the **cancellation of CGP-01707 with an open claim**, four refunds above the threshold through the approval queue | **LF-4**, and LF-7 observed |
 | `LIVE-3/` | 26 | **broker KYB live on Stripe Connect**: one approved, one failed, binding refused until approved | the KYB slot, live |
+| `LIVE-10/` | 13 | the **claim path on the simulated rail**: CLM-00214 opened, reserve set to $3,000.00 then adjusted to $2,500.00 (both rows kept), the bank check, and **maker-checker on claim payments**: three requests above $1,000 approved by a distinct human at 21:22:38Z, 21:23:43Z and 21:29:53Z | **LF-7 initiator side** |
 
 
 ## `docs/evidence/b12-1/` (4 files)
@@ -1402,9 +1402,9 @@ own words, on the three stories prepared for the debrief.
 
 Five of the seven were driven by Yoann tonight, on branch `live-fire-evidence`, with the expected
 figures computed before each click and the result read by GET after it
-(`docs/handoffs/live-fire-day2.md`). **This table replaces the one in
-`docs/COMPLIANCE-MATRIX.md` section 4**, which was written before tonight and now understates what
-has been done; the matrix needs the same update before the email quotes it.
+(`docs/handoffs/live-fire-day2.md`). **`docs/COMPLIANCE-MATRIX.md` section 4 was rewritten with the
+same steps and is the authoritative table**; this one is the same facts with the evidence paths
+beside them, and the two agree. Quote the matrix in the email.
 
 | Item | Status now | Evidence |
 |---|---|---|
@@ -1414,12 +1414,22 @@ has been done; the matrix needs the same update before the email quotes it.
 | LF-4 cancel with an open claim | **Live by Yoann**, twice: CGP-01274 on 2026-09-08, and CGP-01707 tonight with four refunds above the threshold through the approval queue | `docs/STATUS.md`; `live-fire-day2/LIVE-7/` |
 | LF-5 the policy as it stood between two endorsements | **Live by Yoann tonight.** Was "NOT RUN, blocked on data": no policy carried two endorsements. LIVE-9 created the second, and the three as-of readings are 2026-09-15 ($1,200.00 / $28.20 / $1M / $2M), **2026-09-25, between the two ($2,400.00 / $56.40 / $2M / $4M)**, and 2026-10-05 ($2,700.00 / $63.45) | `live-fire-day2/LIVE-9/after/as-it-stood-on-*.txt` and `.png` |
 | LF-6 detect a planted payout mismatch on the breaks screen | **Partial, unchanged in kind but better evidenced.** The 18:38:23Z run classified 32 probes and left four genuine provider-only breaks. Still true: `local_only`, `amount_mismatch` and `stale` have never been produced on production, and no human planted one and watched it appear | `live-fire-day2/LIVE-0/after/` |
-| LF-7 the initiator refused on the approvals queue | **Observed live tonight**, one step short of driven: on the queue the four requests raised by the broker each carry the chip **"not an approver"** with no decision form, and a distinct human (`approver@`) then approved them at 20:34:28Z. The record is careful about who read what: "the waiting state itself is Yoann's read" | `live-fire-day2/LIVE-7/` |
+| LF-7 the initiator refused on the approvals queue | **Live by Yoann**, on both sides of the rule: as ops he saw "not an approver" on the four refund requests (LIVE-7) and "your own request" on the claim payment he had raised himself (LIVE-10), and a distinct human approved them. **The approver's reject was not driven tonight**: Yoann approved three requests and declined a fourth to reject, and a rejection by the same approver already stands on production from day 1 (CLM-00212, 2026-09-08). The record says so rather than rounding it up | `live-fire-day2/LIVE-7/`, `LIVE-10/` |
 
 **What is still not done, stated plainly.** LF-3 remains a check-script and HTTP-probe proof rather
 than a rehearsal. LF-6 remains partial: a probe found on the board is not the same as a human
 planting a mismatch and watching it surface, and three of the five classifications have never
-appeared on production data.
+appeared on production data. On LF-7, the refusal side is driven live and the **reject** side rests
+on the day-1 rejection rather than on a click made tonight.
+
+**One late change that touches every screen in the video and the demo.** Decision 54 adds a
+**demo-account switcher** in the sidebar: a menu over the six seeded demo accounts, `POST
+/api/session/switch`, a closed email list held in code (`lib/auth/demo-accounts.ts`), and the same
+signed cookie the login route issues. Its independent review is `docs/reviews/demo-switch-r1.md`,
+**PASS with five findings open and two stated limitations**. It is why the LIVE-10 approvals were
+decided as `approver@` without retyping a password, and the README says it is a demo device removed
+before any real deployment. Anyone reading the older captures in this pack will not see it: they
+predate it.
 
 ## 4.8 Findings still open at `b33edbc`
 
