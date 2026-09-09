@@ -1,8 +1,7 @@
 import "@/app/styles/console.css";
 import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
-import { Chip } from "@/components/detail-layout";
-import { FailureLine, RailsAbout, consoleViews, utc } from "@/components/console-parts";
+import { FailureLine, RailsAbout, utc } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
 import { Chart, ChartRow, HBars } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty";
@@ -63,22 +62,15 @@ export default async function ConsoleInfraPage() {
   }
   const countOn = (rows: { day: string; count: number }[], day: string) => rows.find((row) => row.day === day)?.count ?? 0;
 
-  // The same nine entries in the same three groups as every other console screen (decision 11).
-  const views = consoleViews("infra");
-
   return (
     <PortalShell
       user={user}
       active="infra"
-      views={views}
-      viewsSubtitle="measured now, beside what is documented"
-      trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Infrastructure" }]}
       band={{
         title: "Infrastructure",
         suffix: `revision ${deployedRevision().slice(0, 12)}`,
-        // One chip: the one figure of this page a person acts on. The AF-02 modes are in the top
-        // bar of every screen (cycle 2, decision 1).
-        meta: storage ? <Chip tone={storage.usedPercent > 80 ? "warn" : "ok"}>{storage.usedPercent}% of the documented storage</Chip> : undefined,
+        // No chip (Yoann, 2026-09-09): the storage percentage is the "Storage used" tile below,
+        // with the same warn tone.
         actions: (
           <Link href="/ops/console" prefetch={false} className="button-link secondary">
             Back to the feed

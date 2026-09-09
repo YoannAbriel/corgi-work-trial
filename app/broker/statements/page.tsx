@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
+import { EarlierRevisions, groupRunsByBrokerAndMonth, type StatementMonthGroup } from "@/components/statement-revisions";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
@@ -13,9 +14,12 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { collectedFigures } from "@/lib/statements/compute";
-import { listStatementRuns, type StatementRunRow } from "@/lib/statements/read";
+import { listStatementRuns } from "@/lib/statements/read";
 
 // /broker/statements: the broker's own monthly statements, read-only.
+//
+// ONE ROW PER MONTH since 2026-09-09 evening (Yoann): the row is the newest revision of that
+// month and the revisions it replaced are folded under it, each one still a link to itself.
 //
 // A broker never runs a statement and never edits one: the list is filtered by the broker id that
 // is attached to the signed-in user, never by an id taken from the URL, so there is no address a
@@ -56,19 +60,18 @@ export default async function BrokerStatementsPage() {
 
   const runs = await listStatementRuns(sql, { brokerId: user.brokerId, limit: HOW_MANY_RUNS_SHOWN });
   const now = new Date();
-  // The broker's own name as the statements themselves record it; the session only carries the
-  // person's name, which is not the same thing.
-  const brokerName = runs[0]?.brokerName ?? user.displayName;
-  const provisional = runs.filter((run) => run.monthWasStillRunning).length;
+  // The broker firm's own name as the statements themselves record it. No fallback to the signed-in
+  // person's name: that is a different thing, and the sidebar already says who is signed in
+  // (Yoann, 2026-09-09). With no run yet there is no firm name to show, and the band drops it.
+  const brokerName = runs[0]?.brokerName;
   // The newest revision's own figure, not a total: adding the net due of several revisions of the
   // same month would count the same money once per revision.
   const latestRun = runs[0] ?? null;
-  // The reading order of the table: months newest first, and inside one month its revisions
-  // newest first, so the revisions of one month stay together and "identical to revision 1" sits
-  // under revision 1 (round 1, MEDIUM). `runs` itself stays in production order for the tile.
-  const runsInReadingOrder = [...runs].sort(
-    (one, other) => other.statementMonth.localeCompare(one.statementMonth) || other.revision - one.revision,
-  );
+  // One row per month, showing its newest revision, the ones it replaced folded under it (Yoann,
+  // 2026-09-09 evening). This page reads one broker's runs, so a group of that grouping is one
+  // month. The order across rows is still by age only, newest revision first: sorting by month put
+  // a rerun of an old month below a newer month's run, which hides what has just been produced.
+  const months = groupRunsByBrokerAndMonth(runs);
 
   return (
     <PortalShell
@@ -77,16 +80,8 @@ export default async function BrokerStatementsPage() {
       band={{
         title: "Your statements",
         suffix: brokerName,
-        meta: (
-          <>
-            {/* Two chips (cycle 2, decision 1): how many statements there are, and how many of
-                them are still provisional. The AF-02 words are in the top bar of every screen. */}
-            <Chip tone="neutral">
-              {runs.length} {runs.length === 1 ? "statement" : "statements"}
-            </Chip>
-            {provisional > 0 ? <Chip tone="warn">{provisional} provisional</Chip> : null}
-          </>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): how many statements there are is the
+        // length of the table, and each row says on its own line whether it is provisional.
       }}
     >
       {/* One tile: the figure a broker opens this screen for. The month and the revision it
@@ -101,13 +96,15 @@ export default async function BrokerStatementsPage() {
         />
       </Stats>
 
-      {/* Five columns and the fold. When it was produced is a fact of the expansion: at seven
-          columns the table was one over what the system allows (round 1, HIGH). */}
+      {/* Six columns and the fold, the most the system allows. Produced was a fact of the fold
+          until 2026-09-09: the table sorts by age now, and an order the reader cannot see is an
+          order they will read as arbitrary. */}
       <DataTable ariaLabel="Your statements" legend={<Legend items={STATUS_LEGEND} />}>
         <thead>
           <tr>
             <ExpandHead />
             <th className="nowrap">Month</th>
+            <th className="nowrap">Produced</th>
             <th className="num">Revision</th>
             <th className="num">Commission</th>
             <th className="num">Net due</th>
@@ -117,13 +114,13 @@ export default async function BrokerStatementsPage() {
         {runs.length === 0 ? (
           <tbody>
             <tr>
-              <td colSpan={6} className="dt-empty">
+              <td colSpan={7} className="dt-empty">
                 <EmptyState illustration="open-ledger">No statement has been produced for you yet.</EmptyState>
               </td>
             </tr>
           </tbody>
         ) : (
-          runsInReadingOrder.map((run) => <StatementRow key={run.runId} run={run} now={now} />)
+          months.map((month) => <MonthRow key={month.latest.runId} month={month} now={now} />)
         )}
       </DataTable>
 
@@ -139,7 +136,8 @@ export default async function BrokerStatementsPage() {
         <h4>Revisions</h4>
         <p>
           When a correction lands after a month was closed, the closed statement is not rewritten: a new revision is
-          produced, dated, and it names the revision it replaces. Both stay readable here.
+          produced, dated, and it names the revision it replaces. Both stay readable here: each row is the newest
+          revision of one month, and the ones it replaced are inside its fold, newest first.
         </p>
         <h4>Who produces them</h4>
         <p>Corgi operations produce every statement. This page is read-only, and it shows your broker only.</p>
@@ -148,17 +146,26 @@ export default async function BrokerStatementsPage() {
   );
 }
 
-// One statement: the five columns a broker scans, everything else in the expansion, and the PDF
-// beside the figures it prints.
-function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
+// One month: the six columns a broker scans, read off the NEWEST revision of that month, with
+// everything else about that revision in the expansion, the PDF beside the figures it prints, and
+// the revisions it replaced listed under them.
+function MonthRow({ month, now }: { month: StatementMonthGroup; now: Date }) {
+  const run = month.latest;
   const collected = collectedFigures(run);
   return (
     <ExpandRow
-      columns={5}
+      columns={6}
       cells={
         <>
           <Primary href={`/statements/${run.runId}`}>{run.statementMonth}</Primary>
-          <Num>{run.revision}</Num>
+          {/* The age at a glance, the exact UTC instant on hover: this is the column the table is
+              sorted by, so it has to be readable without opening the fold. */}
+          <td className="nowrap">
+            <When instant={run.createdAt} now={now} />
+          </td>
+          {/* The revision this row shows, and how many earlier ones the fold holds: without that
+              count the fold looks like the ordinary row detail and the history stays hidden. */}
+          <Num sub={month.earlier.length === 0 ? undefined : `${month.earlier.length} earlier`}>{run.revision}</Num>
           <Num>{formatCentsAsUsd(run.commissionEarnedCents)}</Num>
           <Num>{formatCentsAsUsd(run.netDueCents)}</Num>
           {/* One word per chip; the legend under the table says what each one means (round 1,
@@ -176,7 +183,6 @@ function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
     >
       <FactGrid
         items={[
-          { label: "Produced", value: `${utc(run.createdAt)} UTC` },
           { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
           {
             label: "Premium collected, the commission base",
@@ -194,13 +200,21 @@ function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
           {
             label: "Document",
             value: (
-              <Link href={`/api/statements/${run.runId}/pdf`} prefetch={false}>
+              <Link
+                href={`/api/statements/${run.runId}/pdf`}
+                prefetch={false}
+                // The route serves the PDF inline, so following it in this tab replaces the
+                // page the broker was reading. A generated document opens beside it instead.
+                target="_blank"
+                rel="noopener"
+              >
                 Download the PDF
               </Link>
             ),
           },
         ]}
       />
+      <EarlierRevisions revisions={month.earlier} now={now} />
     </ExpandRow>
   );
 }

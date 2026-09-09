@@ -17,7 +17,7 @@
   --rail-w: 64px; /* the same sidebar, folded to icons when a section navigation is open */
   --ctx-w: 216px; /* the section navigation */
   --top-h: 40px; /* the breadcrumb bar */
-  --band-h: 72px; /* the page band; the inspector's sticky offset is computed from these two */
+  --band-h: 68px; /* the page band, one line since 2026-09-09: the 52 px vignette plus its padding */
   --content-x: 32px; /* horizontal padding of the content area */
   --radius-block: 14px;
   --chart-1: #ff5c00;
@@ -94,10 +94,20 @@
   place-items: center;
   width: 32px;
   height: 32px;
-  background: #ffc69f;
-  border-radius: 10px;
-  color: #99470e;
+  color: var(--orange);
   flex-shrink: 0;
+}
+/* The Corgi mark, from public/brand/corgi-mark-mask.png (scripts/brand-assets.mjs).
+   It is a MASK and not an <img>: the browser reads only the alpha channel of the file and
+   fills the shape with `currentColor`, so the mark takes the colour of the header it sits in
+   and would follow a theme change without a second file. The 512 px source drawn at 24 px is
+   a 21x downscale, which is why it stays clean at this size. */
+.workspace-mark {
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  -webkit-mask: url("/brand/corgi-mark-mask.png") center / contain no-repeat;
+  mask: url("/brand/corgi-mark-mask.png") center / contain no-repeat;
 }
 .brand-product {
   display: block;
@@ -149,6 +159,12 @@
 }
 .sidebar-nav a svg {
   flex-shrink: 0;
+}
+/* The chevron of an entry whose submenu is open: pushed to the end of the line, pointing down at
+   the views listed under it. Only the open state exists, so it never rotates. */
+.sidebar-nav .nav-chevron {
+  margin-left: auto;
+  opacity: 0.65;
 }
 .sidebar-nav a:hover {
   background: #e9eaec;
@@ -248,6 +264,9 @@
   height: 40px;
   padding: 0;
 }
+.sidebar.is-rail .sidebar-nav .nav-chevron {
+  display: none;
+}
 /* Folded, the sidebar has to let the flyout of the current section out of its box. */
 .sidebar.is-rail {
   overflow: visible;
@@ -309,16 +328,6 @@
 }
 .sidebar-views a[aria-current="page"] svg {
   color: var(--orange);
-}
-.sidebar-views details.context-fold > summary {
-  list-style: none;
-  cursor: pointer;
-}
-.sidebar-views details.context-fold > summary::-webkit-details-marker {
-  display: none;
-}
-.sidebar-views details.context-fold + details.context-fold {
-  margin-top: 1px;
 }
 /* Folded to icons: the same list, as a flyout on hover of the entry, and on focus so the
    keyboard reaches it too. */
@@ -438,32 +447,6 @@
   background: var(--orange);
   color: white;
 }
-/* The heading of a group of views. Inside a <details> it is the summary that folds the group,
-   so it carries a caret drawn from a border, not a glyph. */
-.context-group {
-  padding: 12px 10px 4px;
-  font-size: 11px;
-  color: var(--ink-2);
-}
-.sidebar-views summary.context-group {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 3px 10px;
-  min-height: 22px;
-  line-height: 16px;
-}
-.sidebar-views summary.context-group::before {
-  content: "";
-  width: 0;
-  height: 0;
-  border: 3.5px solid transparent;
-  border-left-color: currentColor;
-  transition: transform 0.15s;
-}
-.sidebar-views details.context-fold[open] > summary.context-group::before {
-  transform: rotate(90deg) translateX(1px);
-}
 
 /* The body: top bar, page band, content, footer. */
 .portal-body {
@@ -487,15 +470,20 @@
   flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  /* 12 px, not 16: the three gaps of this row were the last few pixels the breadcrumb needed to
+     print "Overview > Policies > Policy CGP-01707" whole at 1440 px (2026-09-09). */
+  gap: 12px;
   padding: 0 var(--content-x);
   background: white;
   border-bottom: 1px solid var(--line);
 }
+/* The breadcrumb takes the room the top bar has left, and gives it back last: the search field
+   beside it shrinks first (see .topbar-search). */
 .page-navigation {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 button.sidebar-toggle {
@@ -535,6 +523,11 @@ button.sidebar-toggle:hover {
   gap: 6px;
   min-width: 0;
 }
+/* The last item is the screen the reader is on, so it is the one item worth the room: it keeps
+   its width and the items before it are the ones that get an ellipsis. */
+.breadcrumb li:last-child {
+  flex-shrink: 0;
+}
 .breadcrumb a {
   color: var(--ink-2);
   text-decoration: none;
@@ -543,14 +536,22 @@ button.sidebar-toggle:hover {
   color: var(--ink);
   text-decoration: underline;
 }
+/* `display: block`, not `inline-flex`: text-overflow has no effect on a flex container, so the
+   trail used to be cut mid-word with no ellipsis ("Overview > Policie: > Policy CGP-0170" at
+   1440 px, 2026-09-09). The line-height replaces the min-height the flex box gave it. */
 .breadcrumb a,
 .breadcrumb span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
+  display: block;
+  line-height: 28px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The current screen is allowed to be long: a policy number is what the reader came for. */
+.breadcrumb li:last-child a,
+.breadcrumb li:last-child span {
+  max-width: 320px;
 }
 .breadcrumb svg {
   flex-shrink: 0;
@@ -561,8 +562,11 @@ button.sidebar-toggle:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 0 1 260px;
-  min-width: 0;
+  /* 220 px, and a shrink factor of 8 against the breadcrumb's 1: the field gives up its room
+     first and the trail keeps its words. It stops at 150 px, which still shows the whole "Find a
+     reference" placeholder, so it never becomes a box nobody can read (2026-09-09). */
+  flex: 0 8 220px;
+  min-width: 150px;
   margin: 0;
   padding: 0 10px;
   height: 28px;
@@ -654,7 +658,7 @@ button.sidebar-toggle:hover {
   align-items: center;
   gap: 14px;
   min-height: var(--band-h);
-  padding: 10px max(var(--content-x), calc((100% - 1480px) / 2 + var(--content-x)));
+  padding: 8px max(var(--content-x), calc((100% - 1480px) / 2 + var(--content-x)));
   background: white;
   border-bottom: 1px solid var(--line);
   box-shadow: 0 1px 0 #ffffff, 0 6px 16px -12px #19191933;
@@ -667,21 +671,25 @@ button.sidebar-toggle:hover {
   place-items: center;
 }
 /* The illustrations are drawn on white paper; the mask lets that paper fade into the band
-   instead of showing as a square. */
+   instead of showing as a square. Widened from 46/72 to 55/85 on 2026-09-09: the band now draws
+   the cropped copies from public/illustrations/band, where the animal fills the frame instead of
+   sitting small in the middle of a sheet of paper, and the old ellipse faded a satchel, a spade
+   and a cable away at the edges. There is still enough fade left that no square edge shows. */
 .band-art img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  mask-image: radial-gradient(ellipse, #000 46%, transparent 72%);
+  mask-image: radial-gradient(ellipse, #000 55%, transparent 85%);
 }
-.band-title {
+/* The title is the flexible item of the row itself: with the chip strip gone there is nothing
+   left to stack under it, so it grew from 22 px to 28 px and says where the reader is from
+   across the desk (Yoann, 2026-09-09). */
+h1.band-title {
   flex: 1 1 auto;
   min-width: 0;
-}
-.band-title h1 {
   margin: 0;
-  font-size: 22px;
-  letter-spacing: -0.4px;
+  font-size: 28px;
+  letter-spacing: -0.6px;
   line-height: 1.2;
   /* A policy number is never cut in half: the title wraps between words or not at all. */
   overflow-wrap: normal;
@@ -689,7 +697,7 @@ button.sidebar-toggle:hover {
 }
 /* The suffix names the record (a customer, a broker). It is bounded: an unbounded one pushed
    the band to 133 px and squeezed the actions into three lines (round 1, HIGH). */
-.band-title h1 small,
+.band-title small,
 .band-suffix {
   display: inline-block;
   max-width: 34ch;
@@ -704,24 +712,15 @@ button.sidebar-toggle:hover {
   letter-spacing: 0;
   margin-left: 8px;
 }
-/* One row of chips, cut at the end rather than wrapped: a second row took the band past the
-   100 px it is allowed (round 1, MEDIUM). */
-.band-meta {
-  display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
+/* The one chip a record screen is allowed, on the title line. It keeps its width whatever the
+   title does, so a long policy number shortens the title and never squeezes the state. */
+.band-status {
+  display: inline-flex;
   align-items: center;
-  gap: 4px 6px;
-  margin-top: 4px;
-  font-size: 12.5px;
-  color: var(--ink-2);
+  flex-shrink: 0;
 }
-.band-meta::-webkit-scrollbar {
-  display: none;
-}
-.band-meta .badge,
-.band-meta .chip {
+.band-status .badge,
+.band-status .chip {
   margin: 0;
   white-space: nowrap;
 }
@@ -794,7 +793,7 @@ main:focus {
 /* A tile is never wider than 360 px: two tiles at 1920 px used to stretch to 700 px each and
    put one "0" in a half-screen box (round 1, MEDIUM). The cap is on the tile, not on the track:
    `minmax(168px, 360px)` counts its tracks at 360 px and left four tiles in one column at
-   1024 px (measured 2026-09-09 on /ops/console/ledger).
+   1024 px (measured 2026-09-09 on /ops/ledger).
    A grid cannot both count its tracks from 168 px and stop one at 360 px, so this is a wrapping
    flex row instead: a tile asks for 168 px, grows to share the line, and stops at 360 px. Two
    tiles on a 1440 px screen therefore sit side by side on the left with the free space after
@@ -1797,12 +1796,10 @@ table.entry-lines > thead > tr > th.amount {
   color: var(--ink-2);
   letter-spacing: 0;
 }
+/* Same in the inspector drawer: tighter padding, the same 200 px picture. The drawer is 440 px
+   wide, so a 200 px drawing sits comfortably inside it. */
 .drawer-body .empty {
   padding: 18px 8px 12px;
-}
-.drawer-body .empty img {
-  width: min(160px, 100%);
-  max-height: 110px;
 }
 
 .inspector-links {
@@ -1972,11 +1969,17 @@ table.entry-lines > thead > tr > th.amount {
   padding: 32px 24px 28px;
   text-align: center;
 }
+/* 200 px square, everywhere an empty state is drawn (Yoann, 2026-09-09: the drawings were too
+   small to tell what they were). The old rule capped the height at 150 px, which is what actually
+   decided the size: a portrait drawing came out 80 px wide inside a card. `object-fit: contain`
+   keeps each drawing's own shape inside that square. The mask opens wider than it used to, 55/85
+   instead of 48/74, because the cropped copies in public/illustrations/empty fill their frame and
+   the old ellipse would have cut a tail or the handle of a magnifying glass. */
 .empty img {
   width: min(200px, 100%);
-  max-height: 150px;
+  max-height: 200px;
   object-fit: contain;
-  mask-image: radial-gradient(ellipse, #000 48%, transparent 74%);
+  mask-image: radial-gradient(ellipse, #000 55%, transparent 85%);
 }
 .empty p {
   margin: 0;
@@ -2038,12 +2041,11 @@ table.entry-lines > thead > tr > th.amount {
 .card .note:last-child {
   margin-bottom: 0;
 }
+/* A card is already a frame, so the empty state inside one keeps its tighter padding and draws no
+   frame of its own. Its illustration is the same 200 px as everywhere else: it used to be capped
+   at 140x100, which is how the inbox corgi ended up 80 px tall (Yoann, 2026-09-09). */
 .card .empty {
   padding: 18px 8px 12px;
-}
-.card .empty img {
-  width: min(140px, 100%);
-  max-height: 100px;
 }
 main > .card + .card,
 main > .card + .dt-wrap,
@@ -2460,20 +2462,44 @@ button.secondary.is-working::after {
   :root {
     --content-x: 24px;
   }
-  /* Under 1200 px the suffix takes its own line rather than sharing the title's: sharing it,
+  /* The 28 px title has the whole row at 1440; under 1280 the actions leave it less and
+     "Policy CGP-01707" broke into two lines. 24 px puts it back on one (2026-09-09). */
+  h1.band-title {
+    font-size: 24px;
+  }
+  /* Under 1280 px the suffix takes its own line rather than sharing the title's: sharing it,
      the browser broke the policy number itself in half ("Policy CGP-" / "01707", round 1
      HIGH), because a hyphen is a break opportunity and no CSS property removes it. */
-  .band-title h1 small,
+  .band-title small,
   .band-suffix {
     display: block;
     margin-left: 0;
     max-width: 100%;
   }
-  .breadcrumb {
-    display: none;
-  }
+  /* The breadcrumb used to be hidden here, which is how a reader lost the only thing telling
+     them where they were on a 1024 px screen. It stays, and its items ellipsise (2026-09-09). */
   .topbar-search {
-    flex: 0 1 200px;
+    flex: 0 8 200px;
+  }
+  /* At 1280 px a three-level trail, a usable search field and the AF-02 mode line stop fitting
+     on one row: measured on a policy page, the first two trail items were squeezed to nothing.
+     Rather than cut one of the three, the mode line takes a row of its own, the same mechanism
+     as under 800 px, and the trail gets the whole first row. The bar is one row taller here, so
+     --top-h is redefined with it: the sticky band and the drawer both offset from that token
+     and follow it, measured at 62 px (2026-09-09). */
+  :root {
+    --top-h: 62px;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    row-gap: 2px;
+  }
+  .topbar-modes {
+    flex: 1 1 100%;
+    order: 3;
+    margin-right: 0;
   }
   .layout-2 {
     grid-template-columns: minmax(0, 1fr) 300px;
@@ -2535,7 +2561,16 @@ button.secondary.is-working::after {
   .sidebar.is-rail .sidebar-nav-line > a > span {
     display: inline;
   }
-  /* The views of the section take their own row under the wrapped list of sections. */
+  .sidebar.is-rail .sidebar-nav .nav-chevron {
+    display: inline;
+  }
+  /* The views of the section take their own row under the wrapped list of sections. The break is
+     asked of the ROW, because that is the flex child of the wrapped list; asking it of the list of
+     views left them in a narrow column with the next two sections beside them (375 px, 2026-09-09). */
+  .sidebar .sidebar-nav-row:has(.sidebar-views),
+  .sidebar.is-rail .sidebar-nav-row:has(.sidebar-views) {
+    flex-basis: 100%;
+  }
   .sidebar .sidebar-views,
   .sidebar.is-rail .sidebar-views {
     display: grid;
@@ -2595,9 +2630,6 @@ button.secondary.is-working::after {
   .context-nav nav a[aria-current="page"]::before {
     display: none;
   }
-  .context-nav .context-group {
-    display: none;
-  }
   .portal-body {
     border-left: 0;
   }
@@ -2637,16 +2669,12 @@ button.secondary.is-working::after {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
-  .band-meta {
-    flex-wrap: wrap;
-    overflow-x: visible;
-  }
   .band-art {
     width: 40px;
     height: 40px;
   }
-  .band-title h1 {
-    font-size: 19px;
+  h1.band-title {
+    font-size: 22px;
   }
   main {
     padding: 16px var(--content-x) 32px;
@@ -2676,6 +2704,12 @@ button.secondary.is-working::after {
   .welcome-card img {
     display: none;
   }
+  /* 160 px under 800 px: the drawing is still readable and the sentence under it stays above the
+     fold on a phone (Yoann, 2026-09-09). */
+  .empty img {
+    width: min(160px, 100%);
+    max-height: 160px;
+  }
 }
 @media (max-width: 580px) {
   .stat {
@@ -2683,8 +2717,5 @@ button.secondary.is-working::after {
   }
   .hbar-row {
     grid-template-columns: 110px minmax(0, 1fr) 88px;
-  }
-  .band-meta {
-    font-size: 12px;
   }
 }

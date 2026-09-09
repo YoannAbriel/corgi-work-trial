@@ -1,16 +1,22 @@
 import "@/app/styles/policy-detail.css";
+import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { formatSignedCentsAsUsd, formatSignedDays, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
+import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DataTable, FactGrid, Num } from "@/components/ui/table";
+import { Toolbar, ToolbarGroup } from "@/components/ui/toolbar";
 import Link from "next/link";
+import { Fragment } from "react";
 import { notFound, redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import type { EndorsementDateCorrection } from "@/lib/money/correction";
 import { CorrectionRefused, planEndorsementDateCorrection } from "@/lib/policy/correct-endorsement-date";
 import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
 import { policyDetail } from "@/lib/policy/read";
@@ -78,7 +84,7 @@ export default async function CorrectEndorsementDatePage({
             { label: "Correction preview" },
           ]}
           views={policyFormViews({ policyId, formLabel: "Correct", formHref: `/policies/${policyId}/corrections/new` })}
-          band={{ title: "Correction preview", meta: <Chip tone="warn">refused</Chip> }}
+          band={{ title: "Correction preview", status: <Chip tone="warn">refused</Chip> }}
         >
           <div className="notices">
             <p className="error" role="alert">
@@ -115,24 +121,30 @@ export default async function CorrectEndorsementDatePage({
       band={{
         title: "Correction preview",
         suffix: `Policy ${plan.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone="warn">nothing recorded yet</Chip>
-            <Chip tone="neutral">
-              {money.wrongEffectiveAt} to {money.correctedEffectiveAt}
-            </Chip>
-          </>
-        ),
+        // ONE chip, the state of this preview: nothing is booked until the form below is sent
+        // (Yoann, 2026-09-09). The two dates are figures of the preview and are in the panel.
+        status: <Chip tone="warn">nothing recorded yet</Chip>,
       }}
     >
       <Stats>
-        <Stat label="Booked" value={formatCentsAsUsd(money.before.deltaTotalCents)} note={`for ${money.before.daysRemaining} days`} />
+        <Stat label="Booked" value={formatCentsAsUsd(money.before.deltaTotalCents)} note={`${money.before.daysRemaining} days`} />
         <Stat
           label="Corrected"
           value={formatCentsAsUsd(money.after.deltaTotalCents)}
-          note={`for ${money.after.daysRemaining} of ${money.after.termDays} days`}
+          note={`${money.after.daysRemaining} of ${money.after.termDays} days`}
         />
-        <Stat label="Difference" tone="accent" value={formatCentsAsUsd(money.differenceTotalCents)} note={money.settlement} />
+        {/* The one tile that carries a direction (Yoann, 2026-09-09): green and a plus when the
+            customer owes more, red and a minus when money goes back, with the arrow saying it
+            again for a reader who does not separate the two colours. The settlement word stays
+            the note, followed by the movement in days, which is the two counts above subtracted
+            and nothing else. */}
+        <Stat
+          label="Difference"
+          tone={signedTone(money.differenceTotalCents)}
+          valueIcon={signedArrow(money.differenceTotalCents)}
+          value={formatSignedCentsAsUsd(money.differenceTotalCents)}
+          note={`${money.settlement}, ${formatSignedDays(money.after.daysRemaining - money.before.daysRemaining)}`}
+        />
       </Stats>
 
       <div className="layout-2">
@@ -151,10 +163,43 @@ export default async function CorrectEndorsementDatePage({
           <section className="card">
             <h2>Impact, line by line</h2>
             <p className="pd-note">{direction}.</p>
-            <FormulaLinesTable lines={plan.lines} />
+            {/* The three differences carry the direction; the two lines they are read against step
+                back into the secondary ink. The broker commission line is neither: it is the
+                broker's money, not the customer's, so it stays in the ordinary ink rather than
+                borrowing a convention that speaks about what the customer owes. */}
+            <FormulaLinesTable
+              lines={plan.lines}
+              // The bold row of THIS table is the correction's own total. The default key is the
+              // endorsement's delta, which no correction line carries, so before this the table
+              // ended without a total in bold.
+              highlightKey="difference_total"
+              signedKeys={["premium_difference", "tax_difference", "difference_total"]}
+              referenceKeys={["premium_as_booked", "premium_corrected"]}
+            />
           </section>
 
-          <DataTable ariaLabel="Entries that will be reversed">
+          {/* The mechanism, named in the title and shown as two rows per entry: what stops being
+              what the customer was billed, and what is booked in its place on the corrected date.
+              The re-booked figures are the corrected premium and the corrected tax, the same two
+              the execution posts (lib/policy/correct-endorsement-date.ts, step 4). */}
+          <DataTable
+            ariaLabel="Entries reversed and re-booked by the correction"
+            toolbar={
+              <Toolbar>
+                <ToolbarGroup>
+                  <span className="toolbar-label">Reversal, then re-book on {money.correctedEffectiveAt}</span>
+                </ToolbarGroup>
+              </Toolbar>
+            }
+            legend={
+              <Legend
+                items={[
+                  { term: "reversed", meaning: "a mirrored entry is appended beside the original, on the same effective date; nothing is deleted" },
+                  { term: "re-booked", meaning: "the preview of the entry the correction will post on the corrected date; it does not exist yet" },
+                ]}
+              />
+            }
+          >
             <thead>
               <tr>
                 <th>Entry</th>
@@ -164,16 +209,37 @@ export default async function CorrectEndorsementDatePage({
               </tr>
             </thead>
             <tbody>
-              {plan.entriesToReverse.map((entry) => (
-                <tr key={entry.entryId} className="dt-row">
-                  <td>
-                    <Chip tone="neutral">{entry.entryType.replace(/_/g, " ")}</Chip>
-                  </td>
-                  <td className="nowrap">{entry.effectiveAt}</td>
-                  <td className="nowrap">{entry.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
-                  <Num>{formatCentsAsUsd(entry.amountCents)}</Num>
-                </tr>
-              ))}
+              {plan.entriesToReverse.map((entry) => {
+                const rebookedCents = rebookedAmountCents(entry.entryType, money);
+                return (
+                  <Fragment key={entry.entryId}>
+                    <tr className="dt-row will-be-reversed">
+                      <td>
+                        <span className="entry-move">
+                          <Chip tone="neutral">{entry.entryType.replace(/_/g, " ")}</Chip>
+                          <Chip tone="danger">reversed</Chip>
+                        </span>
+                      </td>
+                      <td className="nowrap">{entry.effectiveAt}</td>
+                      <td className="nowrap">{entry.recordedAt.toISOString().replace("T", " ").slice(0, 19)}</td>
+                      <Num>{formatCentsAsUsd(entry.amountCents)}</Num>
+                    </tr>
+                    {rebookedCents === null ? null : (
+                      <tr className="dt-row rebook-preview">
+                        <td>
+                          <span className="entry-move">
+                            <Chip tone="neutral">{entry.entryType.replace(/_/g, " ")}</Chip>
+                            <Chip tone="ok">re-booked</Chip>
+                          </span>
+                        </td>
+                        <td className="nowrap">{money.correctedEffectiveAt}</td>
+                        <td className="nowrap">nothing recorded yet</td>
+                        <Num>{formatCentsAsUsd(rebookedCents)}</Num>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </DataTable>
         </div>
@@ -234,6 +300,23 @@ export default async function CorrectEndorsementDatePage({
   );
 }
 
+// What the correction will book on the corrected date in place of an entry it reverses.
+//
+// NO FIGURE IS INVENTED HERE. The execution posts exactly two entries on the corrected date
+// (lib/policy/correct-endorsement-date.ts, step 4): the premium and the tax priced at that date,
+// which are `money.after.deltaPremiumCents` and `money.after.deltaTaxCents`, the same two figures
+// the "Corrected" column of this page already prints. Any other entry type gets null, so its row
+// has no preview beside it rather than an amount this screen made up.
+function rebookedAmountCents(entryType: string, money: EndorsementDateCorrection): number | null {
+  if (entryType === "endorsement_premium_written") {
+    return money.after.deltaPremiumCents;
+  }
+  if (entryType === "endorsement_tax_billed") {
+    return money.after.deltaTaxCents;
+  }
+  return null;
+}
+
 // The form that opens the preview. Staff operations only, on a policy that has an endorsement in
 // force; the server checks every rule again at the preview and at the confirmation, whatever this
 // page shows.
@@ -267,13 +350,8 @@ async function CorrectionForm({
   const band = {
     title: "Correct a date",
     suffix: `Policy ${policy.policyNumber}`,
-    meta: (
-      <>
-        <Chip tone="neutral">
-          term {policy.effectiveAt} to {policy.termEnd}
-        </Chip>
-      </>
-    ),
+    // No chip: a form screen has no state of its own, and the term is printed in the form below
+    // (Yoann, 2026-09-09).
   };
 
   if (schedule.length === 0) {

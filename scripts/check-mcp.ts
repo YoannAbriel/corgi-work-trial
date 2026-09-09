@@ -295,6 +295,18 @@ async function main() {
     runtime,
   );
   await revokeApiKey({ keyId: doomedKey.keyId, revokedByUserId: people.opsId, reason: "revoked by the check" }, runtime);
+  // A token whose expiry is already behind it (migration 0026). One minute in the past is enough:
+  // the endpoint compares the stored instant with its own clock, and nothing rounds.
+  const expiredKey = await createApiKey(
+    {
+      userId: people.opsId,
+      label: "check: expired an hour ago",
+      principalKind: "human",
+      createdByUserId: people.opsId,
+      expiresAt: new Date(Date.now() - 60 * 1000),
+    },
+    runtime,
+  );
 
   let agentKeyForApprover = "created, which it should not have been";
   try {
@@ -339,7 +351,7 @@ async function main() {
   report(
     "A STAFF APPROVER CANNOT CREATE AN MCP KEY: POST /api/mcp-keys refuses the session and writes no key",
     mintedByAnApprover.status === 303 &&
-      /only staff operations can manage MCP API keys/.test(refusalToTheApprover) &&
+      /only staff operations can manage access tokens/.test(refusalToTheApprover) &&
       (await apiKeyCountOf(people.opsId)) === keysBeforeTheApproverTried,
     `${mintedByAnApprover.status} ${refusalToTheApprover}`,
   );
@@ -479,17 +491,33 @@ async function main() {
   const noKey = await rpc(null, "tools/list");
   const wrongKey = await rpc("cmk_deadbeef_ThisIsNotAKeyThatWasEverIssuedByThisSystem0", "tools/list");
   const revokedKey = await rpc(doomedKey.presentedKey, "tools/list");
+  // An EXPIRED token (migration 0026) joins that set: same status, same body, byte for byte. A
+  // different answer would confirm to whoever found an old token that it was once genuine.
+  const expiredAnswer = await rpc(expiredKey.presentedKey, "tools/list");
   report(
-    "no key, a wrong key and a REVOKED key all answer 401",
-    noKey.status === 401 && wrongKey.status === 401 && revokedKey.status === 401,
-    `${noKey.status}, ${wrongKey.status}, ${revokedKey.status}`,
+    "no key, a wrong key, a REVOKED key and an EXPIRED token all answer 401",
+    noKey.status === 401 && wrongKey.status === 401 && revokedKey.status === 401 && expiredAnswer.status === 401,
+    `${noKey.status}, ${wrongKey.status}, ${revokedKey.status}, ${expiredAnswer.status}`,
   );
   report(
-    "the three 401s are identical: a caller cannot tell a revoked key from a typo",
+    "the four 401s are identical: a caller cannot tell a revoked or expired token from a typo",
     JSON.stringify(noKey.body) === JSON.stringify(wrongKey.body) &&
       JSON.stringify(wrongKey.body) === JSON.stringify(revokedKey.body) &&
-      JSON.stringify(revokedKey.body) === '{"error":"unauthorized"}',
-    JSON.stringify(revokedKey.body),
+      JSON.stringify(revokedKey.body) === JSON.stringify(expiredAnswer.body) &&
+      JSON.stringify(expiredAnswer.body) === '{"error":"unauthorized"}',
+    JSON.stringify(expiredAnswer.body),
+  );
+  // The reason is not lost, it is written where an operator reads it: the row of that very call
+  // names the key and says "expired token", exactly as a revoked one says "revoked key".
+  const expiredRow = await lastCallOfKey(expiredKey.keyId);
+  const revokedRow = await lastCallOfKey(doomedKey.keyId);
+  report(
+    "and the audit row of each says which it was, against the key that presented it",
+    expiredRow?.outcome === "unauthorised" &&
+      expiredRow.detail === "expired token" &&
+      revokedRow?.outcome === "unauthorised" &&
+      revokedRow.detail === "revoked key",
+    `expired: ${expiredRow?.outcome}/${expiredRow?.detail}, revoked: ${revokedRow?.outcome}/${revokedRow?.detail}`,
   );
 
   // -------------------------------------------------------------------------
@@ -1493,7 +1521,7 @@ async function main() {
   // a run that was in fact correct. Each key here belongs to this run alone, so its rows are
   // this run's calls and nobody else's. The 401s that presented no key at all (they log no key
   // id) are proved by the next assertion instead.
-  const thisRunsKeys = [brokerKey, otherBrokerKey, customerKey, staffKey, agentKey, doomedKey];
+  const thisRunsKeys = [brokerKey, otherBrokerKey, customerKey, staffKey, agentKey, doomedKey, expiredKey];
   const postsWithThisRunsKeys = thisRunsKeys.reduce(
     (total, key) => total + (postsByPresentedKey.get(key.presentedKey) ?? 0),
     0,
@@ -1509,8 +1537,8 @@ async function main() {
   );
   const unauthorisedRows = await callsWithOutcome("unauthorised");
   report(
-    "the three 401s are in the log, and the revoked one is linked to the key that made it",
-    unauthorisedRows.total >= 3 && unauthorisedRows.withKey >= 1,
+    "the four 401s are in the log, and the revoked and expired ones name the key that made them",
+    unauthorisedRows.total >= 4 && unauthorisedRows.withKey >= 2,
     `${unauthorisedRows.total} unauthorised calls, ${unauthorisedRows.withKey} of them naming a key`,
   );
   const refusedRows = await callsWithOutcome("refused");
@@ -1744,6 +1772,17 @@ async function callsWithOutcome(outcome: string): Promise<{ total: number; withK
       from mcp_calls where outcome = ${outcome}
   `;
   return { total: Number(row.total), withKey: Number(row.with_key) };
+}
+
+// The last row this key appended, whatever the call was. Used on the refusals, where there is no
+// tool to match on: the endpoint refuses before any tool runs.
+async function lastCallOfKey(keyId: string): Promise<{ outcome: string; detail: string | null } | null> {
+  const [row] = await owner<{ outcome: string; detail: string | null }[]>`
+    select outcome, detail from mcp_calls
+     where api_key_id = ${keyId}
+     order by called_at desc limit 1
+  `;
+  return row ?? null;
 }
 
 async function oneCallRow(

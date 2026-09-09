@@ -83,16 +83,14 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
       active="verification"
       user={user}
       views={views}
-      viewsSubtitle={user.displayName}
       toasts={toasts}
       band={{
         title: "Business verification",
-        suffix: user.displayName,
-        // ONE CHIP, ONE ACTION of three words. At 1024 px the three chips wrapped to a second
-        // line and the button wrapped inside itself, and the band was 113 px tall against the
-        // 100 it is allowed (round 1, MEDIUM). The AF-02 words are on the top bar; whether a
-        // connected account exists is spelled out in "Where it stands" below.
-        meta: <Chip tone={kyb.status === "approved" ? "ok" : kyb.status === "failed" ? "warn" : "neutral"}>{statusWord}</Chip>,
+        // No name in the band or under the views: the sidebar already says who is signed in
+        // (Yoann, 2026-09-09). ONE chip, the verification's own state, and one action of three
+        // words. The AF-02 words are on the top bar; whether a connected account exists is
+        // spelled out in "Where it stands" below.
+        status: <Chip tone={kyb.status === "approved" ? "ok" : kyb.status === "failed" ? "warn" : "neutral"}>{statusWord}</Chip>,
         actions: kyb.providerAccountId ? (
           <form method="post" action={`/api/brokers/${user.brokerId}/kyb/recheck`} className="inline-form">
             <SubmitButton className="secondary">Check at Stripe</SubmitButton>

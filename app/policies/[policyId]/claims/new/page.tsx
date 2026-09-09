@@ -1,6 +1,5 @@
 import "@/app/styles/policy-detail.css";
 import { PortalShell } from "@/components/portal-shell";
-import { Chip } from "@/components/detail-layout";
 import { About } from "@/components/ui/about";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { FactGrid } from "@/components/ui/table";
@@ -46,15 +45,18 @@ export default async function NewClaimPage({ params }: { params: Promise<{ polic
         { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Open a claim" },
       ]}
-      views={policyFormViews({ policyId, formLabel: "New claim", formHref: `/policies/${policyId}/claims/new` })}
+      views={policyFormViews({
+        policyId,
+        formLabel: "New claim",
+        formHref: `/policies/${policyId}/claims/new`,
+        // F-LIVE-01: the correction stays in reach while this form is open, for operations only.
+        role: user.role,
+      })}
       band={{
         title: "Open a claim",
         suffix: `Policy ${policy.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone={policy.status === "bound" ? "ok" : "warn"}>{policy.status.replace(/_/g, " ")}</Chip>
-          </>
-        ),
+        // No chip: this is a form, and the state it showed belonged to the policy, which has its
+        // own page and its own chip (Yoann, 2026-09-09).
       }}
     >
       <div className="layout-2">

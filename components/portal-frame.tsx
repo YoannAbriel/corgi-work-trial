@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, PanelLeft, ShieldCheck } from "lucide-react";
+import { ScrollToTop } from "./shell/scroll-to-top";
 
 export type BreadcrumbItem = { label: string; href?: string };
 
@@ -38,6 +39,12 @@ export function PortalFrame({
 
   return (
     <div className="portal">
+      {/* Every workspace screen is drawn inside this frame, so the scroll reset is mounted once
+          here rather than page by page. The boundary is what lets it read the URL without making
+          the statically prerendered pages dynamic (components/shell/scroll-to-top.tsx). */}
+      <Suspense fallback={null}>
+        <ScrollToTop />
+      </Suspense>
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>

@@ -1,7 +1,9 @@
 import "@/app/styles/policy-detail.css";
+import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { SandboxReferences } from "@/components/disclosures";
 import { Chip } from "@/components/detail-layout";
+import { formatSignedCentsAsUsd, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -69,7 +71,7 @@ export default async function CancelPolicyPage({
             { label: "Cancellation preview" },
           ]}
           views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
-          band={{ title: "Cancellation preview", meta: <Chip tone="warn">refused</Chip> }}
+          band={{ title: "Cancellation preview", status: <Chip tone="warn">refused</Chip> }}
         >
           <div className="notices">
             <p className="error" role="alert">
@@ -97,19 +99,20 @@ export default async function CancelPolicyPage({
       band={{
         title: "Cancellation preview",
         suffix: `Policy ${plan.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone="warn">nothing recorded yet</Chip>
-            <Chip tone="neutral">cover stops {plan.effectiveAt}</Chip>
-          </>
-        ),
+        // ONE chip, the state of this preview: nothing is booked until the form below is sent
+        // (Yoann, 2026-09-09). The day cover stops is a figure of the preview, not a state.
+        status: <Chip tone="warn">nothing recorded yet</Chip>,
       }}
     >
       <Stats>
+        {/* Money going back to the customer, so the same red minus as a refunding correction
+            (Yoann, 2026-09-09). The breakdown below holds the refund as a positive amount, which
+            is what it is; the MOVEMENT is that amount leaving, hence the sign here. */}
         <Stat
           label="Refunded"
-          tone="accent"
-          value={formatCentsAsUsd(breakdown.totalRefundCents)}
+          tone={signedTone(-breakdown.totalRefundCents)}
+          valueIcon={signedArrow(-breakdown.totalRefundCents)}
+          value={formatSignedCentsAsUsd(-breakdown.totalRefundCents)}
           note="unearned premium and its tax"
         />
         <Stat
@@ -158,9 +161,16 @@ export default async function CancelPolicyPage({
                 <dt>Policy fee, earned at issuance</dt>
                 <dd>{formatCentsAsUsd(breakdown.refundedFeeCents)}</dd>
               </div>
+              {/* The total of this list, in the colour of money going back. NO SIGN HERE, unlike
+                  the tile: every line above is a part of this one refund, and a lone minus at the
+                  foot of a column of positive parts would read as an arithmetic mistake rather
+                  than as a direction. The direction is the tile's job; this row's job is to be
+                  the total, which is why it is bold. */}
               <div>
                 <dt>Total refunded</dt>
-                <dd>{formatCentsAsUsd(breakdown.totalRefundCents)}</dd>
+                <dd>
+                  <b className={`signed-${signedTone(-breakdown.totalRefundCents)}`}>{formatCentsAsUsd(breakdown.totalRefundCents)}</b>
+                </dd>
               </div>
             </dl>
             {breakdown.taxRefundWasCappedAtCharged ? (
@@ -309,13 +319,8 @@ async function CancellationForm({
       band={{
         title: "Cancel the policy",
         suffix: `Policy ${policy.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone="neutral">
-              term {policy.effectiveAt} to {policy.termEnd}
-            </Chip>
-          </>
-        ),
+        // No chip: a form screen has no state of its own, and the term is printed in the form
+        // below (Yoann, 2026-09-09).
       }}
     >
       <div className="layout-2">

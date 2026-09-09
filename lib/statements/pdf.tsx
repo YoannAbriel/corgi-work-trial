@@ -5,6 +5,7 @@ import {
   SANDBOX_LABEL,
   WATERMARK_TEXT,
   applyPdfTypography,
+  corgiWordmarkPng,
   createPdfStyles,
 } from "@/lib/documents/pdf-theme";
 import { collectedFigures } from "./compute";
@@ -40,7 +41,7 @@ const KIND_LABEL: Record<StatementLineRow["kind"], string> = {
 };
 
 export async function renderStatementPdf(statement: StatementRunDetail): Promise<Buffer> {
-  const { Document, Font, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  const { Document, Font, Image, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
   applyPdfTypography(Font);
   const styles = createPdfStyles(StyleSheet);
   const { run, lines } = statement;
@@ -68,6 +69,9 @@ export async function renderStatementPdf(statement: StatementRunDetail): Promise
         </View>
 
         <View style={styles.issuerHeader} fixed>
+          {/* Smaller than on a policy document: a statement's header competes with a table of
+              figures, so the wordmark sits at 22 points instead of 28. */}
+          <Image style={styles.issuerLogoStatement} src={corgiWordmarkPng()} />
           <View style={styles.issuerIdentity}>
             <Text style={styles.issuerName}>{ISSUER_NAME}</Text>
             <Text style={styles.issuerTagline}>{ISSUER_TAGLINE}</Text>

@@ -114,7 +114,6 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
   });
 
   const countByFilter = (wanted: Filter) => policies.filter((policy) => filterOf(policy.status) === wanted).length;
-  const needsAPerson = policies.filter((policy) => policy.status === "paid_not_bound").length;
   const boundPremiumCents = policies
     .filter((policy) => policy.status === "bound" && policy.terms)
     .reduce((total, policy) => total + (policy.terms?.annualPremiumCents ?? 0), 0);
@@ -126,9 +125,8 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
       band={{
         title: "Policies",
         suffix: `${policies.length} across every broker`,
-        // One chip: what is waiting on a person. The AF-02 words are on the top bar of every
-        // workspace screen now (cycle 2, decision 1).
-        meta: needsAPerson > 0 ? <Chip tone="warn">{needsAPerson} paid, not bound</Chip> : <Chip tone="ok">nothing waiting on a person</Chip>,
+        // No chip on a list screen (Yoann, 2026-09-09): what is waiting on a person is the
+        // "Waiting" tile, which is also the link to that filter.
       }}
     >
       {/* TWO TILES (cycle 2, decision 2). The total, and the counts per state, are already on the

@@ -51,9 +51,6 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
   const [brokers, query] = await Promise.all([brokersWithKybState(), searchParams]);
   const now = new Date();
 
-  const countOf = (status: string) => brokers.filter((broker) => broker.state.status === status).length;
-  const approved = countOf("approved");
-  const failed = countOf("failed");
   // The form for a new broker is a view of this screen (`?view=new`), so the list stays the
   // first thing a reader sees and the form can be linked to.
   const view = firstValue(query.view) === "new" ? "new" : "list";
@@ -76,14 +73,8 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
       band={{
         title: "Brokers",
         suffix: `${brokers.length} ${brokers.length === 1 ? "broker" : "brokers"}`,
-        // Two chips (cycle 2, decision 1): who may bind, and who was refused. The AF-02 words are
-        // on the top bar; "never submitted" is a sub-label on the broker's own row.
-        meta: (
-          <>
-            <Chip tone={approved > 0 ? "ok" : "neutral"}>{approved} approved</Chip>
-            <Chip tone={failed > 0 ? "warn" : "neutral"}>{failed} failed</Chip>
-          </>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): every broker's verification is a chip on
+        // its own row, which is where a reader looks for it.
         actions: (
           <Link className="button-link orange" href={withParams(PATH, query, { view: "new" })} prefetch={false}>
             New broker

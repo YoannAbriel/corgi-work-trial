@@ -106,7 +106,6 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
   });
 
   const bound = rows.filter((policy) => policy.status === "bound").length;
-  const waitingForYou = rows.filter((policy) => policy.live?.standing.state === "awaiting_approval" || policy.correctionsToApprove.length > 0).length;
 
   return (
     <PortalShell
@@ -116,17 +115,8 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
       toasts={toasts}
       band={{
         title: "Your policies",
-        suffix: user.displayName,
-        // Two chips (cycle 2, decision 1): what is in force, and what waits on you. The AF-02
-        // words are on the top bar of every signed-in screen.
-        meta: (
-          <>
-            <Chip tone={bound > 0 ? "ok" : "neutral"}>{bound} in force</Chip>
-            <Chip tone={waitingForYou > 0 ? "warn" : "ok"}>
-              {waitingForYou === 0 ? "nothing waiting for you" : `${waitingForYou} waiting for you`}
-            </Chip>
-          </>
-        ),
+        // No name and no chip on a list screen (Yoann, 2026-09-09): what is in force is the first
+        // tile, and what waits is the "What needs you" panel right under it.
       }}
     >
       {/* The inline sentences the review scripts read, beside the toasts. */}
@@ -234,9 +224,22 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
                       Approve {formatCentsAsUsd(correction.collection!.amountCents)}
                     </Link>
                   ))}{" "}
-                  <a href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}>Declarations</a>
-                  {" "}
-                  <a href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}>Schedule</a>
+                  {/* Both routes serve the PDF inline, so they open beside this list instead
+                      of replacing it. */}
+                  <a
+                    href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    Declarations
+                  </a>{" "}
+                  <a
+                    href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    Schedule
+                  </a>
                 </td>
                 <Chevron />
               </Row>
