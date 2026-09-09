@@ -524,3 +524,177 @@ Candidate walkthrough status: **NOT REVIEWED WITH YOANN**.
 | F-B13-27 | LOW | `(payload ->> 'raised_by_agent')::boolean` is the one payload value cast rather than read as text; safe against every writer that exists, but a non-boolean string would take out the approvals panel and the feed | Compare as text (`= 'true'`), or accept and record the payload-shape dependency | ACCEPTED as recorded |
 | F-B13-28 | INFO | The failure line prints the driver's raw message, which echoed the operator's own input in the case measured here | None: naming the real error is what makes the line useful; recorded as a known property | ACCEPTED |
 | F-B13-29 | LOW | All eleven documented provider limits re-verified accurate, but two are summarised where the file's own rule says quoted: "per month" is added to Neon's "100 CU-hours/project", and Stripe's unqualified per-endpoint 25/second row is presented under the sandbox heading | Quote the two cells verbatim and move the inference into the `what` field | OPEN |
+
+---
+
+# Re-review, fix cycle: F-B13-21 to F-B13-29 plus F-RC-08 and F-RC-09
+
+Reviewer: the same independent reviewer sub-agent, same worktree, branch
+`worktree-agent-a1ae88456b956ad9d`, now carrying `origin/main`. Written at 2026-09-09T08:50Z.
+
+**Reviewed revision: `main` at d786644**, the merge of the builder's **b652fde**. Production
+`/api/health` reported `d786644aa3aa9bd67c61b013942d7422598f12f6` before any measurement below was
+taken, and every production check in this section was run against that revision.
+
+The diff read line by line is the builder's commit against its parent: **9 files, +385, -60**, all
+of them console files plus `lib/reconciliation/read.ts` (three identifiers exported, no logic
+changed) and `scripts/check-console.ts`. No migration, no new route, no change to a money path.
+
+**Renumbering.** The findings of the first review were renumbered on merge because F-B13-20 was
+already held by the inbox record. What this document originally called F-B13-20 to F-B13-28 is
+F-B13-21 to F-B13-29 on main, and the numbers below are the new ones. The sections above are left
+as they were written; read the register in `docs/reviews/FINDINGS.md` for the authoritative ids.
+
+## R.1 Per-finding status
+
+| ID (new) | Was | Status | Evidence at d786644 |
+|---|---|---|---|
+| F-B13-21 | `parseSince` bounded the digits, not the instant; `since=999999d` killed the feed and the errors panels | **FIXED, verified** | `MOST_DAYS_BACK = 3650` with `clampToFloor` on **both** the duration and the ISO branches. The whole boundary set re-run on production: `3650d`, `99999d`, `700000d`, `740000d`, `800000d`, `999999d`, `0001-01-01Z`, `275760-09-13Z` all render with **0 failed panels**, where `740000d` and up previously failed two each. The page prints "the last 999999d, clamped to the last 3650 days, which is as far back as this page reads: everything after 2016-09-11T08:41:06.931Z". One new database-free assertion in the check script |
+| F-B13-22 | `openBreaksOfSubject` read every open break in the system, unbounded, and filtered in TypeScript | **FIXED, verified** | Now one SQL query with the reference sets compared in SQL (`ledger_ref = any(...) or provider_ref = any(...)`) and `limit 50`, reusing `LATEST_REPORT_OF_EACH_BREAK` and `A_LATER_RUN_RE_EXAMINED_IT` exported from the reconciliation module rather than restating the rule. `MOST_BREAKS_ON_A_360_PAGE` is printed on the panel when the cap is reached. The two `database.unsafe` fragments are file constants with no interpolation; every compared value is still a bound parameter |
+| F-B13-23 | The `latest` CTE reduced the whole event table, and the feed page ran it twice per render | **FIXED, with a consequence: see F-B13-50** | The CTE now carries a `where recorded_at >` bound at the window opening minus the threshold, and the reasoning for why that margin is exact (events only move forward) is written out and correct. The page reads the list once and passes `unknownOutcome` into `operationsProblems`, which lost its own call; `operationsProblems` is now four queries, not five |
+| F-B13-24 | `consoleSubject` was the one 360 read outside `attempt` | **FIXED, verified** | Wrapped. A failure renders a heading, the integration line and a named failure panel with the id; a clean `null` still gives 404. Production: `/policy/not-a-uuid`, `/claim/1`, `/broker/%27` and an unknown well-formed uuid all still **404**, no 500 |
+| F-B13-25 | `Masked` nested inside a `<Link>`, so the fold could never be opened | **FIXED, verified** | The fold and an "open" link are now siblings. Scan of the seven rendered pages: **0 `<details>` inside an `<a>`** on any of them |
+| F-B13-26 | A failed search was displayed as "nothing matches" | **FIXED, verified by reading** | Both panels branch on the failed read **before** the empty branch, and both say the search could not be run rather than that nothing matched. Not reproducible on production without breaking a query on purpose |
+| F-B13-27 | The `raised_by_agent` payload value was cast to boolean | **FIXED, verified** | Both occurrences now compare the extracted text to `'true'`. An absent key gives null, any other string gives false, and neither can raise |
+| F-B13-29 | Two documented limits summarised where the file's rule says quoted | **FIXED, verified** | Rendered infra page now carries "100 CU-hours/project" (not "per month", which moved into `what`), "public network transfer" (not "public egress"), and the Stripe entry split into "Live mode: 100 requests per second, Sandbox: 25 requests per second" and "Individual API endpoints (unless otherwise noted): 25 requests per second". The old "API rate limit, sandbox (test mode)" heading is gone. Twelve documented rows, each with its source URL and read date |
+| F-RC-08 | No integration-mode statement on the console; a bare `simulator` next to real Stripe references | **IMPLEMENTED, verified** | `IntegrationModes` renders under the heading of **all seven** screens (checked on each rendered page). `rail` is a **required** field on `ConsoleEvent`, `OperationsProblem` and `OperationInFlight`, so a kind added later cannot forget it, and `integrationModeOf` fails safe: anything that is not exactly `stripe` reads as a simulator. Measured on the feed at `since=7d`: **25 money rows and 83 webhook rows, 0 without a rail label**; 210 "Stripe LIVE SANDBOX" and 44 "LOCAL SIMULATOR" labels. Rows that move no money (journal, policy, approval, statement, MCP, change request, KYB) carry null and print nothing, each with a comment saying why |
+| F-RC-09 | Infra wording | **IMPLEMENTED, verified** | Same evidence as F-B13-29 |
+
+The remaining items of the first review were not part of this cycle: F-B13-28 (the payload-shape
+note) is superseded by the F-B13-27 fix, and the AF-06 reading-map recommendation of section 8 is
+still open.
+
+## R.2 New findings
+
+### F-B13-50 (MEDIUM) the unknown-outcome family is now tied to the feed cursor, so the default view under-reports it
+
+**Measured on the trial database at d786644**, counting unknown-outcome rows in the errors panel:
+
+| Window | Unknown-outcome rows |
+|---|---|
+| default, 60 minutes | **0** |
+| `?since=1h` | **0** |
+| `?since=24h` | **2** |
+| `?since=7d` | **2** |
+| `?since=3650d` | **2** |
+
+Two money operations on the deployed trial database were accepted by the provider and never
+confirmed. Before this cycle they appeared on every window, because
+`acceptedAndUnconfirmedOperations` was global. They now appear only if the operator widens the
+window past their acceptance, and **the console's default view says "Nothing failed, was refused,
+or is unresolved in this window"** while they sit there.
+
+This is a consequence of the F-B13-23 fix, not a mistake in it: bounding the CTE was the right
+correction and the reasoning behind the margin is sound. The problem is which bound was chosen.
+The other four problem families are events that *happened* at an instant, so a cursor is the
+natural scope. An unknown outcome is a *state that persists*, defined by the absence of a later
+event; scoping it by when it started means a problem drops off the screen exactly as it gets
+older, which is the opposite of what an operator needs.
+
+The "Being checked" panel does carry a new note saying the list is bounded by the window and to
+ask for `7d`. The **errors** panel does not: its disclosure still reads "an operation the provider
+accepted more than 15 minutes ago that has said nothing since", with no window qualification. The
+empty state's "in this window" makes the sentence defensible, which is why this is not a FAIL, but
+the two panels now describe two different rules.
+
+**Required correction.** Give the in-flight reader its own floor instead of the feed cursor: read
+back a fixed generous window (7 days would cover this build's whole life) regardless of what the
+feed is showing. That keeps the whole performance benefit of F-B13-23, since the CTE stays
+time-bounded, and restores the panel's meaning. Failing that, at minimum put the same window note
+on the errors panel that the "Being checked" panel now carries.
+
+**Why it matters before the debrief.** The demonstration will open `/ops/console` on its default
+window. Two unconfirmed operations exist and the screen will say nothing is unresolved.
+
+### F-B13-51 (LOW) the errors panel caps at 60 silently, and the heading chip presents the cap as the count
+
+`operationsProblems` ends by slicing to its limit and the page calls it without one, so the cap is
+60. The feed prints a note when it reaches its own cap of 200 ("Showing the newest 200 events of
+this window, which is the hard limit of this page"); the errors panel prints nothing, and the
+heading chip renders the row count as "N to look at".
+
+**Measured**: the chip reads exactly **"60 to look at"** at `?since=24h`, `?since=7d` and
+`?since=3650d`. Three different windows returning the same round number is the cap, not a count.
+An operator reading "60 to look at" is being given a floor dressed as a total.
+
+**Required correction.** The same note the feed already has, and a chip that says "60+" or "at
+least 60" when the cap is reached. Pre-existing; missed in the first review and recorded now.
+
+## R.3 Checks executed at d786644
+
+| Check | Result |
+|---|---|
+| `npm run check:console` on `corgi_test`, run **once** | **49 PASS, 0 FAIL**, "all checks passed". 48 before plus the new F-B13-21 clamp assertion, which passes with the floor and the reading sentence both proven without a database |
+| `since` boundary set, 8 values including `999999d` and the 740000d boundary | 8 × HTTP 200, **0 failed panels on all 8** (was 3 of 8 failing two panels each) |
+| Hostile query set, 11 inputs (SQL injection in `since` and `reference`, `NaN`, far future, epoch, bogus `kind`, `<script>` as a `kind`, 500-character reference, 300-character `pi_`) | 11 × HTTP 200, **0 failed panels**, all handled |
+| Output escaping, an `onerror` image tag through the search | escaped, 0 raw occurrences |
+| Malformed path ids, 4 shapes | 4 × 404, no 500 |
+| Access, anonymous, 5 paths | 4 × 307 to `/login`, 1 × 404 (the malformed id) |
+| Access, broker / customer / approver, 4 paths each | 4 × 307 to `/broker`, 4 × 307 to `/customer`, 4 × 200 |
+| Secret scan, 7 rendered pages | **zero** `sk_`, `whsec_`, `rk_`; 3 `cmk_` tokens, all 12 characters, the public prefix only; no payload markers |
+| Personal-data scan, 7 rendered pages | 3 emails, **3 of 3 behind a closed fold, 0 outside** |
+| A `<details>` nested in an `<a>`, 7 pages | **0** |
+| Rail labels, feed at `since=7d` | 25 money rows and 83 webhook rows, **0 unlabelled** |
+| `IntegrationModes` line | present on **all seven** screens |
+| Infra documented wording | all four corrections present, the old wording absent, 12 rows each with URL and read date |
+| Seven-page response times, three runs each | below |
+
+`npm run check:money-guards` was **not** run, as instructed; the coordinator's figure (184/184 on
+an ephemeral database at migration 0020, 08:32Z) is cited, not reproduced.
+
+### Response times at d786644
+
+| Page | run 1 | run 2 | run 3 | **p50** | previous p50 |
+|---|---|---|---|---|---|
+| `/ops/console` | 0.321 | 0.349 | 0.251 | **0.321 s** | 0.333 s |
+| `/ops/console/search` | 0.281 | 0.361 | 0.347 | **0.347 s** | 0.350 s |
+| `/ops/console/infra` | 0.338 | 0.307 | 0.310 | **0.310 s** | 0.353 s |
+| customer 360 | 0.288 | 0.367 | 0.298 | **0.298 s** | 0.338 s |
+| broker 360 | 0.477 | 0.476 | 0.533 | **0.477 s** | 0.447 s |
+| policy 360 | 0.363 | 0.859 | 0.348 | **0.363 s** | 0.396 s |
+| claim 360 | 0.312 | 0.331 | 0.405 | **0.331 s** | 0.403 s |
+
+Worst p50 **0.477 s**, worst single sample 0.859 s. Nothing near 3 seconds. The differences either
+way are inside the noise of a cold serverless invocation and are not evidence that the bounded
+queries made anything faster; what they do show is that the two extra SQL bounds cost nothing.
+
+## R.4 Checks not executed
+
+`check:money-guards` (instructed, cited from the coordinator). No typecheck, lint or build. No load
+or concurrency profile. No browser session: every measurement is `curl` against the rendered HTML,
+so F-B13-25 is verified as valid markup rather than as an observed click. The `attempt` net was
+again proven live on one failure mode only, and F-B13-26 is verified by reading because no
+production query can be made to fail on demand. The eleven documented provider limits were verified
+in the first review and only the wording changes were rechecked here.
+
+## R.5 Verdict of the re-review
+
+**PASS.**
+
+All eight findings of the first review, including the blocking F-B13-21, are fixed, and each fix
+was verified independently at the deployed revision rather than accepted on the builder's word.
+The two recheck items F-RC-08 and F-RC-09 are implemented, and F-RC-08 in particular is done well:
+making `rail` a required field rather than an optional one, and defaulting anything unrecognised to
+`LOCAL SIMULATOR`, means the AF-02 labelling cannot silently rot when a rail is added.
+
+The two new findings are why this is a PASS with work still to do rather than a clean bill.
+Neither is a wrong number, a bypass, a leak, or a mislabelled integration: F-B13-50 is about how
+much of a persisting problem a default view shows, and F-B13-51 is about a count that is really a
+cap. **F-B13-50 should be corrected before the debrief**, because the demonstration will open the
+console on its default window and the screen will report nothing unresolved while two operations
+are unconfirmed. The correction is a fixed floor for one reader and does not undo the performance
+fix that caused it.
+
+Residual limitations unchanged from the first review: single-user timings, no browser session, no
+load profile, and most readers proven by reading rather than by being made to fail. This is a
+scoped engineering assessment, not a legal certification, and it does not establish that the six
+automatic-fail gates pass for the submission as a whole.
+
+Candidate walkthrough status: **NOT REVIEWED WITH YOANN**.
+
+## R.6 Register lines, re-review
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-B13-50 | MEDIUM | The F-B13-23 fix ties the unknown-outcome family to the feed cursor: on the default 60-minute window the two accepted-and-unconfirmed operations on the trial database are invisible and the panel reads "nothing is unresolved"; the errors panel's disclosure still states the unscoped rule while the sibling panel states the scoped one | Give the in-flight reader its own fixed floor (7 days) instead of the feed cursor, keeping the CTE time-bounded; at minimum carry the same window note on the errors panel | OPEN, fix before the debrief |
+| F-B13-51 | LOW | The errors panel caps at 60 problems with no note, unlike the feed which prints one, and the heading chip renders the capped number as the count: exactly "60 to look at" at three different windows | Print the cap note and render "60+" when the cap is reached | OPEN |
