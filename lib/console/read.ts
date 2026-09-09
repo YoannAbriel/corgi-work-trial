@@ -2399,10 +2399,16 @@ export type ConsoleJournalEntry = {
 // most whatever the number of entries: one for the entries, one for their lines.
 export async function journalEntriesOfSubject(
   database: postgres.Sql,
-  subject: Pick<ConsoleSubject, "policyIds" | "claimIds" | "brokerId">,
+  subject: Pick<ConsoleSubject, "kind" | "policyIds" | "claimIds" | "brokerId">,
   limit = 60,
 ): Promise<ConsoleJournalEntry[]> {
-  if (subject.policyIds.length === 0 && subject.claimIds.length === 0 && !subject.brokerId) return [];
+  // UI-028: the broker of the subject is NOT part of the subject's scope unless the subject IS
+  // that broker. A policy and a claim carry their broker's id, so asking for "this policy's ids
+  // OR this broker's id" returned every entry of every other policy the same broker sold, and
+  // the reference search presented them as the searched policy's own trail. On a broker 360 the
+  // broker clause is the point: its commission entries carry a broker id and no policy id.
+  const brokerScope = subject.kind === "broker" ? subject.brokerId : null;
+  if (subject.policyIds.length === 0 && subject.claimIds.length === 0 && !brokerScope) return [];
   const headers = await database<
     { id: string; entry_type: string; effective_at: string; recorded_at: Date; reverses_entry_id: string | null }[]
   >`
@@ -2412,7 +2418,7 @@ export async function journalEntriesOfSubject(
       from journal_entries entry
      where entry.policy_id = any(${subject.policyIds}::uuid[])
         or entry.claim_id  = any(${subject.claimIds}::uuid[])
-        or (${subject.brokerId ?? null}::uuid is not null and entry.broker_id = ${subject.brokerId ?? null}::uuid)
+        or (${brokerScope}::uuid is not null and entry.broker_id = ${brokerScope}::uuid)
      order by entry.recorded_at desc
      limit ${limit}
   `;
@@ -2862,7 +2868,7 @@ export async function claimsOfSubject(
 // trail that stopped at a cursor would not be a trail.
 export async function subjectTimeline(
   database: postgres.Sql,
-  subject: Pick<ConsoleSubject, "policyIds" | "claimIds" | "brokerId">,
+  subject: Pick<ConsoleSubject, "kind" | "policyIds" | "claimIds" | "brokerId">,
   limit = 120,
 ): Promise<ConsoleEvent[]> {
   const [operations, journal, policyRows, claimRows] = await Promise.all([
