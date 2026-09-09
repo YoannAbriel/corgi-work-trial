@@ -53,46 +53,52 @@ export function PortalFrame({
       </aside>
       {contextNav}
       <div className="portal-body">
-        <header className="topbar">
-          <div className="page-navigation">
-            <button
-              type="button"
-              className="sidebar-toggle"
-              aria-label={railFolded ? "Expand navigation" : "Fold navigation"}
-              title={railFolded ? "Expand navigation" : "Fold navigation"}
-              aria-controls="portal-navigation"
-              aria-expanded={!railFolded}
-              onClick={() => setRailFolded(!railFolded)}
-            >
-              <PanelLeft size={16} aria-hidden="true" />
-            </button>
-            <nav aria-label="Breadcrumb" className="breadcrumb">
-              <ol>
-                {breadcrumbs.map((item, index) => (
-                  <li key={`${item.href ?? "current"}-${item.label}`}>
-                    {index > 0 ? <ChevronRight size={13} aria-hidden="true" /> : null}
-                    {index === breadcrumbs.length - 1 || !item.href ? (
-                      <span aria-current={index === breadcrumbs.length - 1 ? "page" : undefined}>{item.label}</span>
-                    ) : (
-                      <Link href={item.href} prefetch={false}>
-                        {item.label}
-                      </Link>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </nav>
-          </div>
-          {search}
-          {modes ? <div className="topbar-modes">{modes}</div> : null}
-          <details className="environment-badge">
-            <summary>
-              <ShieldCheck size={13} aria-hidden="true" /> Sandbox
-            </summary>
-            <p className="environment-detail">Sandbox providers and test data. No real money.</p>
-          </details>
-        </header>
-        {band}
+        {/* The bar and the band pin together, as one block. They used to be two sticky elements,
+            with the band offset by the --top-h token: when the bar wrapped to a third row on a
+            narrow screen the token was 29 px short and the band's title was cut (review finding
+            F-EV2-02). A wrapper cannot be wrong about its own height. */}
+        <div className="portal-sticky">
+          <header className="topbar">
+            <div className="page-navigation">
+              <button
+                type="button"
+                className="sidebar-toggle"
+                aria-label={railFolded ? "Expand navigation" : "Fold navigation"}
+                title={railFolded ? "Expand navigation" : "Fold navigation"}
+                aria-controls="portal-navigation"
+                aria-expanded={!railFolded}
+                onClick={() => setRailFolded(!railFolded)}
+              >
+                <PanelLeft size={16} aria-hidden="true" />
+              </button>
+              <nav aria-label="Breadcrumb" className="breadcrumb">
+                <ol>
+                  {breadcrumbs.map((item, index) => (
+                    <li key={`${item.href ?? "current"}-${item.label}`}>
+                      {index > 0 ? <ChevronRight size={13} aria-hidden="true" /> : null}
+                      {index === breadcrumbs.length - 1 || !item.href ? (
+                        <span aria-current={index === breadcrumbs.length - 1 ? "page" : undefined}>{item.label}</span>
+                      ) : (
+                        <Link href={item.href} prefetch={false}>
+                          {item.label}
+                        </Link>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              </nav>
+            </div>
+            {search}
+            {modes ? <div className="topbar-modes">{modes}</div> : null}
+            <details className="environment-badge">
+              <summary>
+                <ShieldCheck size={13} aria-hidden="true" /> Sandbox
+              </summary>
+              <p className="environment-detail">Sandbox providers and test data. No real money.</p>
+            </details>
+          </header>
+          {band}
+        </div>
         {children}
         <footer className="portal-footer">Corgi · Policy administration</footer>
       </div>
