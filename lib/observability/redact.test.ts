@@ -19,6 +19,15 @@ test("a password field is replaced, in a form body and in JSON", () => {
   assert.doesNotMatch(redact("token = 4b7f9a2c1d"), /4b7f9a2c1d/);
 });
 
+test("the reveal cookie of a new broker never shows its password", () => {
+  // The cookie carries "<email>|<password>" (lib/broker/reveal-cookie.ts). Both halves go.
+  const line = redact("set-cookie: broker_password_reveal=new@example.invalid|Xk7RmQpTvW2nBcJdHyFs; Path=/ops/brokers; HttpOnly");
+  assert.doesNotMatch(line, /Xk7RmQpTvW2nBcJdHyFs/);
+  assert.match(line, /broker_password_reveal=\*\*\*\*/);
+  // The rest of the header stays readable: an operator still sees which cookie was set.
+  assert.match(line, /Path=\/ops\/brokers/);
+});
+
 test("a secret key is masked and a public reference is kept", () => {
   const line = redact("stripe refused sk_test_51QabcDEF for pi_3NxYz and cs_test_a1b2 with whsec_9f8e7d");
   assert.doesNotMatch(line, /51QabcDEF/);
