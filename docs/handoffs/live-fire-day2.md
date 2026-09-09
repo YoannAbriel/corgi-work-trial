@@ -389,3 +389,55 @@ Every figure of LIVE-3 agrees. Freeze checklist section D: evidence in
 `docs/evidence/live-fire-day2/LIVE-3/` (before: brokers list, console files, the three brokers'
 pages; after: status, history, home, brokers list, console file and timeline, CGP-01709 money and
 timeline, screenshots).
+
+## LIVE-10: the ops claim path on the simulated rail, maker-checker on claim payments (revision 4f10705)
+
+Deployed revision at the start of the step, `/api/health` at 21:11:21Z: `4f10705` (the demo
+account switcher and a 375 px fix; nothing under db/, lib/money or the claim paths). Policy
+chosen: CGP-01707, cancelled effective 2026-11-08 with cover from 2026-09-08, so a loss on
+2026-09-09 is claimable after the cancellation (the brief's question); CGP-01709's term starts
+2026-09-26, a loss today would be outside cover. Before-state (`LIVE-10/before/`): CGP-01707
+carries CLM-00213 only (reserve $2,000.00, no bank account), the approvals queue empty. Every
+form was submitted by Yoann as ops@example.com, the decisions as approver@example.com through
+the sidebar account switcher; this session read by GET only.
+
+| Step | Expected | Read | Agree |
+|---|---|---|---|
+| Open a claim (loss 2026-09-09, reported 2026-09-09, claimant Bay Area Fabrication LLC) | CLM-00214 open, reserve 0, incurred 0 | CLM-00214 (65fca884-2960-40f3-ae0f-0a10fabbfa0c), open, $0.00 / $0.00, limits shown $2,000,000.00 per occurrence and $4,000,000.00 aggregate | agree |
+| Set reserve $3,000.00 ("initial estimate") | claim_reserve_set 300000, incurred $3,000.00 | reserve set $0.00 to $3,000.00, booked $3,000.00, 21:13:53Z; Dr claims expense 300000, Cr claim reserve 300000 | agree |
+| Adjust to $2,500.00 ("engineer's estimate revised") | a second row, claim_reserve_adjusted -50000, both rows kept | reserve adjusted $3,000.00 to $2,500.00, booked -$500.00, 21:17:27Z; the first row unchanged | agree |
+| Bank account, routing 110000000, holder name = claimant | verified, only last four digits stored | "verified", routing ...0000 / account ...6789, "LOCAL SIMULATOR: the account at routing ...0000 is held by the claimant" | agree |
+| Request A $1,200.00 | above $1,000: waiting for approval | waiting for approval, requested 21:20:35Z, approval request 7562fcd1 | agree |
+| Request B $500.00 | cumulative $1,700.00 above $1,000 (rule 17): waiting for approval | waiting for approval, 21:23:12Z | agree |
+| Request C $2,000.00 | refused by the reserve ceiling | "Refused: this payment of 200000 cents is more than the 80000 cents left in the reserve; raise the reserve first, so that the increase is recorded as its own decision" | agree |
+| Ops on /ops/approvals with its own request D waiting | chip "your own request", no decision form | read by Yoann on his screen: "your own request" (his words: "c bon") | agree |
+| Approver decides | A approved, B rejected | A approved 21:22:38Z, B approved 21:23:43Z, D ($300.00, requested 21:29Z) approved 21:29:53Z, all by Alex Kim, approver, with the intent text and hash | figures agree; the reject was not driven (see below) |
+| Send A on the rail | sent, settlement 2026-09-11, paid at sending | sent 21:27:02Z, sim_tr_edbd330eb019836c1a9704e8afac5339, claim_payment_sent Dr claim_reserve 120000 Cr claims_payable 120000 | agree |
+| Send B | sent | sent 21:27:19Z, sim_tr_127e3e7e412f63ef0f8a0ca1a91d7bbf, "settles on 2026-09-11" | agree |
+| Send D | (not planned) | sent 21:30:39Z, sim_tr_64acae2d7f00dfdcdfd7eac9ef357561 | read |
+| Settle now on A (LOCAL SIMULATOR control) | settled | settled on 2026-09-09 | agree |
+| Return A (account_closed) | returned, reserve restored by 120000 | returned 21:30:45Z, claim_payment_returned, "nothing to do" | agree |
+| Final position | paid = B + D = 80000, reserve = 250000 - 80000 = 170000, incurred 250000 | Paid $800.00 ("$0.00 settled by the rail"), Reserve $1,700.00, Incurred $2,500.00 = 80000 + 170000, the incurred_loss_expense balance the same | agree |
+| Against the limits | incurred $2,500.00 of $2,000,000.00; committed against $4,000,000.00 | as shown | agree |
+
+**Not driven tonight:** the approver's reject. Yoann approved A, B and D and stopped there; a
+fifth request to reject was offered and declined ("c'est bon, ça y est"). A rejection by Alex
+Kim exists on production from day 1 (CLM-00212, 2026-09-08, "rejected" on the decided view) and
+the rejected state is documented on the payments view legend; it was not exercised in this
+session. The self-approval refusal was shown by the chip on ops' own request, not by a POST.
+
+**Readable tonight versus not:** the settlement of A was forced through the LOCAL SIMULATOR
+control ("Settle now"); B and D carry the settlement date 2026-09-11 and would be settled by the
+daily job at 06:00Z on that date, after the freeze, so the automatic settlement is not readable.
+The return is readable (A). Every payment row names its simulated transfer reference and the
+rail label LOCAL SIMULATOR.
+
+Evidence: `LIVE-10/before/` (claims list, queue, new-claim form, CLM-00213), `LIVE-10/after/`
+(CLM-00214 overview and payments texts and screenshots, decided queue, ops view with its own
+requests, console activity, claim console file). Freeze checklist section D: LIVE-10 evidence in
+`docs/evidence/live-fire-day2/LIVE-10/`.
+
+Interface items from the step, sent to the interface session: the bank account form is only in
+the row menu beside "Reserve, pay, close" (Yoann: "impossible à savoir"); the Approval column of
+the payments view prints the requester under the "approved" chip while the decider is only in
+the row's expansion.

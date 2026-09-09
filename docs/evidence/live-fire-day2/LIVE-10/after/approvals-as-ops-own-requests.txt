@@ -1,0 +1,64 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 5 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+[a /inbox#claims] 1 waiting for you, open the inbox
+Money
+[a /ops/approvals] Approvals
+[a /ops/approvals?view=waiting] Waiting
+[a /ops/approvals?view=decided] Decided
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+Approvals
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Money-out approvals Approvals
+WaitingMoney out above the threshold needs a second person to approve it, never the person who asked. The database refuses a decision by the requester and by anybody who is not a staff approver.0no money moves until decided
+Amount waiting$0.00sum of the requests waiting
+Agent raisedA request an agent raised waits for a human approver whatever the amount. An agent can never decide one.1asked through the MCP endpoint
+|
+| | Amount | Asked by | Destination | Subject | Decision
+|
+Nothing is waiting for a decision.
+About this screen
+The threshold
+Anything above $1,000.00 leaving this system, a claim payment or a cancellation refund, waits here until a staff approver who is not the person who asked says yes. The threshold is an assumption of this build, decided on 2026-09-08 and recorded in the decision log. It is not a regulatory figure.
+It is cumulative
+A payment below the threshold still waits here when it takes the claim’s money out above the line, and a refund below it waits when it takes the policy’s refunds above the line (lib/approvals/threshold.ts), so a payout cannot be split into sub-threshold pieces to skip the approver. That is why a small request can be in the list with no agent behind it.
+Agent raised
+The other sub-threshold case is a request an agent raised through the MCP endpoint, which waits for a human approver whatever the amount (rule 21 of the decision log). The person named in the row holds that key; an agent principal can never approve a money-out.
+What you approve
+Open a row to read it. What you approve is the exact text shown there, and its sha256 is stored with the request: at execution time the intent is rebuilt from the state of the world at that moment and the payment is refused if it differs by one character, so an approval can never authorise a different amount, claim or destination account.
+Why a decision can be refused
+Three reasons stop a decision, and the database enforces all three, not the screen. Not an approver: only a staff approver can decide, including against an automated agent. Your own request: maker-checker needs a second person, so the database refuses a decision whose author is the requester. Decided: somebody has already answered it, and a different amount, claim or destination account needs a new request.Corgi · Policy administration
