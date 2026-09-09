@@ -1813,12 +1813,10 @@ table.entry-lines > thead > tr > th.amount {
   color: var(--ink-2);
   letter-spacing: 0;
 }
+/* Same in the inspector drawer: tighter padding, the same 200 px picture. The drawer is 440 px
+   wide, so a 200 px drawing sits comfortably inside it. */
 .drawer-body .empty {
   padding: 18px 8px 12px;
-}
-.drawer-body .empty img {
-  width: min(160px, 100%);
-  max-height: 110px;
 }
 
 .inspector-links {
@@ -1988,11 +1986,17 @@ table.entry-lines > thead > tr > th.amount {
   padding: 32px 24px 28px;
   text-align: center;
 }
+/* 200 px square, everywhere an empty state is drawn (Yoann, 2026-09-09: the drawings were too
+   small to tell what they were). The old rule capped the height at 150 px, which is what actually
+   decided the size: a portrait drawing came out 80 px wide inside a card. `object-fit: contain`
+   keeps each drawing's own shape inside that square. The mask opens wider than it used to, 55/85
+   instead of 48/74, because the cropped copies in public/illustrations/empty fill their frame and
+   the old ellipse would have cut a tail or the handle of a magnifying glass. */
 .empty img {
   width: min(200px, 100%);
-  max-height: 150px;
+  max-height: 200px;
   object-fit: contain;
-  mask-image: radial-gradient(ellipse, #000 48%, transparent 74%);
+  mask-image: radial-gradient(ellipse, #000 55%, transparent 85%);
 }
 .empty p {
   margin: 0;
@@ -2054,12 +2058,11 @@ table.entry-lines > thead > tr > th.amount {
 .card .note:last-child {
   margin-bottom: 0;
 }
+/* A card is already a frame, so the empty state inside one keeps its tighter padding and draws no
+   frame of its own. Its illustration is the same 200 px as everywhere else: it used to be capped
+   at 140x100, which is how the inbox corgi ended up 80 px tall (Yoann, 2026-09-09). */
 .card .empty {
   padding: 18px 8px 12px;
-}
-.card .empty img {
-  width: min(140px, 100%);
-  max-height: 100px;
 }
 main > .card + .card,
 main > .card + .dt-wrap,
@@ -2711,6 +2714,12 @@ button.secondary.is-working::after {
   }
   .welcome-card img {
     display: none;
+  }
+  /* 160 px under 800 px: the drawing is still readable and the sentence under it stays above the
+     fold on a phone (Yoann, 2026-09-09). */
+  .empty img {
+    width: min(160px, 100%);
+    max-height: 160px;
   }
 }
 @media (max-width: 580px) {
