@@ -56,6 +56,8 @@ import {
   type ToastNotice,
 } from "@/lib/ui/views";
 import {
+  correctionHref,
+  correctionViews,
   CorrectEndorsementDateForm,
   CorrectionsExplained,
   PolicyAsOf,
@@ -320,13 +322,19 @@ export default async function PolicyPage({
   // A count only where a person must act (cycle 2, decision 3): an open claim is work, and the
   // number of endorsements, of journal entries and of closed claims is not. Opening a view says
   // how many rows it holds; the navigation does not have to.
-  const views = POLICY_VIEWS.map((one) => ({
-    key: one,
-    label: POLICY_VIEW_LABEL[one],
-    href: withParams(path, query, { view: one, inspect: null }),
-    current: one === view,
-    count: one === "claims" && openClaims.length > 0 ? openClaims.length : undefined,
-  }));
+  const views = [
+    ...POLICY_VIEWS.map((one) => ({
+      key: one,
+      label: POLICY_VIEW_LABEL[one],
+      href: withParams(path, query, { view: one, inspect: null }),
+      current: one === view,
+      count: one === "claims" && openClaims.length > 0 ? openClaims.length : undefined,
+    })),
+    // F-LIVE-01: the correction is a screen of the policy, so it is listed with the policy's own
+    // views. Operations only, and always, whether or not there is an endorsement to correct: the
+    // screen says when there is nothing.
+    ...correctionViews({ policyId: policy.policyId, role: user.role }),
+  ];
 
   // The inspector, on the staff views that carry a Stripe or an operation reference: a reference
   // opens its whole trail in the drawer instead of being a code token nobody can follow (cycle 2,
@@ -385,6 +393,14 @@ export default async function PolicyPage({
             {canOpenClaim ? (
               <Link href={`/policies/${policy.policyId}/claims/new`} className="button-link secondary">
                 Open a claim
+              </Link>
+            ) : null}
+            {/* F-LIVE-01: the same three conditions the Endorsements view uses to draw the
+                correction form, so the band offers the screen exactly when there is an effective
+                date to put right. No icon: no other band action carries one. */}
+            {user.role === "staff_ops" && policy.status === "bound" && schedule.length > 0 ? (
+              <Link href={correctionHref(policy.policyId)} className="button-link secondary">
+                Correct a date
               </Link>
             ) : null}
           </>
