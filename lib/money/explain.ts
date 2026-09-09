@@ -377,28 +377,44 @@ export function explainAccountSum(input: {
   for (const entry of input.entries) {
     for (const line of entry.lines) {
       if (line.accountId !== input.accountId) continue;
+      // ONLY THE LINES THE RULE ACTUALLY SUMS (review finding F-B12-02). A credit on the account
+      // contributes nothing to a debit sum, so printing it inside that fold showed a refund of
+      // 208109 against a result of $0.00: a row a reader would have to be talked out of. It also
+      // filled the list, so "no debit on this account yet" could never appear on a policy that
+      // had only ever been refunded.
+      if (input.rule === "debits" && line.debitCents === 0) continue;
+      if (input.rule === "credits" && line.creditCents === 0) continue;
       const contribution = contributionOf(line, input.rule);
-      const side = line.debitCents > 0 ? "Dr" : "Cr";
-      const movedCents = line.debitCents > 0 ? line.debitCents : line.creditCents;
+      // The side named is the side the RULE reads, not whichever column happens to be filled:
+      // under "debits" a printed line is always a debit.
+      const side = input.rule === "debits" ? "Dr" : input.rule === "credits" ? "Cr" : line.debitCents > 0 ? "Dr" : "Cr";
+      const movedCents = side === "Dr" ? line.debitCents : line.creditCents;
+      const detail = `${side} ${line.accountName} ${movedCents}`;
       lines.push({
         key: `line_${position}`,
         label: `${entry.entryType}, effective ${entry.effectiveAt}`,
-        formula: `${side} ${line.accountName} ${movedCents}`,
+        formula: detail,
         cents: contribution,
       });
       evidence.push({
         entryType: entry.entryType,
         effectiveAt: entry.effectiveAt,
         recordedAt: entry.recordedAt,
-        detail: `${side} ${line.accountName} ${movedCents}`,
+        detail,
       });
       position += 1;
     }
   }
+  const nothingYet =
+    input.rule === "debits"
+      ? "no debit on this account yet"
+      : input.rule === "credits"
+        ? "no credit on this account yet"
+        : "no movement on this account yet";
   lines.push({
     key: "total",
     label: input.totalLabel,
-    formula: lines.length === 0 ? "no line on this account yet" : lines.map((line) => line.cents).join(" + "),
+    formula: lines.length === 0 ? nothingYet : lines.map((line) => line.cents).join(" + "),
     cents: accountSumCents(input.entries, input.accountId, input.rule),
   });
   return {

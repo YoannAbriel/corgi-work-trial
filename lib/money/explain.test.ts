@@ -201,6 +201,42 @@ test("an account with no line yet explains a zero instead of pretending there is
   assert.equal(explanation.evidence?.length, 0);
 });
 
+// Review finding F-B12-02: a fold lists the lines its own rule sums, and no others.
+test("a debit sum lists only debits, and a credit sum only credits", () => {
+  const collected = explainAccountSum({
+    entries: JOURNAL,
+    accountId: "cash_stripe",
+    rule: "debits",
+    totalLabel: "Collected",
+  });
+  // The refund credit of 89172 is on the same account and is NOT a row of this fold.
+  assert.equal(collected.lines.length, 2); // one debit line plus the total
+  assert.equal(collected.lines[0].formula, "Dr cash_stripe 125320");
+  assert.equal(collected.evidence?.length, 1);
+
+  const refunded = explainAccountSum({
+    entries: JOURNAL,
+    accountId: "cash_stripe",
+    rule: "credits",
+    totalLabel: "Refunded",
+  });
+  assert.equal(refunded.lines.length, 2);
+  assert.equal(refunded.lines[0].formula, "Cr cash_stripe 89172");
+});
+
+test("a policy that has only ever been refunded can say it collected nothing", () => {
+  const refundOnly = [JOURNAL[1]];
+  const collected = explainAccountSum({
+    entries: refundOnly,
+    accountId: "cash_stripe",
+    rule: "debits",
+    totalLabel: "Collected",
+  });
+  assertExplains(collected, 0);
+  assert.equal(collected.lines.length, 1);
+  assert.equal(collected.lines[0].formula, "no debit on this account yet");
+});
+
 // ---------------------------------------------------------------------------
 // A broker statement total
 // ---------------------------------------------------------------------------
