@@ -476,6 +476,26 @@ export function monthOfFirstDay(firstDay: string): string {
   return firstDay.slice(0, 7);
 }
 
+// The first instant AFTER a statement month: midnight UTC on the first day of the next month.
+// It is the instant the month is over at, so a knowledge cutoff at or after it read a month that
+// had already ended, which is what makes a statement definitive rather than provisional.
+export function firstInstantAfterMonth(statementMonth: string): Date {
+  assertStatementMonth(statementMonth);
+  const year = Number(statementMonth.slice(0, 4));
+  const monthNumber = Number(statementMonth.slice(5, 7)); // 1-based here, 0-based in Date.UTC
+  return new Date(Date.UTC(year, monthNumber, 1));
+}
+
+// Which month had just ended at this instant, in UTC: "2028-04-01T06:00:00Z" -> "2028-03". The
+// monthly close (lib/statements/monthly-job.ts) asks it on the first day of a month. Computed by
+// stepping back one day from the first of the month the instant falls in, so no month length and
+// no leap year is written down here.
+export function monthThatEndedBefore(instant: Date): string {
+  const firstInstantOfThatMonth = Date.UTC(instant.getUTCFullYear(), instant.getUTCMonth(), 1);
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  return new Date(firstInstantOfThatMonth - oneDayMs).toISOString().slice(0, 7);
+}
+
 // Was the month still running when this statement was produced? (decision 19, point 3.)
 //
 // The question is asked against the run's own KNOWLEDGE CUTOFF, never against the clock of
@@ -488,9 +508,5 @@ export function monthOfFirstDay(firstDay: string): string {
 // The month is over at the cutoff when the cutoff is at or after midnight UTC on the first day of
 // the next month.
 export function monthWasStillRunningAt(statementMonth: string, knowledgeCutoff: Date): boolean {
-  assertStatementMonth(statementMonth);
-  const year = Number(statementMonth.slice(0, 4));
-  const monthNumber = Number(statementMonth.slice(5, 7)); // 1-based, and 0-based in Date.UTC
-  const firstInstantOfNextMonth = Date.UTC(year, monthNumber, 1);
-  return knowledgeCutoff.getTime() < firstInstantOfNextMonth;
+  return knowledgeCutoff.getTime() < firstInstantAfterMonth(statementMonth).getTime();
 }

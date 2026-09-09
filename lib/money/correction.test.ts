@@ -32,13 +32,13 @@ function endorsementOn(effectiveAt: string): EndorsementFigures {
 const bookedOnDay130 = endorsementOn("2028-07-09");
 const bookedOnDay100 = endorsementOn("2028-06-09");
 
-// The totals the two thresholds are read against. A policy that has refunded nothing and has
-// nothing waiting for its customer: the ordinary case, where a correction is judged on its own
-// amount. The cumulative cases have their own tests at the bottom.
+// The totals the two thresholds are read against. A policy that has refunded nothing and whose
+// term carries no additional premium yet: the ordinary case, where a correction is judged on its
+// own amount. The cumulative cases have their own tests at the bottom.
 const NOTHING_ELSE_ON_THE_POLICY = {
   policyRefundedCents: 0,
   policyPendingRefundCents: 0,
-  customerUnapprovedRequestedCents: 0,
+  additionalPremiumOfTheTermCents: 0,
 };
 
 test("the two dates of the recited example price what DECISIONS.md says they price", () => {
@@ -181,18 +181,67 @@ test("the difference is always what the ledger will hold: after minus before, bo
 // The two thresholds are read against the POLICY, not against this correction
 // ---------------------------------------------------------------------------
 
-test("a difference under $500 on its own needs the customer when something else is already waiting", () => {
-  // 5047 cents is $50.47, nowhere near the line on its own. With $480 already quoted to this
-  // customer and unanswered, the two together are above $500 and the customer decides once.
-  const alone = correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", NOTHING_ELSE_ON_THE_POLICY);
-  assert.equal(alone.customerApprovalRequired, false);
+// DECISION 24 ON THE CORRECTION PATH: the difference of premium a correction adds counts toward
+// the term's additional premium, and the customer approves when the running total including it is
+// strictly above $500. The difference of the recited example is 4931 of premium and 116 of tax.
 
-  const withOthersWaiting = correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", {
+test("a correction difference that takes the term above $500 needs the customer", () => {
+  // The endorsement as booked added 38630 of premium, under the line on its own, and so is the
+  // difference: 4931. Read together against a term that already carries 45500, the running total
+  // is 50431, above $500, and the customer decides before the difference is collected.
+  const stillBelow = correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", {
     ...NOTHING_ELSE_ON_THE_POLICY,
-    customerUnapprovedRequestedCents: 48000,
+    additionalPremiumOfTheTermCents: 38630,
   });
-  assert.equal(withOthersWaiting.customerApprovalRequired, true);
-  assert.equal(withOthersWaiting.totals.customerUnapprovedRequestedCents, 48000);
+  assert.equal(stillBelow.differencePremiumCents, 4931);
+  assert.equal(stillBelow.customerApprovalRequired, false); // 38630 + 4931 = 43561
+
+  const crossesTheLine = correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", {
+    ...NOTHING_ELSE_ON_THE_POLICY,
+    additionalPremiumOfTheTermCents: 45500,
+  });
+  assert.equal(crossesTheLine.customerApprovalRequired, true); // 45500 + 4931 = 50431
+  assert.equal(crossesTheLine.totals.additionalPremiumOfTheTermCents, 45500);
+});
+
+test("exactly $500.00 of additional premium is not above it, one cent more is", () => {
+  const exactlyFiveHundred = correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", {
+    ...NOTHING_ELSE_ON_THE_POLICY,
+    additionalPremiumOfTheTermCents: 45069, // 45069 + 4931 = 50000, the threshold itself
+  });
+  assert.equal(exactlyFiveHundred.customerApprovalRequired, false);
+
+  const oneCentMore = correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", {
+    ...NOTHING_ELSE_ON_THE_POLICY,
+    additionalPremiumOfTheTermCents: 45070,
+  });
+  assert.equal(oneCentMore.customerApprovalRequired, true);
+});
+
+test("the tax is excluded: it is the premium of the term that is compared", () => {
+  // At exactly $500.00 of premium the difference also carries 116 of tax, and 50000 + 116 is
+  // above the line. The verdict is still no approval, which is only possible because the tax is
+  // not in the base (decision 24).
+  const atTheLine = correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", {
+    ...NOTHING_ELSE_ON_THE_POLICY,
+    additionalPremiumOfTheTermCents: 45069,
+  });
+  assert.equal(atTheLine.differenceTaxCents, 116);
+  assert.equal(atTheLine.differencePremiumCents + atTheLine.totals.additionalPremiumOfTheTermCents, 50000);
+  assert.ok(atTheLine.differenceTotalCents + atTheLine.totals.additionalPremiumOfTheTermCents > 50000);
+  assert.equal(atTheLine.customerApprovalRequired, false);
+});
+
+test("a correction that lowers the premium never needs the customer, however high the term is", () => {
+  // The mirror correction gives 4931 of premium back. Nothing is being asked of the customer, so
+  // there is nothing for them to approve, even on a term already far above $500.
+  const givesMoneyBack = correctEndorsementDateMoney(bookedOnDay100, "2028-07-09", {
+    ...NOTHING_ELSE_ON_THE_POLICY,
+    additionalPremiumOfTheTermCents: 90000,
+  });
+  assert.equal(givesMoneyBack.differencePremiumCents, -4931);
+  assert.equal(givesMoneyBack.settlement, "refund");
+  assert.equal(givesMoneyBack.customerApprovalRequired, false);
 });
 
 test("a difference given back under $1,000 needs an approver when the policy has already refunded enough", () => {
@@ -233,19 +282,23 @@ test("the sentence a screen prints always names the total the verdict was read a
   assert.match(goesStraightOut.refund ?? "", /at or below \$1,000\.00 counting the \$0\.00/);
   assert.match(goesStraightOut.refund ?? "", /no second approver is needed/);
 
+  // The customer sentence names the running total WITH this difference in it, the way the
+  // endorsement preview does: 45500 + 4931 = 50431, which is $504.31.
   const asked = correctionApprovalSentences(
     correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", {
       ...NOTHING_ELSE_ON_THE_POLICY,
-      customerUnapprovedRequestedCents: 48000,
+      additionalPremiumOfTheTermCents: 45500,
     }),
   );
   assert.equal(asked.refund, null);
-  assert.match(asked.customer ?? "", /\$50\.47 to collect, counting the \$480\.00 still waiting/);
-  assert.match(asked.customer ?? "", /above \$500\.00, so the customer has to approve it/);
+  assert.match(asked.customer ?? "", /\$50\.47 to collect/);
+  assert.match(asked.customer ?? "", /\$504\.31 of additional premium in this term/);
+  assert.match(asked.customer ?? "", /above \$500\.00, so the customer has to approve it before it is collected/);
 
   const notAsked = correctionApprovalSentences(
     correctEndorsementDateMoney(bookedOnDay130, "2028-06-09", NOTHING_ELSE_ON_THE_POLICY),
   );
+  assert.match(notAsked.customer ?? "", /\$49\.31 of additional premium in this term/);
   assert.match(notAsked.customer ?? "", /at or below \$500\.00, so no customer approval is needed/);
 });
 

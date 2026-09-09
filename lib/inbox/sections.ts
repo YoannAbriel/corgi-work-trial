@@ -29,12 +29,17 @@ export const INBOX_ANCHORS = {
   endorsementsPaidNotApplied: "endorsements",
   claimPaymentsStillToMove: "claims",
   openBreaks: "reconciliation",
+  // The two sides of the monthly close (lib/statements/monthly-job.ts): staff see what the job
+  // published this month, a broker sees their own document. They share the anchor `statements`,
+  // one section per role, exactly as `policies` is shared.
+  statementsProducedThisMonth: "statements",
+  brokerStatementReady: "statements",
 } as const;
 
 export type InboxAnchor = (typeof INBOX_ANCHORS)[keyof typeof INBOX_ANCHORS];
 
 // WHOSE INBOX RENDERS EACH KIND OF WORK. The type above cannot say it: it is the union of the
-// twelve VALUES, so a broker task typed `anchor: "claims"` compiles and links a broker to a
+// values above, so a broker task typed `anchor: "claims"` compiles and links a broker to a
 // section only staff have (review finding F-B13-60). This map is the missing half, and
 // lib/inbox/sections.test.ts checks each role's sections against it, without a database.
 export const INBOX_ANCHOR_OWNER: Record<keyof typeof INBOX_ANCHORS, "broker" | "customer" | "staff"> = {
@@ -50,6 +55,8 @@ export const INBOX_ANCHOR_OWNER: Record<keyof typeof INBOX_ANCHORS, "broker" | "
   endorsementsPaidNotApplied: "staff",
   claimPaymentsStillToMove: "staff",
   openBreaks: "staff",
+  statementsProducedThisMonth: "staff",
+  brokerStatementReady: "broker",
 };
 
 // One line of the inbox: an object, what is waiting on it, and the one link that acts on it.
@@ -146,12 +153,23 @@ export type BreakFacts = {
   firstSeenAt: Date;
 };
 
+// One statement the monthly close produced (lib/statements/monthly-job.ts). Nothing is waiting on
+// anybody here: it is a document that appeared, and the inbox is where a person is told so.
+export type StatementReadyFacts = {
+  runId: string;
+  brokerName: string; // printed on the staff list, which spans every broker
+  statementMonth: string; // "YYYY-MM"
+  netDueCents: number;
+  producedAt: Date;
+};
+
 export type StaffFacts = {
   approvals: ApprovalFacts[];
   paidNotBound: { policyId: string; policyNumber: string; customerName: string; totalChargeCents: number; quotedAt: Date }[];
   paidNotApplied: { policyId: string; policyNumber: string; amountCents: number; paidAt: Date }[];
   claimPayments: ClaimPaymentFacts[];
   breaks: BreakFacts[];
+  statements: StatementReadyFacts[];
 };
 
 // ---------------------------------------------------------------------------
@@ -160,12 +178,15 @@ export type StaffFacts = {
 
 // A broker pays. Four things can be waiting on them, and the fourth one is not their move: an
 // endorsement quote the customer has not accepted yet is shown so that the broker knows why the
-// delta cannot be collected, not so that they do something about it.
+// delta cannot be collected, not so that they do something about it. The fifth section is not
+// work either: it says their monthly statement exists.
 export function brokerSections(
   policies: BrokerPolicyFacts[],
   // Change requests come as their own list, not folded into the policies above: a customer can
   // ask a question about a policy that carries no money work at all (slice B13-6).
   changeRequests: ChangeRequestFacts[],
+  // The statements the monthly close produced for THIS broker this month, newest first.
+  statements: StatementReadyFacts[],
 ): InboxSection[] {
   const toPay = policies.filter(
     (policy) => policy.status === "draft" || policy.status === "awaiting_payment" || policy.status === "payment_failed",
@@ -246,6 +267,25 @@ export function brokerSections(
         href: `/policies/${policy.policyId}`,
       })),
     },
+    {
+      anchor: INBOX_ANCHORS.brokerStatementReady,
+      // The month is in the title because a broker reads one document a month, and the newest is
+      // the one they came for. The others, when a month produced more than one, are rows below it.
+      title:
+        statements.length > 0
+          ? `Your statement for ${statements[0].statementMonth} is ready`
+          : "Your monthly statement",
+      sinceHeading: "Produced",
+      emptySentence: "No statement has been produced for you this month; the monthly close runs on the first day of a month.",
+      items: statements.map((statement) => ({
+        subject: statement.statementMonth,
+        what: "Produced by the monthly close and frozen: the figures are what the ledger said at its knowledge cutoff. Nothing is waiting for you.",
+        amountCents: statement.netDueCents,
+        since: statement.producedAt,
+        actionLabel: "Read the statement",
+        href: `/statements/${statement.runId}`,
+      })),
+    },
   ];
 }
 
@@ -287,7 +327,7 @@ export function customerSections(policies: CustomerPolicyFacts[]): InboxSection[
   ];
 }
 
-// Staff operations and the staff approver see the same five sections, and their contents differ
+// Staff operations and the staff approver see the same six sections, and their contents differ
 // with the role, exactly as the sidebar counts already do:
 //
 //   the wording of the approvals section, because an operator cannot decide the requests they can
@@ -378,6 +418,20 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
         // to find the same break again by hand. The reconciliation screen carries `break-<key>`
         // on each of its rows.
         href: `/ops/reconciliation#break-${openBreak.breakKey}`,
+      })),
+    },
+    {
+      anchor: INBOX_ANCHORS.statementsProducedThisMonth,
+      title: "Statements produced this month",
+      sinceHeading: "Produced",
+      emptySentence: "The monthly close has produced no statement this month; it runs on the first day of a month.",
+      items: facts.statements.map((statement) => ({
+        subject: statement.brokerName,
+        what: `The ${statement.statementMonth} statement, produced by the daily job once the month was over. Nothing to do: it is a document, and it is frozen.`,
+        amountCents: statement.netDueCents,
+        since: statement.producedAt,
+        actionLabel: "Read the statement",
+        href: `/statements/${statement.runId}`,
       })),
     },
   ];

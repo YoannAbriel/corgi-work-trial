@@ -370,3 +370,101 @@ One line per finding from the independent reviews (design and implementation). F
 | F-LU-04 | LOW | The Stripe: LIVE SANDBOX chip is on the staff and broker policy page, not on the customer view | Same chips on customer-view.tsx | HANDED TO THE UI SESSION (13:00Z) |
 | F-LU-05 | LOW | The customer list drops the "on the policy record" wording the other lists carry on the voided policy | Align | HANDED TO THE UI SESSION (13:00Z) |
 | F-LU-06 to F-LU-08 | LOW | The inbox per-role test proves sections rather than tasks; duplicate region names remain on CGP-01274 (14 and 9); "2 is waiting for an approver" grammar | See the record | DISCLOSED as recorded |
+
+## Monthly statements (decision 30), PASS at ffa1b69 (docs/reviews/backend-monthly-statements-r1.md, 17:16 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-MONTHLYSTATEMENTS-01 | LOW | A close interrupted on the first of the month is never retried; the remaining brokers get no statement until a human runs one | Catch up on a later day, or set an explicit `maxDuration` and disclose the ceiling | OPEN (B13 backlog) |
+| F-MONTHLYSTATEMENTS-02 | LOW | The cutoff is the web process clock while `runStatement` validates it against the database clock; forward skew refuses the whole month | Default the cutoff to the database clock, or clamp `now` once at the top of the job | OPEN (B13 backlog) |
+| F-MONTHLYSTATEMENTS-03 | LOW | "Exactly once" holds for sequential calls only; two overlapping closes can publish two definitive runs, and the code comment and README promise more | Soften both sentences, or enforce it (re-check in the transaction, or an additive partial unique index) | OPEN (B13 backlog) |
+| F-MONTHLYSTATEMENTS-04 | LOW | The new "ties to the ledger to the cent" assertion compares 0 with 0 by construction | Rename it to what it proves; the hash-reproduction assertion carries the real weight | OPEN (B13 backlog) |
+| F-MONTHLYSTATEMENTS-05 | LOW | "A month already closed is not closed twice" passes vacuously: broker A has no policy in force and no movement in the closed month, so the job never considers it (probed on `corgi_test`) | Give broker A a policy in force, or relabel the assertion | OPEN (B13 backlog) |
+| F-MONTHLYSTATEMENTS-06 | LOW | The staff inbox count caps at 25 with nothing saying so; it already reads 25/25 of 585 on `corgi_test` | Name the cap in the label and point at `/ops/statements` | OPEN (B13 backlog) |
+| F-MONTHLYSTATEMENTS-07 | LOW | "A policy in force" is read at close time, so a brand-new broker gets an empty statement for a month in which it had no policy; three interpretations are unrecorded | Record the three calls in `docs/DECISIONS.md` (coordinator; `docs/` was out of the builder's scope) | OPEN (B13 backlog) |
+| F-MONTHLYSTATEMENTS-08 | INFO | Per-broker serial queries with no index on `(broker_id, effective_at)`; `recordActivity` ignores the injected `database`; the summary embeds every produced broker | None required at trial scale; noted as the mechanism behind F-…-01 | OPEN (B13 backlog) |
+
+## Corrections on decision 24 (decision 31), PASS at 0510c1b (docs/reviews/backend-corrections-rule-24-r1.md, 17:16 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-CORRECTIONSRULE24-01 | LOW | The gate comment claims it "can only ever ask for MORE approval, never less"; the new base can shrink, so a difference the correction recorded as needing the customer can become collectable without one, and the screen then blocks the only button that would collect it. |
+| F-CORRECTIONSRULE24-02 | LOW | The customer sentence names a tax-included amount and a tax-excluded running total side by side, so a reader cannot check the arithmetic from the sentence alone. |
+| F-CORRECTIONSRULE24-03 | LOW | `additionalPremiumOfTheTermCents` means "before this change" in `CorrectionThresholdTotals` and "including this quote" in the endorsement plan: one name, two meanings, in the two files Yoann has to explain together. |
+| F-CORRECTIONSRULE24-04 | LOW | A correction recorded before this change prints a sentence whose figures contradict its own verdict ("carries $50.47 of additional premium ... above $500.00"), qualified only by a caveat appended after it. |
+| F-CORRECTIONSRULE24-05 | LOW | Decision 24 in `docs/DECISIONS.md` speaks of endorsements only; the extension to correction differences, which is this slice, is not recorded there. |
+| F-CORRECTIONSRULE24-06 | INFO | The re-book payload still carries `customer_approval_required` computed with an empty base, beside the `difference_customer_approval_required` that decides. Nothing reads it to gate money. |
+| F-CORRECTIONSRULE24-01 | LOW | The payment gate comment claims it can only ask for more approval than the correction recorded; a superseded open request makes it ask for less, and the screen then hides the only button that would collect the difference | Correct the comment and let the screen follow the gate | OPEN (B13 backlog) |
+| F-CORRECTIONSRULE24-02 | LOW | The customer sentence names $117.77 (tax included) beside a $501.36 running total (premium only), so its arithmetic cannot be checked from the sentence | Name the premium part of the difference in the same sentence | OPEN (B13 backlog) |
+| F-CORRECTIONSRULE24-03 | LOW | `additionalPremiumOfTheTermCents` means "before this change" in the correction totals and "including this quote" in the endorsement plan | Rename one of them, as the payload key already does | OPEN (B13 backlog) |
+| F-CORRECTIONSRULE24-04 | LOW | A correction recorded before this slice prints "carries $50.47 of additional premium ... above $500.00" plus a caveat | Drop the figure when the running total was not recorded | OPEN (B13 backlog) |
+| F-CORRECTIONSRULE24-05 | LOW | Decision 24 covers endorsements only; its extension to correction differences is not in `docs/DECISIONS.md`, and `integration.md` 12.5 still describes the old asymmetry | Coordinator records the decision and updates 12.5 | OPEN (B13 backlog) |
+| F-CORRECTIONSRULE24-06 | INFO | The re-book payload carries a `customer_approval_required` computed with an empty base beside the verdict that decides | Leave, or stop writing it on a re-book | OPEN (B13 backlog) |
+
+## Key-creator layer, migration 0024 (decision 32), PASS at 845443a (docs/reviews/backend-guards-and-key-trigger-r1.md, 17:16 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-GUARDSANDKEYTRIGGER-01 | LOW | A key minted by `scripts/create-mcp-key.ts` has a null `created_by`, so a request raised through it escapes the fourth refusal | Decide and record: name the residual, or give script-minted keys an operator identity | OPEN (B13 backlog) |
+| F-GUARDSANDKEYTRIGGER-02 | LOW | Requests raised through a key before 0024 keep a null `raised_through_key_id`; no backfill is legitimate on an append-only table | Clear the undecided MCP-raised requests before applying 0024 to the trial database | OPEN (B13 backlog) |
+| F-GUARDSANDKEYTRIGGER-03 | LOW | `createApprovalRequest` now names a column absent from the trial database, which breaks all five approval paths, not only MCP | Apply 0024 before deploying this code | OPEN (B13 backlog) |
+| F-GUARDSANDKEYTRIGGER-04 | INFO | 0022 and 0023 are free; a later file taking one and replacing the same function would undo the fourth refusal on databases where 0024 ran first | Confirm no in-flight migration replaces that function, or renumber | OPEN (B13 backlog) |
+| F-GUARDSANDKEYTRIGGER-05 | INFO | The two new `check:money-guards` assertions are unexecuted by builder and reviewer alike (184 to 186 expected) | Run the script once on the ephemeral database and record the two lines | OPEN (B13 backlog) |
+| F-GUARDSANDKEYTRIGGER-06 | INFO | `0023_rate_table_guards.sql` was not written; the premise of F-INT-09 is wrong and writing it as specified would have weakened the `brokers` guard | Correct F-INT-09 in `docs/reviews/integration.md` and note decision 26 was brought forward | OPEN (B13 backlog) |
+| F-GUARDSANDKEYTRIGGER-07 | INFO | `keyId` joins the append-only `claim_events.payload` JSON with no format marker; absent means "old row" and "not raised through a key" alike | Note it, or version the stored channel shape when that payload next changes | OPEN (B13 backlog) |
+
+## Breaks board round 1, FAIL at dee775b (docs/reviews/backend-breaks-board-r1.md, 17:16 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-BREAKSBOARD-01 | MEDIUM | An explanation is keyed on `break_key` alone and never expires, so a break that later changes to a worse classification never returns to the count, the inbox, the daily job's window or the MCP tool; two comments claim it does | Bind the note to the classification and amounts it explained, and re-open when the latest report differs; correct the comments | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-02 | LOW | `openBreaksOfSubject` in the console still uses the old rule while the shared comment says both readers ask the same question | Use `IT_IS_A_BREAK_TO_ACT_ON` there, or reword the comment | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-03 | LOW | The probe rule's comment claims no forged marker can silence a real break; a provider-only record carrying a forged marker is silenced | Reword to the guarantee the code gives | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-04 | LOW | The README says the deployed board already separates probes; 0022 and 0023 are on `corgi_test` only | Reword, or land with the deploy | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-05 | LOW | The pre-existing global journal-entry assertion of `check:reconciliation` fails under shared-database contention (8514 to 8516 on my run) | Narrow it to this check's own policies, as the new assertion already is | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-06 | INFO | The "explained" notice is printed from the query string alone | One line if the panel is revisited | OPEN (round 3 in progress) |
+
+## Breaks board round 2, FAIL at 4cf3cc9 (docs/reviews/backend-breaks-board-r2.md, 17:16 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-BREAKSBOARD-01 | MEDIUM | **RESOLVED** | Migration 0024 plus `THE_NOTE_EXPLAINS_THE_LATEST_REPORT`; three new live assertions, all passing on my own run |
+| F-BREAKSBOARD-02 | LOW | **STILL OPEN, and wider than it was** | `openBreaksOfSubject` (`lib/console/read.ts:2612`) still filters on `not A_LATER_RUN_RE_EXAMINED_IT` alone, while the shared comment at `lib/reconciliation/read.ts:138-141` still says the console "must ask the same question this screen asks". The gap grew: the board's question now also excludes probes and explained breaks, so a 360 page shows as "open breaks" rows the board counts as zero, and shows them without the note that explains them |
+| F-BREAKSBOARD-03 | LOW | **STILL OPEN** | `lib/reconciliation/diff.ts` still says "no forged marker can turn a real break into a line the board stops counting". A provider-only record with no operation id and a forged `probe=check-reconciliation` marker is classified `probe` and leaves the count. The guarantee the code actually gives is narrower: a record naming one of our operations is never a probe |
+| F-BREAKSBOARD-04 | LOW | **STILL OPEN** | The README paragraph opens on "the deployed application" and then states "Since 2026-09-09 the board says which is which". Migrations 0022 to 0024 are applied to `corgi_test` only; nothing on this branch is deployed |
+| F-BREAKSBOARD-05 | LOW | **STILL OPEN** | `scripts/check-reconciliation.ts:275,280` still uses the global `journalEntryCount()` for `a run posts no money and no journal entry`. The new assertion correctly uses `journalEntryCountForPolicies`, the pre-existing one was not narrowed. It passed on my run (8680 to 8680) but remains contention-sensitive |
+| F-BREAKSBOARD-06 | INFO | **STILL OPEN, accepted** | The `?explained=` notice is still printed from the query string alone |
+| F-BREAKSBOARD-01 | MEDIUM | A note was keyed on `break_key` alone and never expired | Migration 0024 records the classification and both amounts of the report the note explains; `THE_NOTE_EXPLAINS_THE_LATEST_REPORT` re-opens the break when the latest report differs | RESOLVED at 4cf3cc9, verified live |
+| F-BREAKSBOARD-02 | LOW | `openBreaksOfSubject` still uses the old rule while the shared comment says both readers ask the same question; the gap widened, since the board now also excludes probes and explained breaks | Use `IT_IS_A_BREAK_TO_ACT_ON` there, or reword the comment and say what the 360 page shows | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-03 | LOW | The probe rule's comment claims no forged marker can silence a real break; a provider-only record with no operation id and a forged marker is silenced | Reword to the guarantee the code gives: a record naming one of our operations is never a probe | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-04 | LOW | The README says the deployed board already separates probes; 0022 to 0024 are on `corgi_test` only | Reword, or land the sentence with the deploy | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-05 | LOW | The pre-existing global journal-entry assertion of `check:reconciliation` is still global and contention-sensitive | Narrow it to this check's own policies, as the new assertion already is | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-06 | INFO | The "explained" notice is printed from the query string alone | One line if the panel is revisited | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-07 | MEDIUM | `oldestOpenBreakRecordDate` now excludes explained breaks, so the daily job stops widening its window to cover them and no later run can ever report them differently; the README and two comments promise that it does | Keep the widening for explained breaks (exclude probes only), or stop promising the break comes back and say for how long the promise holds | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-08 | LOW | The board tells the operator a break was "changed since" even when the note simply predates migration 0024 | Branch the sentence on a null `explained_classification` and use the migration header's honest wording | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-09 | LOW | Two different migrations numbered 0024 are applied to `corgi_test`, one from this branch and one from another slice | Coordinator decision at merge: renumber one, or record that file names and not numbers are the identity | OPEN (round 3 in progress) |
+| F-BREAKSBOARD-10 | INFO | `check-money-guards` never exercises the three new columns; "latest of N notes" counts superseded notes; the explain route has no CSRF token, like every other POST route of this build | None required; recorded so none of the three is read as reviewed-and-cleared | OPEN (round 3 in progress) |
+
+## MCP tools round 1, FAIL at 6a41c2a (docs/reviews/backend-mcp-tools-r1.md, 17:16 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-MCPTOOLS-01 | MED | A customer key reads through explain_amount the broker's commission, the ledger sums, the cancellation figures and journal entry ids that the customer's own screen withholds | Gate the eleven non-customer figure keys on owning broker or staff inside the tool; add a customer-key refusal assertion to check:mcp | OPEN (round 3 in progress) |
+| F-MCPTOOLS-02 | LOW | explanationEndsOnTheFigure compares a number with itself for 12 of the 15 keys; the comment calls it the check made for every figure | Take the cancellation amount from the stored event figure, or say which keys the check can falsify | OPEN (round 3 in progress) |
+| F-MCPTOOLS-03 | LOW | Ten of the fifteen published figure keys are exercised by no test and no check; explain-figure.ts has no unit test | Cancel and endorse a fixture policy in check:mcp, or unit-test the module | OPEN (round 3 in progress) |
+| F-MCPTOOLS-04 | LOW | tools/list spreads a tool's own annotations after the derived hints, so a future write tool could publish readOnlyHint true | Spread tool.annotations first and let the derived hints win | OPEN (round 3 in progress) |
+| F-MCPTOOLS-05 | LOW | list_my_activity bounds its answer and not its work: Seq Scan plus Sort on activity_log, no index on actor_user_id | Additive index on (actor_user_id, recorded_at desc), or reword the comment | OPEN (round 3 in progress) |
+| F-MCPTOOLS-06 | LOW | list_my_activity tells the caller no amount is recorded, when it is the return shape that omits it (message is stored) | Say returned, not recorded | OPEN (round 3 in progress) |
+| F-MCPTOOLS-07 | LOW | explain_amount advertises an enum the shared argument validator does not enforce; jsonrpc.ts says the advertised schema is enforced there | Enforce enum in argumentsSchemaRefusal, or narrow the comment | OPEN (round 3 in progress) |
+| F-MCPTOOLS-08 | LOW | COMPLIANCE-MATRIX MCP-01 and BLD-09 and the README demo paragraph still describe a five-tool surface; the two new tools have no deployed-app evidence | Coordinator updates the records; exercise both tools on the deployed URL before the AF-01 claim | OPEN (round 3 in progress) |
+
+## MCP tools round 2, FAIL at 5976e4f (docs/reviews/backend-mcp-tools-r2.md, 17:16 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-MCPTOOLS-01 | HIGH | explain_amount applied only the policy visibility gate, so a customer key read every figure on its own policy | Second gate `figureVisibilityRefusal` by role; eleven of fifteen keys now refused to a customer key | PARTLY FIXED 5976e4f, reopened as F-MCPTOOLS-02 and F-MCPTOOLS-03 |
+| F-MCPTOOLS-02 | HIGH | `endorsement_delta`, allowed to a customer key, returns the broker's commission movement and the 1500 bps commission rate in its formula lines; the refusal sentence, the description and the README all say it does not | Filter the returned lines and the recheck rows, or refuse the key to a customer; assert it in check:mcp on a fixture that has an endorsement; correct the three statements | OPEN (round 3 in progress) |
+| F-MCPTOOLS-03 | MED | `premium_tax` and `policy_fee`, allowed to a customer key, return journal entry ids, account names and the cancellation's 2813-cent tax refund, which the same key is refused as `cancellation_refunded_tax` | Decide what a customer key's answer may carry and drop the rest before returning; align the sentence, the description and the README | OPEN (round 3 in progress) |
+| F-MCPTOOLS-04 | LOW | `toolsListResult` spreads a tool's own annotations after the derived hints, so a future tool could publish a false `readOnlyHint` and the new check assertion would still pass | Spread `tool.annotations` first | OPEN (round 3 in progress) |
+| F-MCPTOOLS-05 | LOW | Nothing enumerates the fifteen figure keys against the four roles; one refused key and one allowed key are asserted, which is why F-MCPTOOLS-02 survived | Export `figureVisibilityRefusal` and add a table-driven test over all keys and roles | OPEN (round 3 in progress) |
+| F-MCPTOOLS-06 | INFO | The code calls this "slice B14"; `docs/PLAN.md` row B14 is the freeze package | Relabel, coordinator's call | OPEN (round 3 in progress) |
