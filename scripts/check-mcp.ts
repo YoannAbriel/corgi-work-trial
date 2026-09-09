@@ -491,26 +491,33 @@ async function main() {
   const noKey = await rpc(null, "tools/list");
   const wrongKey = await rpc("cmk_deadbeef_ThisIsNotAKeyThatWasEverIssuedByThisSystem0", "tools/list");
   const revokedKey = await rpc(doomedKey.presentedKey, "tools/list");
-  report(
-    "no key, a wrong key and a REVOKED key all answer 401",
-    noKey.status === 401 && wrongKey.status === 401 && revokedKey.status === 401,
-    `${noKey.status}, ${wrongKey.status}, ${revokedKey.status}`,
-  );
-  report(
-    "the three 401s are identical: a caller cannot tell a revoked key from a typo",
-    JSON.stringify(noKey.body) === JSON.stringify(wrongKey.body) &&
-      JSON.stringify(wrongKey.body) === JSON.stringify(revokedKey.body) &&
-      JSON.stringify(revokedKey.body) === '{"error":"unauthorized"}',
-    JSON.stringify(revokedKey.body),
-  );
-  // An EXPIRED token is refused the same way, with the one difference decided on 2026-09-09: it
-  // is told why. That sentence is only ever reached by a caller who presented a token that
-  // exists, so it tells nobody anything they do not already hold.
+  // An EXPIRED token (migration 0026) joins that set: same status, same body, byte for byte. A
+  // different answer would confirm to whoever found an old token that it was once genuine.
   const expiredAnswer = await rpc(expiredKey.presentedKey, "tools/list");
   report(
-    'an EXPIRED token answers 401 with "token expired", and no tool ran',
-    expiredAnswer.status === 401 && JSON.stringify(expiredAnswer.body) === '{"error":"token expired"}',
-    `${expiredAnswer.status} ${JSON.stringify(expiredAnswer.body)}`,
+    "no key, a wrong key, a REVOKED key and an EXPIRED token all answer 401",
+    noKey.status === 401 && wrongKey.status === 401 && revokedKey.status === 401 && expiredAnswer.status === 401,
+    `${noKey.status}, ${wrongKey.status}, ${revokedKey.status}, ${expiredAnswer.status}`,
+  );
+  report(
+    "the four 401s are identical: a caller cannot tell a revoked or expired token from a typo",
+    JSON.stringify(noKey.body) === JSON.stringify(wrongKey.body) &&
+      JSON.stringify(wrongKey.body) === JSON.stringify(revokedKey.body) &&
+      JSON.stringify(revokedKey.body) === JSON.stringify(expiredAnswer.body) &&
+      JSON.stringify(expiredAnswer.body) === '{"error":"unauthorized"}',
+    JSON.stringify(expiredAnswer.body),
+  );
+  // The reason is not lost, it is written where an operator reads it: the row of that very call
+  // names the key and says "expired token", exactly as a revoked one says "revoked key".
+  const expiredRow = await lastCallOfKey(expiredKey.keyId);
+  const revokedRow = await lastCallOfKey(doomedKey.keyId);
+  report(
+    "and the audit row of each says which it was, against the key that presented it",
+    expiredRow?.outcome === "unauthorised" &&
+      expiredRow.detail === "expired token" &&
+      revokedRow?.outcome === "unauthorised" &&
+      revokedRow.detail === "revoked key",
+    `expired: ${expiredRow?.outcome}/${expiredRow?.detail}, revoked: ${revokedRow?.outcome}/${revokedRow?.detail}`,
   );
 
   // -------------------------------------------------------------------------
@@ -1765,6 +1772,17 @@ async function callsWithOutcome(outcome: string): Promise<{ total: number; withK
       from mcp_calls where outcome = ${outcome}
   `;
   return { total: Number(row.total), withKey: Number(row.with_key) };
+}
+
+// The last row this key appended, whatever the call was. Used on the refusals, where there is no
+// tool to match on: the endpoint refuses before any tool runs.
+async function lastCallOfKey(keyId: string): Promise<{ outcome: string; detail: string | null } | null> {
+  const [row] = await owner<{ outcome: string; detail: string | null }[]>`
+    select outcome, detail from mcp_calls
+     where api_key_id = ${keyId}
+     order by called_at desc limit 1
+  `;
+  return row ?? null;
 }
 
 async function oneCallRow(

@@ -43,9 +43,10 @@ export type McpPrincipal = {
 
 // Returns the principal for a presented key, or null when the value is not one of our keys.
 // A REVOKED key is returned too, with revokedAt set, and an EXPIRED one with expiresAt in the
-// past: the caller refuses both, and the call is still logged against the key it named, because
-// a token that stopped answering and is still being used is exactly what an operator wants to
-// see. This function reads facts; the endpoint decides.
+// past: the endpoint refuses both with the SAME answer an unknown key gets, and the call is still
+// logged against the key it named, because a token that stopped answering and is still being used
+// is exactly what an operator wants to see. This function reads facts and says nothing to
+// anybody; the endpoint decides, and what it tells the caller is one 401 in every case.
 export async function principalForPresentedKey(
   presentedKey: string,
   database: postgres.Sql = sql,
