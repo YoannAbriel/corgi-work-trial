@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { Styles } from "@react-pdf/renderer";
 
 // The look of every PDF this application produces: the two policy documents
@@ -53,7 +55,16 @@ export const PDF_COLOR = {
   inkMuted: "#5d5e63", // --ink-2, labels and secondary sentences
   hairline: "#dedee1", // --line, the rule between two table rows
   band: "#f6f6f6", // --bg, the title band and the callout background
-  accent: "#b83e00", // --accent, the readable orange the portal uses for links
+  // --orange, the brand orange itself, measured on the two files in brand/. It replaced the
+  // darker link orange (#b83e00) on 2026-09-09: a document has to carry the brand's colour,
+  // not a variant of it invented to pass a link-contrast rule.
+  //
+  // WHERE IT MAY AND MAY NOT BE USED: #ff5c00 on white is about 2.9:1. That is enough for a
+  // rule, a bar, a border or the logo, and not enough for text at these sizes. So no text
+  // style below carries it. The issuer name (11 pt) and the sandbox label (7 pt) used to be
+  // printed in the accent and are now ink; the sandbox label keeps an orange BORDER, which
+  // is decoration around text that is itself dark.
+  accent: "#ff5c00",
   // The diagonal watermark. Light enough that a figure printed over it stays the darkest
   // thing on the page, dark enough to survive a photocopy.
   watermark: "#e6e6ea",
@@ -96,8 +107,9 @@ export const WATERMARK_TEXT = "SPECIMEN, TEST DATA";
 // unchanged and only exists to type it. It is passed in as an argument rather than imported
 // at the top of this file because @react-pdf/renderer is published as ES modules only and
 // both documents load it with `await import(...)` (the reason is written out in
-// render.tsx). `import type` above is erased at compile time, so this file still requires
-// nothing at runtime.
+// render.tsx). `import type` above is erased at compile time, so the only thing this file
+// requires at runtime is node:fs, for the logo below, which is a builtin and loads the same
+// way under both module systems.
 type PdfStyleSheet = { create: <T extends Styles>(styles: T) => T };
 
 // The other half of the same module, for the one typography decision that is not a style.
@@ -117,6 +129,29 @@ type PdfFontRegistry = { registerHyphenationCallback: (hyphenate: (word: string)
 // nothing and adds no bytes that could differ between two runs.
 export function applyPdfTypography(Font: PdfFontRegistry): void {
   Font.registerHyphenationCallback((word) => [word]);
+}
+
+// The Corgi wordmark printed at the top of every document.
+//
+// It is read off disk rather than imported, because @react-pdf/renderer draws an image from
+// its BYTES: `<Image src={{ data, format }} />`. A Next.js image import would hand back a URL
+// and a width, which is what a browser needs and not what a PDF writer needs.
+//
+// The file is the one scripts/brand-assets.mjs produces (public/brand/corgi-logo.png). It is
+// resolved from process.cwd(), which is the repository root under `next dev` and `node --test`
+// and the function's own root on Vercel. next.config.ts names this file in
+// `outputFileTracingIncludes` for the two document routes, so the deployment actually carries
+// it: public/ is uploaded to the CDN as static assets and is not otherwise guaranteed to be
+// inside the serverless function.
+//
+// Read once per process and kept, for the same reason the module is: rendering a statement
+// must not do a file read per page. The same bytes every time also keeps a render
+// byte-identical to the one before it, which lib/documents/render.test.ts asserts.
+let cachedWordmarkPng: Buffer | undefined;
+
+export function corgiWordmarkPng(): { data: Buffer; format: "png" } {
+  cachedWordmarkPng ??= readFileSync(join(process.cwd(), "public", "brand", "corgi-logo.png"));
+  return { data: cachedWordmarkPng, format: "png" };
 }
 
 export function createPdfStyles(StyleSheet: PdfStyleSheet) {
@@ -180,13 +215,22 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
       paddingBottom: 8,
       marginBottom: 12,
     },
+    // The Corgi wordmark, left of the issuer. Both numbers are written out because the source
+    // is 1200 x 363 (ratio 3.306) and a PDF image with one dimension missing is stretched to
+    // whatever the box gives it. 28 points high is roughly the cap height of the title band
+    // below it, so the two read as one masthead.
+    issuerLogo: { height: 28, width: 92.6, marginRight: 14 },
+    issuerLogoStatement: { height: 22, width: 72.7, marginRight: 12 },
     issuerIdentity: { flexGrow: 1, flexBasis: 0, paddingRight: 12 },
-    issuerName: { fontSize: SIZE.issuerName, fontFamily: PDF_FONT.bold, color: PDF_COLOR.accent },
+    // Ink, not the accent: 11 point bold in #ff5c00 measures 2.9:1 on white, which is a rule's
+    // contrast and not a name's. The orange in this header is the logo beside it.
+    issuerName: { fontSize: SIZE.issuerName, fontFamily: PDF_FONT.bold, color: PDF_COLOR.ink },
     issuerTagline: { fontSize: SIZE.footer, color: PDF_COLOR.inkMuted, marginTop: 2 },
+    // 7 point text, so the smallest thing on the page: dark ink inside an orange border.
     sandboxLabel: {
       fontSize: 7,
       fontFamily: PDF_FONT.bold,
-      color: PDF_COLOR.accent,
+      color: PDF_COLOR.ink,
       letterSpacing: 0.6,
       borderWidth: 0.8,
       borderColor: PDF_COLOR.accent,
