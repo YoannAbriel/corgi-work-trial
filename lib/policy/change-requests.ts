@@ -287,14 +287,20 @@ export async function changeRequestsOfPolicy(policyId: string, database: Queryab
     comment: row.comment,
     requestedByName: row.requested_by_name,
     recordedAt: row.recorded_at,
+    // ANSWERED IS A ROW EXISTING, and the left join reports that with reply_id alone. Reading the
+    // truthiness of the other joined columns instead would have made an answered request render
+    // as open the day a replier had an empty display_name, while countOpenChangeRequests, which
+    // asks `not exists` in SQL, still said zero (review finding F-B13-03). The remaining columns
+    // are display values: they are not null when reply_id is not null, because the row they come
+    // from declares them `not null`.
     reply:
-      row.reply_id && row.outcome && row.reply_text && row.replied_by_name && row.reply_recorded_at
+      row.reply_id !== null
         ? {
             replyId: row.reply_id,
-            outcome: row.outcome,
-            text: row.reply_text,
-            repliedByName: row.replied_by_name,
-            recordedAt: row.reply_recorded_at,
+            outcome: row.outcome as ChangeRequestOutcome,
+            text: row.reply_text as string,
+            repliedByName: row.replied_by_name as string,
+            recordedAt: row.reply_recorded_at as Date,
           }
         : null,
   }));

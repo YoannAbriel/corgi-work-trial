@@ -310,6 +310,39 @@ async function main() {
   );
   report("staff operations can answer a request on any policy", Boolean(staffReply.replyId), staffReply.replyId);
 
+  // F-B13-03: "answered" is the existence of the reply row, not the truthiness of the display
+  // names joined next to it. users.display_name is `not null` with no non-empty CHECK, so an
+  // operator whose name is the empty string used to make an answered request render as open.
+  const [namelessOperator] = await owner<{ id: string }[]>`
+    insert into users (email, display_name, role)
+    values ('change-requests-check-' || gen_random_uuid()::text || '@example.invalid', '', 'staff_ops')
+    returning id
+  `;
+  const requestAnsweredByANamelessOperator = await createChangeRequest(
+    { policyId: fixture.policyId, lines: ["insured_name"], comment: COMMENT, actor: customer },
+    runtime,
+  );
+  await replyToChangeRequest(
+    {
+      policyId: fixture.policyId,
+      requestId: requestAnsweredByANamelessOperator.requestId,
+      outcome: "answered",
+      text: "noted, your broker will confirm",
+      actor: actor(namelessOperator.id, "staff_ops", null, null),
+    },
+    runtime,
+  );
+  const withANamelessReplier = (await changeRequestsOfPolicy(fixture.policyId, runtime)).find(
+    (request) => request.requestId === requestAnsweredByANamelessOperator.requestId,
+  );
+  const stillOpen = await openChangeRequestsOfPolicy(fixture.policyId, runtime);
+  report(
+    "a reply from an operator with an empty display name still reads as answered",
+    withANamelessReplier?.reply !== null &&
+      stillOpen.every((request) => request.requestId !== requestAnsweredByANamelessOperator.requestId),
+    `reply ${withANamelessReplier?.reply === null ? "missing" : "read"}, ${stillOpen.length} still open on the policy`,
+  );
+
   // ---------------------------------------------------------------------------
   // 6. Nothing can be rewritten, by anybody
   // ---------------------------------------------------------------------------
