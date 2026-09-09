@@ -54,6 +54,21 @@ import {
 
 const PATH = "/ops/mcp-keys";
 
+// This render can carry a secret (the reveal drawer below), so it is never prerendered and never
+// held in the full route cache. Reading cookies already forces that; the line says it out loud so
+// a later change cannot make this page static by accident.
+//
+// WHAT THE ANSWER CARRIES, measured on Next.js 16.3.4 on 2026-09-09:
+//
+//   next build + next start   Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate
+//   next dev                  Cache-Control: no-cache, must-revalidate
+//
+// The deployed answer is the first one, and `no-store` there is what matters for a page that can
+// hold a credential. The header is the framework's own and cannot be replaced from here anyway: a
+// route segment has no cache-control option, and a `headers()` entry in next.config.ts is
+// documented as overwritten for pages, which a measurement confirmed.
+export const dynamic = "force-dynamic";
+
 const VIEWS = ["tokens", "connect"] as const;
 type View = (typeof VIEWS)[number];
 const VIEW_LABEL: Record<View, string> = { tokens: "Tokens", connect: "Connect" };
@@ -115,6 +130,13 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
   // httpOnly cookie POST /api/mcp-keys set (see that file for why a cookie and not the URL). It
   // is shown only when it belongs to the prefix the URL names, so a stale cookie cannot make the
   // drawer of another token appear.
+  //
+  // THIS RENDER CANNOT CLEAR THE COOKIE. A server component reads cookies and cannot write them:
+  // `cookieStore.delete(...)` here raises "Cookies can only be modified in a Server Action or
+  // Route Handler" (Next.js 16.3.4, measured on 2026-09-09). The Done button below posts
+  // `action=dismiss`, which is a route handler and does clear it; the 120 s Max-Age is the ceiling
+  // behind that. So a reload inside those two minutes shows the token again, and that is stated
+  // in the handover rather than hidden.
   const createdPrefix = firstValue(query.created) ?? null;
   const cookieStore = await cookies();
   const revealedToken = cookieStore.get(TOKEN_REVEAL_COOKIE)?.value ?? null;

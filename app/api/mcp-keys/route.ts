@@ -21,12 +21,28 @@ import { withActivity } from "@/lib/observability/log";
 //
 //   * httpOnly, so no script on the page can read it;
 //   * Path=/ops/mcp-keys, so it is sent to that one screen and to no other request;
-//   * Secure as soon as the deployment is https;
+//   * SameSite=Strict, so no other site can cause a request that carries it, not even a
+//     top-level link. The redirect below is this site navigating to itself, which Strict allows;
+//   * Secure in production, decided by NODE_ENV rather than by APP_BASE_URL: `next build` and
+//     `next start` set it, Vercel sets it, and a deployment that forgot to fill an environment
+//     variable would silently lose the flag. Plain-HTTP local development is the only case where
+//     it is absent, and there is no https there to send it over;
 //   * Max-Age=120. That is the trade-off: for at most two minutes the secret is in the browser's
 //     cookie jar instead of nowhere at all. Two minutes is long enough to copy a value into an
 //     MCP client and short enough that a shared screen left open does not keep it. The "Done"
 //     button clears it immediately, and nothing ever stores it server-side: the database still
 //     holds only the sha256 and the public prefix.
+//
+// WHY THE SCREEN CANNOT CLEAR IT ON THE FIRST RENDER. A server component may read cookies and may
+// not write them: calling `cookieStore.delete(...)` from app/ops/mcp-keys/page.tsx raises, word for
+// word, "Cookies can only be modified in a Server Action or Route Handler. Read more:
+// https://nextjs.org/docs/app/api-reference/functions/cookies#options" (Next.js 16.3.4, measured
+// on 2026-09-09). Only a route handler or a server action can send Set-Cookie, so the clearing is
+// the Done button's `action=dismiss` below, and the 120 s Max-Age is the hard ceiling behind it.
+// What follows from that, plainly: reloading the screen inside those two minutes shows the token
+// again. Nothing else on the deployed answer keeps it: that page is answered with
+// `Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate` (measured on a
+// production build the same day).
 //
 // The redirect that carries it names the PUBLIC PREFIX only (`?created=cmk_1a2b3c4d`), which is
 // not a credential, and the screen shows the secret only when the cookie it holds belongs to that
@@ -82,7 +98,12 @@ async function handlePost(request: Request): Promise<Response> {
     // without it, and the secret exists nowhere any more.
     if (action === "dismiss") {
       const response = redirectTo("/ops/mcp-keys");
-      response.headers.append("set-cookie", `${TOKEN_REVEAL_COOKIE}=; Path=/ops/mcp-keys; HttpOnly; SameSite=Lax; Max-Age=0${secureFlag()}`);
+      // Same name, same path and same flags as the cookie it replaces, with Max-Age=0: a browser
+      // only drops a cookie when the deletion matches the attributes it was set with.
+      response.headers.append(
+        "set-cookie",
+        `${TOKEN_REVEAL_COOKIE}=; Path=/ops/mcp-keys; HttpOnly; SameSite=Strict; Max-Age=0${secureFlag()}`,
+      );
       return response;
     }
 
@@ -111,16 +132,18 @@ function tokenShownOnce(presentedKey: string, keyPrefix: string): Response {
   const response = redirectTo(`/ops/mcp-keys?created=${encodeURIComponent(keyPrefix)}`);
   response.headers.append(
     "set-cookie",
-    `${TOKEN_REVEAL_COOKIE}=${presentedKey}; Path=/ops/mcp-keys; HttpOnly; SameSite=Lax; Max-Age=${TOKEN_REVEAL_SECONDS}${secureFlag()}`,
+    `${TOKEN_REVEAL_COOKIE}=${presentedKey}; Path=/ops/mcp-keys; HttpOnly; SameSite=Strict; Max-Age=${TOKEN_REVEAL_SECONDS}${secureFlag()}`,
   );
   response.headers.set("cache-control", "no-store, no-cache, must-revalidate");
   return response;
 }
 
-// Secure everywhere except plain-HTTP local development, the same rule the session cookie of
-// app/api/session/login/route.ts follows.
+// Secure in production and nowhere else. It reads NODE_ENV, which the framework sets itself, and
+// not APP_BASE_URL, which is a variable a deployment can forget to fill: the session cookie of
+// app/api/session/login/route.ts reads that variable, and this cookie carries a credential that
+// is valid for the whole MCP surface, so it takes the flag that cannot be left out by accident.
 function secureFlag(): string {
-  return process.env.APP_BASE_URL?.startsWith("https://") ? "; Secure" : "";
+  return process.env.NODE_ENV === "production" ? "; Secure" : "";
 }
 
 function backToKeys(message: string): Response {
