@@ -81,10 +81,25 @@ export function Chevron() {
 
 // A reference token (a Stripe id, a policy number, a uuid). With `inspectHref` it opens the
 // inspector beside the table; `open` marks the one currently open.
+// The token is one line, cut with an ellipsis when it is longer than its column
+// (app/styles/system.css), so the full value always travels in `title`: a reference is never
+// shown in halves and never has to be retyped (cycle 2, decision 7).
 export function Ref({ value, inspectHref, open, title }: { value: string; inspectHref?: string; open?: boolean; title?: string }) {
-  if (!inspectHref) return <code className="ref" title={title}>{value}</code>;
+  if (!inspectHref)
+    return (
+      <code className="ref" title={title ?? value}>
+        {value}
+      </code>
+    );
   return (
-    <Link href={inspectHref} prefetch={false} className={`ref${open ? " is-open" : ""}`} title={title ?? "Open the trail of this reference"} scroll={false}>
+    <Link
+      href={inspectHref}
+      prefetch={false}
+      className={`ref${open ? " is-open" : ""}`}
+      title={title ?? value}
+      aria-label={`Open the trail of ${value}`}
+      scroll={false}
+    >
       {value}
     </Link>
   );
@@ -117,12 +132,14 @@ export function ExpandHead() {
   return <th className="dt-chevron" aria-label="Details" />;
 }
 
-// A grid of label and value pairs, for the expansion of a row or a card.
-export function FactGrid({ items }: { items: { label: ReactNode; value: ReactNode }[] }) {
+// A grid of label and value pairs, for the expansion of a row or a card. An item marked `wide`
+// takes the whole width of the grid instead of one column: that is where a list of references
+// belongs, which on its own third of a row left the rest of the expansion empty (round 1).
+export function FactGrid({ items }: { items: { label: ReactNode; value: ReactNode; wide?: boolean }[] }) {
   return (
     <dl className="dt-facts">
       {items.map((item, index) => (
-        <div key={index}>
+        <div key={index} className={item.wide ? "wide" : undefined}>
           <dt>{item.label}</dt>
           <dd>{item.value}</dd>
         </div>
@@ -143,6 +160,42 @@ export function EntryLines({ lines }: { lines: { account: ReactNode; debit: Reac
         </li>
       ))}
     </ul>
+  );
+}
+
+// The lines of a journal entry as a table: Account, Debit, Credit, one row per line, credits
+// indented under the account they answer (cycle 2, decision 10). Bounded to a readable width so
+// that at 1920 px an account and its amount stay side by side instead of a screen apart.
+export function EntryLinesTable({
+  lines,
+  ariaLabel = "Journal lines",
+}: {
+  lines: { account: ReactNode; debit: ReactNode; credit: ReactNode; isCredit: boolean }[];
+  ariaLabel?: string;
+}) {
+  return (
+    <table className="dt entry-lines-table" aria-label={ariaLabel}>
+      <thead>
+        <tr>
+          <th scope="col">Account</th>
+          <th scope="col" className="num">
+            Debit
+          </th>
+          <th scope="col" className="num">
+            Credit
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {lines.map((line, index) => (
+          <tr key={index} className={line.isCredit ? "credit" : "debit"}>
+            <td className="entry-account">{line.account}</td>
+            <td className="num">{line.debit}</td>
+            <td className="num">{line.credit}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

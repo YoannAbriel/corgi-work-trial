@@ -474,13 +474,17 @@ p.error {
   padding: 13px 16px;
   overflow-wrap: anywhere;
 }
+/* A chip carries a status, and a status is one word: it never breaks inside that word
+   (cycle 2, decision 7). Wherever it may be too long for its box, the box scrolls. */
 .badge {
   display: inline-block;
   border-radius: 6px;
   padding: 4px 9px;
   font-size: 12px;
   margin: 4px 8px 4px 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
 }
 .badge-ok {
   color: #366648;
