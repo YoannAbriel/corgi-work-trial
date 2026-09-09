@@ -103,15 +103,19 @@ the accumulated data of every replay check.
   TypeScript program (`**/*.ts` with only `node_modules` and `docs` excluded), and a build output
   present in the tree makes `tsc` report a pre-existing duplicate `main` in
   `scripts/post-local-webhook.ts`. Typecheck before building, or remove `.next` first.
-- `npm test`: 434 tests, 433 pass, 1 skipped, 0 fail. Eight of them are the new
-  `lib/inbox/sections.test.ts`.
+- `npm test`: 442 tests, 441 pass, 1 skipped, 0 fail, after merging `origin/main` at bb54cce.
+  Eight of them are the new `lib/inbox/sections.test.ts`.
 - `npm run build`: passes, `/inbox` listed as server-rendered on demand.
-- `npm run check:inbox-counts` on `corgi_test`, read-only, all PASS:
-  - broker with an open change request: 1 counted, 1 listed;
-  - `staff_approver`: 1138 counted, 1138 listed (approvals 90, claims 31, reconciliation 1017,
+- `npm run check:inbox-counts` on `corgi_test`, read-only, all PASS on the merged tree:
+  - broker with open change requests: 2 counted, 2 listed;
+  - `staff_approver`: 1142 counted, 1142 listed (approvals 94, claims 31, reconciliation 1017,
     policies 0 on both sides);
-  - `staff_ops`: 1180 counted, 1180 listed (approvals 92, policies 40, claims 31,
+  - `staff_ops`: 1184 counted, 1184 listed (approvals 94, policies 42, claims 31,
     reconciliation 1017).
+
+  The script was run four times in total while it was being written; every run is a read, it
+  opens no transaction of its own and writes no row, so it adds nothing to `corgi_test` and
+  cannot contend with another builder's check.
 
 ## What is not done here
 
