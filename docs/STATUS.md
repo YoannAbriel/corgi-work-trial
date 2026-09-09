@@ -385,6 +385,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - The joint re-review (docs/reviews/inbox-and-motion.md) measured 41ea2c5 on production and corgi_test: every anchor link lands on the section listing its items (22 counted, 22 on the chip, 22 rows for the reconciliation section), the anchor-by-anchor check 53 of 53, 17 trace links with 0 absent target and 0 duplicate id over five pages, 0 disagreement alert on 30 folds. Inbox PASS. Animation PASS with F-B12-13 still open: the honest wording ("the browser never computes a money figure; during the count it does arithmetic on the digits of the server text") was in the component header and the handoff but not in README.md. The coordinator rewrote that README paragraph. Two new LOW registered (F-B13-60, F-B12-20). The reviewer could not run the animation in a browser (no Playwright in the tree); the frames under docs/evidence/b12-4 remain the builder's.
 
+## 2026-09-09T09:16:00+00:00 | Screens review PASS at 3e9d095
+
+- The screens reviewer re-measured the fix on production after a real click on "Explain this amount": scrollWidth 375 against innerWidth 375 on the policy detail and on the statement run at 375 px (731 before), the fold panel 249 px wide instead of 668, and 0 overflow on the 14 states at 1280 px with 722 amount cells still right-aligned. Slice verdict PASS (docs/reviews/b13-screens.md, confirmation section; both the overflowing and the fixed frames kept as evidence). Four LOW stay open on the B13 backlog.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
