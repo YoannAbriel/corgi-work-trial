@@ -5,6 +5,7 @@ import {
   SANDBOX_LABEL,
   WATERMARK_TEXT,
   applyPdfTypography,
+  corgiWordmarkPng,
   createPdfStyles,
 } from "./pdf-theme";
 import type { MailingAddress, PolicySnapshot } from "./policy-snapshot";
@@ -39,7 +40,7 @@ async function loadPdfRenderer() {
 // The declarations page: who is covered, for what, for how long and for how much, as the
 // policy stood on the snapshot date.
 export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<Buffer> {
-  const { Document, Font, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  const { Document, Font, Image, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
   // The look lives in pdf-theme.ts, shared with the endorsement schedule and the broker
   // statement. StyleSheet and Font arrive from the dynamically loaded module, so the sheet
   // is built here rather than at the top of the file.
@@ -64,6 +65,10 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
         {/* Who issued the document, and what the figures on it are. `fixed` repeats the
             block at the top of a second page, so a loose sheet is never anonymous. */}
         <View style={styles.issuerHeader} fixed>
+          {/* The Corgi wordmark says which system produced the sheet. The issuer stays
+              printed beside it and is NOT Corgi: this build is a demonstration, and the name
+              of the notional insurer has to remain on the page (AF-02). */}
+          <Image style={styles.issuerLogo} src={corgiWordmarkPng()} />
           <View style={styles.issuerIdentity}>
             <Text style={styles.issuerName}>{ISSUER_NAME}</Text>
             <Text style={styles.issuerTagline}>{ISSUER_TAGLINE}</Text>
@@ -282,7 +287,7 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
 // a presentation pass. Until then this schedule states business truth as of `asOf`, and the
 // footer says so.
 export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Promise<Buffer> {
-  const { Document, Font, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  const { Document, Font, Image, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
   applyPdfTypography(Font);
   const styles = createPdfStyles(StyleSheet);
 
@@ -301,6 +306,10 @@ export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Pr
         </View>
 
         <View style={styles.issuerHeader} fixed>
+          {/* The Corgi wordmark says which system produced the sheet. The issuer stays
+              printed beside it and is NOT Corgi: this build is a demonstration, and the name
+              of the notional insurer has to remain on the page (AF-02). */}
+          <Image style={styles.issuerLogo} src={corgiWordmarkPng()} />
           <View style={styles.issuerIdentity}>
             <Text style={styles.issuerName}>{ISSUER_NAME}</Text>
             <Text style={styles.issuerTagline}>{ISSUER_TAGLINE}</Text>

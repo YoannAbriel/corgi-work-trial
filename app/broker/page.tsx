@@ -114,13 +114,9 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
     }),
   );
 
-  // The chip says the status the SERVER acts on, in the words the other screens use. A broker who
-  // never submitted reads "not submitted" rather than "unknown", and a status that comes from the
-  // seed row rather than from Stripe carries the label that says so (AF-02).
+  // The status the SERVER acts on, in the words the other screens use, for the task line below.
+  // A broker who never submitted reads "not submitted" rather than "unknown".
   const verificationWord = kyb.status === "unknown" && !kyb.providerAccountId ? "not submitted" : kyb.status;
-  const verificationChip = kyb.isProviderEvidence || !kyb.providerAccountId
-    ? `business verification ${verificationWord}`
-    : `business verification ${verificationWord}, ${KYB_NOT_LIVE_LABEL}`;
 
   // UI-031: a verification that does not allow binding is the first thing waiting on this broker.
   // The rule is the one the server enforces before binding (lib/broker/eligibility.ts): unknown
@@ -162,11 +158,9 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
       toasts={toasts}
       band={{
         title: "Your policies",
-        suffix: user.displayName,
-        // One chip, one action (cycle 2). The AF-02 words are on the top bar of every workspace
-        // screen; business verification and statements are two entries of the sidebar, and a
-        // band that repeats the navigation is the navigation drawn twice.
-        meta: <Chip tone={canBind ? "ok" : "warn"}>{verificationChip}</Chip>,
+        // No name and no chip: a list screen carries neither (Yoann, 2026-09-09). The sidebar
+        // says who is signed in, business verification is an entry of the sidebar, and the
+        // AF-02 words are on the top bar of every workspace screen.
         actions: (
           <Link className="button-link orange" href="/broker/policies/new" prefetch={false}>
             New policy

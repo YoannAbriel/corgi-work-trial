@@ -56,10 +56,8 @@ export default async function OpsClaimsPage({ searchParams }: { searchParams: Pr
       band={{
         title: "Claims",
         suffix: `${claims.length} in total`,
-        // One chip (cycle 2, decision 1): how many claims are open. The AF-02 words are on the
-        // top bar of every workspace screen, and the claim rail says LOCAL SIMULATOR on the row
-        // of every payment it moved, on the claim's own page.
-        meta: <Chip tone={open.length > 0 ? "warn" : "ok"}>{open.length === 0 ? "none open" : `${open.length} open`}</Chip>,
+        // No chip on a list screen (Yoann, 2026-09-09): how many claims are open is the "Open"
+        // filter chip of the toolbar, and each row carries its own state.
       }}
     >
       {/* TWO TILES (cycle 2, decision 2): what waits on a person, and the money still expected.

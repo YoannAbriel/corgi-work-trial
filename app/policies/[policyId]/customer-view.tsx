@@ -124,17 +124,11 @@ export async function CustomerPolicyView({
       band={{
         title: `Policy ${policy.policyNumber}`,
         suffix: policy.customerName,
-        // Two chips, the same rule as the staff page (cycle 2, decision 1): the status and the
-        // term this policy runs for. The AF-02 words are the grey line in the top bar of every
-        // signed-in screen, this one included, said once instead of on every band.
-        meta: (
-          <>
-            <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>
-            <Chip tone="neutral">
-              {policy.effectiveAt} to {policy.termEnd}
-            </Chip>
-          </>
-        ),
+        // ONE chip, the policy's own state, the same rule as the staff page (Yoann, 2026-09-09).
+        // The term is a fact, not a state, and it is printed in full on the overview below. The
+        // AF-02 words are the grey line in the top bar of every signed-in screen, this one
+        // included.
+        status: <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>,
       }}
     >
       {notices.length > 0 ? <div className="notices">{notices}</div> : null}
@@ -400,10 +394,9 @@ export async function CustomerPolicyView({
 
       {view === "documents" ? (
         <>
-          {/* One card, two lines, the same block the staff overview uses: a two-word button that
-              cannot wrap (round 1: both labels ran to two lines at 1024 px) and the date said
-              again in the ISO format the rest of the product prints, because a browser draws a
-              date field in its own locale (round 1: 09/09/2026 beside 2026-09-08). */}
+          {/* One card, two rows, the same block the staff overview uses: the document's name, the
+              date it is rebuilt on, and the download as an icon on the right. Same component, so
+              the customer's documents and the broker's cannot drift apart. */}
           <section className="card">
             <h2>Documents</h2>
             <PolicyDocuments

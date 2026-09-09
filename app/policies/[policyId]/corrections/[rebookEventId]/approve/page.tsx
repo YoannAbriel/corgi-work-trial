@@ -64,7 +64,7 @@ export default async function ApproveCorrectionPage({
         active="policies"
         trail={trail}
         views={views}
-        band={{ title: "Nothing to approve", suffix: `Policy ${policy.policy_number}`, meta: <Chip tone="ok">paid</Chip> }}
+        band={{ title: "Nothing to approve", suffix: `Policy ${policy.policy_number}`, status: <Chip tone="ok">paid</Chip> }}
       >
         <EmptyState illustration="all-clear">This difference was already paid on {correction.collection.paidOn}.</EmptyState>
       </PortalShell>
@@ -80,13 +80,12 @@ export default async function ApproveCorrectionPage({
       band={{
         title: "A correction to approve",
         suffix: `Policy ${policy.policy_number}`,
-        meta: (
-          <>
-            <Chip tone={correction.collection.customerApprovedAt ? "ok" : "warn"}>
-              {correction.collection.customerApprovedAt ? "approved" : "waiting for you"}
-            </Chip>
-            <Chip tone="neutral">effective {correction.correctedEffectiveAt}</Chip>
-          </>
+        // ONE chip, the state of the correction being approved (Yoann, 2026-09-09). The corrected
+        // effective date is a figure of the correction and is printed in the panel below.
+        status: (
+          <Chip tone={correction.collection.customerApprovedAt ? "ok" : "warn"}>
+            {correction.collection.customerApprovedAt ? "approved" : "waiting for you"}
+          </Chip>
         ),
       }}
     >

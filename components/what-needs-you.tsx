@@ -1,7 +1,6 @@
 import "@/app/styles/lists.css";
 import Link from "next/link";
 import { ArrowRight, BellRing } from "lucide-react";
-import { DecorativeIllustration } from "./decorative-illustration";
 import type { WorkspaceTask } from "@/lib/inbox/tasks";
 
 // The "what needs you" block at the top of each role's workspace home: the work waiting for the
@@ -35,26 +34,17 @@ export type BlockingTask = {
 export function WhatNeedsYou({
   tasks,
   blocking = null,
-  showEmptyIllustration = true,
 }: {
   tasks: WorkspaceTask[];
   blocking?: BlockingTask | null;
-  showEmptyIllustration?: boolean;
 }) {
-  // NOTHING WAITING: one grey line, an illustration the size of a stamp, one sentence (cycle 2).
-  // It used to be a card around a 24-word paragraph, so the block took MORE room saying there was
-  // no work than it takes listing it (round 1, MEDIUM, on /broker and /customer). Where the rest
-  // of the sentence went: the inbox is in the sidebar, and the counts are beside their screens.
+  // NOTHING WAITING: nothing at all, and the next block moves up (Yoann, 2026-09-09). A bar
+  // saying "Nothing is waiting for you." was still a bar: it cost a row of the home screen to
+  // report an absence. The fact is not lost. The sidebar shows a count beside a section only
+  // while something waits there, and /inbox draws "Nothing is waiting for you." with its own
+  // illustration when nothing waits anywhere (app/inbox/page.tsx, `inbox.totalWaiting === 0`).
   if (tasks.length === 0 && !blocking) {
-    return (
-      <section className="lists-empty-line lists-needs-empty" aria-labelledby="needs-you-heading">
-        {showEmptyIllustration ? <DecorativeIllustration name="all-clear" variant="empty" /> : null}
-        <h2 id="needs-you-heading">
-          <BellRing size={15} aria-hidden="true" /> What needs you
-        </h2>
-        <p>Nothing is waiting for you.</p>
-      </section>
-    );
+    return null;
   }
 
   // `lists-needs` is the dense shape of the interface system of 2026-09-09: 32 px rows, the count

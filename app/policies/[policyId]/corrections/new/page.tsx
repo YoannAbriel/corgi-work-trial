@@ -78,7 +78,7 @@ export default async function CorrectEndorsementDatePage({
             { label: "Correction preview" },
           ]}
           views={policyFormViews({ policyId, formLabel: "Correct", formHref: `/policies/${policyId}/corrections/new` })}
-          band={{ title: "Correction preview", meta: <Chip tone="warn">refused</Chip> }}
+          band={{ title: "Correction preview", status: <Chip tone="warn">refused</Chip> }}
         >
           <div className="notices">
             <p className="error" role="alert">
@@ -115,14 +115,9 @@ export default async function CorrectEndorsementDatePage({
       band={{
         title: "Correction preview",
         suffix: `Policy ${plan.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone="warn">nothing recorded yet</Chip>
-            <Chip tone="neutral">
-              {money.wrongEffectiveAt} to {money.correctedEffectiveAt}
-            </Chip>
-          </>
-        ),
+        // ONE chip, the state of this preview: nothing is booked until the form below is sent
+        // (Yoann, 2026-09-09). The two dates are figures of the preview and are in the panel.
+        status: <Chip tone="warn">nothing recorded yet</Chip>,
       }}
     >
       <Stats>
@@ -267,13 +262,8 @@ async function CorrectionForm({
   const band = {
     title: "Correct a date",
     suffix: `Policy ${policy.policyNumber}`,
-    meta: (
-      <>
-        <Chip tone="neutral">
-          term {policy.effectiveAt} to {policy.termEnd}
-        </Chip>
-      </>
-    ),
+    // No chip: a form screen has no state of its own, and the term is printed in the form below
+    // (Yoann, 2026-09-09).
   };
 
   if (schedule.length === 0) {

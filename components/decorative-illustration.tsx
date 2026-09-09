@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import type { ReactNode } from "react";
 
 // Each illustration is imported as a file, not named by a hand-written string. Next reads its real
@@ -54,6 +54,47 @@ import corgiCourier from "@/public/illustrations/library/093-corgi-courier.webp"
 import corgiElectrician from "@/public/illustrations/library/099-corgi-electrician.webp";
 import corgiMapExplorer from "@/public/illustrations/library/126-corgi-map-explorer.webp";
 
+// The same drawings, cropped to their subject by scripts/crop-illustrations.mjs. The library files
+// are drawn on a wide sheet of white paper, so the margins ate the frame wherever the interface
+// draws them small. These are the 208 px squares for the page band's 52 px vignette. Only the
+// sections listed in components/shell/sections.tsx have one; anything else falls back to the
+// library file.
+import bandArchivist from "@/public/illustrations/band/071-corgi-archivist.webp";
+import bandBroker from "@/public/illustrations/band/073-corgi-broker-satchel.webp";
+import bandAccountant from "@/public/illustrations/band/074-corgi-accountant.webp";
+import bandChecker from "@/public/illustrations/band/075-corgi-checker.webp";
+import bandResearcher from "@/public/illustrations/band/076-corgi-researcher.webp";
+import bandCourier from "@/public/illustrations/band/093-corgi-courier.webp";
+import bandMechanic from "@/public/illustrations/band/098-corgi-mechanic.webp";
+import bandElectrician from "@/public/illustrations/band/099-corgi-electrician.webp";
+import bandWelcoming from "@/public/illustrations/band/106-corgi-welcoming.webp";
+import bandUmbrella from "@/public/illustrations/band/112-corgi-umbrella.webp";
+import bandReading from "@/public/illustrations/band/118-corgi-reading.webp";
+import bandLaptopWork from "@/public/illustrations/band/119-corgi-laptop-work.webp";
+import bandMapExplorer from "@/public/illustrations/band/126-corgi-map-explorer.webp";
+
+// The same drawings again, cropped for the empty states: 480 px on the long side, each keeping its
+// own shape rather than squared, because a magnifying glass is tall and a bird on a branch is wide.
+// Three of the nineteen names an empty state uses are missing here on purpose: the script measured
+// their subject already covering 85 percent or more of the drawing, so they stay on their library
+// file (007-magnifying-glass, 019-open-ledger, 035-broken-link).
+import emptyClosedFolder from "@/public/illustrations/empty/002-closed-folder.webp";
+import emptyInTray from "@/public/illustrations/empty/015-in-tray.webp";
+import emptyBalanceScales from "@/public/illustrations/empty/020-balance-scales.webp";
+import emptyShieldLeaf from "@/public/illustrations/empty/026-shield-leaf.webp";
+import emptyUmbrella from "@/public/illustrations/empty/027-umbrella.webp";
+import emptySafetyNet from "@/public/illustrations/empty/031-safety-net.webp";
+import emptyConnectedLink from "@/public/illustrations/empty/036-connected-link.webp";
+import emptyKeyRing from "@/public/illustrations/empty/039-key-ring.webp";
+import emptyBirdBranch from "@/public/illustrations/empty/045-bird-branch.webp";
+import emptyCorgiSearch from "@/public/illustrations/empty/067-corgi-search.webp";
+import emptyCorgiSleeping from "@/public/illustrations/empty/068-corgi-sleeping.webp";
+import emptyCorgiGuard from "@/public/illustrations/empty/069-corgi-guard.webp";
+import emptyCorgiBroker from "@/public/illustrations/empty/073-corgi-broker-satchel.webp";
+import emptyCorgiAccountant from "@/public/illustrations/empty/074-corgi-accountant.webp";
+import emptyCorgiChecker from "@/public/illustrations/empty/075-corgi-checker.webp";
+import emptyCorgiEngineer from "@/public/illustrations/empty/081-corgi-engineer.webp";
+
 // Only the illustrations used by the interface are listed here.
 const illustrations = {
   "in-tray": inTray,
@@ -103,12 +144,52 @@ const illustrations = {
 
 export type IllustrationName = keyof typeof illustrations;
 
+// The cropped copies, under the same names. Partial on purpose: a name without an entry here is
+// simply drawn from its library file, so adding a section does not break the build.
+const bandIllustrations: Partial<Record<IllustrationName, StaticImageData>> = {
+  "archivist-corgi": bandArchivist,
+  "broker-corgi": bandBroker,
+  "accountant-corgi": bandAccountant,
+  "checker-corgi": bandChecker,
+  "researcher-corgi": bandResearcher,
+  "courier-corgi": bandCourier,
+  "mechanic-corgi": bandMechanic,
+  "cable-corgi": bandElectrician,
+  "welcome-corgi": bandWelcoming,
+  "umbrella-corgi": bandUmbrella,
+  "reading-corgi": bandReading,
+  "laptop-corgi": bandLaptopWork,
+  "explorer-corgi": bandMapExplorer,
+};
+
+// The same idea for the empty states. Partial for the same reason, plus the three drawings that
+// already fill their own frame and are better served by the library file.
+const emptyIllustrations: Partial<Record<IllustrationName, StaticImageData>> = {
+  "closed-folder": emptyClosedFolder,
+  "in-tray": emptyInTray,
+  "balance-scales": emptyBalanceScales,
+  "shield-leaf": emptyShieldLeaf,
+  umbrella: emptyUmbrella,
+  "safety-net": emptySafetyNet,
+  "connected-link": emptyConnectedLink,
+  "key-ring": emptyKeyRing,
+  "all-clear": emptyBirdBranch,
+  "search-corgi": emptyCorgiSearch,
+  "sleeping-corgi": emptyCorgiSleeping,
+  "coverage-corgi": emptyCorgiGuard,
+  "broker-corgi": emptyCorgiBroker,
+  "accountant-corgi": emptyCorgiAccountant,
+  "checker-corgi": emptyCorgiChecker,
+  "engineer-corgi": emptyCorgiEngineer,
+};
+
 // The widest the stylesheet ever draws each variant, from app/globals.css: .banner-illustration is
 // 220 px, .empty-illustration 360 px, .feedback-illustration 300 px. Next turns this into a srcset,
 // so the browser asks for a file the size of the box instead of the full 3456 px original (F-IL-01).
 const displayedWidths = {
   banner: "220px",
-  empty: "360px",
+  // The empty state's box is 200 px wide; asking for 400 keeps it sharp on a dense screen.
+  empty: "400px",
   feedback: "300px",
   // The page band's vignette and the overview cards are drawn at 46 and 52 px; asking for a
   // 96 px file keeps them sharp on a dense screen.
@@ -127,10 +208,14 @@ export function DecorativeIllustration({
   // stylesheet hides below 580 px. Everything else keeps the fixed width above.
   sizes?: string;
 }) {
+  // The two variants drawn small enough for the paper margins to matter take a cropped copy when
+  // one exists. The banner, the feedback panel and the overview cards keep the library drawing.
+  const cropped = variant === "band" ? bandIllustrations[name] : variant === "empty" ? emptyIllustrations[name] : undefined;
+  const source = cropped ?? illustrations[name];
   return (
     <Image
       className={`decorative-image ${variant}-illustration`}
-      src={illustrations[name]}
+      src={source}
       alt=""
       sizes={sizes ?? displayedWidths[variant]}
       // Lazy everywhere, and never `priority`. A decorative image is worth no preload, and a

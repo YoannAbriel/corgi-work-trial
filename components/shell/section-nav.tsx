@@ -13,42 +13,25 @@ export type NavView = {
   // person must act on (cycle 2, decision 3: counts are not notifications).
   count?: number;
   icon?: LucideIcon;
-  // Views sharing a group name are drawn under a small heading that folds.
-  group?: string;
 };
 
 // The views of the section the reader is in, drawn INSIDE the main sidebar, indented under that
-// section's entry (cycle 2, decision 17: one navigation column, submenus that fold). Views that
-// share a `group` sit in an open <details>, which is how the console's three groups (Console,
-// Ledger, Tools) become three sub-groups under one entry with no script.
+// section's entry. A flat list, in the order the page gave them: Yoann's decision of 2026-09-09
+// removed the <details> group folds that used to sit here, because a dropdown whose entries are
+// themselves collapsible reads as two navigations stacked on one another. A section that needs
+// more than one group of views is a section that should be split into two sidebar entries, which
+// is what happened to the ledger.
 //
 // When the sidebar is folded to its icons this same list is the flyout that opens on hover of
 // the active icon; that is entirely CSS (app/styles/system.css).
 // `subtitle` is still accepted so the pages that pass one keep working; the sidebar names the
 // section right above the list, so the shell no longer draws a second line under it.
 export function SectionNav({ section, views }: { section: SectionId; views: NavView[]; subtitle?: string }) {
-  // The views in the order the page gave them, cut into runs of the same group name.
-  const runs: { group?: string; views: NavView[] }[] = [];
-  for (const view of views) {
-    const last = runs[runs.length - 1];
-    if (last && last.group === view.group) last.views.push(view);
-    else runs.push({ group: view.group, views: [view] });
-  }
-
   return (
     <nav className="sidebar-views" aria-label={`${SECTIONS[section].label} views`}>
-      {runs.map((run, index) =>
-        run.group ? (
-          <details className="context-fold" open key={`group-${run.group}-${index}`}>
-            <summary className="context-group">{run.group}</summary>
-            {run.views.map((view) => (
-              <ViewLink key={view.key} view={view} />
-            ))}
-          </details>
-        ) : (
-          run.views.map((view) => <ViewLink key={view.key} view={view} />)
-        ),
-      )}
+      {views.map((view) => (
+        <ViewLink key={view.key} view={view} />
+      ))}
     </nav>
   );
 }

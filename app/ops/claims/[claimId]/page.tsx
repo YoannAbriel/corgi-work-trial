@@ -188,20 +188,11 @@ export default async function ClaimPage({
       band={{
         title: `Claim ${claim.claimNumber}`,
         suffix: claim.policyNumber,
-        // Two chips (cycle 2, decision 1): the claim's state, and the one count a person has to
-        // act on, which is a payment waiting for a second person or ready to be sent. The AF-02
-        // words are the grey line in the top bar, and every payment row still says LOCAL
-        // SIMULATOR itself. The reserve and the bank account are facts of the cards below.
-        meta: (
-          <>
-            <Chip tone={claim.position.isClosed ? "neutral" : "ok"}>{claim.position.isClosed ? "closed" : "open"}</Chip>
-            {waitingForApproval > 0 ? (
-              <Chip tone="warn">{waitingForApproval} waiting for approval</Chip>
-            ) : readyToSend > 0 ? (
-              <Chip tone="warn">{readyToSend} ready to send</Chip>
-            ) : null}
-          </>
-        ),
+        // ONE chip, the claim's own state (Yoann, 2026-09-09). What waits for an approver and
+        // what is ready to send are rows of the payments panel, each with its own state; the
+        // reserve and the bank account are facts of the cards below. The AF-02 words are the grey
+        // line in the top bar, and every payment row still says LOCAL SIMULATOR itself.
+        status: <Chip tone={claim.position.isClosed ? "neutral" : "ok"}>{claim.position.isClosed ? "closed" : "open"}</Chip>,
         // Two actions, three words each (cycle 2, decision 8). F-YA-05: the decisions are forms,
         // and a form is not a band button, so the band points at the panel that holds them, open,
         // at the bottom of the overview.

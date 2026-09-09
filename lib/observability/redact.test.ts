@@ -13,6 +13,26 @@ test("a bearer token never appears, whatever it was", () => {
   assert.doesNotMatch(line, /9f8e7d6c5b4a3928/);
 });
 
+test("the reveal cookie never carries its value into a log line", () => {
+  // A cookie header, the way one reaches a log by accident: pasted into a bug report, or echoed
+  // by a framework error that printed the request.
+  const line = redact(
+    'request failed: cookie: corgi_session=abc.123.def; mcp_token_reveal=cmk_1a2b3c4d_not_a_real_secret_not_a_real_secret_notreal; other=1',
+  );
+  assert.doesNotMatch(line, /not_a_real_secret/);
+  assert.match(line, /mcp_token_reveal=\*\*\*\*/);
+  // What is around it survives: a log line still has to be readable.
+  assert.match(line, /other=1/);
+});
+
+test("a whole access token is masked down to its public prefix, wherever it appears", () => {
+  const line = redact("check: cmk_1a2b3c4d_not_a_real_secret_not_a_real_secret_notreal was refused");
+  assert.doesNotMatch(line, /not_a_real_secret/);
+  // The prefix is a reference, not a credential, and an operator needs to know which token it was.
+  assert.match(line, /cmk_1a2b3c4d_\*\*\*\*/);
+  assert.equal(redact("token cmk_1a2b3c4d used"), "token cmk_1a2b3c4d used");
+});
+
 test("a password field is replaced, in a form body and in JSON", () => {
   assert.doesNotMatch(redact("email=ops@example.com&password=hunter2"), /hunter2/);
   assert.doesNotMatch(redact('{"password": "hunter2"}'), /hunter2/);

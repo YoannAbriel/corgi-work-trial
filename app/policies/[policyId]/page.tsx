@@ -56,6 +56,8 @@ import {
   type ToastNotice,
 } from "@/lib/ui/views";
 import {
+  correctionHref,
+  correctionViews,
   CorrectEndorsementDateForm,
   CorrectionsExplained,
   PolicyAsOf,
@@ -320,13 +322,19 @@ export default async function PolicyPage({
   // A count only where a person must act (cycle 2, decision 3): an open claim is work, and the
   // number of endorsements, of journal entries and of closed claims is not. Opening a view says
   // how many rows it holds; the navigation does not have to.
-  const views = POLICY_VIEWS.map((one) => ({
-    key: one,
-    label: POLICY_VIEW_LABEL[one],
-    href: withParams(path, query, { view: one, inspect: null }),
-    current: one === view,
-    count: one === "claims" && openClaims.length > 0 ? openClaims.length : undefined,
-  }));
+  const views = [
+    ...POLICY_VIEWS.map((one) => ({
+      key: one,
+      label: POLICY_VIEW_LABEL[one],
+      href: withParams(path, query, { view: one, inspect: null }),
+      current: one === view,
+      count: one === "claims" && openClaims.length > 0 ? openClaims.length : undefined,
+    })),
+    // F-LIVE-01: the correction is a screen of the policy, so it is listed with the policy's own
+    // views. Operations only, and always, whether or not there is an endorsement to correct: the
+    // screen says when there is nothing.
+    ...correctionViews({ policyId: policy.policyId, role: user.role }),
+  ];
 
   // The inspector, on the staff views that carry a Stripe or an operation reference: a reference
   // opens its whole trail in the drawer instead of being a code token nobody can follow (cycle 2,
@@ -349,21 +357,12 @@ export default async function PolicyPage({
       band={{
         title: `Policy ${policy.policyNumber}`,
         suffix: policy.customerName,
-        // Two chips at most (cycle 2, decision 1): the policy's status, and the open claims when
-        // there are any, which is the one count on this page a person has to act on. The AF-02
-        // words did not go anywhere: they are the grey line in the top bar of every workspace
-        // screen, said once instead of as three coloured chips on every band, and every simulated
-        // row still carries LOCAL SIMULATOR itself. The broker's verification, a third chip
-        // before, is a fact of the Broker card; an endorsement in progress is the heading of its
-        // own card in the endorsements view.
-        meta: (
-          <>
-            <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>
-            {openClaims.length > 0 ? (
-              <Chip tone="warn">{openClaims.length === 1 ? "1 open claim" : `${openClaims.length} open claims`}</Chip>
-            ) : null}
-          </>
-        ),
+        // ONE chip, the policy's own state (Yoann, 2026-09-09). Open claims are counted on the
+        // Claims view of this policy, the broker's verification is a fact of the Broker card, and
+        // an endorsement in progress is the heading of its own card. The AF-02 words did not go
+        // anywhere: they are the grey line in the top bar of every workspace screen, and every
+        // simulated row still carries LOCAL SIMULATOR itself.
+        status: <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>,
         actions: (
           <>
             {policyCanBePaid && brokerMayBind ? (
@@ -394,6 +393,14 @@ export default async function PolicyPage({
             {canOpenClaim ? (
               <Link href={`/policies/${policy.policyId}/claims/new`} className="button-link secondary">
                 Open a claim
+              </Link>
+            ) : null}
+            {/* F-LIVE-01: the same three conditions the Endorsements view uses to draw the
+                correction form, so the band offers the screen exactly when there is an effective
+                date to put right. No icon: no other band action carries one. */}
+            {user.role === "staff_ops" && policy.status === "bound" && schedule.length > 0 ? (
+              <Link href={correctionHref(policy.policyId)} className="button-link secondary">
+                Correct a date
               </Link>
             ) : null}
           </>
@@ -502,70 +509,78 @@ export default async function PolicyPage({
             </p>
           ) : null}
 
-          <div className="cards pd-cards-4">
-            <section className="card">
-              <h2>Cover</h2>
-              <FactGrid
-                items={[
-                  ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
-                  { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
-                  { label: "State", value: policy.stateCode },
-                  { label: "Commission rate", value: `${(policy.commissionRateBps / 100).toFixed(2)}%` },
-                ]}
-              />
-            </section>
+          {/* Two stacks rather than one grid row of four: a short card and a tall card sharing a
+              grid row left the short one ending far above the row, so the card under it started
+              below an empty gap (Yoann, 2026-09-09). The two short records are the left stack, the
+              two blocks that grow with the policy are the right one, and each stack sits tight. */}
+          <div className="pd-columns">
+            <div className="pd-column">
+              <section className="card">
+                <h2>Cover</h2>
+                <FactGrid
+                  items={[
+                    ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
+                    { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
+                    { label: "State", value: policy.stateCode },
+                    { label: "Commission rate", value: `${(policy.commissionRateBps / 100).toFixed(2)}%` },
+                  ]}
+                />
+              </section>
 
-            <section className="card">
-              <h2>So far, from the journal</h2>
-              <LedgerSoFarFacts
-                ledger={ledger}
-                entries={entriesStillStanding}
-                operation={operation}
-                openClaims={openClaims.length}
-                openClaimReserveCents={openClaimReserveCents}
-                referenceHref={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
-                inspected={inspected}
-              />
-              {reversedPairCount > 0 ? (
-                // UI-022: said out loud rather than left to be inferred from four figures that no
-                // longer match the journal line by line. One line here, the reason in About.
-                <p className="pd-note">
-                  {reversedPairCount === 1
-                    ? "One reversed entry is left out, with its mirror."
-                    : `${reversedPairCount} reversed entries are left out, with their mirrors.`}
-                </p>
-              ) : null}
-            </section>
+              <section className="card">
+                <h2>Broker</h2>
+                <dl className="pd-facts">
+                  <div>
+                    <dt>Name</dt>
+                    <dd>{policy.brokerName}</dd>
+                  </div>
+                  <div>
+                    <dt>Verification</dt>
+                    <dd>
+                      <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>{kyb.status}</Chip>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Customer</dt>
+                    <dd>{policy.customerEmail}</dd>
+                  </div>
+                </dl>
+                {/* AF-02 on the record itself when the status is not provider evidence; what the
+                    status means is under its own heading in About (cycle 2, decision 9). */}
+                {kyb.isProviderEvidence ? null : (
+                  <p className="pd-note">{KYB_NOT_LIVE_LABEL}: a seeded placeholder, not provider evidence.</p>
+                )}
+              </section>
+            </div>
 
-            <section className="card">
-              <h2>Broker</h2>
-              <dl className="pd-facts">
-                <div>
-                  <dt>Name</dt>
-                  <dd>{policy.brokerName}</dd>
-                </div>
-                <div>
-                  <dt>Verification</dt>
-                  <dd>
-                    <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>{kyb.status}</Chip>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Customer</dt>
-                  <dd>{policy.customerEmail}</dd>
-                </div>
-              </dl>
-              {/* AF-02 on the record itself when the status is not provider evidence; what the
-                  status means is under its own heading in About (cycle 2, decision 9). */}
-              {kyb.isProviderEvidence ? null : (
-                <p className="pd-note">{KYB_NOT_LIVE_LABEL}: a seeded placeholder, not provider evidence.</p>
-              )}
-            </section>
+            <div className="pd-column">
+              <section className="card">
+                <h2>So far, from the journal</h2>
+                <LedgerSoFarFacts
+                  ledger={ledger}
+                  entries={entriesStillStanding}
+                  operation={operation}
+                  openClaims={openClaims.length}
+                  openClaimReserveCents={openClaimReserveCents}
+                  referenceHref={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
+                  inspected={inspected}
+                />
+                {reversedPairCount > 0 ? (
+                  // UI-022: said out loud rather than left to be inferred from four figures that no
+                  // longer match the journal line by line. One line here, the reason in About.
+                  <p className="pd-note">
+                    {reversedPairCount === 1
+                      ? "One reversed entry is left out, with its mirror."
+                      : `${reversedPairCount} reversed entries are left out, with their mirrors.`}
+                  </p>
+                ) : null}
+              </section>
 
-            <section className="card">
-              <h2>Documents</h2>
-              <PolicyDocuments policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
-            </section>
+              <section className="card">
+                <h2>Documents</h2>
+                <PolicyDocuments policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
+              </section>
+            </div>
           </div>
 
           {/* Slice B13-6: what the customer has asked for on this policy, and the box to answer

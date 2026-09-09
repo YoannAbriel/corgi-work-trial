@@ -51,7 +51,7 @@ export function WorkspaceOverview({ isApprover, tasks }: { isApprover: boolean; 
         )}
       </Stats>
 
-      <WhatNeedsYou tasks={tasks} showEmptyIllustration={false} />
+      <WhatNeedsYou tasks={tasks} />
 
       <div className="cards lists-sections">
         {sections.map(({ section, href, blurb }) => {

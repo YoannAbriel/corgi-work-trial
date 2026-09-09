@@ -104,12 +104,9 @@ export default async function EndorsePolicyPage({
       band={{
         title: "Endorsement preview",
         suffix: `Policy ${plan.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone="warn">nothing recorded yet</Chip>
-            <Chip tone="neutral">effective {figures.effectiveAt}</Chip>
-          </>
-        ),
+        // ONE chip, the state of this preview: nothing is booked until the form below is sent
+        // (Yoann, 2026-09-09). The effective date is a figure of the preview and has its own tile.
+        status: <Chip tone="warn">nothing recorded yet</Chip>,
       }}
     >
       <Stats>
@@ -304,13 +301,8 @@ async function EndorsementForm({
       band={{
         title: "Endorse",
         suffix: `Policy ${policy.policyNumber}`,
-        meta: (
-          <>
-            <Chip tone="neutral">
-              term {policy.effectiveAt} to {policy.termEnd}
-            </Chip>
-          </>
-        ),
+        // No chip: a form screen has no state of its own, and the term is printed in the form
+        // below (Yoann, 2026-09-09).
       }}
     >
       {refusal ? (

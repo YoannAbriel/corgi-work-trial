@@ -169,16 +169,11 @@ export default async function StatementPage({
         // line, the h1 wrapped to two lines at 1024 px and took the band to 175 px.
         title: run.brokerName,
         suffix: `${run.statementMonth}, revision ${run.revision}`,
-        meta: (
-          <>
-            {/* Two chips (cycle 2, decision 1): whether this document agrees with the ledger, and
-                whether its month was over when it was produced. The AF-02 words are in the top
-                bar of every screen; identical, format changed and format v1 are facts of the
-                revision card under the totals. */}
-            <Chip tone={tiesToTheLedger ? "ok" : "warn"}>{tiesToTheLedger ? "ties to the ledger" : "does NOT tie to the ledger"}</Chip>
-            {run.monthWasStillRunning ? <Chip tone="warn">provisional</Chip> : <Chip tone="neutral">month closed</Chip>}
-          </>
-        ),
+        // ONE chip, the run's own state (Yoann, 2026-09-09): provisional, or produced after its
+        // month was over. Whether the document ties to the ledger is a check, not a state, and it
+        // loses nothing here: the Net due tile says "equals the journal movement" or "the journal
+        // disagrees", and a run that does not tie prints a red alert above everything else.
+        status: run.monthWasStillRunning ? <Chip tone="warn">provisional</Chip> : <Chip tone="neutral">month closed</Chip>,
         actions: (
           <>
             {/* An icon where the action is obvious, and three words at most: at 1024 px the two
@@ -188,6 +183,9 @@ export default async function StatementPage({
               prefetch={false}
               className="button-link"
               title="Download this statement as a PDF"
+              // Inline PDF in a new tab: this page keeps its place while the document opens.
+              target="_blank"
+              rel="noopener"
             >
               <Download size={15} aria-hidden="true" />
               PDF

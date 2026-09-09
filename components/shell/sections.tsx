@@ -65,6 +65,8 @@ export const SECTIONS: Record<SectionId, SectionDefinition> = {
   approvals: { label: "Approvals", icon: ClipboardCheck, illustration: "checker-corgi" },
   reconciliation: { label: "Reconciliation", icon: Scale, illustration: "researcher-corgi" },
   statements: { label: "Statements", icon: ReceiptText, illustration: "accountant-corgi" },
-  "mcp-keys": { label: "MCP keys", icon: KeyRound, illustration: "cable-corgi" },
+  // The section id and the route stay `mcp-keys`; the words a reader sees are "Access tokens"
+  // (Yoann, 2026-09-09), because what the screen hands out is a token tied to an account.
+  "mcp-keys": { label: "Access tokens", icon: KeyRound, illustration: "cable-corgi" },
   login: { label: "Sign in", icon: LogIn, illustration: "welcome-corgi" },
 };

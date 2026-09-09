@@ -5,7 +5,7 @@ import {
   unparseableBody,
   type CallLog,
 } from "@/lib/mcp/jsonrpc";
-import { principalForPresentedKey, recordMcpCall, type McpPrincipal } from "@/lib/mcp/keys";
+import { principalForPresentedKey, recordMcpCall, tokenHasExpired, type McpPrincipal } from "@/lib/mcp/keys";
 import { withActivity, type Activity } from "@/lib/observability/log";
 import { sanitisedSentence } from "@/lib/observability/redact";
 
@@ -14,8 +14,10 @@ import { sanitisedSentence } from "@/lib/observability/redact";
 // THE FOUR THINGS THIS ROUTE DOES, in order, and nothing else:
 //
 //   1. reads the bearer token and turns it into a principal (lib/mcp/keys.ts). No key, an
-//      unknown key or a revoked key all get the SAME 401 with no detail: a caller must not be
-//      able to tell a revoked key from a typo, and must not learn that a prefix exists;
+//      unknown key, a revoked key and an EXPIRED token (migration 0026) all get the SAME 401 with
+//      no detail: a caller must not be able to tell a revoked or expired token from a typo, and
+//      must not learn that a prefix exists. Which of the four it was is in mcp_calls, for the
+//      operator, and on the Access tokens screen;
 //   2. parses the body as one JSON-RPC message;
 //   3. hands it to lib/mcp/jsonrpc.ts, which owns the protocol and the tools;
 //   4. writes one row in mcp_calls, whatever happened, including the 401s. Every POST this
@@ -45,20 +47,31 @@ async function handlePost(request: Request, _context: unknown, activity: Activit
   const presentedKey = bearerToken(request);
   const principal = presentedKey ? await principalForPresentedKey(presentedKey) : null;
   describeCaller(activity, principal);
-  if (!principal || principal.revokedAt !== null) {
+  // A token that ran out of time is refused exactly like a revoked one: the same answer to the
+  // caller, and one row in mcp_calls naming the key it presented, with the reason an operator
+  // needs ("expired token" against "revoked key"). The reason stays in the table.
+  const expired = principal !== null && tokenHasExpired(principal.expiresAt, new Date());
+  if (!principal || principal.revokedAt !== null || expired) {
     activity.rule = "MCP key";
     const recorded = await logCall({
       apiKeyId: principal?.keyId ?? null,
       log: { method: "unknown", tool: null, argumentsHash: null, outcome: "error", detail: null },
       outcome: "unauthorised",
-      detail: principal ? "revoked key" : presentedKey ? "unknown key" : "no bearer token",
+      detail: principal ? (principal.revokedAt !== null ? "revoked key" : "expired token") : presentedKey ? "unknown key" : "no bearer token",
       startedAtMs,
     });
     if (!recorded) {
       return notRecorded();
     }
-    // One answer for all three cases. WWW-Authenticate names the scheme; this build authenticates
-    // with an API key issued by staff, not with OAuth, so there is no metadata URL to point at.
+    // ONE ANSWER FOR ALL FOUR CASES: no token, an unknown token, a revoked token and an EXPIRED
+    // token get the same status, the same headers and the same body, byte for byte. A caller must
+    // not be able to tell a revoked or expired token from a typo (review finding F-B11-05), and
+    // "the caller already holds a real token" is not a reason to say more: an old token found in a
+    // notebook by a stranger would be CONFIRMED as once genuine by a different answer. The
+    // operator reads why on the Access tokens screen and in mcp_calls, where the detail above
+    // separates an expired token from a revoked one; the caller reads 401.
+    // WWW-Authenticate names the scheme; this build authenticates with an API key issued by
+    // staff, not with OAuth, so there is no metadata URL to point at.
     return new Response(JSON.stringify({ error: "unauthorized" }), {
       status: 401,
       headers: { "content-type": "application/json", "www-authenticate": 'Bearer realm="corgi-mcp"' },
