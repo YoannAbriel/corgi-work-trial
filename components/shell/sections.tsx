@@ -43,19 +43,23 @@ export type SectionDefinition = {
   illustration: IllustrationName;
 };
 
+// Cycle 2, decision 12: every section is a watercolour corgi doing that work. The monochrome
+// objects that used to sit here (an in-tray, a folder, scales, a server box) were drawn at 40 to
+// 52 px behind a radial mask and read as dark smudges; they stay available in
+// components/decorative-illustration.tsx for the empty states that use them at 200 px.
 export const SECTIONS: Record<SectionId, SectionDefinition> = {
   home: { label: "Overview", icon: Home, illustration: "welcome-corgi" },
-  console: { label: "Console", icon: Activity, illustration: "engineer-corgi" },
-  ledger: { label: "Ledger", icon: BookOpenText, illustration: "open-ledger" },
-  search: { label: "Search", icon: Search, illustration: "magnifying-glass" },
-  infra: { label: "Infrastructure", icon: ServerCog, illustration: "server-box" },
-  inbox: { label: "Inbox", icon: Inbox, illustration: "in-tray" },
-  policies: { label: "Policies", icon: FileText, illustration: "open-folder" },
+  console: { label: "Console", icon: Activity, illustration: "laptop-corgi" },
+  ledger: { label: "Ledger", icon: BookOpenText, illustration: "reading-corgi" },
+  search: { label: "Search", icon: Search, illustration: "search-corgi" },
+  infra: { label: "Infrastructure", icon: ServerCog, illustration: "mechanic-corgi" },
+  inbox: { label: "Inbox", icon: Inbox, illustration: "letter-corgi" },
+  policies: { label: "Policies", icon: FileText, illustration: "archivist-corgi" },
   verification: { label: "Brokers", icon: ShieldCheck, illustration: "broker-corgi" },
-  claims: { label: "Claims", icon: WalletCards, illustration: "umbrella" },
+  claims: { label: "Claims", icon: WalletCards, illustration: "umbrella-corgi" },
   approvals: { label: "Approvals", icon: ClipboardCheck, illustration: "checker-corgi" },
-  reconciliation: { label: "Reconciliation", icon: Scale, illustration: "balance-scales" },
+  reconciliation: { label: "Reconciliation", icon: Scale, illustration: "researcher-corgi" },
   statements: { label: "Statements", icon: ReceiptText, illustration: "accountant-corgi" },
-  "mcp-keys": { label: "MCP keys", icon: KeyRound, illustration: "key-ring" },
+  "mcp-keys": { label: "MCP keys", icon: KeyRound, illustration: "coverage-corgi" },
   login: { label: "Sign in", icon: LogIn, illustration: "welcome-corgi" },
 };
