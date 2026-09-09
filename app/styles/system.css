@@ -724,10 +724,6 @@ a.stat:hover {
   fill: var(--ink);
   font-variant-numeric: tabular-nums;
 }
-.chart table.visually-hidden {
-  display: block;
-  height: 1px;
-}
 .chart-empty {
   font-size: 13px;
   color: var(--ink-2);
@@ -2293,7 +2289,7 @@ button.secondary.is-working::after {
     position: static;
   }
   .page-band {
-    top: 0;
+    position: static;
     flex-wrap: wrap;
     gap: 10px 12px;
     padding: 10px var(--content-x);
