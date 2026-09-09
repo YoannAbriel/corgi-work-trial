@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { EventTable, FailureLine, Masked } from "@/components/console-parts";
+import { EventTable, FailureLine, IntegrationModes, Masked } from "@/components/console-parts";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import { recogniseReference, resolveReference } from "@/lib/console/read";
@@ -49,6 +49,8 @@ export default async function ConsoleSearchPage({
         }
       />
 
+      <IntegrationModes />
+
       <DetailGrid
         main={
           <>
@@ -56,6 +58,16 @@ export default async function ConsoleSearchPage({
               {found ? <FailureLine attempted={found} /> : null}
               {reference === "" ? (
                 <Empty>Type a reference on the right.</Empty>
+              ) : found && !found.ok ? (
+                // The failed read is answered BEFORE the empty answer, and that is review finding
+                // F-B13-26: a search that could not be run used to print "nothing matches"
+                // underneath its own red line, which reports a broken query as a fact about the
+                // data. This page's whole discipline is that "nothing" is never ambiguous.
+                <Empty>
+                  The search could not be run, so this page knows nothing about that reference. This is not
+                  &ldquo;nothing matches&rdquo;: the read above says which query failed, and the reference has not
+                  been looked for yet.
+                </Empty>
               ) : result && result.matches.length > 0 ? (
                 <div className="table-scroll" role="region" aria-label="Search matches" tabIndex={0}>
                   <table>
@@ -113,7 +125,14 @@ export default async function ConsoleSearchPage({
             </Panel>
 
             <Panel title="Its trail">
-              {result && result.trail.length > 0 ? (
+              {found && !found.ok ? (
+                // Same rule as the panel above (review finding F-B13-26): a read that failed is
+                // never reported as an empty trail. The failure itself is named once, in the
+                // panel above, because both panels come from that one read.
+                <Empty>
+                  The search could not be run, so there is no trail. The panel above names the read that failed.
+                </Empty>
+              ) : result && result.trail.length > 0 ? (
                 <EventTable events={result.trail} ariaLabel="Reference trail" />
               ) : (
                 <Empty>Nothing to show yet.</Empty>

@@ -52,6 +52,26 @@ export function FailureLine({ attempted }: { attempted: Attempted<unknown> }) {
 }
 
 // ---------------------------------------------------------------------------
+// Which integrations are real, said on every console screen
+// ---------------------------------------------------------------------------
+
+// One line under the heading of all seven console screens (recheck finding F-RC-08, AF-02).
+//
+// WHY IT EXISTS. These screens put records of a real Stripe sandbox next to records of two local
+// simulators, in the same tables, with the same look. Every other screen of the application
+// carries its mode wording; the console did not, and a simulated record that reads as a live one
+// is the single misrepresentation the brief treats as disqualifying. The rows themselves carry
+// the rail as well, and the README integration inventory is the full statement.
+export function IntegrationModes() {
+  return (
+    <p className="note">
+      <strong>Stripe: test mode, live sandbox.</strong> Claimant bank check and claim payout rail:{" "}
+      <strong>local simulators</strong>, labeled as such on their rows.
+    </p>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Times and durations
 // ---------------------------------------------------------------------------
 
@@ -111,6 +131,14 @@ export function EventTable({ events, ariaLabel }: { events: ConsoleEvent[]; aria
               <td>{event.kind.replace(/_/g, " ")}</td>
               <td>
                 <Chip tone={OUTCOME_TONE[event.outcome]}>{event.title}</Chip>
+                {/* The rail, ON the row and not in a fold (AF-02, recheck finding F-RC-08).
+                    A row that moved no money carries no rail and prints nothing here. */}
+                {event.rail ? (
+                  <>
+                    {" "}
+                    <Chip tone="neutral">{event.rail}</Chip>
+                  </>
+                ) : null}
               </td>
               <td className="amount">{event.amountCents === null ? "" : formatCentsAsUsd(event.amountCents)}</td>
               {/* A person's name is masked on the feed, like an email: the feed is a firehose,
