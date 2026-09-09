@@ -4,6 +4,7 @@
   "description": "Corgi work trial, Track 1: commercial policy administration with an append-only ledger",
   "scripts": {
     "dev": "next dev",
+    "dev:test-db": "tsx scripts/dev-on-test-database.ts",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

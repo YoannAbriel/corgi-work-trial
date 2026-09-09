@@ -13,16 +13,22 @@ import postgres from "postgres";
 //      request marked as agent-raised, and that same principal is refused as an approver by the
 //      application AND by the database trigger;
 //   5. the reconciliation tool stores runs and posts no journal entry;
-//   6. every single call is written down in mcp_calls, including the ones that were refused;
-//   7. who may mint a key: a staff_approver session is refused by POST /api/mcp-keys, because
+//   6. explain_amount: the explanation of a figure is the one the policy page reads, key by key,
+//      a figure key that does not exist is refused by naming the closed list, and a broker key
+//      cannot explain another broker's policy;
+//   7. list_my_activity: a key reads back the calls it just made, and none of another key's;
+//   8. every single call is written down in mcp_calls, including the ones that were refused;
+//   9. who may mint a key: a staff_approver session is refused by POST /api/mcp-keys, because
 //      the role that decides a money-out must not be able to create the maker's credential
 //      (review finding F-INT-01).
 //
 // IT NEEDS A DEV SERVER pointed at the disposable database. In one terminal:
 //
-//   DATABASE_URL_APP="$DATABASE_URL_TEST_APP" npm run dev -- -p 3800
+//   npm run dev:test-db
 //
-// (an environment variable set on the command line wins over .env.local), then:
+// (scripts/dev-on-test-database.ts: it reads .env.local itself, starts the application on port
+// 3800 with DATABASE_URL_APP set to the disposable database, and prints no connection string),
+// then in another:
 //
 //   npm run check:mcp
 //
@@ -81,7 +87,20 @@ let postsSent = 0;
 // back: neither of them may repeat it (review finding F-B11-02).
 const MALFORMED_AS_OF = "not-a-date-but-a-long-string-a-caller-chose";
 
-async function rpc(key: string | null, method: string, params?: unknown, id: number | null = 1): Promise<JsonRpcAnswer> {
+// The same trap for explain_amount: a figure key that does not exist. The refusal must name the
+// closed list instead of repeating it.
+const UNKNOWN_FIGURE_KEY = "premium_tax_but_spelled_by_a_confident_agent";
+
+// `correlationId` rides in the x-request-id header, which lib/observability/log.ts stores on the
+// activity row of that very request. It is how the list_my_activity checks below prove WHOSE
+// calls came back: a call this check labelled must be in its own key's answer and in no other's.
+async function rpc(
+  key: string | null,
+  method: string,
+  params?: unknown,
+  id: number | null = 1,
+  correlationId?: string,
+): Promise<JsonRpcAnswer> {
   postsSent += 1;
   const response = await fetch(`${baseUrl}/api/mcp`, {
     method: "POST",
@@ -89,6 +108,7 @@ async function rpc(key: string | null, method: string, params?: unknown, id: num
       "content-type": "application/json",
       accept: "application/json, text/event-stream",
       ...(key ? { authorization: `Bearer ${key}` } : {}),
+      ...(correlationId ? { "x-request-id": correlationId } : {}),
     },
     body: JSON.stringify(id === null ? { jsonrpc: "2.0", method, params } : { jsonrpc: "2.0", id, method, params }),
   });
@@ -100,8 +120,13 @@ async function rpc(key: string | null, method: string, params?: unknown, id: num
 // not. Every tool answers both shapes (lib/mcp/jsonrpc.ts), and this is the caller's side of it.
 type ToolAnswer = { ok: true; value: Record<string, unknown> } | { ok: false; refusal: string };
 
-async function callTool(key: string, name: string, args: Record<string, unknown>): Promise<ToolAnswer> {
-  const answer = await rpc(key, "tools/call", { name, arguments: args });
+async function callTool(
+  key: string,
+  name: string,
+  args: Record<string, unknown>,
+  correlationId?: string,
+): Promise<ToolAnswer> {
+  const answer = await rpc(key, "tools/call", { name, arguments: args }, 1, correlationId);
   const result = (answer.body as { result?: Record<string, unknown>; error?: { message: string } } | null)?.result;
   const error = (answer.body as { error?: { message: string } } | null)?.error;
   if (!result) {
@@ -117,6 +142,12 @@ async function callTool(key: string, name: string, args: Record<string, unknown>
 // Money figures come back as { cents, formatted }; this reads the integer.
 function cents(value: unknown): number {
   return (value as { cents: number }).cents;
+}
+
+// The line of an explain_amount answer that IS the figure: the one the fold highlights.
+function resultLine(answer: Record<string, unknown>): { inWords: string; inCents: string } {
+  const formula = answer.formula as { isTheResult: boolean; inWords: string; inCents: string }[];
+  return formula.find((line) => line.isTheResult) ?? { inWords: "no result line", inCents: "no result line" };
 }
 
 async function main() {
@@ -142,7 +173,7 @@ async function main() {
     console.error(
       `no server at ${baseUrl}: ${error instanceof Error ? error.message : error}\n` +
         `start one against the disposable database with:\n` +
-        `  DATABASE_URL_APP="$DATABASE_URL_TEST_APP" npm run dev -- -p 3800`,
+        `  npm run dev:test-db`,
     );
     process.exit(1);
   }
@@ -307,12 +338,35 @@ async function main() {
   report("ping answers a result", pinged.status === 200 && "result" in (pinged.body ?? {}), JSON.stringify(pinged.body));
 
   const listed = await rpc(staffKey.presentedKey, "tools/list");
-  const listResult = (listed.body as { result: { tools: { name: string }[]; policy: { neverDelegated: unknown[] } } }).result;
+  const listResult = (
+    listed.body as {
+      result: {
+        tools: { name: string; annotations?: { readOnlyHint?: boolean; figureKeys?: { key: string }[] } }[];
+        policy: { neverDelegated: unknown[] };
+      };
+    }
+  ).result;
   report(
-    "tools/list returns the five tools of this build",
+    "tools/list returns the seven tools of this build",
     listResult.tools.map((tool) => tool.name).join(",") ===
-      "get_policy_as_of,get_broker_statement,list_reconciliation_breaks,run_reconciliation,request_claim_payment",
+      "get_policy_as_of,get_broker_statement,explain_amount,list_my_activity,list_reconciliation_breaks,run_reconciliation,request_claim_payment",
     listResult.tools.map((tool) => tool.name).join(", "),
+  );
+  const readOnlyToolNames = listResult.tools.filter((tool) => tool.annotations?.readOnlyHint === true).map((tool) => tool.name);
+  report(
+    "EVERY TOOL SAYS WHETHER IT READS ONLY, and the two added last do",
+    readOnlyToolNames.includes("explain_amount") &&
+      readOnlyToolNames.includes("list_my_activity") &&
+      !readOnlyToolNames.includes("request_claim_payment") &&
+      !readOnlyToolNames.includes("run_reconciliation"),
+    `read-only: ${readOnlyToolNames.join(", ")}`,
+  );
+  const publishedFigureKeys =
+    listResult.tools.find((tool) => tool.name === "explain_amount")?.annotations?.figureKeys ?? [];
+  report(
+    "explain_amount publishes its closed list of figure keys in tools/list, with what each one means",
+    publishedFigureKeys.length === 15 && publishedFigureKeys.some((figure) => figure.key === "premium_tax"),
+    `${publishedFigureKeys.length} figure keys published`,
   );
   report(
     "THE NEVER-DELEGATED LIST IS PART OF THE SURFACE: tools/list carries it under policy",
@@ -545,6 +599,202 @@ async function main() {
   );
 
   // -------------------------------------------------------------------------
+  // 3b. explain_amount: the fold under a figure, over the protocol
+  // -------------------------------------------------------------------------
+
+  const { policyDetail, journalEntriesOfPolicy } = await import("@/lib/policy/read");
+  const { policyAsItStoodOn } = await import("@/lib/policy/correction-read");
+  const { termsInForceOn } = await import("@/lib/policy/terms-in-force");
+  const { accountSumCents } = await import("@/lib/money/explain");
+
+  // THE FIGURES THE POLICY PAGE READS, computed here exactly as app/policies/[policyId]/page.tsx
+  // computes them: the terms-in-force fold for the three figures of the top panel, and the same
+  // account sums over the entries no correction has reversed for the side panel. This does not
+  // call the module the tool uses, so an agreement below is two paths meeting, not one path
+  // meeting itself.
+  const pageDetail = await policyDetail(policy.policyId, runtime);
+  if (!pageDetail) {
+    throw new Error("the fixture policy cannot be read back: the check cannot compare anything");
+  }
+  const pageTerms = termsInForceOn(pageDetail, await policyAsItStoodOn(policy.policyId, TERM_START, runtime));
+  const pageEntries = (await journalEntriesOfPolicy(policy.policyId, runtime)).filter(
+    (entry) => !entry.reversesEntryId && !entry.isReversedByACorrection,
+  );
+  const pageCommissionCents = accountSumCents(pageEntries, "commission_payable", "credits_minus_debits");
+  const pageUnearnedCents = accountSumCents(pageEntries, "unearned_premium", "credits_minus_debits");
+
+  const explainedTax = await callTool(brokerKey.presentedKey, "explain_amount", {
+    policy: policy.policyNumber,
+    figure: "premium_tax",
+    asOf: TERM_START,
+  });
+  report(
+    "explain_amount gives the premium tax the POLICY PAGE reads, with the formula in words and in integer cents",
+    explainedTax.ok &&
+      cents(explainedTax.value.amount) === pageTerms.taxCents &&
+      explainedTax.value.explanationEndsOnTheFigure === true &&
+      /floor\(120000 x 235 \/ 10000\)/.test(resultLine(explainedTax.value).inCents),
+    explainedTax.ok
+      ? `${cents(explainedTax.value.amount)} cents, page reads ${pageTerms.taxCents}, formula "${resultLine(explainedTax.value).inCents}"`
+      : explainedTax.refusal,
+  );
+  report(
+    "and it names the rounding rule the way the screen names it",
+    explainedTax.ok && /Rounded down \(floor\)/.test(String(explainedTax.value.rounding)),
+    explainedTax.ok ? String(explainedTax.value.rounding).slice(0, 60) + "..." : explainedTax.refusal,
+  );
+
+  const explainedFee = await callTool(brokerKey.presentedKey, "explain_amount", {
+    policy: policy.policyNumber,
+    figure: "policy_fee",
+    asOf: TERM_START,
+  });
+  const explainedTotal = await callTool(brokerKey.presentedKey, "explain_amount", {
+    policy: policy.policyId, // the policy id works as well as the number
+    figure: "total_charge",
+    asOf: TERM_START,
+  });
+  report(
+    "the fee and the total charge agree with the same panel, and a policy id is accepted as well as its number",
+    explainedFee.ok &&
+      explainedTotal.ok &&
+      cents(explainedFee.value.amount) === pageTerms.feeCents &&
+      cents(explainedTotal.value.amount) === pageTerms.totalChargeCents &&
+      explainedTotal.value.policyNumber === policy.policyNumber,
+    explainedFee.ok && explainedTotal.ok
+      ? `fee ${cents(explainedFee.value.amount)} = ${pageTerms.feeCents}, total ${cents(explainedTotal.value.amount)} = ${pageTerms.totalChargeCents}`
+      : `${explainedFee.ok ? "" : explainedFee.refusal} ${explainedTotal.ok ? "" : explainedTotal.refusal}`,
+  );
+
+  const explainedCommission = await callTool(staffKey.presentedKey, "explain_amount", {
+    policy: policy.policyNumber,
+    figure: "commission_payable",
+  });
+  const explainedUnearned = await callTool(staffKey.presentedKey, "explain_amount", {
+    policy: policy.policyNumber,
+    figure: "unearned_premium_held",
+  });
+  report(
+    "the two ledger sums agree with the same account sums the page's side panel prints",
+    explainedCommission.ok &&
+      explainedUnearned.ok &&
+      cents(explainedCommission.value.amount) === pageCommissionCents &&
+      cents(explainedUnearned.value.amount) === pageUnearnedCents &&
+      explainedCommission.value.explanationEndsOnTheFigure === true,
+    explainedCommission.ok && explainedUnearned.ok
+      ? `commission ${cents(explainedCommission.value.amount)} = ${pageCommissionCents}, unearned ${cents(explainedUnearned.value.amount)} = ${pageUnearnedCents}`
+      : `${explainedCommission.ok ? "" : explainedCommission.refusal} ${explainedUnearned.ok ? "" : explainedUnearned.refusal}`,
+  );
+  const provenBy = explainedCommission.ok
+    ? (explainedCommission.value.provenBy as { journalEntryId: string | null; line: string }[])
+    : [];
+  report(
+    "AND IT HANDS BACK THE JOURNAL ENTRY IDS THAT PROVE IT: a person can open every line it summed",
+    provenBy.length > 0 &&
+      provenBy.every((entry) => typeof entry.journalEntryId === "string" && entry.journalEntryId.length === 36),
+    provenBy.map((entry) => `${entry.journalEntryId?.slice(0, 8)} ${entry.line}`).join(" | ") || "no evidence",
+  );
+
+  const wrongFigure = await callTool(staffKey.presentedKey, "explain_amount", {
+    policy: policy.policyNumber,
+    figure: UNKNOWN_FIGURE_KEY,
+  });
+  report(
+    "A FIGURE KEY THIS TOOL DOES NOT KNOW IS REFUSED BY NAMING THE CLOSED LIST, and the value the caller sent is not repeated",
+    !wrongFigure.ok &&
+      /must be one of: premium_tax/.test(wrongFigure.refusal) &&
+      !wrongFigure.refusal.includes(UNKNOWN_FIGURE_KEY),
+    wrongFigure.ok ? "it answered" : wrongFigure.refusal.slice(0, 110) + "...",
+  );
+
+  const notCancelled = await callTool(staffKey.presentedKey, "explain_amount", {
+    policy: policy.policyNumber,
+    figure: "cancellation_total_refund",
+  });
+  report(
+    "a figure this policy does not have answers a sentence saying why, not a zero",
+    !notCancelled.ok && /has not been cancelled/.test(notCancelled.refusal),
+    notCancelled.ok ? `it answered ${cents(notCancelled.value.amount)}` : notCancelled.refusal,
+  );
+
+  const explainAnotherBroker = await callTool(brokerKey.presentedKey, "explain_amount", {
+    policy: otherPolicy.policyNumber,
+    figure: "premium_tax",
+  });
+  report(
+    "A BROKER KEY CANNOT EXPLAIN ANOTHER BROKER'S POLICY, with the same sentence get_policy_as_of gives",
+    !explainAnotherBroker.ok &&
+      !anotherBrokersPolicy.ok &&
+      explainAnotherBroker.refusal === anotherBrokersPolicy.refusal,
+    explainAnotherBroker.ok ? "it answered" : explainAnotherBroker.refusal,
+  );
+
+  // -------------------------------------------------------------------------
+  // 3c. list_my_activity: this key's own calls, and nobody else's
+  // -------------------------------------------------------------------------
+
+  // Two labelled calls, one per key. The label rides in x-request-id and is stored as the
+  // correlation id of that request's activity row, so each key's answer can be checked for the
+  // label it made and against the one it did not.
+  const staffTrace = `mcp-check-staff-${crypto.randomUUID()}`;
+  const brokerTrace = `mcp-check-broker-${crypto.randomUUID()}`;
+  await callTool(staffKey.presentedKey, "explain_amount", { policy: policy.policyNumber, figure: "policy_fee" }, staffTrace);
+  await callTool(brokerKey.presentedKey, "explain_amount", { policy: policy.policyNumber, figure: "policy_fee" }, brokerTrace);
+
+  type ActivityRow = {
+    recordedAt: string;
+    tool: string | null;
+    outcome: string;
+    rule: string | null;
+    durationMs: number;
+    correlationId: string;
+  };
+  const staffActivity = await callTool(staffKey.presentedKey, "list_my_activity", {});
+  const staffCalls = staffActivity.ok ? (staffActivity.value.calls as ActivityRow[]) : [];
+  report(
+    "list_my_activity returns the calls this key just made, newest first and bounded to 50",
+    staffActivity.ok &&
+      staffCalls.length > 0 &&
+      staffCalls.length <= 50 &&
+      staffCalls.some((call) => call.correlationId === staffTrace && call.tool === "explain_amount") &&
+      staffCalls.every((call, index) => index === 0 || staffCalls[index - 1].recordedAt >= call.recordedAt),
+    staffActivity.ok ? `${staffCalls.length} calls, newest "${staffCalls[0]?.tool ?? "none"}"` : staffActivity.refusal,
+  );
+  report(
+    "IT RETURNS NOTHING FROM ANOTHER KEY: the call the broker key labelled is not in the staff key's answer",
+    staffActivity.ok && !staffCalls.some((call) => call.correlationId === brokerTrace),
+    staffActivity.ok ? `${staffCalls.length} calls read back, none of them the broker's` : staffActivity.refusal,
+  );
+  report(
+    "the refusals are in it too, with the rule that refused them, and every row carries a duration",
+    staffActivity.ok &&
+      staffCalls.some((call) => call.outcome === "refused" && call.rule === "MCP tool scope") &&
+      staffCalls.every((call) => Number.isInteger(call.durationMs) && call.durationMs >= 0),
+    staffActivity.ok
+      ? `${staffCalls.filter((call) => call.outcome === "refused").length} refused of ${staffCalls.length}`
+      : staffActivity.refusal,
+  );
+
+  const brokerActivity = await callTool(brokerKey.presentedKey, "list_my_activity", {});
+  const brokerCalls = brokerActivity.ok ? (brokerActivity.value.calls as ActivityRow[]) : [];
+  report(
+    "and the broker key sees its own call and none of the staff key's",
+    brokerActivity.ok &&
+      brokerCalls.some((call) => call.correlationId === brokerTrace) &&
+      !brokerCalls.some((call) => call.correlationId === staffTrace),
+    brokerActivity.ok ? `${brokerCalls.length} calls, its own label present, the staff label absent` : brokerActivity.refusal,
+  );
+  report(
+    "no payload and no argument can come back: a row carries six fields and none of them is one",
+    brokerActivity.ok &&
+      brokerCalls.length > 0 &&
+      brokerCalls.every(
+        (call) => Object.keys(call).sort().join(",") === "correlationId,durationMs,outcome,recordedAt,rule,tool",
+      ),
+    brokerActivity.ok ? Object.keys(brokerCalls[0] ?? {}).join(", ") : brokerActivity.refusal,
+  );
+
+  // -------------------------------------------------------------------------
   // 4. The write tool: it queues, it never pays
   // -------------------------------------------------------------------------
 
@@ -768,19 +1018,19 @@ async function main() {
 
   // Review finding F-B11-02: mcp_calls can never be updated, deleted or truncated, so a string a
   // caller chose the text of would sit in it for the life of the database. This run deliberately
-  // sent four of them: the method "resources/list", the tool name "approve_claim_payment", the
-  // header "1999-01-01" and a malformed asOf. None of the four may be in the rows it wrote.
+  // sent five of them: the method "resources/list", the tool name "approve_claim_payment", the
+  // header "1999-01-01", a malformed asOf and an unknown figure key. None may be in its rows.
   const rowsThisRunWrote = await lastCallRows(postsSent);
-  const callerStrings = ["resources/list", "approve_claim_payment", "1999-01-01", MALFORMED_AS_OF];
+  const callerStrings = ["resources/list", "approve_claim_payment", "1999-01-01", MALFORMED_AS_OF, UNKNOWN_FIGURE_KEY];
   const rowsQuotingTheCaller = rowsThisRunWrote.filter((row) =>
     callerStrings.some(
       (caller) => (row.tool ?? "").includes(caller) || row.method.includes(caller) || (row.detail ?? "").includes(caller),
     ),
   );
   report(
-    "NO CALLER STRING REACHES THE APPEND-ONLY CALL LOG: not the method, the tool name, the header or the argument",
+    "NO CALLER STRING REACHES THE APPEND-ONLY CALL LOG: not the method, the tool name, the header or either argument",
     rowsQuotingTheCaller.length === 0,
-    `${rowsThisRunWrote.length} rows read back, ${rowsQuotingTheCaller.length} quoting one of the four strings this run sent`,
+    `${rowsThisRunWrote.length} rows read back, ${rowsQuotingTheCaller.length} quoting one of the ${callerStrings.length} strings this run sent`,
   );
   const boundedRows = rowsThisRunWrote.every(
     (row) => row.method.length <= 64 && (row.tool ?? "").length <= 64 && (row.detail ?? "").length <= 500,
