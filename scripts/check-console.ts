@@ -222,6 +222,20 @@ async function main() {
     `${withZeroThreshold.unknownOutcome.length} unknown outcomes with a threshold of 0`,
   );
 
+  // Review finding F-INT-03. The fixture's `resolvedLate` operation succeeded and then carried
+  // two more rows: an 'unknown' probe before the success and a late 'provider_accepted' after it,
+  // which is the shape the live CGP-01707 has. Reading the last row alone put it on the board as
+  // an unresolved unknown outcome while the policy page called it succeeded. A terminal event now
+  // wins, in every reader, so it is neither in flight nor unknown here.
+  const lateIsInFlight = [...withZeroThreshold.checking, ...withZeroThreshold.unknownOutcome].some(
+    (operation) => operation.operationId === fixture.resolvedLateOperationId,
+  );
+  report(
+    "AN OPERATION THAT SUCCEEDED AND THEN CARRIED A LATER NON-TERMINAL EVENT IS NEITHER IN FLIGHT NOR UNKNOWN",
+    !lateIsInFlight,
+    `checking ${withZeroThreshold.checking.length}, unknown ${withZeroThreshold.unknownOutcome.length}, none of them this operation`,
+  );
+
   // Review finding F-B13-50. The reader must not depend on the feed cursor: `afterFixture` is a
   // cursor the feed itself answers with none of this fixture's rows (asserted above), and the
   // same operation must still be listed as accepted and unconfirmed.
@@ -258,6 +272,14 @@ async function main() {
   report("a webhook whose processing failed is listed with its attempts", webhookFailureListed, fixture.failedWebhookEventId);
   const mcpRefusalListed = problems.some((problem) => problem.family === "mcp" && problem.reference === fixture.keyPrefix);
   report("a refused MCP call is listed", mcpRefusalListed, fixture.keyPrefix);
+  // ... and the 'unknown' row of an operation that succeeded afterwards is not a problem any more
+  // (review finding F-INT-03). It is the same rule as the in-flight reader, asked of the panel an
+  // operator actually reads during an incident.
+  report(
+    "an unknown outcome that a later success resolved is not on the errors panel",
+    problems.every((problem) => problem.reference !== fixture.lateCheckoutSessionId),
+    `${problems.length} problems, none of them that operation`,
+  );
 
   // ---------------------------------------------------------------------------
   // 5. The reference search, one assertion per recognised shape
@@ -360,6 +382,16 @@ async function main() {
     `${succeeded?.requestedToAcceptedSeconds ?? "none"} s then ${succeeded?.acceptedToSucceededSeconds ?? "none"} s`,
   );
 
+  // The other half of review finding F-INT-03: the 360 money table derives the same status as the
+  // in-flight reader, so the two panels of the console cannot say different things about one
+  // operation, and neither can disagree with the policy page.
+  const resolvedLate = operations.find((operation) => operation.operationId === fixture.resolvedLateOperationId);
+  report(
+    "the 360 money table calls that operation succeeded, not by its last row but by its terminal one",
+    resolvedLate?.latestStatus === "succeeded",
+    `latest status ${resolvedLate?.latestStatus ?? "not found"}`,
+  );
+
   const webhooks = await webhooksTouching(
     runtime,
     operations.map((operation) => operation.providerRef).filter((reference): reference is string => reference !== null),
@@ -414,8 +446,8 @@ async function main() {
   `;
   report(
     "the readers created no money operation of their own",
-    myOperations === 3,
-    `${myOperations} operations carry this run's key prefix, and the fixture wrote exactly 3`,
+    myOperations === 4,
+    `${myOperations} operations carry this run's key prefix, and the fixture wrote exactly 4`,
   );
 
   const [privileges] = await runtime<{ can_update: boolean; can_delete: boolean; can_select: boolean }[]>`
@@ -451,6 +483,8 @@ type Fixture = {
   claimNumber: string;
   paidOperationId: string;
   stuckOperationId: string;
+  resolvedLateOperationId: string;
+  lateCheckoutSessionId: string;
   paymentIntentId: string;
   checkoutSessionId: string;
   refundId: string;
@@ -473,6 +507,8 @@ async function createFixture(): Promise<Fixture> {
   const checkoutSessionId = stripeId("cs");
   const refundId = stripeId("re");
   const failedRefundId = stripeId("re");
+  const lateCheckoutSessionId = stripeId("cs");
+  const latePaymentIntentId = stripeId("pi");
   const keyPrefix = `cmk_${randomBytes(4).toString("hex")}`;
   const webhookEventId = stripeId("evt");
   const failedWebhookEventId = stripeId("evt");
@@ -551,6 +587,29 @@ async function createFixture(): Promise<Fixture> {
       insert into money_operation_events (operation_id, status, provider_ref, payload)
       values (${stuck.id}, 'provider_accepted', ${refundId}, ${transaction.json({ note: "accepted, nothing since" })})
     `;
+
+    // An operation whose history moves BACKWARDS after it succeeded, which is the shape two
+    // production operations really have (review findings F-B2-20 and F-INT-03): the recovery job
+    // said "unknown" at the threshold, the payment_intent.succeeded webhook then landed, and
+    // Stripe delivered checkout.session.completed last of all. The table is append-only, so that
+    // order is there for ever. The console must read this operation as succeeded.
+    const [resolvedLate] = await transaction<{ id: string }[]>`
+      insert into money_operations (kind, provider, amount_cents, policy_id, idempotency_key)
+      values ('stripe_checkout', 'stripe', 125320, ${policy.id}, ${`console-check-${RUN_TAG}-late`})
+      returning id
+    `;
+    for (const [status, providerRef, payload] of [
+      ["requested", null, {}],
+      ["provider_accepted", lateCheckoutSessionId, { checkout_url: "https://checkout.stripe.test/late" }],
+      ["unknown", lateCheckoutSessionId, { reason: "the recovery job could not tell either way" }],
+      ["succeeded", latePaymentIntentId, { note: "payment_intent.succeeded arrived after the probe" }],
+      ["provider_accepted", lateCheckoutSessionId, { note: "checkout.session.completed, delivered last" }],
+    ] as const) {
+      await transaction`
+        insert into money_operation_events (operation_id, status, provider_ref, payload)
+        values (${resolvedLate.id}, ${status}, ${providerRef}, ${transaction.json(payload)})
+      `;
+    }
 
     // A refund the provider refused: the errors panel, with its sanitised reason.
     const [refused] = await transaction<{ id: string }[]>`
@@ -667,6 +726,8 @@ async function createFixture(): Promise<Fixture> {
       claimNumber: claim.claim_number,
       paidOperationId: paid.id,
       stuckOperationId: stuck.id,
+      resolvedLateOperationId: resolvedLate.id,
+      lateCheckoutSessionId,
       paymentIntentId,
       checkoutSessionId,
       refundId,

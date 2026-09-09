@@ -13,7 +13,10 @@ import postgres from "postgres";
 //      request marked as agent-raised, and that same principal is refused as an approver by the
 //      application AND by the database trigger;
 //   5. the reconciliation tool stores runs and posts no journal entry;
-//   6. every single call is written down in mcp_calls, including the ones that were refused.
+//   6. every single call is written down in mcp_calls, including the ones that were refused;
+//   7. who may mint a key: a staff_approver session is refused by POST /api/mcp-keys, because
+//      the role that decides a money-out must not be able to create the maker's credential
+//      (review finding F-INT-01).
 //
 // IT NEEDS A DEV SERVER pointed at the disposable database. In one terminal:
 //
@@ -123,6 +126,9 @@ async function main() {
   const { runStatement } = await import("@/lib/statements/run");
   const { createApiKey, revokeApiKey, KeyRefused } = await import("@/lib/mcp/keys");
   const { decideApprovalRequest, ApprovalRefused } = await import("@/lib/approvals/approvals");
+  // Signing one session cookie by hand is how this check reaches a browser-only route
+  // (POST /api/mcp-keys) as a given role, with the server's own secret and its own function.
+  const { signSessionCookie, sessionSecret, SESSION_COOKIE_NAME } = await import("@/lib/auth/session");
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`select current_database()`;
   if (databaseName !== "corgi_test") {
@@ -225,6 +231,39 @@ async function main() {
     "AN AGENT KEY CANNOT BE CREATED FOR A STAFF APPROVER: the database refuses it",
     /agent principal cannot hold a staff_approver key/.test(agentKeyForApprover),
     agentKeyForApprover,
+  );
+
+  // Review finding F-INT-01, over HTTP with a real signed session cookie: the role that DECIDES
+  // a money-out cannot mint the credential that REQUESTS one. Without this refusal a single
+  // staff_approver could create a key for the staff_ops user, raise a claim payment through it
+  // and then approve it as themselves, which is the maker-checker gate defeated in a browser.
+  const keysBeforeTheApproverTried = await apiKeyCountOf(people.opsId);
+  const approverSessionCookie = signSessionCookie(
+    people.approverId,
+    Math.floor(Date.now() / 1000) + 300,
+    sessionSecret(),
+  );
+  const mintedByAnApprover = await fetch(`${baseUrl}/api/mcp-keys`, {
+    method: "POST",
+    redirect: "manual", // the answer is a 303 to the screen: read it, do not follow it
+    headers: {
+      cookie: `${SESSION_COOKIE_NAME}=${approverSessionCookie}`,
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      action: "create",
+      userId: people.opsId, // the maker's own eyes: the whole point of the attack
+      label: "check: a key minted by an approver",
+      principalKind: "human",
+    }).toString(),
+  });
+  const refusalToTheApprover = decodeURIComponent(mintedByAnApprover.headers.get("location") ?? "");
+  report(
+    "A STAFF APPROVER CANNOT CREATE AN MCP KEY: POST /api/mcp-keys refuses the session and writes no key",
+    mintedByAnApprover.status === 303 &&
+      /only staff operations can manage MCP API keys/.test(refusalToTheApprover) &&
+      (await apiKeyCountOf(people.opsId)) === keysBeforeTheApproverTried,
+    `${mintedByAnApprover.status} ${refusalToTheApprover}`,
   );
 
   const callsBefore = await mcpCallCount();
@@ -900,6 +939,15 @@ async function fixtureJournalCount(policyIds: string[], claimId: string): Promis
   const [row] = await owner<{ count: string }[]>`
     select count(*)::text as count from journal_entries
      where policy_id in ${owner(policyIds)} or claim_id = ${claimId}
+  `;
+  return Number(row.count);
+}
+
+// How many keys are held by ONE user. Counting the whole table would be wrong for the same
+// reason as fixtureJournalCount above: corgi_test is shared with other checks.
+async function apiKeyCountOf(userId: string): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`
+    select count(*)::text as count from mcp_api_keys where user_id = ${userId}
   `;
   return Number(row.count);
 }

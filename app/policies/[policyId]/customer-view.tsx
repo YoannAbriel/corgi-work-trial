@@ -13,8 +13,10 @@ import {
   REPLY_MAXIMUM_CHARACTERS,
   type ChangeRequestView,
 } from "@/lib/policy/change-requests";
+import { policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
 import type { PolicyDetail } from "@/lib/policy/read";
+import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { PolicyTimeline } from "./correction-sections";
 
 // The customer's own view of their policy, and the change requests that go with it (slice B13-6,
@@ -29,9 +31,10 @@ import { PolicyTimeline } from "./correction-sections";
 //
 // WHAT THE CUSTOMER DOES NOT SEE, deliberately: the journal, the ledger sums, the broker's
 // commission, the claims, the corrections, and every button that changes something. The only
-// action they have is asking. Their page is a read of policy_current, the endorsement events and
-// their own requests; the server checks who they are before rendering a single line of it
-// (app/policies/[policyId]/page.tsx), and every route they can reach checks it again.
+// action they have is asking. Their page is a read of the policy as it stood today (the same fold
+// the staff page uses), the endorsement events and their own requests; the server checks who they
+// are before rendering a single line of it (app/policies/[policyId]/page.tsx), and every route
+// they can reach checks it again.
 
 export async function CustomerPolicyView({
   user,
@@ -44,15 +47,26 @@ export async function CustomerPolicyView({
   // forms produce and ignores everything else.
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const [query, schedule, requests] = await Promise.all([
-    searchParams,
-    endorsementScheduleOfPolicy(policy.policyId),
-    changeRequestsOfPolicy(policy.policyId),
-  ]);
   const today = new Date().toISOString().slice(0, 10);
   // A date field cannot start on a date it would refuse: on a policy whose term has not begun,
   // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
   const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
+
+  const [query, schedule, requests, termsToday] = await Promise.all([
+    searchParams,
+    endorsementScheduleOfPolicy(policy.policyId),
+    changeRequestsOfPolicy(policy.policyId),
+    // THE TERMS IN FORCE ON THIS DATE, not the latest terms on the policy record (review finding
+    // F-INT-02). policy_current applies every event whatever its effective date, so this page was
+    // printing a future endorsement's premium, tax and LIMITS as the cover in force today, to the
+    // insured, while the staff page for the same policy printed the real ones. Same fold, same
+    // function, same day, on both screens.
+    policyAsItStoodOn(policy.policyId, documentDate),
+  ]);
+  const terms = termsInForceOn(policy, termsToday);
+  // Applied endorsements that have not taken effect yet: the gap between what the policy is today
+  // and what policy_current already carries. Named under the facts rather than folded into them.
+  const endorsementsNotYetInForce = schedule.filter((row) => row.effectiveAt > documentDate);
   const statusTone =
     policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "warn" : "neutral";
 
@@ -87,28 +101,44 @@ export async function CustomerPolicyView({
       <DetailGrid
         main={
           <>
-            <Panel title="Terms in force">
+            <Panel title={terms.onDate ? `Terms in force on ${terms.onDate}` : "Terms in force"}>
               <Facts
                 items={[
-                  { label: "Annual premium", value: formatCentsAsUsd(policy.annualPremiumCents) },
+                  { label: "Annual premium", value: formatCentsAsUsd(terms.annualPremiumCents) },
                   {
-                    label: `${policy.stateCode} premium tax (${(policy.taxRateBps / 100).toFixed(2)}%)`,
-                    value: formatCentsAsUsd(policy.taxCents),
+                    label: `${policy.stateCode} premium tax (${(terms.taxRateBps / 100).toFixed(2)}%)`,
+                    value: formatCentsAsUsd(terms.taxCents),
                   },
-                  { label: "Policy fee, once at issuance", value: formatCentsAsUsd(policy.feeCents) },
+                  { label: "Policy fee, once at issuance", value: formatCentsAsUsd(terms.feeCents) },
                   {
                     label: "Full annual term at these terms",
-                    value: formatCentsAsUsd(policy.totalChargeCents),
+                    value: formatCentsAsUsd(terms.totalChargeCents),
                     emphasis: true,
                   },
-                  { label: "Per-occurrence limit", value: formatCentsAsUsd(policy.perOccurrenceLimitCents) },
-                  { label: "Aggregate limit", value: formatCentsAsUsd(policy.aggregateLimitCents) },
+                  ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
                 ]}
               />
               <p className="note">
-                These are the terms in force today. What you were charged over the life of the policy is in the
+                These are the terms in force on that date. What you were charged over the life of the policy is in the
                 endorsement schedule below and on your declarations page.
               </p>
+              {terms.onDate === null ? (
+                <p className="note">
+                  Your policy cannot be rebuilt on {documentDate}: {"error" in termsToday ? termsToday.error : "no answer"}.
+                  The figures above are the ones on the policy record, not the cover in force on a date.
+                </p>
+              ) : null}
+              {/* The same sentence the staff page prints (F-YA-07, F-INT-02): what the policy is
+                  today, and separately what it becomes. The figures come from the endorsement's
+                  own stored event; nothing is recomputed. */}
+              {endorsementsNotYetInForce.map((row) => (
+                <p key={`not-yet-${row.endorsedEventId}`} className="note">
+                  An endorsement effective {row.effectiveAt} brings the annual premium to{" "}
+                  {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}
+                  {row.newLimitLabel ? ` (${row.newLimitLabel})` : ""}. It is in the schedule below with the amount it
+                  collected; the figures above are the ones in force on {terms.onDate}.
+                </p>
+              ))}
             </Panel>
 
             <Panel title="Endorsement schedule">

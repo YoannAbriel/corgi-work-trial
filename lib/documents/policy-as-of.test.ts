@@ -112,9 +112,10 @@ const ENDORSEMENT_WITH_WRONG_DATE: PolicyEvent = {
   payload: {
     description: "General Liability each-occurrence limit raised to $2,000,000",
     annualPremiumCents: 180000,
-    // 60000 x 243 remaining days / 365 = 39945.2 -> 39945 cents, the amount charged when
-    // the endorsement was believed to start on July 1.
+    // 60000 x 243 remaining days / 365 = 39945.2 -> 39945 cents of premium, plus its tax,
+    // as charged when the endorsement was believed to start on July 1.
     premiumDeltaCents: 39945,
+    taxDeltaCents: 938, // floor(39945 x 235 / 10000)
   },
 };
 
@@ -137,6 +138,7 @@ const REBOOK_AT_THE_RIGHT_DATE: PolicyEvent = {
     description: "General Liability each-occurrence limit raised to $2,000,000 (corrected date)",
     annualPremiumCents: 180000,
     premiumDeltaCents: 43561, // repriced from June 9: 60000 x 265 / 365
+    taxDeltaCents: 1023, // and its tax, repriced with it
   },
 };
 

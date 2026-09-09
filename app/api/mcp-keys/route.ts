@@ -19,8 +19,14 @@ export async function POST(request: Request): Promise<Response> {
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");
   }
-  if (user.role !== "staff_ops" && user.role !== "staff_approver") {
-    return backToKeys("only staff can manage MCP API keys");
+  // STAFF OPERATIONS ONLY, AND THAT IS MAKER-CHECKER (review finding F-INT-01). A key is a
+  // credential that can raise a money-out in somebody else's name, so the person who DECIDES a
+  // money-out must not be able to act as the person who REQUESTS one. A staff_approver who could
+  // mint a key for the staff_ops user would be both halves of the gate on their own: raise a
+  // claim payment through that key, then approve it as themselves. Revocation is refused here
+  // too, for the same reason: taking the maker's key away is also a move in that game.
+  if (user.role !== "staff_ops") {
+    return backToKeys("only staff operations can manage MCP API keys");
   }
 
   const form = await request.formData();

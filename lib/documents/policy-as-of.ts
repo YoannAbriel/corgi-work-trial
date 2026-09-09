@@ -64,6 +64,10 @@ export type PolicyEventPayload = {
   // its effective date to the end of the term, integer cents. Computed by
   // `endorsementDeltaCents` in lib/money/premium.ts.
   premiumDeltaCents?: number;
+  // State premium tax charged (positive) or credited (negative) with that prorated premium,
+  // integer cents. Stored on the endorsement event as `delta_tax_cents`; the documents print
+  // premium plus tax as the amount charged (review finding F-INT-07).
+  taxDeltaCents?: number;
   // One sentence for the endorsement schedule, e.g. "General Liability limit raised to $2M".
   description?: string;
 
@@ -146,11 +150,18 @@ export function foldPolicyEvents(
         if (event.payload.coverageLines) {
           coverageLines = event.payload.coverageLines;
         }
+        // The two figures the endorsement event stores about the money it moved, read once.
+        const premiumDeltaCents = requireCents(event, "premiumDeltaCents", { allowNegative: true });
+        const taxDeltaCents = requireCents(event, "taxDeltaCents", { allowNegative: true });
         endorsements.push({
           effectiveAt: event.effectiveAt,
           recordedAt: event.recordedAt,
           description: requireText(event, "description"),
-          premiumDeltaCents: requireCents(event, "premiumDeltaCents", { allowNegative: true }),
+          premiumDeltaCents,
+          // The only addition in this fold, and it is the one the documents needed: premium plus
+          // its tax is what the customer was charged (review finding F-INT-07). Both terms come
+          // from the endorsement's own event; nothing is priced here.
+          amountChargedCents: premiumDeltaCents + taxDeltaCents,
           annualPremiumCentsAfter: annualPremiumCents,
         });
         break;

@@ -102,6 +102,7 @@ function endorsedPayload(fields: Record<string, unknown>): PolicyEventPayload {
     description: text(fields, "description"),
     annualPremiumCents: wholeNumber(fields, "annual_premium_cents"),
     premiumDeltaCents: signedWholeNumber(fields, "delta_premium_cents"),
+    taxDeltaCents: signedWholeNumber(fields, "delta_tax_cents"),
     coverageLines: coverageLines(wholeNumber(fields, "per_occurrence_limit_cents"), wholeNumber(fields, "aggregate_limit_cents")),
   };
 }

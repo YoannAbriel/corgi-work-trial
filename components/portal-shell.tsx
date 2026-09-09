@@ -88,7 +88,12 @@ export async function PortalShell({
         },
         { href: "/ops/reconciliation", label: "Reconciliation", section: "reconciliation", icon: Scale },
         { href: "/ops/statements", label: "Statements", section: "statements", icon: ReceiptText },
-        { href: "/ops/mcp-keys", label: "MCP keys", section: "mcp-keys", icon: KeyRound },
+        // Only staff operations reach this screen (review finding F-INT-01: an approver who could
+        // mint the maker's key would be both halves of the maker-checker gate), so an approver is
+        // not offered a link the page would refuse.
+        ...(user?.role === "staff_ops"
+          ? [{ href: "/ops/mcp-keys", label: "MCP keys", section: "mcp-keys" as Section, icon: KeyRound }]
+          : []),
       ]
     : user?.role === "broker"
       ? [

@@ -82,8 +82,11 @@ test("the endorsement schedule lists both endorsements with their delta and runn
   // stops at the seconds (see the note on runs in pdf-text.ts).
   assert.ok(printedText.includes("2028-06-09 09:12:45"), "the first endorsement's recording time is missing");
   assert.ok(printedText.includes("September 1, 2028"), "the second endorsement's effective date is missing");
-  assert.ok(printedText.includes("$435.61"), "the prorated charge of the first endorsement is missing");
-  assert.ok(printedText.includes("-$148.77"), "the prorated credit of the second endorsement is missing");
+  // The amount charged, premium AND its state premium tax, which is what moved at the provider
+  // and what the policy page shows: 43561 + 1023 and -14877 + -350 (review finding F-INT-07, the
+  // column used to print the premium alone under a caption calling it the amount charged).
+  assert.ok(printedText.includes("$445.84"), "the amount charged for the first endorsement is missing");
+  assert.ok(printedText.includes("-$152.27"), "the amount credited for the second endorsement is missing");
 
   // The running annual premium: issued at $1,200, then $1,800, then $1,500.
   assert.ok(printedText.includes("$1,200.00"), "the premium at issuance is missing");

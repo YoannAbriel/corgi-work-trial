@@ -182,6 +182,73 @@ export function computeEndorsement(input: EndorsementInput): EndorsementFigures 
 }
 
 // ---------------------------------------------------------------------------------------
+// Repricing a stored endorsement, to check the fold that explains it
+// ---------------------------------------------------------------------------------------
+
+// One printed figure that the recomputation does not agree with.
+export type FigureDisagreement = {
+  // What the figure is, in the words the fold uses.
+  figure: string;
+  storedCents: number; // what the event holds, and what the ledger posted
+  recomputedCents: number; // what the same inputs price today
+};
+
+export type FiguresRecheck = {
+  agrees: boolean;
+  disagreements: FigureDisagreement[]; // empty when they agree
+  // Set when the stored inputs cannot be priced at all today (a date outside the term, a figure
+  // the pure function refuses). Nothing is compared then, and the fold says so rather than
+  // claiming agreement.
+  notComputable: string | null;
+};
+
+// THE AGREEMENT CHECK UNDER THE ENDORSEMENT FOLD (review finding F-INT-05).
+//
+// The fold used to compare the stored total with itself, so its alert could not fire whatever the
+// data said. This prices the endorsement AGAIN from the inputs stored on its own event, which are
+// the same inputs the preview used (the term, its dates, the effective date, the two annual
+// premiums, the tax rate, the tax charged so far and the commission rate), and compares every
+// money figure the fold prints with the one the ledger holds.
+//
+// computeEndorsement stays the single source of the arithmetic: there is no second formula here,
+// only a call and a subtraction. The day counts are not compared on their own because they are
+// inputs to the figures below: a wrong number of days shows up as a wrong prorated premium.
+export function recheckEndorsementFigures(stored: EndorsementFigures): FiguresRecheck {
+  let recomputed: EndorsementFigures;
+  try {
+    recomputed = computeEndorsement({
+      policyId: stored.policyId,
+      policyVersion: stored.policyVersion,
+      termStart: stored.termStart,
+      termEnd: stored.termEnd,
+      effectiveAt: stored.effectiveAt,
+      oldAnnualPremiumCents: stored.oldAnnualPremiumCents,
+      newAnnualPremiumCents: stored.newAnnualPremiumCents,
+      taxRateBps: stored.taxRateBps,
+      taxChargedSoFarCents: stored.taxChargedSoFarCents,
+      commissionRateBps: stored.commissionRateBps,
+    });
+  } catch (error) {
+    return {
+      agrees: false,
+      disagreements: [],
+      notComputable: error instanceof Error ? error.message : String(error),
+    };
+  }
+
+  const comparisons: FigureDisagreement[] = [
+    { figure: "annual premium difference", storedCents: stored.annualDifferenceCents, recomputedCents: recomputed.annualDifferenceCents },
+    { figure: "prorated premium", storedCents: stored.deltaPremiumCents, recomputedCents: recomputed.deltaPremiumCents },
+    { figure: "state premium tax", storedCents: stored.deltaTaxCents, recomputedCents: recomputed.deltaTaxCents },
+    { figure: "policy fee", storedCents: stored.deltaFeeCents, recomputedCents: recomputed.deltaFeeCents },
+    { figure: "total collected or refunded", storedCents: stored.deltaTotalCents, recomputedCents: recomputed.deltaTotalCents },
+    { figure: "broker commission", storedCents: stored.commissionDeltaCents, recomputedCents: recomputed.commissionDeltaCents },
+  ];
+  const disagreements = comparisons.filter((comparison) => comparison.storedCents !== comparison.recomputedCents);
+  return { agrees: disagreements.length === 0, disagreements, notComputable: null };
+}
+
+// ---------------------------------------------------------------------------------------
 // The quote hash: what an approval and a payment are bound to
 // ---------------------------------------------------------------------------------------
 

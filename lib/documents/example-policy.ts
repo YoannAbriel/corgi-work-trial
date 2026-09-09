@@ -74,6 +74,7 @@ export const EXAMPLE_FIRST_ENDORSEMENT: PolicyEvent = {
     description: "General Liability each-occurrence limit raised to $2,000,000",
     annualPremiumCents: 180000,
     premiumDeltaCents: 43561,
+    taxDeltaCents: 1023, // floor(43561 x 235 / 10000)
     coverageLines: [
       {
         name: "General Liability - Each Occurrence",
@@ -98,6 +99,7 @@ export const EXAMPLE_SECOND_ENDORSEMENT: PolicyEvent = {
     description: "Scheduled location removed",
     annualPremiumCents: 150000,
     premiumDeltaCents: -14877,
+    taxDeltaCents: -350, // ceil(14877 x 235 / 10000), credited back with the premium
   },
 };
 

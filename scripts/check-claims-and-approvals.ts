@@ -14,7 +14,10 @@ import postgres from "postgres";
 //      authorise paying a different one;
 //   5. an approved payment executes once, even when two executions race;
 //   6. a cancellation refund above $1,000 stays in 'requested' until a second person approves it,
-//      and cannot be sent twice afterwards.
+//      and cannot be sent twice afterwards;
+//   7. rule 21 fails closed: an agent-raised claim payment carrying no approval request is refused
+//      at the send gate, on a state built by hand because the request path can no longer create it
+//      (review finding F-INT-10).
 //
 // It runs the production functions with the RESTRICTED runtime role, so it also proves that all
 // of this works with the privileges the deployed application actually has.
@@ -1002,6 +1005,54 @@ async function main() {
     (await recoverStuckOperation(runtime, stuckFirstPayment!)).kind === "recovered" &&
       (await claimEventCount(recoveryClaim.claimId, "payment_sent")) === 1,
     `${await claimEventCount(recoveryClaim.claimId, "payment_sent")} payment(s) sent on this claim`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 11e. Rule 21 fails closed, watched firing (review finding F-INT-10)
+  // ---------------------------------------------------------------------------
+
+  // The state this refuses cannot be created through requestClaimPayment: since rule 21 (Yoann,
+  // DECISIONS.md 2026-09-08 20:38Z) an agent-raised request always queues, whatever the amount.
+  // So the branch had never been seen to fire, which is a guard nobody has watched work. It is
+  // built here by hand on the disposable database, the way section 11c builds its ungated refund:
+  // a claim payout carrying NO approval request, whose immutable payment_requested event says an
+  // agent asked for it. Deliberately $10, far below the $1,000 ceiling, so the refusal can only
+  // come from rule 21 and not from the cumulative threshold.
+  const [agentRaised] = await runtime<{ id: string }[]>`
+    insert into money_operations (kind, provider, amount_cents, policy_id, claim_id, idempotency_key, created_by)
+    values ('claim_payout', 'simulator', 1000, ${recoveryPolicy.policyId}, ${recoveryClaim.claimId},
+            ${`claim-payout:${recoveryClaim.claimId}:check-f-int-10`}, ${maker.userId})
+    returning id
+  `;
+  await runtime`
+    insert into money_operation_events (operation_id, status, payload)
+    values (${agentRaised.id}, 'requested',
+            ${runtime.json({ note: "check fixture: raised by an agent, carrying no approval request" })})
+  `;
+  await runtime`
+    insert into claim_events (claim_id, event_type, amount_cents, money_operation_id, payload, created_by)
+    values (${recoveryClaim.claimId}, 'payment_requested', 1000, ${agentRaised.id},
+            ${runtime.json({
+              needs_approval: false,
+              requested_through: { channel: "mcp", principalKind: "agent", keyPrefix: "cmk_checkfint10" },
+            })},
+            ${maker.userId})
+  `;
+  const eventsBeforeRule21 = await countOperationEvents(agentRaised.id);
+  const paymentsSentBefore = await claimEventCount(recoveryClaim.claimId, "payment_sent");
+  const rule21Refusal = await refusal(() => sendClaimPayment({ operationId: agentRaised.id, actor: maker }, runtime));
+  report(
+    "RULE 21 FAILS CLOSED: an agent-raised payment carrying no approval request is refused at the send gate",
+    /raised by an agent and carries no approval request/.test(rule21Refusal) &&
+      /never leaves without a second person \(rule 21\)/.test(rule21Refusal),
+    rule21Refusal,
+  );
+  report(
+    "and that refusal moved nothing: no transfer, and not one event appended to the operation",
+    (await countOperationEvents(agentRaised.id)) === eventsBeforeRule21 &&
+      (await claimEventCount(recoveryClaim.claimId, "payment_sent")) === paymentsSentBefore,
+    `${await countOperationEvents(agentRaised.id)} event(s), was ${eventsBeforeRule21}; ` +
+      `${await claimEventCount(recoveryClaim.claimId, "payment_sent")} payment(s) sent on this claim`,
   );
 
   // ---------------------------------------------------------------------------

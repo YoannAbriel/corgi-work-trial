@@ -45,6 +45,7 @@ const ROWS: PolicyEventRowForDocuments[] = [
     aggregate_limit_cents: 400000000,
     request_event_id: "e3",
     delta_premium_cents: 43561,
+    delta_tax_cents: 1023, // floor(43561 x 235 / 10000): charged with the premium
     description: "Annual premium $1,200.00 to $1,800.00; per-occurrence limit $1,000,000.00 to $2,000,000.00",
   }),
 ];
@@ -73,6 +74,8 @@ test("the fold of those events prints the policy as it stood before and after th
   assert.equal(after.taxCents, 4230);
   assert.equal(after.endorsements.length, 1);
   assert.equal(after.endorsements[0].premiumDeltaCents, 43561);
+  // What the customer was charged for it: the prorated premium plus its tax (F-INT-07).
+  assert.equal(after.endorsements[0].amountChargedCents, 44584);
   assert.equal(after.endorsements[0].annualPremiumCentsAfter, 180000);
   assert.equal(after.coverageLines[0].limitCents, 200000000);
 });

@@ -34,6 +34,7 @@ import {
   type RefundOperationView,
 } from "@/lib/policy/read";
 import { policyAsItStoodOn } from "@/lib/policy/correction-read";
+import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import {
   CorrectEndorsementDateForm,
   CorrectionsExplained,
@@ -160,34 +161,11 @@ export default async function PolicyPage({
   // WHAT THE POLICY IS TODAY, not what it will be (Yoann's finding F-YA-07). On CGP-01707 the
   // panel printed the $2,400 annual premium and its $56.40 tax on 2026-09-09, although the
   // endorsement that raises it is effective 2026-10-08 and only $54.08 of tax was ever booked.
-  // The figures now come from the same fold as the panel below, for today; policy_current is
-  // still what the rest of the page uses, because a future-dated change IS on the policy.
-  const inForceToday = "snapshot" in termsToday ? termsToday.snapshot : null;
-  const terms = inForceToday
-    ? {
-        onDate: inForceToday.asOf,
-        annualPremiumCents: inForceToday.annualPremiumCents,
-        taxRateBps: inForceToday.taxRateBasisPoints,
-        taxCents: inForceToday.taxCents,
-        feeCents: inForceToday.feeCents,
-        totalChargeCents: inForceToday.totalChargeCents,
-        limits: inForceToday.coverageLines.map((line) => ({ label: line.name, cents: line.limitCents })),
-      }
-    : {
-        // The fold has no answer (the policy is not issued on that date, or its issuance was
-        // reversed). The policy record is then the only thing there is to show, and the panel
-        // says so instead of claiming a date.
-        onDate: null,
-        annualPremiumCents: policy.annualPremiumCents,
-        taxRateBps: policy.taxRateBps,
-        taxCents: policy.taxCents,
-        feeCents: policy.feeCents,
-        totalChargeCents: policy.totalChargeCents,
-        limits: [
-          { label: "Per-occurrence limit", cents: policy.perOccurrenceLimitCents },
-          { label: "Aggregate limit", cents: policy.aggregateLimitCents },
-        ],
-      };
+  // The figures come from the same fold as the panel below, for today, folded by the one function
+  // the customer's own page reads too (lib/policy/terms-in-force.ts, review finding F-INT-02);
+  // policy_current stays what the rest of the page uses, because a future-dated change IS on the
+  // policy.
+  const terms = termsInForceOn(policy, termsToday);
   // Applied endorsements that have not taken effect yet: the gap between what the policy is today
   // and what policy_current already carries. Named under the facts rather than folded into them.
   const endorsementsNotYetInForce = schedule.filter((row) => row.effectiveAt > documentDate);
@@ -472,8 +450,11 @@ export default async function PolicyPage({
                               {/* Slice B12-2: the fold reuses the endorsement's OWN formula lines,
                                   rebuilt from the figures stored on the event by the same function
                                   that priced it (endorsementFormulaLines), and points at their
-                                  total line. No money is recomputed: the total line IS
-                                  figures.deltaTotalCents, the amount posted to the journal. */}
+                                  total line. The line the fold points at IS
+                                  figures.deltaTotalCents, the amount posted to the journal, so
+                                  that comparison alone could never fail; `recheck` is the one that
+                                  can, because it prices the endorsement again from the inputs
+                                  stored on the same event (review finding F-INT-05). */}
                               <AmountExplained
                                 amountCents={row.figures.deltaTotalCents}
                                 size="inline"
@@ -481,6 +462,7 @@ export default async function PolicyPage({
                                 explanation={{
                                   lines: row.lines,
                                   resultKey: "delta_total",
+                                  recheck: row.recheck,
                                   rounding:
                                     row.figures.direction === "refund"
                                       ? "Rounded up (ceil) on the premium given back and its tax: the customer receives this, so the fraction of a cent goes their way. Commission is rounded down."

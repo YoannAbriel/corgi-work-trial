@@ -1,4 +1,4 @@
-import type { FormulaLine } from "./endorsement";
+import type { FiguresRecheck, FormulaLine } from "./endorsement";
 import { commissionCents, stateTaxCents } from "./premium";
 
 // "Explain this amount": what sits under every figure on a screen (slice B12-2, decided by Yoann
@@ -47,6 +47,11 @@ export type AmountExplanation = {
   // that is a sum of journal lines is proved by them; a figure read from the terms in force is
   // only accompanied by the entries booked so far, and the difference has to be said.
   evidenceLabel?: string;
+  // The stored figures priced AGAIN from the inputs stored beside them, for a fold that replays
+  // an event instead of computing its figure here (review finding F-INT-05). The component prints
+  // "identical" or names the figure that disagrees. Absent on a fold whose lines are already an
+  // independent calculation: the tax, fee and total folds are checked by their own result line.
+  recheck?: FiguresRecheck;
 };
 
 // The rounding rules of this build, named once so every screen says the same words.
