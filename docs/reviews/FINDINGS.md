@@ -305,3 +305,9 @@ One line per finding from the independent reviews (design and implementation). F
 | F-OB-05 | LOW | `duration_ms` is computed before the `currentUser()` lookup and before the activity insert, so the two costs the slice itself adds to every response are invisible in every figure on the latency panel | FIX CYCLE (observability builder, 10:52Z) |
 | F-OB-06 | INFO | The JSON line's `recordedAt` is the application clock, the row's `recorded_at` is the database clock; the same request carries two timestamps. The correlation id is the join key | ACCEPTED as recorded |
 | F-OB-07 | INFO | `Masked` keeps the full name in the HTML inside a closed `<details>`, so the activity rows are decluttered and not redacted on screen. As decided (rule 23) and as stated in the v1 record; the stored rows and the log lines are genuinely redacted | ACCEPTED as recorded |
+
+## Desktop UI audit fix cycle C (builder report, merged ce60fb2, 13:05 local; review after the three cycles)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-IL-08 | MEDIUM | Since the illustration component moved to static .webp imports (a64bd9b), npm run check:inbox-counts cannot start: the script imports components/what-needs-you, which imports the illustration component, and tsx cannot parse an image import; the gate was broken for every agent since 5fa3d49 (the inbox re-review at 41ea2c5 ran before it) | Move the pure task-building code into lib/inbox/tasks.ts with no component import, the script imports from there | FIX CYCLE (builder, 11:07Z) |
