@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { EntryLinesTable } from "@/components/ui/table";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 
@@ -25,12 +26,20 @@ export type JournalEntryForTable = {
   lines: { accountId: string; accountName: string; debitCents: number; creditCents: number }[];
 };
 
+// A short mark beside one entry's type, and whether that entry's amounts are struck through.
+// Only the corrections panel passes it: a correction posts two entries that undo something and
+// two that re-book it, and without a mark the reader has to match entry ids to see that the four
+// are two pairs and not four movements (Yoann, 2026-09-09). It only labels; the figures printed
+// are the ones the ledger stored, unchanged.
+export type EntryMark = { chip: ReactNode; struck?: boolean };
+
 export function JournalTable({
   entries,
   panelKey,
   visibleEntries = 4,
   ariaLabel = "Journal",
   legend = true,
+  mark,
 }: {
   entries: JournalEntryForTable[];
   // Which panel this table is: it goes into the id of every block, so two panels printing the same
@@ -41,6 +50,8 @@ export function JournalTable({
   // What a debit and a credit mean, under the entries. On by default; a panel that sits on a
   // screen where another journal table already says it passes false, so the screen says it once.
   legend?: boolean;
+  // Returns the mark for one entry, or null for no mark. Absent on every panel but corrections.
+  mark?: (entry: JournalEntryForTable) => EntryMark | null;
 }) {
   // Newest first: the last thing that happened is what the reader is looking for.
   const newestFirst = [...entries].sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime());
@@ -51,7 +62,7 @@ export function JournalTable({
     <div className="journal" role="region" aria-label={ariaLabel}>
       <div className="journal-list">
         {shown.map((entry) => (
-          <EntryBlock key={entry.entryId} entry={entry} panelKey={panelKey} />
+          <EntryBlock key={entry.entryId} entry={entry} panelKey={panelKey} mark={mark} />
         ))}
       </div>
       {folded.length > 0 ? (
@@ -61,7 +72,7 @@ export function JournalTable({
           </summary>
           <div className="journal-list">
             {folded.map((entry) => (
-              <EntryBlock key={entry.entryId} entry={entry} panelKey={panelKey} />
+              <EntryBlock key={entry.entryId} entry={entry} panelKey={panelKey} mark={mark} />
             ))}
           </div>
         </details>
@@ -96,13 +107,28 @@ export function journalEntryElementId(panelKey: string, entryId: string): string
   return `journal-entry-${panelKey}-${entryId}`;
 }
 
-function EntryBlock({ entry, panelKey }: { entry: JournalEntryForTable; panelKey: string }) {
+function EntryBlock({
+  entry,
+  panelKey,
+  mark,
+}: {
+  entry: JournalEntryForTable;
+  panelKey: string;
+  mark?: (entry: JournalEntryForTable) => EntryMark | null;
+}) {
   const tone = toneOf(entry.entryType);
+  const marked = mark ? mark(entry) : null;
   const recorded = entry.recordedAt.toISOString().replace("T", " ").slice(0, 19);
   return (
-    <div className="entry-block" id={journalEntryElementId(panelKey, entry.entryId)}>
+    <div
+      // `entry-struck` only strikes the amounts through in CSS; the cents below are the stored
+      // ones, printed unchanged, and nothing is subtracted anywhere to draw them.
+      className={marked?.struck ? "entry-block entry-struck" : "entry-block"}
+      id={journalEntryElementId(panelKey, entry.entryId)}
+    >
       <div className="entry-head">
         <span className={`entry-tag entry-${tone}`}>{entry.entryType}</span>
+        {marked ? marked.chip : null}
         <span className="entry-when">
           effective <b>{entry.effectiveAt}</b> · recorded {recorded} UTC
         </span>

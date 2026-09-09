@@ -42,7 +42,7 @@ import {
   type JournalEntryView,
   type RefundOperationView,
 } from "@/lib/policy/read";
-import { policyAsItStoodOn } from "@/lib/policy/correction-read";
+import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import {
   closeInspectorHref,
@@ -56,8 +56,10 @@ import {
   type ToastNotice,
 } from "@/lib/ui/views";
 import {
+  COLLECT_ANCHOR,
   correctionHref,
   correctionViews,
+  firstOpenCollection,
   CorrectEndorsementDateForm,
   CorrectionsExplained,
   PolicyAsOf,
@@ -128,14 +130,29 @@ export default async function PolicyPage({
   // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
   const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
 
-  const [kyb, operation, entries, cancellation, refunds, voidCorrection, endorsements, schedule, claims, termsToday, query] =
-    await Promise.all([
+  const [
+    kyb,
+    operation,
+    entries,
+    cancellation,
+    refunds,
+    voidCorrection,
+    corrections,
+    endorsements,
+    schedule,
+    claims,
+    termsToday,
+    query,
+  ] = await Promise.all([
       brokerKybState(policy.brokerId),
       checkoutOperationOfPolicy(policyId),
       journalEntriesOfPolicy(policyId),
       cancellationOfPolicy(policyId),
       refundOperationsOfPolicy(policyId),
       voidCorrectionOfPolicy(policyId),
+      // Read here rather than inside the corrections block, because the band above the views needs
+      // the same rows to offer "Collect $X" (F-LIVE-02).
+      correctionsOfPolicy(policyId),
       endorsementsOfPolicy(policyId),
       endorsementScheduleOfPolicy(policyId),
       // Slice B7: the claims of this policy, each with the reserve and the incurred amount folded
@@ -147,7 +164,7 @@ export default async function PolicyPage({
       // says "in force".
       policyAsItStoodOn(policyId, documentDate),
       searchParams,
-    ]);
+  ]);
 
   const path = `/policies/${policy.policyId}`;
   const view = pickView(query.view, POLICY_VIEWS);
@@ -181,6 +198,16 @@ export default async function PolicyPage({
   // confirmed, so hiding a button is a convenience, never the control.
   const canChange = (isOwningBroker || user.role === "staff_ops") && policy.status === "bound";
   const canOpenClaim = user.role === "staff_ops" && (policy.status === "bound" || policy.status === "cancelled");
+  // Who may take the difference a correction created: the broker whose policy it is, or staff
+  // operations. The corrections block below draws its button from exactly this, and the band
+  // below draws its "Collect" link from the same answer, so a link cannot appear where the
+  // button does not (F-LIVE-02). The API checks it again when the form is posted.
+  const canPayTheDifference = isOwningBroker || user.role === "staff_ops";
+  // Money a correction is still waiting to take, if any. Yoann could not find the button: it was
+  // the last thing in a block sitting far down the Money view, so the band names the amount and
+  // links straight to it.
+  const collectable = firstOpenCollection(corrections, canPayTheDifference);
+  const collectHref = `${path}?view=money#${COLLECT_ANCHOR}`;
   const liveEndorsement = endorsements.find(
     (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
   );
@@ -380,8 +407,20 @@ export default async function PolicyPage({
                 <SubmitButton>Bind now that the broker is eligible</SubmitButton>
               </form>
             ) : null}
+            {/* F-LIVE-02: while a correction difference is waiting, taking that money is the
+                one thing to do on this policy, so it is the orange action and Endorse steps back
+                to secondary. The link lands on the action row of the block itself, not on the
+                top of a long view. */}
+            {collectable ? (
+              <Link href={collectHref} className="button-link orange">
+                Collect {formatCentsAsUsd(collectable.open.amountCents)}
+              </Link>
+            ) : null}
             {canChange && !liveEndorsement ? (
-              <Link href={`/policies/${policy.policyId}/endorse`} className="button-link orange">
+              <Link
+                href={`/policies/${policy.policyId}/endorse`}
+                className={collectable ? "button-link secondary" : "button-link orange"}
+              >
                 Endorse
               </Link>
             ) : null}
@@ -1189,7 +1228,12 @@ export default async function PolicyPage({
           ) : null}
 
           {/* Slice B8: backdated corrections, both clocks, and what they did to the money. */}
-          <CorrectionsExplained policyId={policy.policyId} canPay={isOwningBroker || user.role === "staff_ops"} now={now} />
+          <CorrectionsExplained
+            corrections={corrections}
+            policyId={policy.policyId}
+            canPay={canPayTheDifference}
+            now={now}
+          />
 
           <section className="card">
             <h2>Journal entries</h2>
