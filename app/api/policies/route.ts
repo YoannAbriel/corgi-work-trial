@@ -15,7 +15,8 @@ async function handlePost(request: Request) {
     return redirectTo("/login?error=Please+sign+in+again");
   }
   if (user.role !== "broker" || !user.brokerId) {
-    return redirectTo("/broker");
+    // The home renders ?error= as a notice, and the activity log reads it as a refusal.
+    return redirectTo("/broker?error=Only+a+broker+can+create+a+policy+draft");
   }
 
   let draft: NewPolicyDraft;
@@ -26,8 +27,9 @@ async function handlePost(request: Request) {
   }
 
   try {
-    const { policyId } = await createPolicyDraft(draft);
-    return redirectTo(`/policies/${policyId}`);
+    const { policyId, policyNumber } = await createPolicyDraft(draft);
+    // The policy page renders ?created= as the success notice naming what was created.
+    return redirectTo(`/policies/${policyId}?created=${encodeURIComponent(policyNumber)}`);
   } catch (error) {
     if (error instanceof PolicyDraftRefused) {
       return backToForm(error);

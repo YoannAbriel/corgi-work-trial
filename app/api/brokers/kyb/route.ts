@@ -15,7 +15,8 @@ async function handlePost(request: Request) {
     return redirectTo("/login?error=Please+sign+in+again");
   }
   if (user.role !== "broker" || !user.brokerId) {
-    return redirectTo("/broker");
+    // The home renders ?error= as a notice, and the activity log reads it as a refusal.
+    return redirectTo("/broker?error=Only+a+broker+can+submit+a+business+verification");
   }
 
   const form = await request.formData();

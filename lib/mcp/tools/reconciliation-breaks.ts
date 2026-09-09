@@ -6,8 +6,13 @@ import { openBreaks, recentRuns } from "@/lib/reconciliation/read";
 import { optionalText, ToolRefused, usd, type McpTool } from "./tool";
 
 // list_reconciliation_breaks: everything the latest complete run of each source reported as
-// anything but matched, with how long it has been open and what it means, plus the clearing
-// balances that should be zero when every flow has completed.
+// anything but matched AND that is work for a human, with how long it has been open and what it
+// means, plus the clearing balances that should be zero when every flow has completed.
+//
+// It reads openBreaks, the same reader the inbox and the daily job use, so a probe planted by our
+// own check script and a break somebody has explained are out of it for the same reason and by
+// the same rule (lib/reconciliation/read.ts, IT_IS_A_BREAK_TO_ACT_ON). The description below says
+// so, because an agent must not read this list as "everything the run reported".
 //
 // Staff only. A break names provider references and amounts of other people's money, so it is
 // not scoped to a broker or a customer: it is simply not theirs to read.
@@ -31,8 +36,9 @@ const CLEARING_ACCOUNTS: { id: string; meaning: string }[] = [
 export const listReconciliationBreaks: McpTool = {
   name: "list_reconciliation_breaks",
   title: "Open reconciliation breaks",
+  effect: "read",
   description:
-    "The open breaks of the latest complete reconciliation run of each source (Stripe, and the LOCAL SIMULATOR claim payout rail): what each one is, how long it has been open, the two amounts and what it means. Also the clearing account balances, which should be zero once every flow has completed. Staff keys only.",
+    "The open breaks TO ACT ON of the latest complete reconciliation run of each source (Stripe, and the LOCAL SIMULATOR claim payout rail): what each one is, how long it has been open, the two amounts and what it means. Two kinds of reported record are deliberately not in this list, and both are still on the /ops/reconciliation screen: the probe payments this project's own check script plants in the Stripe sandbox, and the breaks a staff operations user has written a note on. Also the clearing account balances, which should be zero once every flow has completed. Staff keys only.",
   inputSchema: {
     type: "object",
     properties: {

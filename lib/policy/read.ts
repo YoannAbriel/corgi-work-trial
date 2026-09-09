@@ -80,8 +80,8 @@ export type PolicyDetail = {
   boundAt: Date | null;
 };
 
-export async function policyDetail(policyId: string): Promise<PolicyDetail | null> {
-  const [row] = await sql<
+export async function policyDetail(policyId: string, database: postgres.Sql = sql): Promise<PolicyDetail | null> {
+  const [row] = await database<
     {
       policy_id: string;
       policy_number: string;
@@ -251,8 +251,8 @@ export type JournalEntryView = {
 
 // The ledger as the policy page shows it: entries in the order they were booked, each with
 // its lines. Nothing is aggregated; a reader can add the columns up by hand.
-export async function journalEntriesOfPolicy(policyId: string): Promise<JournalEntryView[]> {
-  const rows = await sql<
+export async function journalEntriesOfPolicy(policyId: string, database: postgres.Sql = sql): Promise<JournalEntryView[]> {
+  const rows = await database<
     {
       entry_id: string;
       entry_type: string;
@@ -378,8 +378,8 @@ export type CancellationView = {
   taxRateBps: number;
 };
 
-export async function cancellationOfPolicy(policyId: string): Promise<CancellationView | null> {
-  const [row] = await sql<{ effective_at: string; recorded_at: Date; payload: Record<string, unknown> }[]>`
+export async function cancellationOfPolicy(policyId: string, database: postgres.Sql = sql): Promise<CancellationView | null> {
+  const [row] = await database<{ effective_at: string; recorded_at: Date; payload: Record<string, unknown> }[]>`
     select to_char(effective_at, 'YYYY-MM-DD') as effective_at, recorded_at, payload
       from policy_events
      where policy_id = ${policyId} and event_type = 'cancelled'

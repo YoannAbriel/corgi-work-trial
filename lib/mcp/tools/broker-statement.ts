@@ -17,6 +17,7 @@ import { optionalWholeNumber, requiredText, ToolRefused, usd, type McpTool } fro
 export const getBrokerStatement: McpTool = {
   name: "get_broker_statement",
   title: "Broker monthly statement",
+  effect: "read",
   description:
     "A published broker commission statement for one month: its lines, its totals (cash collected, premium collected, commission earned, clawbacks, net due), its content hash, its knowledge cutoff and its format version. Reads a stored run; nothing is recomputed. Scoped to what this API key's user may see.",
   inputSchema: {

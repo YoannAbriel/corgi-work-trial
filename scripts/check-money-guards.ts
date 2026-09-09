@@ -53,6 +53,11 @@ const PROTECTED_TABLES = [
   // a moment in time, and rewriting them would let a break disappear without anyone fixing it.
   "reconciliation_runs",
   "reconciliation_items",
+  // Added by migration 0022: what a staff operations user says a break is. Not a money row, and
+  // it repairs nothing; protected because it is the reason a break stopped being counted as work
+  // to do. An UPDATE would let an explanation be rewritten after the fact, and a DELETE would let
+  // it disappear from the record.
+  "reconciliation_break_notes",
   // Added by migration 0009 (slice B4): which Stripe payment collects which endorsement's delta.
   "endorsement_collections",
   // Added by migration 0012 (slice B9): the broker monthly statements. Protected because they are
@@ -250,6 +255,24 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     )
     returning id
   `;
+  // The note an operator wrote on that break (migration 0022). It is filed under the break key,
+  // not under the item's id: a break has one item per run that reported it.
+  //
+  // The three columns of migration 0025 are filled in with the report the item above describes,
+  // and that is review finding F-BREAKSBOARD-10: they are nullable, so the guard proof used to
+  // pass without ever writing them, and a guard that never sees the real shape of a row is not
+  // proof about that row. Same classification and same two amounts as the item.
+  const [breakNote] = await tx<{ id: string }[]>`
+    insert into reconciliation_break_notes (
+      break_key, note, explained_by,
+      explained_classification, explained_provider_amount_cents, explained_ledger_amount_cents
+    )
+    values ('stripe|provider_only|pi_guard_check',
+            'guard check note, always rolled back: a probe payment from a check run',
+            ${maker.id},
+            'provider_only', 4242, null)
+    returning id
+  `;
 
   // An endorsement request and the payment that collects its delta (migration 0009).
   // 44584 = 43561 of premium + 1023 of tax, the recited example (+$600 on day 100).
@@ -382,6 +405,7 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
     simulator_provider_records: providerRecord.id,
     reconciliation_runs: reconciliationRun.id,
     reconciliation_items: reconciliationItem.id,
+    reconciliation_break_notes: breakNote.id,
     endorsement_collections: endorsementCollection.id,
     statement_runs: statementRun.id,
     statement_lines: statementLine.id,
