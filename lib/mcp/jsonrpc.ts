@@ -197,11 +197,16 @@ function toolsListResult() {
       // name, plus whatever else that tool publishes (explain_amount lists its figure keys here,
       // so a client never has to guess one). Nothing on this surface destroys anything or reaches
       // outside this application, so those two hints are false for every tool.
+      //
+      // THE TOOL'S OWN ANNOTATIONS ARE SPREAD FIRST, so the three derived hints always win
+      // (review finding F-MCPTOOLS-04). The other way round, a tool that wrote readOnlyHint:true
+      // into its annotations while declaring effect: "queues_for_a_human" would publish a false
+      // hint, and the check script, which reads the published annotation, would not notice.
       annotations: {
+        ...(tool.annotations ?? {}),
         readOnlyHint: tool.effect === "read",
         destructiveHint: false,
         openWorldHint: false,
-        ...(tool.annotations ?? {}),
       },
     })),
     // Not part of the protocol's own shape, and deliberately here: an agent reading this surface
@@ -241,8 +246,10 @@ async function callTool(
   }
 
   // The schema the tool advertises is enforced here, once, before the tool sees anything (review
-  // finding F-B11-06). A field the tool does not declare is refused rather than ignored, so no
-  // future tool can be written against a guarantee that was never checked.
+  // finding F-B11-06). A field the tool does not declare is refused rather than ignored, and a
+  // value outside an advertised `enum` is refused too (F-MCPTOOLS-07), so no future tool can be
+  // written against a guarantee that was never checked. Refused here means refused before the
+  // tool runs, so before any database read.
   const schemaRefusal = argumentsSchemaRefusal(tool.inputSchema, args);
   if (schemaRefusal) {
     return {
