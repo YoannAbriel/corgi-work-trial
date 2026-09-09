@@ -240,6 +240,18 @@ Every delegate worktree under .claude/worktrees was checked (branch merged into 
 
 Production at 4ddb33b, healthy. The Vercel cron called /api/jobs/daily at 06:00 UTC: two reconciliation runs stored at 06:00:12Z, stripe complete and claims_rail complete, run_by empty (the screen shows "scheduled job"). No approval waiting. Freeze in about 23 hours 30 minutes (September 10, 07:50 Europe/Zurich).
 
+## 2026-09-09T06:24:14+00:00 | Three builders launched on Yoann's go
+
+builder-b12-2-3 (YOA-625, YOA-626: explain-this-amount folds and as-of steps on the rebuilt pages), builder-change-requests (YOA-634: migration 0019 on corgi_test only, customer read-only view, request and reply routes, broker panel, what-needs-you count, a check script), builder-low-batch (YOA-628: F-B8-08, F-B11-02/03/05/06/07, F-B12-01, F-B7-13, F-B4-07/10/12, F-B10-08 sentence, F-B10-09, F-UI-03/13/16/17/18; items touching the other builders' files skipped and listed). File ownership split to avoid conflicts: the policy page panels to the first, its ownership block and a customer view file to the second, neither file to the third. Each merges origin/main before reporting; the coordinator merges, applies 0019 to the trial database, runs the checks and the guards on an ephemeral database, deploys, and launches the reviews.
+
+## 2026-09-09T06:35:24+00:00 | Two more builders on Yoann's morning feedback: PDF quality (YOA-635), notification centre (YOA-636)
+
+Agency bill kept (DECISIONS). builder-pdf-quality: declarations page, endorsement schedule and statement PDF as real documents (issuer, insured and producer blocks, coverage table, premium summary, signature block, watermark SPECIMEN TEST DATA, page X of Y), deterministic double render, PNG samples under docs/evidence/pdf/; only the three PDF files. builder-inbox: lib/inbox/read.ts and /inbox per role with one row per pending item and the link to the exact object, sidebar counts pointing at /inbox; what-needs-you.tsx untouched until the change-requests builder merges. Five delegates running.
+
+## 2026-09-09T06:36:32+00:00 | Live step 6 by Yoann: endorsement above $500 on CGP-01707, approved by the customer, delta paid, in force
+
+Yoann as broker@ requested the endorsement at 06:28:25Z (annual premium $1,200 to $2,400, limits doubled, effective 2026-10-08, $1,127.24 to settle: prorated premium 110136 = floor(120000 x 335 / 365), tax 2588, commission 16520, every figure equal to the coordinator's hand calculation of the evening), approved it as customer@ at 06:29:33Z from the customer's list (the orange button), paid the delta as broker@ with the test card; payment_intent.succeeded at 06:34:34.327Z, endorsed event at 06:34:34Z, four entries in the trial database: endorsement_premium_written 110136 and endorsement_tax_billed 2588 effective 2026-10-08, endorsement_premium_collected 112724 and endorsement_commission_earned 16520 effective 2026-09-09. The "so far" side list adds up (collected 238044, commission 34520, unearned 230136). Two findings: F-YA-07 (the "Terms in force" panel shows the October terms in September) and F-B2-21 (the late checkout.session.completed appended provider_accepted after succeeded on the delta collection: the F-B2-20 guard covered issuance only; fix in progress on the endorsement and correction writers). Walkthrough status: DONE BY YOANN; his explanation of "priced from the effective date" pending.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
