@@ -295,6 +295,18 @@ async function main() {
     runtime,
   );
   await revokeApiKey({ keyId: doomedKey.keyId, revokedByUserId: people.opsId, reason: "revoked by the check" }, runtime);
+  // A token whose expiry is already behind it (migration 0026). One minute in the past is enough:
+  // the endpoint compares the stored instant with its own clock, and nothing rounds.
+  const expiredKey = await createApiKey(
+    {
+      userId: people.opsId,
+      label: "check: expired an hour ago",
+      principalKind: "human",
+      createdByUserId: people.opsId,
+      expiresAt: new Date(Date.now() - 60 * 1000),
+    },
+    runtime,
+  );
 
   let agentKeyForApprover = "created, which it should not have been";
   try {
@@ -490,6 +502,15 @@ async function main() {
       JSON.stringify(wrongKey.body) === JSON.stringify(revokedKey.body) &&
       JSON.stringify(revokedKey.body) === '{"error":"unauthorized"}',
     JSON.stringify(revokedKey.body),
+  );
+  // An EXPIRED token is refused the same way, with the one difference decided on 2026-09-09: it
+  // is told why. That sentence is only ever reached by a caller who presented a token that
+  // exists, so it tells nobody anything they do not already hold.
+  const expiredAnswer = await rpc(expiredKey.presentedKey, "tools/list");
+  report(
+    'an EXPIRED token answers 401 with "token expired", and no tool ran',
+    expiredAnswer.status === 401 && JSON.stringify(expiredAnswer.body) === '{"error":"token expired"}',
+    `${expiredAnswer.status} ${JSON.stringify(expiredAnswer.body)}`,
   );
 
   // -------------------------------------------------------------------------
@@ -1493,7 +1514,7 @@ async function main() {
   // a run that was in fact correct. Each key here belongs to this run alone, so its rows are
   // this run's calls and nobody else's. The 401s that presented no key at all (they log no key
   // id) are proved by the next assertion instead.
-  const thisRunsKeys = [brokerKey, otherBrokerKey, customerKey, staffKey, agentKey, doomedKey];
+  const thisRunsKeys = [brokerKey, otherBrokerKey, customerKey, staffKey, agentKey, doomedKey, expiredKey];
   const postsWithThisRunsKeys = thisRunsKeys.reduce(
     (total, key) => total + (postsByPresentedKey.get(key.presentedKey) ?? 0),
     0,
@@ -1509,8 +1530,8 @@ async function main() {
   );
   const unauthorisedRows = await callsWithOutcome("unauthorised");
   report(
-    "the three 401s are in the log, and the revoked one is linked to the key that made it",
-    unauthorisedRows.total >= 3 && unauthorisedRows.withKey >= 1,
+    "the four 401s are in the log, and the revoked and expired ones name the key that made them",
+    unauthorisedRows.total >= 4 && unauthorisedRows.withKey >= 2,
     `${unauthorisedRows.total} unauthorised calls, ${unauthorisedRows.withKey} of them naming a key`,
   );
   const refusedRows = await callsWithOutcome("refused");

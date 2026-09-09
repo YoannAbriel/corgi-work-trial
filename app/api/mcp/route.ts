@@ -5,7 +5,7 @@ import {
   unparseableBody,
   type CallLog,
 } from "@/lib/mcp/jsonrpc";
-import { principalForPresentedKey, recordMcpCall, type McpPrincipal } from "@/lib/mcp/keys";
+import { principalForPresentedKey, recordMcpCall, tokenHasExpired, type McpPrincipal } from "@/lib/mcp/keys";
 import { withActivity, type Activity } from "@/lib/observability/log";
 import { sanitisedSentence } from "@/lib/observability/redact";
 
@@ -15,7 +15,9 @@ import { sanitisedSentence } from "@/lib/observability/redact";
 //
 //   1. reads the bearer token and turns it into a principal (lib/mcp/keys.ts). No key, an
 //      unknown key or a revoked key all get the SAME 401 with no detail: a caller must not be
-//      able to tell a revoked key from a typo, and must not learn that a prefix exists;
+//      able to tell a revoked key from a typo, and must not learn that a prefix exists. An
+//      EXPIRED token gets the same 401 with "token expired", which is said only to a caller who
+//      presented a token that exists (migration 0026);
 //   2. parses the body as one JSON-RPC message;
 //   3. hands it to lib/mcp/jsonrpc.ts, which owns the protocol and the tools;
 //   4. writes one row in mcp_calls, whatever happened, including the 401s. Every POST this
@@ -45,21 +47,30 @@ async function handlePost(request: Request, _context: unknown, activity: Activit
   const presentedKey = bearerToken(request);
   const principal = presentedKey ? await principalForPresentedKey(presentedKey) : null;
   describeCaller(activity, principal);
-  if (!principal || principal.revokedAt !== null) {
+  // A token that ran out of time is refused exactly like a revoked one: same 401, same body
+  // shape, and the call is still written to mcp_calls against the key it named.
+  const expired = principal !== null && tokenHasExpired(principal.expiresAt, new Date());
+  if (!principal || principal.revokedAt !== null || expired) {
     activity.rule = "MCP key";
     const recorded = await logCall({
       apiKeyId: principal?.keyId ?? null,
       log: { method: "unknown", tool: null, argumentsHash: null, outcome: "error", detail: null },
       outcome: "unauthorised",
-      detail: principal ? "revoked key" : presentedKey ? "unknown key" : "no bearer token",
+      detail: principal ? (principal.revokedAt !== null ? "revoked key" : "expired token") : presentedKey ? "unknown key" : "no bearer token",
       startedAtMs,
     });
     if (!recorded) {
       return notRecorded();
     }
-    // One answer for all three cases. WWW-Authenticate names the scheme; this build authenticates
-    // with an API key issued by staff, not with OAuth, so there is no metadata URL to point at.
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
+    // One answer for a missing, unknown and revoked key: a caller must not be able to tell a
+    // revoked key from a typo, and must not learn that a prefix exists. AN EXPIRED TOKEN IS THE
+    // ONE CASE THAT SAYS WHY (Yoann, 2026-09-09), because saying so tells nobody anything: this
+    // sentence is only ever reached by a caller who presented a value whose sha256 matched a
+    // stored token, so they already hold that token, and the one thing they need to know is that
+    // its time is over and they have to ask for another. Nothing about the token is in the answer.
+    // WWW-Authenticate names the scheme; this build authenticates with an API key issued by
+    // staff, not with OAuth, so there is no metadata URL to point at.
+    return new Response(JSON.stringify({ error: expired ? "token expired" : "unauthorized" }), {
       status: 401,
       headers: { "content-type": "application/json", "www-authenticate": 'Bearer realm="corgi-mcp"' },
     });
