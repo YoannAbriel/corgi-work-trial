@@ -1,3 +1,4 @@
+import "@/app/styles/ops-tables.css";
 import Link from "next/link";
 import { Chip, Empty } from "@/components/detail-layout";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -112,24 +113,27 @@ export function EventTable({ events, ariaLabel }: { events: ConsoleEvent[]; aria
   }
   return (
     <div className="table-scroll" role="region" aria-label={ariaLabel} tabIndex={0}>
-      <table>
+      {/* UI-026 and UI-030: the seven columns of the feed are read together, so each one carries
+          the minimum width its content needs (app/styles/ops-tables.css). Before this, a uuid in
+          the Detail column collapsed the whole row into a tower of three-letter fragments. */}
+      <table className="ops-table">
         <thead>
           <tr>
-            <th>When (UTC)</th>
-            <th>Kind</th>
-            <th>What</th>
+            <th className="col-when">When (UTC)</th>
+            <th className="col-label">Kind</th>
+            <th className="col-text">What</th>
             <th className="amount">Amount</th>
-            <th>Who</th>
-            <th>Detail</th>
-            <th>Object</th>
+            <th className="col-name">Who</th>
+            <th className="col-ref">Detail</th>
+            <th className="col-ref">Object</th>
           </tr>
         </thead>
         <tbody>
           {events.map((event, index) => (
             <tr key={`${event.kind}-${event.instant.toISOString()}-${event.reference ?? index}`}>
-              <td>{utc(event.instant)}</td>
-              <td>{event.kind.replace(/_/g, " ")}</td>
-              <td>
+              <td className="col-when">{utc(event.instant)}</td>
+              <td className="col-label">{event.kind.replace(/_/g, " ")}</td>
+              <td className="col-text">
                 <Chip tone={OUTCOME_TONE[event.outcome]}>{event.title}</Chip>
                 {/* The rail, ON the row and not in a fold (AF-02, recheck finding F-RC-08).
                     A row that moved no money carries no rail and prints nothing here. */}
@@ -145,9 +149,9 @@ export function EventTable({ events, ariaLabel }: { events: ConsoleEvent[]; aria
                   and a name in it is read by everybody who walks past the screen. An actor that
                   is not a person ("stripe", "the ledger", "the daily scheduled job", a key
                   prefix) is printed as it is: masking it would be noise, not discretion. */}
-              <td>{event.actorIsPerson ? <Masked value={event.actor} what="actor" /> : event.actor}</td>
-              <td>{event.detail}</td>
-              <td>
+              <td className="col-name">{event.actorIsPerson ? <Masked value={event.actor} what="actor" /> : event.actor}</td>
+              <td className="col-ref">{event.detail}</td>
+              <td className="col-ref">
                 {event.href ? (
                   <Link href={event.href} prefetch={false}>
                     {event.policyNumber ?? event.claimNumber ?? event.reference ?? "open"}
