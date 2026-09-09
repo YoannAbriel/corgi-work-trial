@@ -5,7 +5,7 @@ Feature IDs: B12 (docs/PLAN.md), items 2 and 3 of the three decided by Yoann on 
 YOA-626.
 
 Reviewer: independent reviewer sub-agent, own worktree `worktree-agent-ae1296a4ce5b46bb2`.
-Timestamp: 2026-09-09T09:05Z. Timebox: 60 minutes.
+Timestamp: 2026-09-09T07:05Z (09:05 Europe/Zurich; an earlier revision of this header carried the local time with a Z suffix, corrected 2026-09-09T08:20Z). Timebox: 60 minutes.
 
 Reviewed revision: `b40e803` (main), working tree clean at review start. The slice under review
 landed with the merge `a6aca56` of `worktree-agent-acc7e1cd088537310` (branch commit `d7ee2d3`).
