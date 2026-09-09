@@ -20,7 +20,7 @@ import { argumentsSchemaRefusal, ToolRefused, type ToolContext } from "./tools/t
 //                               shows the model (including what is never delegated);
 //   notifications/initialized   accepted and answered 202 with no body, as the spec requires;
 //   ping                        answers {}: clients use it to check the connection;
-//   tools/list                  the seven tools with their annotations, plus this build's
+//   tools/list                  the eight tools with their annotations, plus this build's
 //                               `policy` block;
 //   tools/call                  runs one tool.
 //

@@ -41,7 +41,7 @@ test("no tool is named after an operation that is never delegated", async () => 
   }
 });
 
-test("the surface is five read tools, the reconciliation job, and one write tool", async () => {
+test("the surface is six read tools, the reconciliation job, and one write tool", async () => {
   const tools = await loadTools();
   assert.deepEqual(
     tools.map((tool) => tool.name),
@@ -50,6 +50,7 @@ test("the surface is five read tools, the reconciliation job, and one write tool
       "get_broker_statement",
       "explain_amount",
       "list_my_activity",
+      "inspect_reference",
       "list_reconciliation_breaks",
       "run_reconciliation",
       "request_claim_payment",
@@ -57,12 +58,15 @@ test("the surface is five read tools, the reconciliation job, and one write tool
   );
 });
 
-// The two tools of slice B13-16 (decision 29). They were added to a surface whose whole promise is that an agent
-// reads and asks, so the two assertions that matter are that they only read and that the list of
-// operations never delegated did not have to move to make room for them.
-test("the two tools added last only read", async () => {
+// The two tools of slice B13-16 (decision 29) and the eighth tool of decision 42. All three were
+// added to a surface whose whole promise is that an agent reads and asks, so the two assertions
+// that matter are that they only read and that the list of operations never delegated did not
+// have to move to make room for them.
+const THE_TOOLS_ADDED_AFTER_SLICE_B11 = ["explain_amount", "list_my_activity", "inspect_reference"];
+
+test("the tools added after slice B11 only read", async () => {
   const tools = await loadTools();
-  for (const name of ["explain_amount", "list_my_activity"]) {
+  for (const name of THE_TOOLS_ADDED_AFTER_SLICE_B11) {
     const tool = tools.find((candidate) => candidate.name === name);
     assert.ok(tool, `${name} is not on the surface`);
     assert.equal(tool.effect, "read", name);
@@ -70,16 +74,31 @@ test("the two tools added last only read", async () => {
   }
 });
 
-test("neither of them is named anywhere in the never-delegated list, which did not change", async () => {
+test("none of them is named anywhere in the never-delegated list, which did not change", async () => {
   const tools = await loadTools();
   const list = NEVER_DELEGATED.map((entry) => `${entry.operation} ${entry.reason}`).join(" | ");
-  for (const name of ["explain_amount", "list_my_activity"]) {
+  for (const name of THE_TOOLS_ADDED_AFTER_SLICE_B11) {
     assert.ok(!list.includes(name), `${name} appears in the never-delegated list`);
   }
-  // The ten operations of slice B11, still ten: reading a figure's explanation and reading one's
-  // own call log neither add an operation an agent must not do, nor remove one.
+  // The ten operations of slice B11, still ten: reading a figure's explanation, reading one's own
+  // call log and opening the file of a reference neither add an operation an agent must not do,
+  // nor remove one.
   assert.equal(NEVER_DELEGATED.length, 10);
   assert.equal(tools.filter((tool) => tool.effect !== "read").length, 2);
+});
+
+// The eighth tool opens the file of any reference the console search accepts, and one of those
+// shapes is the public prefix of an MCP API key. Reading a key is on the never-delegated list, so
+// the tool recognises that shape in order to REFUSE it and say why, rather than making the list
+// smaller. This assertion is what keeps a later version from quietly answering it.
+test("inspect_reference says in its own description that an MCP key prefix is refused, and why", async () => {
+  const tools = await loadTools();
+  const tool = tools.find((candidate) => candidate.name === "inspect_reference");
+  assert.ok(tool);
+  assert.match(tool.description, /cmk_/);
+  assert.match(tool.description, /never delegated/);
+  const keyRule = NEVER_DELEGATED.find((entry) => entry.operation.includes("MCP API key"));
+  assert.ok(keyRule, "the never-delegated list no longer names reading an MCP API key");
 });
 
 test("THE WRITE TOOL COUNT IS STILL ONE: only request_claim_payment queues anything for a human", async () => {
