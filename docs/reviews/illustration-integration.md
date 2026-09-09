@@ -1,4 +1,4 @@
-# YOA-639 — illustration integration review
+# YOA-639: illustration integration review
 
 Reviewer: independent Codex sub-agent `/root/ui_review`. Implementation review, 2026-09-09, 08:38 UTC. Initial revision: `19e0c43c2c29ece5edbc0da4b68e124674a1139e`. Final reviewed revision: `13b244bae916972f0c35dcded7087df7a99abcf6`, branch `codex/corgi-interface`.
 
@@ -31,7 +31,7 @@ Confirmed: Track 1 policy administration, existing broker/customer/staff roles, 
 
 ## Findings and re-review
 
-**Initial verdict at `19e0c43`: FAIL — F-ILL-01, MEDIUM.** `app/globals.css:875` retained `.login-art-panel img { max-width: 350px }`, while the 220 px banner rule applied only inside `.welcome-banner`. Actual login at a 1440 px viewport rendered the new banner image at **350×466.66 px**, exceeding the ticket's explicit limit. Required correction: cover every banner variant, including the login, and center the contained image. This was reported to the implementer; the reviewer did not modify application code.
+**Initial verdict at `19e0c43`: FAIL, F-ILL-01, MEDIUM.** `app/globals.css:875` retained `.login-art-panel img { max-width: 350px }`, while the 220 px banner rule applied only inside `.welcome-banner`. Actual login at a 1440 px viewport rendered the new banner image at **350×466.66 px**, exceeding the ticket's explicit limit. Required correction: cover every banner variant, including the login, and center the contained image. This was reported to the implementer; the reviewer did not modify application code.
 
 **Re-review at `b00b38d`: F-ILL-01 resolved.** Read the complete eleven-line CSS addition. The common banner limit plus more-specific login rule now produces a centered **220×220 px box** at both 768 and 1440 px, with `object-fit: contain`, empty alt and loaded 768 px source. At 375 px the existing mobile rule hides the login art panel; document width remains 375. Inspected the actual corrected desktop screenshot: complete proportional corgi, no crop or overflow. Temporary viewport override reset.
 
@@ -64,16 +64,16 @@ Not run: authenticated financial journeys, provider calls/webhooks, live eligibi
 
 | Ban | Scoped result and limitation |
 |---|---|
-| AF-01 — localhost-only submission / video instead of URL | NOT RUN for deployment. Local review is not a submission or proof of the deployed revision. |
-| AF-02 — simulation presented as live | PASS for preservation of honest UI labels. Required real sandbox integration evidence is NOT RUN in this review. |
-| AF-03 — UPDATE or DELETE money rows | PASS for change isolation: no SQL, database, financial state or money calculation change. Runtime enforcement and integrated ledger invariants NOT RUN here. |
-| AF-04 — live credentials, real money or personal data | PASS for review operations: static assets and existing synthetic sandbox records only; no provider or financial side effect. Whole-application environment enforcement NOT RUN. |
-| AF-05 — committed secrets | PASS for inspected bounded implementation diff/history scan. This report is explicitly staged and scanned before its documentation commit. No credential or session value is included. |
-| AF-06 — code Yoann cannot explain line by line | NOT RUN WITH YOANN. New code has a short, explicit reading path; that is not confirmation of human understanding. |
+| AF-01: localhost-only submission / video instead of URL | NOT RUN for deployment. Local review is not a submission or proof of the deployed revision. |
+| AF-02: simulation presented as live | PASS for preservation of honest UI labels. Required real sandbox integration evidence is NOT RUN in this review. |
+| AF-03: UPDATE or DELETE money rows | PASS for change isolation: no SQL, database, financial state or money calculation change. Runtime enforcement and integrated ledger invariants NOT RUN here. |
+| AF-04: live credentials, real money or personal data | PASS for review operations: static assets and existing synthetic sandbox records only; no provider or financial side effect. Whole-application environment enforcement NOT RUN. |
+| AF-05: committed secrets | PASS for inspected bounded implementation diff/history scan. This report is explicitly staged and scanned before its documentation commit. No credential or session value is included. |
+| AF-06: code Yoann cannot explain line by line | NOT RUN WITH YOANN. New code has a short, explicit reading path; that is not confirmation of human understanding. |
 
 **Final verdict: PASS for YOA-639 presentation integration at `13b244bae916972f0c35dcded7087df7a99abcf6`.** Initial material finding F-ILL-01 is resolved with independent source and browser evidence. The inherited LOW table-readability advisory remains visible. This does not approve the financial system, remaining official trial criteria, deployment, provider readiness or candidate walkthrough. No application code was changed by this reviewer.
 
-## Merge re-review — 2026-09-09, 08:43 UTC
+## Merge re-review: 2026-09-09, 08:43 UTC
 
 Independent reviewer `/root/ui_review`; exact integrated revision **`6370f36bfb05b8ddae05811722e28ab377449df3`**, diff from prior report commit `29af4014dea53c77bacfae55546a24bf7950bbdc`. Startup receipt: reread AGENTS, all six automatic fails, READABLE-CODE, WORKFLOW and REVIEWER; read the new README and STATUS changes and the complete three overlapping source diffs. Unchanged brief, PLAN, DECISIONS, COMPLIANCE and prior review reads above remain applicable (verified no changes). No mandatory file missing; initial worktree clean. Criterion: retain the illustration controls and responsive containment across the main merge. Biggest risk: a shared CSS selector or changed page composition undoing the preceding fixes.
 

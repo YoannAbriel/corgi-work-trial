@@ -1,6 +1,6 @@
 # Redundant policy back controls and aside wrapping
 
-## Startup receipt and scope — 2026-09-08T21:04:18Z
+## Startup receipt and scope: 2026-09-08T21:04:18Z
 
 Independent reviewer: `/root/ui_review`. Worktree `/Users/yoannabriel/dev/corgi-work-trial/.worktrees/corgi-interface`, branch `codex/corgi-interface`, initially clean at reviewed commit **cd6d5676a050638c961ad9043dd996486329e715**, compared with parent/main **957c88573598a93588fa21aeafc645a5cf347d71**. About 33 hours remain to the recorded freeze. This is a B13 cosmetic follow-up, not a new money-path or integrated delivery review.
 
@@ -10,7 +10,7 @@ Next acceptance criterion: remove only redundant navigation while retaining usab
 
 ## Finding
 
-**F-BACK-01 — MEDIUM — shared nowrap rule affects prose and identifiers, not only monetary values.** At `app/globals.css:1545`, all `.aside-list dd` now have `flex-shrink:0` and `white-space:nowrap`, replacing `overflow-wrap:anywhere`. `AsideList` also displays broker names (`app/policies/[policyId]/page.tsx:706`), bank account holder/result (`app/ops/claims/[claimId]/page.tsx:332`) and statement cutoff text. The bank's ordinary successful result is already a full sentence: `LOCAL SIMULATOR: the account at routing ...0000 is held by the claimant`. It cannot wrap or shrink inside the desktop 340px aside (48px panel horizontal padding, plus label and gap); the mobile single-column breakpoint does not restore wrapping. Longer valid names and failure reasons make this worse. The descendant selector also reaches `dd` inside expanded SandboxReferences.
+**F-BACK-01, MEDIUM: shared nowrap rule affects prose and identifiers, not only monetary values.** At `app/globals.css:1545`, all `.aside-list dd` now have `flex-shrink:0` and `white-space:nowrap`, replacing `overflow-wrap:anywhere`. `AsideList` also displays broker names (`app/policies/[policyId]/page.tsx:706`), bank account holder/result (`app/ops/claims/[claimId]/page.tsx:332`) and statement cutoff text. The bank's ordinary successful result is already a full sentence: `LOCAL SIMULATOR: the account at routing ...0000 is held by the claimant`. It cannot wrap or shrink inside the desktop 340px aside (48px panel horizontal padding, plus label and gap); the mobile single-column breakpoint does not restore wrapping. Longer valid names and failure reasons make this worse. The descendant selector also reaches `dd` inside expanded SandboxReferences.
 
 Consequence: this CSS removes the previous narrow-layout protection from ordinary nonmonetary content, risking horizontal overflow or unreadable clipped panels while fixing short amounts. This is a concrete source-derived regression; browser pixel measurements have **not** been performed for this commit. Required correction: retain shrink/wrap behavior for general aside values and scope nonwrapping to explicitly marked monetary/short numeric values. Verify a monetary total, a long broker/holder name, a bank-result sentence and an expanded reference at narrow/mobile and desktop-aside widths. No financial formula should change.
 
@@ -41,7 +41,7 @@ No build/unit/financial integration rerun: this tiny diff changes no executable 
 
 **Verdict: FAIL for cd6d567**, limited to F-BACK-01. The redundant-back-control removal passes independently, but the combined cosmetic increment needs the narrower wrapping rule and an affected re-review before completion. No legal certification or integrated trial PASS.
 
-## Re-review — 2026-09-08T21:06Z
+## Re-review: 2026-09-08T21:06Z
 
 Exact amended commit **586d5b968dfc7247c12ed95c45d287bd2821661b**, against the same parent **957c88573598a93588fa21aeafc645a5cf347d71**. Same continuing review session; mandatory reads remain as listed in the receipt. Read the complete new six-file diff, current status and changed component/CSS/call sites. Only this review record is untracked; no application changes by the reviewer.
 
