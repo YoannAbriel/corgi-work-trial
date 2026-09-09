@@ -1,6 +1,7 @@
 /* The rules that belong to the policy screens alone (UI cycle B: UI-019, UI-021).
    app/globals.css keeps the shared building blocks; anything that only the endorsement schedule
-   and its provider references need lives here, imported by app/policies/[policyId]/page.tsx. */
+   and its provider references need lives here, imported by app/policies/[policyId]/page.tsx.
+   Same split as the other sheets in this folder (ops-tables.css, shell.css). */
 
 /* --- UI-019: the endorsement schedule reads across ---------------------------------------
    The schedule used the browser's automatic table layout inside a horizontal scroll container.
