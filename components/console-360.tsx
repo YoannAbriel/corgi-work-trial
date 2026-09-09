@@ -209,15 +209,31 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                             >
                               {operation.latestStatus ?? "no event"}
                             </Chip>
+                            {/* The reason is the newest one of any failed event of the operation,
+                                whatever happened after it, so on an operation that failed and
+                                then succeeded a green "succeeded" chip sat above
+                                "Your card was declined." with nothing saying it was over
+                                (review finding F-INT-20). It belongs to the status only when the
+                                status is failed; otherwise it is dated and called what it is. */}
                             {operation.failureReason ? (
                               <>
                                 <br />
-                                <span className="note">{operation.failureReason}</span>
+                                <span className="note">
+                                  {operation.latestStatus === "failed"
+                                    ? operation.failureReason
+                                    : `Earlier attempt${operation.failedAt ? `, ${utc(operation.failedAt)}` : ""}: ${operation.failureReason}`}
+                                </span>
                               </>
                             ) : null}
                           </td>
                           <td className="col-age">{formatSeconds(operation.requestedToAcceptedSeconds)}</td>
                           <td className="col-age">{formatSeconds(operation.acceptedToSucceededSeconds)}</td>
+                          {/* The Stripe reference stays in the open on this screen, in a column
+                              of its own, and is NOT folded away like the ones in the customer and
+                              broker journeys (review finding F-YA-02): the console is the incident
+                              screen, where the reference is what an operator types into the
+                              provider's own dashboard. Same rule as the break table on
+                              /ops/reconciliation. */}
                           <td className="col-ref">
                             <code>{operation.providerRef ?? "none"}</code>
                           </td>

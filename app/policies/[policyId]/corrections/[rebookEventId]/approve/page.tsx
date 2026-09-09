@@ -68,7 +68,7 @@ export default async function ApproveCorrectionPage({
       <p className="note">Reason recorded by our operations team: {correction.reason}.</p>
 
       <h2>What it costs</h2>
-      <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
+      <div className="table-scroll" role="region" aria-label="What the correction costs" tabIndex={0}>
 <table className="amounts">
         <tbody>
           <tr>

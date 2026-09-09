@@ -93,7 +93,7 @@ export default async function CorrectEndorsementDatePage({
           class gave them white-space: nowrap, so the endorsement's description held the table
           open on one 942 px line, the label column was squeezed to 44 px, and "Endorsement"
           came out one letter per line. Only the money rows keep the class. */}
-      <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
+      <div className="table-scroll" role="region" aria-label="What changes" tabIndex={0}>
 <table className="amounts">
         <tbody>
           <tr>
@@ -136,7 +136,7 @@ export default async function CorrectEndorsementDatePage({
         that money, and reversing them would make the ledger claim it left. The originals below stay in the journal for
         ever; a mirrored entry is appended beside each of them, on the same effective date, recorded now.
       </p>
-      <div className="table-scroll" role="region" aria-label="Policies table 2" tabIndex={0}>
+      <div className="table-scroll" role="region" aria-label="Entries that will be reversed" tabIndex={0}>
 <table>
         <thead>
           <tr>

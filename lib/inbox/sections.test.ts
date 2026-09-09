@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   brokerSections,
   INBOX_ANCHORS,
+  INBOX_ANCHOR_OWNER,
   customerSections,
   sectionsWithWorkFirst,
   staffSections,
@@ -270,9 +271,9 @@ test("a change request nobody answered is the broker's to answer", () => {
 
 test("every anchor a task can name is an anchor some section actually has", () => {
   // components/what-needs-you.tsx links each of its counts to /inbox#<anchor> using these names,
-  // so a name no section carries is a link to nothing (review findings F-B13-15, F-B13-16). The
-  // type already limits a task to these twelve; this checks the other direction, that each of the
-  // twelve is rendered by the role that uses it.
+  // so a name no section carries is a link to nothing (review findings F-B13-15, F-B13-16). This
+  // is the weak half of the promise: the anchor exists SOMEWHERE. The per-role half is the test
+  // below (review finding F-B13-60), which is the one that matters.
   const rendered = new Set([
     ...brokerSections([], []).map((one) => one.anchor),
     ...customerSections([]).map((one) => one.anchor),
@@ -281,4 +282,41 @@ test("every anchor a task can name is an anchor some section actually has", () =
   for (const [kindOfWork, anchor] of Object.entries(INBOX_ANCHORS)) {
     assert.ok(rendered.has(anchor), `${kindOfWork} points at #${anchor}, which no section carries`);
   }
+});
+
+test("each role renders exactly the anchors its own kinds of work name", () => {
+  // The direction the test above cannot reach (review finding F-B13-60): the anchor type is the
+  // union of the twelve VALUES, so a broker task typed `anchor: "claims"` compiles and sends a
+  // broker to a section only staff have. INBOX_ANCHOR_OWNER says whose work each kind is; here
+  // each role's sections are compared with it, both ways, so an anchor moved to another role or a
+  // section dropped from one fails.
+  const anchorsOwnedBy = (role: "broker" | "customer" | "staff") =>
+    new Set(
+      Object.entries(INBOX_ANCHORS)
+        .filter(([kindOfWork]) => INBOX_ANCHOR_OWNER[kindOfWork as keyof typeof INBOX_ANCHORS] === role)
+        .map(([, anchor]) => anchor),
+    );
+
+  // Empty facts on purpose: every section exists even with nothing waiting, which is what makes a
+  // sidebar count safe to link at any hour.
+  const rendered: Record<"broker" | "customer" | "staff", Set<string>> = {
+    broker: new Set(brokerSections([], []).map((one) => one.anchor)),
+    customer: new Set(customerSections([]).map((one) => one.anchor)),
+    staff: new Set(staffSections(staffFacts(), "staff_ops").map((one) => one.anchor)),
+  };
+
+  for (const role of ["broker", "customer", "staff"] as const) {
+    assert.deepEqual(
+      [...rendered[role]].sort(),
+      [...anchorsOwnedBy(role)].sort(),
+      `the ${role} inbox does not render exactly the anchors ${role} tasks name`,
+    );
+  }
+
+  // An approver sees the same sections as an operator: the two staff roles share one inbox and
+  // differ only in the wording of what is waiting.
+  assert.deepEqual(
+    staffSections(staffFacts(), "staff_approver").map((one) => one.anchor),
+    staffSections(staffFacts(), "staff_ops").map((one) => one.anchor),
+  );
 });
