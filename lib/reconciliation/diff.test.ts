@@ -365,3 +365,36 @@ test("every item carries a record date, whatever its classification", () => {
   );
   assert.ok(items.every((item) => typeof item.recordAt === "string" && !Number.isNaN(Date.parse(item.recordAt))));
 });
+
+// Review finding F-B10-09: the pairing index used to keep the last of two ledger records sharing
+// a provider reference, so a provider record could be matched against the wrong operation and
+// the other record was dropped from the pairing without a word. No path in this build produces
+// it; these two tests are what stops it becoming silent if one ever does.
+
+test("two ledger records sharing one provider reference are not paired by that reference", () => {
+  const items = diff(
+    [railPayout()],
+    [
+      railPayoutInLedger({ operationId: "OP_PAYOUT_A" }),
+      railPayoutInLedger({ operationId: "OP_PAYOUT_B" }),
+    ],
+  );
+  const providerItem = items.find((item) => item.providerRef === "sim_tr_1" && item.ledgerRef === null);
+  assert.ok(providerItem, "the provider record is reported on its own");
+  assert.equal(providerItem.classification, "provider_only");
+  assert.match(providerItem.note, /MORE THAN ONE LEDGER RECORD CARRIES THIS PROVIDER REFERENCE/);
+  // And both ledger records are reported, neither silently dropped.
+  const ledgerRefs = items.filter((item) => item.ledgerRef !== null).map((item) => item.ledgerRef);
+  assert.deepEqual([...ledgerRefs].sort(), ["OP_PAYOUT_A", "OP_PAYOUT_B"]);
+  assert.ok(items.filter((item) => item.ledgerRef !== null).every((item) => /SAME PROVIDER REFERENCE/.test(item.note)));
+});
+
+test("the operation id the provider carries back still pairs, even when the reference is shared", () => {
+  const items = diff(
+    [payment()],
+    [collectedInLedger(), collectedInLedger({ operationId: "OP_OTHER" })],
+  );
+  const paired = items.find((item) => item.ledgerRef === "OP_PAID" && item.providerRef === "pi_paid");
+  assert.ok(paired);
+  assert.equal(paired.classification, "matched");
+});

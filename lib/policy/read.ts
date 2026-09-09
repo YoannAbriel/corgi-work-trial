@@ -1,3 +1,4 @@
+import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { refundStateFromEvents, type RefundState } from "@/lib/payments/refunds";
@@ -513,8 +514,8 @@ export type PolicyPaidNotBoundRow = {
   quotedAt: Date;
 };
 
-export async function policiesPaidButNotBound(): Promise<PolicyPaidNotBoundRow[]> {
-  const rows = await sql<
+export async function policiesPaidButNotBound(database: postgres.Sql = sql): Promise<PolicyPaidNotBoundRow[]> {
+  const rows = await database<
     { policy_id: string; policy_number: string; customer_name: string; total_charge_cents: string; quoted_at: Date }[]
   >`
     select policy.id            as policy_id,
@@ -540,8 +541,8 @@ export async function policiesPaidButNotBound(): Promise<PolicyPaidNotBoundRow[]
 // The badge on the sidebar asks how many; the inbox asks which ones. Counting the list rather
 // than repeating the condition in a second query is what keeps the two from ever disagreeing,
 // and policy_current holds one row per policy, so the list can never count a policy twice.
-export async function countPoliciesPaidButNotBound(): Promise<number> {
-  return (await policiesPaidButNotBound()).length;
+export async function countPoliciesPaidButNotBound(database: postgres.Sql = sql): Promise<number> {
+  return (await policiesPaidButNotBound(database)).length;
 }
 
 // Endorsements the customer has paid for and that are NOT in force, because the broker was not
@@ -557,11 +558,13 @@ export type EndorsementPaidNotAppliedRow = {
   paidAt: Date;
 };
 
-export async function endorsementsPaidButNotApplied(): Promise<EndorsementPaidNotAppliedRow[]> {
+export async function endorsementsPaidButNotApplied(
+  database: postgres.Sql = sql,
+): Promise<EndorsementPaidNotAppliedRow[]> {
   // `distinct on (request_event_id)` is the list form of the `count(distinct request_event_id)`
   // this used to be: one endorsement request that somehow carries two succeeded events is one
   // piece of work, not two.
-  const rows = await sql<
+  const rows = await database<
     { policy_id: string; policy_number: string; request_event_id: string; amount_cents: string; paid_at: Date }[]
   >`
     select distinct on (link.request_event_id)
@@ -594,6 +597,6 @@ export async function endorsementsPaidButNotApplied(): Promise<EndorsementPaidNo
 
 // Same reason as the policies above: the badge counts what the inbox lists, never a second copy
 // of the condition.
-export async function countEndorsementsPaidButNotApplied(): Promise<number> {
-  return (await endorsementsPaidButNotApplied()).length;
+export async function countEndorsementsPaidButNotApplied(database: postgres.Sql = sql): Promise<number> {
+  return (await endorsementsPaidButNotApplied(database)).length;
 }

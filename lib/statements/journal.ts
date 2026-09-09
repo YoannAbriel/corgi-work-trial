@@ -89,11 +89,11 @@ export async function brokerJournalEntriesInMonth(
            -- is right (lib/ledger/correction-entries.ts, source_kind 'correction'). Their net
            -- movement of unearned_premium IS the premium the difference is made of: +4931 when
            -- the corrected date charges more days, -4931 when it charges fewer, in the recited
-           -- example. Exactly one of the two sums below is ever non-zero for a given entry.
+           -- example. At most one of the three sums below is ever non-zero for a given entry.
            --
            -- The correction is found from the money operation that settles it: correction_
-           -- collections names the re-book for money coming in, refund_allocations names it for
-           -- money going back out, and the re-book's payload names the reversal beside it.
+           -- collections names the re-book for money coming in, and the re-book's payload names
+           -- the reversal beside it. Money going back OUT is read differently, see the third sum.
            (coalesce((select sum(premium_line.credit_cents - premium_line.debit_cents)
                        from journal_entries premium_entry
                        join journal_lines premium_line on premium_line.entry_id = premium_entry.id
@@ -108,13 +108,28 @@ export async function brokerJournalEntriesInMonth(
                            and premium_entry.source_id in (rebook.id::text, rebook.payload ->> 'correction_reversal_event_id')
                           join journal_lines premium_line on premium_line.entry_id = premium_entry.id
                          where rebook.event_type = 'correction_rebook'
-                           and rebook.id = coalesce(
-                                 (select link.correction_rebook_event_id from correction_collections link
-                                   where link.collection_operation_id::text = entry.source_id),
-                                 (select allocation.policy_event_id from refund_allocations allocation
-                                   where allocation.refund_operation_id::text = entry.source_id))
+                           and rebook.id = (select link.correction_rebook_event_id
+                                              from correction_collections link
+                                             where link.collection_operation_id::text = entry.source_id)
                            and premium_entry.recorded_at <= ${query.knowledgeCutoff}
-                           and premium_line.account_id = 'unearned_premium'), 0))::text
+                           and premium_line.account_id = 'unearned_premium'), 0)
+           -- A CORRECTION THAT GIVES MONEY BACK IS SPLIT, and the two sums above are not (review
+           -- finding F-B8-08). A refund is allocated newest collection first and opens one Stripe
+           -- refund, so one money operation and one refund_completed entry, PER PaymentIntent it
+           -- comes off. Reading the whole correction's premium movement here would hand every one
+           -- of those entries the total: two refund lines both printing -10027 instead of -4931
+           -- and -5096. The slice's own share was decided once, at correction time, and stored on
+           -- its allocation; that stored figure is the premium this line gives back. It is
+           -- subtracted because premium given back is a debit of unearned_premium, the same
+           -- direction as the cash leaving. An ordinary cancellation or endorsement refund is
+           -- untouched: its allocation names the 'cancelled' or 'endorsed' event, not a re-book,
+           -- and its premium is already on the sibling entry the first sum reads.
+            - coalesce((select allocation.refunded_premium_cents
+                          from refund_allocations allocation
+                          join policy_events rebook on rebook.id = allocation.policy_event_id
+                         where allocation.refund_operation_id::text = entry.source_id
+                           and rebook.event_type = 'correction_rebook'
+                           and allocation.recorded_at <= ${query.knowledgeCutoff}), 0))::text
              as unearned_premium_cents
       from journal_entries entry
       join journal_lines line on line.entry_id = entry.id

@@ -2,14 +2,14 @@ import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { assertIntentIsApproved, createApprovalRequest } from "@/lib/approvals/approvals";
 import { bankAccountDestination, type MoneyOutIntent } from "@/lib/approvals/intent";
-import { claimPayoutNeedsApproval } from "@/lib/approvals/threshold";
+import { claimPayoutNeedsApproval, MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import {
   claimPaymentReturnedEntries,
   claimPaymentSentEntry,
   claimPaymentSettledEntry,
 } from "@/lib/ledger/claim-entries";
 import { postJournalEntry } from "@/lib/ledger/post";
-import { centsFromDatabase } from "@/lib/money/cents";
+import { centsFromDatabase, formatCentsAsUsd } from "@/lib/money/cents";
 import {
   newTransferRef,
   returnSimulatedPayout,
@@ -495,8 +495,19 @@ export async function sendClaimPayment(
         claimPendingCents: snapshot.pendingCents - current.amountCents,
       })
     ) {
+      // Review finding F-B7-13. The usual way to reach this refusal is not a bypass attempt: a
+      // payment that was legitimately below the ceiling when it was asked for stops being
+      // sendable when a SECOND request lands on the same claim, because the rule is cumulative
+      // (decision 17). Failing closed is right; leaving the operator to guess why is not, so the
+      // sentence shows the arithmetic and names the way out.
+      const otherPendingCents = snapshot.pendingCents - current.amountCents;
       throw new ClaimRefused(
-        "this payment would take the claim above the approval threshold but carries no approval request; it cannot be sent",
+        `this payment of ${formatCentsAsUsd(current.amountCents)} carries no approval request, and the claim ` +
+          `already has ${formatCentsAsUsd(snapshot.position.paidCents)} paid and ` +
+          `${formatCentsAsUsd(otherPendingCents)} waiting, which takes it past the ` +
+          `${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} approval ceiling. It was below the ceiling ` +
+          "when it was asked for; another request on this claim is what moved it. Have that request rejected " +
+          "and this payment becomes sendable again.",
       );
     }
 
