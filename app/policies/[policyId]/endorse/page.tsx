@@ -101,7 +101,7 @@ export default async function EndorsePolicyPage({
         { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Endorsement preview" },
       ]}
-      views={policyFormViews({ policyId, formLabel: "Endorse", formHref: `/policies/${policyId}/endorse` })}
+      views={policyFormViews({ policyId, formLabel: "Endorse", formHref: `/policies/${policyId}/endorse`, role: user.role })}
       viewsSubtitle={plan.policyNumber}
       band={{
         title: "Endorsement preview",
@@ -309,7 +309,7 @@ async function EndorsementForm({
         { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Endorse" },
       ]}
-      views={policyFormViews({ policyId, formLabel: "Endorse", formHref: `/policies/${policyId}/endorse` })}
+      views={policyFormViews({ policyId, formLabel: "Endorse", formHref: `/policies/${policyId}/endorse`, role: user.role })}
       viewsSubtitle={policy.policyNumber}
       band={{
         title: "Endorse",

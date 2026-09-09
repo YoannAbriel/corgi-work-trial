@@ -70,7 +70,7 @@ export default async function CancelPolicyPage({
             { label: "Policy", href: `/policies/${policyId}` },
             { label: "Cancellation preview" },
           ]}
-          views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
+          views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel`, role: user.role })}
           band={{ title: "Cancellation preview", status: <Chip tone="warn">refused</Chip> }}
         >
           <div className="notices">
@@ -95,7 +95,7 @@ export default async function CancelPolicyPage({
         { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Cancellation preview" },
       ]}
-      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
+      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel`, role: user.role })}
       band={{
         title: "Cancellation preview",
         suffix: `Policy ${plan.policyNumber}`,
@@ -315,7 +315,7 @@ async function CancellationForm({
         { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Cancel" },
       ]}
-      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
+      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel`, role: user.role })}
       band={{
         title: "Cancel the policy",
         suffix: `Policy ${policy.policyNumber}`,
