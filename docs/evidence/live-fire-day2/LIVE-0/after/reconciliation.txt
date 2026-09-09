@@ -1,0 +1,211 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/reconciliation?view=breaks] Open breaks4
+[a /ops/reconciliation?view=runs] Runs
+[a /ops/reconciliation?view=clearing] Clearing
+[a /ops/reconciliation?view=resolved] Resolved
+[a /ops/statements] Statements
+System
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+Reconciliation
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Reconciliation
+4 breaks to act on32 probes from check runs
+Reconcile both sources now Reconciliation
+To act onBy source, over every open break: Stripe 4, Claim rail 04not a probe, nobody has explained it
+ProbesPayments the check script puts at the provider on purpose. They are reported for ever and are not breaks to act on.32planted by our own check runs
+Oldest25 hsince it was first reported
+Source
+[a /ops/reconciliation] All4
+[a /ops/reconciliation?source=stripe] Stripe4
+[a /ops/reconciliation?source=claims_rail] Claim rail0
+Class
+[a /ops/reconciliation] All4
+[a /ops/reconciliation?class=local_only] local only0
+[a /ops/reconciliation?class=provider_only] provider only4
+[a /ops/reconciliation?class=amount_mismatch] amount mismatch0
+[a /ops/reconciliation?class=stale] stale04 of 4
+|
+| | Reference | Source | Classification | Provider | Ledger | Open for |
+|
+|
+[a /ops/reconciliation?inspect=pi_3UDKjJK6R3v50tIy0nLbDPOc] pi_3UDKjJK6R3v50tIy0nLbDPOc | StripeLIVE SANDBOX | provider only | $100.00 | no record | 25 h |
+Explain this break
+What is this break? (10 to 500 characters)
+Explain this break
+|
+Difference
+$100.00
+First seen
+2026-09-08 17:58:19 UTC
+Last reported
+2026-09-09 18:38:24 UTC
+What the run says
+the provider shows a succeeded payment of $100.00 with no cash movement in the ledger; it carries no operation id at all
+References
+Provider reference pi_3UDKjJK6R3v50tIy0nLbDPOcLedger operation id noneBreak key stripe|pi_3UDKjJK6R3v50tIy0nLbDPOc
+|
+|
+[a /ops/reconciliation?inspect=pi_3UDKq0K6R3v50tIy1mwQmeWT] pi_3UDKq0K6R3v50tIy1mwQmeWT | StripeLIVE SANDBOX | provider only | $12.61 | no record | 25 h |
+Explain this break
+What is this break? (10 to 500 characters)
+Explain this break
+|
+Difference
+$12.61
+First seen
+2026-09-08 17:58:19 UTC
+Last reported
+2026-09-09 18:38:24 UTC
+What the run says
+the provider shows a succeeded payment of $12.61 with no cash movement in the ledger; it carries no operation id at all
+References
+Provider reference pi_3UDKq0K6R3v50tIy1mwQmeWTLedger operation id noneBreak key stripe|pi_3UDKq0K6R3v50tIy1mwQmeWT
+|
+|
+[a /ops/reconciliation?inspect=pi_3UDL2qK6R3v50tIy0hthuI6E] pi_3UDL2qK6R3v50tIy0hthuI6E | StripeLIVE SANDBOX | provider only | $12.61 | no record | 25 h |
+Explain this break
+What is this break? (10 to 500 characters)
+Explain this break
+|
+Difference
+$12.61
+First seen
+2026-09-08 17:58:19 UTC
+Last reported
+2026-09-09 18:38:24 UTC
+What the run says
+the provider shows a succeeded payment of $12.61 with no cash movement in the ledger; it carries no operation id at all
+References
+Provider reference pi_3UDL2qK6R3v50tIy0hthuI6ELedger operation id noneBreak key stripe|pi_3UDL2qK6R3v50tIy0hthuI6E
+|
+|
+[a /ops/reconciliation?inspect=re_3UDKq0K6R3v50tIy11aPmuHK] re_3UDKq0K6R3v50tIy11aPmuHK | StripeLIVE SANDBOX | provider only | -$8.98 | no record | 25 h |
+Explain this break
+What is this break? (10 to 500 characters)
+Explain this break
+|
+Difference
+-$8.98
+First seen
+2026-09-08 17:58:19 UTC
+Last reported
+2026-09-09 18:38:24 UTC
+What the run says
+the provider shows a succeeded refund of $8.98 with no cash movement in the ledger; it carries no operation id at all
+References
+Provider reference re_3UDKq0K6R3v50tIy11aPmuHKLedger operation id noneBreak key stripe|re_3UDKq0K6R3v50tIy11aPmuHK
+local only the ledger booked cash the provider shows no record ofprovider only the provider moved money the ledger has no cash entry foramount mismatch both sides moved money on the same operation, for different amountsstale money out promised long ago and still not confirmed either wayprobe a payment one of our own check runs planted at the provider; no ledger entry is expected for itmatched both sides agree
+Probe payments from check runs
+|
+| Reference | Amount | First seen | Run
+|
+[a /ops/reconciliation?inspect=pi_3UDQN7K6R3v50tIy0fdlIi1Q] pi_3UDQN7K6R3v50tIy0fdlIi1Q | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDQPZK6R3v50tIy0hKAIFiq] pi_3UDQPZK6R3v50tIy0hKAIFiq | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDQkNK6R3v50tIy0LYkcx0u] pi_3UDQkNK6R3v50tIy0LYkcx0u | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDQliK6R3v50tIy12QwbLZu] pi_3UDQliK6R3v50tIy12QwbLZu | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDRYdK6R3v50tIy1hMUFwOR] pi_3UDRYdK6R3v50tIy1hMUFwOR | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDRg7K6R3v50tIy0gT73SMV] pi_3UDRg7K6R3v50tIy0gT73SMV | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDRpWK6R3v50tIy1583aoau] pi_3UDRpWK6R3v50tIy1583aoau | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDSDTK6R3v50tIy0WZt7ER9] pi_3UDSDTK6R3v50tIy0WZt7ER9 | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDSJAK6R3v50tIy1scuFiim] pi_3UDSJAK6R3v50tIy1scuFiim | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDSUkK6R3v50tIy0YhkqA4i] pi_3UDSUkK6R3v50tIy0YhkqA4i | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDSXHK6R3v50tIy0GiFSMOG] pi_3UDSXHK6R3v50tIy0GiFSMOG | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDSixK6R3v50tIy1GHF6tA3] pi_3UDSixK6R3v50tIy1GHF6tA3 | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDSpuK6R3v50tIy0aHmH7YK] pi_3UDSpuK6R3v50tIy0aHmH7YK | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDSs4K6R3v50tIy05wKxRBA] pi_3UDSs4K6R3v50tIy05wKxRBA | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDT6EK6R3v50tIy1mpOBEdW] pi_3UDT6EK6R3v50tIy1mpOBEdW | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDTGdK6R3v50tIy0ChjlMp1] pi_3UDTGdK6R3v50tIy0ChjlMp1 | $42.42 | 2026-09-08 17:58:19 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDTMWK6R3v50tIy0rurc82q] pi_3UDTMWK6R3v50tIy0rurc82q | $42.42 | 2026-09-09 06:00:12 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDTO4K6R3v50tIy1kHwWNxa] pi_3UDTO4K6R3v50tIy1kHwWNxa | $42.42 | 2026-09-09 06:00:12 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDfVdK6R3v50tIy0IMOnG5J] pi_3UDfVdK6R3v50tIy0IMOnG5J | $42.42 | 2026-09-09 12:42:38 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDg5bK6R3v50tIy1p6Ycqyd] pi_3UDg5bK6R3v50tIy1p6Ycqyd | $42.42 | 2026-09-09 12:42:38 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDhGJK6R3v50tIy0Nzq58Kj] pi_3UDhGJK6R3v50tIy0Nzq58Kj | $42.42 | 2026-09-09 12:42:38 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDkBRK6R3v50tIy0cznAoKp] pi_3UDkBRK6R3v50tIy0cznAoKp | $42.42 | 2026-09-09 12:42:38 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDkUwK6R3v50tIy0RZzIDcS] pi_3UDkUwK6R3v50tIy0RZzIDcS | $42.42 | 2026-09-09 12:42:38 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDkdqK6R3v50tIy0ypJXCjR] pi_3UDkdqK6R3v50tIy0ypJXCjR | $42.42 | 2026-09-09 12:42:38 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDlSVK6R3v50tIy0YmLaFrx] pi_3UDlSVK6R3v50tIy0YmLaFrx | $42.42 | 2026-09-09 15:38:59 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDlWEK6R3v50tIy10EhV3Vo] pi_3UDlWEK6R3v50tIy10EhV3Vo | $42.42 | 2026-09-09 15:38:59 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDlr7K6R3v50tIy0QljajXB] pi_3UDlr7K6R3v50tIy0QljajXB | $42.42 | 2026-09-09 15:38:59 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDmLlK6R3v50tIy07K7eg6D] pi_3UDmLlK6R3v50tIy07K7eg6D | $42.42 | 2026-09-09 15:38:59 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDmOQK6R3v50tIy0ACT7u20] pi_3UDmOQK6R3v50tIy0ACT7u20 | $42.42 | 2026-09-09 15:38:59 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDmmGK6R3v50tIy1644vwL5] pi_3UDmmGK6R3v50tIy1644vwL5 | $42.42 | 2026-09-09 15:38:59 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDnN7K6R3v50tIy1PefeGL7] pi_3UDnN7K6R3v50tIy1PefeGL7 | $42.42 | 2026-09-09 15:38:59 | 5 minStripe
+|
+[a /ops/reconciliation?inspect=pi_3UDnkbK6R3v50tIy06l6snib] pi_3UDnkbK6R3v50tIy06l6snib | $42.42 | 2026-09-09 16:25:19 | 5 minStripe
+Payments our own check script plants at the provider on purpose. No ledger entry can explain one, so they are reported for ever and are not breaks to act on.
+Explained breaks
+|
+| Reference | Classification | What an operator says it is | Explained by | Explained
+|
+Nobody has written a note on a break yet.
+About this screen
+What counts as a break to act on
+Everything a completed run reported as anything but matched, that no later run has explained, that is not a probe from one of our own check runs and that nobody has written a note on. A break leaves the list only when a later completed run of the same source, whose window covers the date of the record, no longer reports it. A break nobody has looked at again stays open, however old it gets. The age is counted from the first run that ever reported it. This is the number the sidebar badge and the operations inbox show.
+What a note does, and what it does not do
+A note says that a staff operations user looked at this break and knows what it is. It repairs nothing: no money moves, no journal entry is posted, and no reconciliation row is edited or deleted. The break is still compared by every later run and it stays listed, with the note, its author and its date. The only thing that changes is that it stops being counted as a break to act on and leaves the operations inbox. Notes are append-only: a correction is a second note, and the latest one is shown.
+Why a break comes back after a note
+A note explains the break as the latest run described it: its classification and its two amounts are recorded on it. The day a run reports the same break differently, no note matches any more and the break returns to the list to act on, with the earlier note beside it in its expansion. A note written before this build recorded what it explained matches nothing, so its break needs explaining again as it stands today.
+Probe payments
+Every run of npm run check:reconciliation puts one real PaymentIntent of $42.42 into the Stripe sandbox with a test card and no operation id, to prove the comparison finds money at a provider with nothing behind it in our books. No ledger entry will ever explain one, so they are reported for ever and counted apart from the breaks to act on. They are not hidden: they are listed and counted in their own table, and a real provider-only break appears in the table of breaks to act on and not in that one.
+The two sources
+Stripe (LIVE SANDBOX: PaymentIntents, Refunds and BalanceTransactions listed through the API) and the claim payout rail (LOCAL SIMULATOR: the rail keeps its own provider-side records, written by the simulator and never by the ledger code, so a mismatch planted there is found the same way a Stripe one is). Stripe processing fees are not journaled in this build.
+Staleness
+Thresholds are assumptions of this build: 24 hours at Stripe, 72 hours on the simulated rail.
+Nothing here repairs a break
+There is deliberately no button that could. A break is repaired by doing the real thing (replaying a webhook, running the settlement job, opening a correction), and the next run stops reporting it. That is why resolved breaks are still listed: they were never deleted, they simply stopped being found. Explaining a break is not repairing it either.
+Running a window again
+Harmless. Each run stores its own items and a break is identified across runs by its key, so an overlapping window cannot duplicate anything. The window defaults to the last 7 days, long enough that a webhook delayed by a day is still inside the next run.
+Clearing balances
+Read straight from the journal, with no window at all, so nothing here can be missed for being old. These four accounts hold money on its way somewhere and must end at zero. This list is the second net under the break list: it does not depend on any provider answering, or on any run having compared anything.
+What resolved a break
+Reported by an earlier run, and looked at again since by a completed run of the same source whose window covered the record, which no longer reports it. Nothing was deleted: the items of every run are still on file, which is how a break can be shown as resolved rather than vanish.Corgi · Policy administration

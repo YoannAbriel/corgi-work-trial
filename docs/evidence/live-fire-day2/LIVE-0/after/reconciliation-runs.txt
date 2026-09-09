@@ -1,0 +1,339 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/reconciliation?view=breaks] Open breaks4
+[a /ops/reconciliation?view=runs] Runs
+[a /ops/reconciliation?view=clearing] Clearing
+[a /ops/reconciliation?view=resolved] Resolved
+[a /ops/statements] Statements
+System
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+Reconciliation
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Reconciliation
+4 breaks to act on32 probes from check runs
+Reconcile both sources now Reconciliation
+Latest Stripe run5 mincomplete
+Latest Claim rail run5 mincomplete
+|
+| | Finished | Source | Status | Window | Compared | Breaks
+|
+| 5 minSam Patel, operations | Claim railLOCAL SIMULATOR | complete | 2026-09-022026-09-09 | 1 provider3 ledger | 0no break to act on
+|
+Window from
+2026-09-02 18:38:23 UTC
+Window to
+2026-09-09 18:38:23 UTC
+Matched
+3
+Local only
+0
+Provider only
+0
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 18:38:24 UTC
+Note
+LOCAL SIMULATOR: 2 rail records for 1 transfers. The rail is a simulator, not a bank: it keeps its own append-only records and settles two calendar days after a transfer is sent, with no banking calendar.
+|
+| 5 minSam Patel, operations | StripeLIVE SANDBOX | complete | 2026-09-022026-09-09 | 42 provider7 ledger | 432 probes, 4 breaks to act on
+|
+Window from
+2026-09-02 18:38:23 UTC
+Window to
+2026-09-09 18:38:23 UTC
+Matched
+7
+Local only
+0
+Provider only
+4
+Amount mismatch
+0
+Stale
+0
+Probe
+32
+Started
+2026-09-09 18:38:23 UTC
+Note
+Every PaymentIntent in the window had succeeded; none was left out. balance transactions in the window: application_fee 2, charge 39, refund 3, transfer 1; fees kept by Stripe 29623 cents. Fees and payouts are not journaled in this build (cash_stripe is gross of fees; a payout moves money from the Stripe balance to the bank account, outside the ledger), disclosed in README.
+|
+| 2 hSam Patel, operations | Claim railLOCAL SIMULATOR | complete | 2026-09-022026-09-09 | 1 provider3 ledger | 0no break to act on
+|
+Window from
+2026-09-02 16:25:18 UTC
+Window to
+2026-09-09 16:25:18 UTC
+Matched
+3
+Local only
+0
+Provider only
+0
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 16:25:19 UTC
+Note
+LOCAL SIMULATOR: 2 rail records for 1 transfers. The rail is a simulator, not a bank: it keeps its own append-only records and settles two calendar days after a transfer is sent, with no banking calendar.
+|
+| 2 hSam Patel, operations | StripeLIVE SANDBOX | complete | 2026-09-022026-09-09 | 42 provider7 ledger | 3636 breaks to act on
+|
+Window from
+2026-09-02 16:25:18 UTC
+Window to
+2026-09-09 16:25:18 UTC
+Matched
+7
+Local only
+0
+Provider only
+36
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 16:25:18 UTC
+Note
+Every PaymentIntent in the window had succeeded; none was left out. balance transactions in the window: application_fee 2, charge 39, refund 3, transfer 1; fees kept by Stripe 29623 cents. Fees and payouts are not journaled in this build (cash_stripe is gross of fees; a payout moves money from the Stripe balance to the bank account, outside the ledger), disclosed in README.
+|
+| 3 hSam Patel, operations | Claim railLOCAL SIMULATOR | complete | 2026-09-022026-09-09 | 1 provider3 ledger | 0no break to act on
+|
+Window from
+2026-09-02 15:38:58 UTC
+Window to
+2026-09-09 15:38:58 UTC
+Matched
+3
+Local only
+0
+Provider only
+0
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 15:38:59 UTC
+Note
+LOCAL SIMULATOR: 2 rail records for 1 transfers. The rail is a simulator, not a bank: it keeps its own append-only records and settles two calendar days after a transfer is sent, with no banking calendar.
+|
+| 3 hSam Patel, operations | StripeLIVE SANDBOX | complete | 2026-09-022026-09-09 | 41 provider7 ledger | 3535 breaks to act on
+|
+Window from
+2026-09-02 15:38:58 UTC
+Window to
+2026-09-09 15:38:58 UTC
+Matched
+7
+Local only
+0
+Provider only
+35
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 15:38:58 UTC
+Note
+Every PaymentIntent in the window had succeeded; none was left out. balance transactions in the window: application_fee 2, charge 38, refund 3, transfer 1; fees kept by Stripe 29470 cents. Fees and payouts are not journaled in this build (cash_stripe is gross of fees; a payout moves money from the Stripe balance to the bank account, outside the ledger), disclosed in README.
+|
+| 6 hSam Patel, operations | Claim railLOCAL SIMULATOR | complete | 2026-09-022026-09-09 | 1 provider3 ledger | 0no break to act on
+|
+Window from
+2026-09-02 12:42:59 UTC
+Window to
+2026-09-09 12:42:59 UTC
+Matched
+3
+Local only
+0
+Provider only
+0
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 12:43:00 UTC
+Note
+LOCAL SIMULATOR: 2 rail records for 1 transfers. The rail is a simulator, not a bank: it keeps its own append-only records and settles two calendar days after a transfer is sent, with no banking calendar.
+|
+| 6 hSam Patel, operations | StripeLIVE SANDBOX | complete | 2026-09-022026-09-09 | 34 provider7 ledger | 2828 breaks to act on
+|
+Window from
+2026-09-02 12:42:59 UTC
+Window to
+2026-09-09 12:42:59 UTC
+Matched
+7
+Local only
+0
+Provider only
+28
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 12:42:59 UTC
+Note
+Every PaymentIntent in the window had succeeded; none was left out. balance transactions in the window: application_fee 2, charge 31, refund 3, transfer 1; fees kept by Stripe 28399 cents. Fees and payouts are not journaled in this build (cash_stripe is gross of fees; a payout moves money from the Stripe balance to the bank account, outside the ledger), disclosed in README.
+|
+| 6 hSam Patel, operations | Claim railLOCAL SIMULATOR | complete | 2026-09-022026-09-09 | 1 provider3 ledger | 0no break to act on
+|
+Window from
+2026-09-02 12:42:37 UTC
+Window to
+2026-09-09 12:42:37 UTC
+Matched
+3
+Local only
+0
+Provider only
+0
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 12:42:38 UTC
+Note
+LOCAL SIMULATOR: 2 rail records for 1 transfers. The rail is a simulator, not a bank: it keeps its own append-only records and settles two calendar days after a transfer is sent, with no banking calendar.
+|
+| 6 hSam Patel, operations | StripeLIVE SANDBOX | complete | 2026-09-022026-09-09 | 34 provider7 ledger | 2828 breaks to act on
+|
+Window from
+2026-09-02 12:42:37 UTC
+Window to
+2026-09-09 12:42:37 UTC
+Matched
+7
+Local only
+0
+Provider only
+28
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 12:42:37 UTC
+Note
+Every PaymentIntent in the window had succeeded; none was left out. balance transactions in the window: application_fee 2, charge 31, refund 3, transfer 1; fees kept by Stripe 28399 cents. Fees and payouts are not journaled in this build (cash_stripe is gross of fees; a payout moves money from the Stripe balance to the bank account, outside the ledger), disclosed in README.
+|
+| 13 hscheduled job | Claim railLOCAL SIMULATOR | complete | 2026-09-022026-09-09 | 1 provider3 ledger | 0no break to act on
+|
+Window from
+2026-09-02 06:00:11 UTC
+Window to
+2026-09-09 06:00:11 UTC
+Matched
+3
+Local only
+0
+Provider only
+0
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 06:00:12 UTC
+Note
+LOCAL SIMULATOR: 2 rail records for 1 transfers. The rail is a simulator, not a bank: it keeps its own append-only records and settles two calendar days after a transfer is sent, with no banking calendar.
+|
+| 13 hscheduled job | StripeLIVE SANDBOX | complete | 2026-09-022026-09-09 | 27 provider6 ledger | 2222 breaks to act on
+|
+Window from
+2026-09-02 06:00:11 UTC
+Window to
+2026-09-09 06:00:11 UTC
+Matched
+6
+Local only
+0
+Provider only
+22
+Amount mismatch
+0
+Stale
+0
+Probe
+0
+Started
+2026-09-09 06:00:11 UTC
+Note
+Every PaymentIntent in the window had succeeded; none was left out. balance transactions in the window: application_fee 2, charge 24, refund 3, transfer 1; fees kept by Stripe 24182 cents. Fees and payouts are not journaled in this build (cash_stripe is gross of fees; a payout moves money from the Stripe balance to the bank account, outside the ledger), disclosed in README.
+Run with a window
+From (UTC date, optional)
+To (UTC date, optional)
+Reconcile both sources
+Both sources, one after the other. The window defaults to 7 days.
+About this screen
+What counts as a break to act on
+Everything a completed run reported as anything but matched, that no later run has explained, that is not a probe from one of our own check runs and that nobody has written a note on. A break leaves the list only when a later completed run of the same source, whose window covers the date of the record, no longer reports it. A break nobody has looked at again stays open, however old it gets. The age is counted from the first run that ever reported it. This is the number the sidebar badge and the operations inbox show.
+What a note does, and what it does not do
+A note says that a staff operations user looked at this break and knows what it is. It repairs nothing: no money moves, no journal entry is posted, and no reconciliation row is edited or deleted. The break is still compared by every later run and it stays listed, with the note, its author and its date. The only thing that changes is that it stops being counted as a break to act on and leaves the operations inbox. Notes are append-only: a correction is a second note, and the latest one is shown.
+Why a break comes back after a note
+A note explains the break as the latest run described it: its classification and its two amounts are recorded on it. The day a run reports the same break differently, no note matches any more and the break returns to the list to act on, with the earlier note beside it in its expansion. A note written before this build recorded what it explained matches nothing, so its break needs explaining again as it stands today.
+Probe payments
+Every run of npm run check:reconciliation puts one real PaymentIntent of $42.42 into the Stripe sandbox with a test card and no operation id, to prove the comparison finds money at a provider with nothing behind it in our books. No ledger entry will ever explain one, so they are reported for ever and counted apart from the breaks to act on. They are not hidden: they are listed and counted in their own table, and a real provider-only break appears in the table of breaks to act on and not in that one.
+The two sources
+Stripe (LIVE SANDBOX: PaymentIntents, Refunds and BalanceTransactions listed through the API) and the claim payout rail (LOCAL SIMULATOR: the rail keeps its own provider-side records, written by the simulator and never by the ledger code, so a mismatch planted there is found the same way a Stripe one is). Stripe processing fees are not journaled in this build.
+Staleness
+Thresholds are assumptions of this build: 24 hours at Stripe, 72 hours on the simulated rail.
+Nothing here repairs a break
+There is deliberately no button that could. A break is repaired by doing the real thing (replaying a webhook, running the settlement job, opening a correction), and the next run stops reporting it. That is why resolved breaks are still listed: they were never deleted, they simply stopped being found. Explaining a break is not repairing it either.
+Running a window again
+Harmless. Each run stores its own items and a break is identified across runs by its key, so an overlapping window cannot duplicate anything. The window defaults to the last 7 days, long enough that a webhook delayed by a day is still inside the next run.
+Clearing balances
+Read straight from the journal, with no window at all, so nothing here can be missed for being old. These four accounts hold money on its way somewhere and must end at zero. This list is the second net under the break list: it does not depend on any provider answering, or on any run having compared anything.
+What resolved a break
+Reported by an earlier run, and looked at again since by a completed run of the same source whose window covered the record, which no longer reports it. Nothing was deleted: the items of every run are still on file, which is how a break can be shown as resolved rather than vanish.Corgi · Policy administration

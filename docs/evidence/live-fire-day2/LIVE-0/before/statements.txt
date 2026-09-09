@@ -1,0 +1,311 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 35 waiting for you, open the inbox
+[a /ops/console] Console
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 35 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+Statements
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Broker statements
+9 provisional Statements
+ProvisionalA provisional run stays as it is. The run made after the month ends is the next revision and the definitive one.9produced before the month was over
+Latest month2026-09business month of the newest run
+|
+| | Broker | Month | Revision | Net due | Status
+|
+|
+[a /statements/245893de-d70c-4e48-8ea6-7cdc7c75ee52] Harbor Point Insurance Services2 h | 2026-09 | 1 | $0.00 | provisional
+|
+Produced
+2026-09-09 16:27:12 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-09 16:27:12 UTC
+Premium collected, the commission base
+$0.00
+Cash collected from customers
+$0.00
+Commission earned
+$0.00
+Commission clawed back
+$0.00
+Net due to the broker
+$0.00
+References
+Sandbox references
+Statement run id
+245893de-d70c-4e48-8ea6-7cdc7c75ee52
+Content hash
+6842875b8cd02666b5254b7fd55d750d7e67098c54c575575b69a4a54af08c5a
+Canonical format version
+3
+Supersedes run id
+none yet
+|
+|
+[a /statements/d314152f-4c0b-4e27-9079-fcae498d92b6] Redwood Commercial Brokers6 h | 2027-09 | 5 | $0.00 | provisionalidentical
+|
+Produced
+2026-09-09 12:39:57 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:26:29 UTC
+Premium collected, the commission base
+$0.00
+Cash collected from customers
+$0.00
+Commission earned
+$0.00
+Commission clawed back
+$0.00
+Net due to the broker
+$0.00
+References
+Sandbox references
+Statement run id
+d314152f-4c0b-4e27-9079-fcae498d92b6
+Content hash
+7c23c7e316995c608ff18bb1d52d4bf4362e921e70c615c9754a336cee136d67
+Canonical format version
+3
+Supersedes run id
+199281ee-631a-4bd4-aaf4-68752c42a84d
+|
+|
+[a /statements/199281ee-631a-4bd4-aaf4-68752c42a84d] Redwood Commercial Brokers6 h | 2027-09 | 4 | $0.00 | provisionalidentical
+|
+Produced
+2026-09-09 12:39:55 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:26:29 UTC
+Premium collected, the commission base
+$0.00
+Cash collected from customers
+$0.00
+Commission earned
+$0.00
+Commission clawed back
+$0.00
+Net due to the broker
+$0.00
+References
+Sandbox references
+Statement run id
+199281ee-631a-4bd4-aaf4-68752c42a84d
+Content hash
+7c23c7e316995c608ff18bb1d52d4bf4362e921e70c615c9754a336cee136d67
+Canonical format version
+3
+Supersedes run id
+5265f3fb-c6b4-45db-b7ce-f88a893d00c0
+|
+|
+[a /statements/5265f3fb-c6b4-45db-b7ce-f88a893d00c0] Redwood Commercial Brokers6 h | 2027-09 | 3 | $0.00 | provisionalformat changed
+|
+Produced
+2026-09-09 12:39:40 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:26:29 UTC
+Premium collected, the commission base
+$0.00
+Cash collected from customers
+$0.00
+Commission earned
+$0.00
+Commission clawed back
+$0.00
+Net due to the broker
+$0.00
+References
+Sandbox references
+Statement run id
+5265f3fb-c6b4-45db-b7ce-f88a893d00c0
+Content hash
+7c23c7e316995c608ff18bb1d52d4bf4362e921e70c615c9754a336cee136d67
+Canonical format version
+3
+Supersedes run id
+8effa7c1-318a-4f96-a762-5661fec92a8b
+|
+|
+[a /statements/8effa7c1-318a-4f96-a762-5661fec92a8b] Redwood Commercial Brokers25 h | 2027-09 | 2 | $0.00 | provisionalformat changed
+|
+Produced
+2026-09-08 17:26:29 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:26:29 UTC
+Premium collected, the commission base
+$0.00
+Cash collected from customers
+$0.00
+Commission earned
+$0.00
+Commission clawed back
+$0.00
+Net due to the broker
+$0.00
+References
+Sandbox references
+Statement run id
+8effa7c1-318a-4f96-a762-5661fec92a8b
+Content hash
+7ca11a216282cf543afa80c8075850522bcef4da065163b8991ebc4c487e5b13
+Canonical format version
+2
+Supersedes run id
+c2a6aa84-3aad-4ac0-91ef-488d0b59bd8c
+|
+|
+[a /statements/c2a6aa84-3aad-4ac0-91ef-488d0b59bd8c] Redwood Commercial Brokers25 h | 2027-09 | 1 | $0.00 | provisional
+|
+Produced
+2026-09-08 17:04:58 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:04:58 UTC
+Premium collected, the commission base
+not stored on this revision
+Cash collected from customers
+$0.00
+Commission earned
+$0.00
+Commission clawed back
+$0.00
+Net due to the broker
+$0.00
+Format
+format v1
+References
+Sandbox references
+Statement run id
+c2a6aa84-3aad-4ac0-91ef-488d0b59bd8c
+Content hash
+4a0eba7a6060697e1b12fc3609ae188b50680719063ad8a1a1d559061f94c0c7
+Canonical format version
+1
+Supersedes run id
+none yet
+|
+|
+[a /statements/c775c8ce-34a3-48a3-bea5-558b4d63a546] Redwood Commercial Brokers25 h | 2026-09 | 3 | $389.35 | provisionalformat changed
+|
+Produced
+2026-09-08 17:26:29 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:26:29 UTC
+Premium collected, the commission base
+$5,762.75
+Cash collected from customers
+$5,948.17
+Commission earned
+$864.41
+Commission clawed back
+-$475.06
+Net due to the broker
+$389.35
+References
+Sandbox references
+Statement run id
+c775c8ce-34a3-48a3-bea5-558b4d63a546
+Content hash
+799dcbe10d49f4289dbad95a2f7358e8db9bf1e16c40392024accd30fab37012
+Canonical format version
+2
+Supersedes run id
+5321274f-b35e-46ae-997c-35364969ca90
+|
+|
+[a /statements/5321274f-b35e-46ae-997c-35364969ca90] Redwood Commercial Brokers25 h | 2026-09 | 2 | $389.35 | provisionalidentical
+|
+Produced
+2026-09-08 17:03:50 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:03:30 UTC
+Premium collected, the commission base
+not stored on this revision
+Cash collected from customers
+$5,948.17
+Commission earned
+$864.41
+Commission clawed back
+-$475.06
+Net due to the broker
+$389.35
+Format
+format v1
+References
+Sandbox references
+Statement run id
+5321274f-b35e-46ae-997c-35364969ca90
+Content hash
+ff30202e2d676e8d0b4a0c9e4eff4ef394ee264b6c2e97e043ae01d31044fe36
+Canonical format version
+1
+Supersedes run id
+de8416cd-5161-404a-b3ea-91b3a60a847f
+|
+|
+[a /statements/de8416cd-5161-404a-b3ea-91b3a60a847f] Redwood Commercial Brokers25 h | 2026-09 | 1 | $389.35 | provisional
+|
+Produced
+2026-09-08 17:03:30 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:03:30 UTC
+Premium collected, the commission base
+not stored on this revision
+Cash collected from customers
+$5,948.17
+Commission earned
+$864.41
+Commission clawed back
+-$475.06
+Net due to the broker
+$389.35
+Format
+format v1
+References
+Sandbox references
+Statement run id
+de8416cd-5161-404a-b3ea-91b3a60a847f
+Content hash
+ff30202e2d676e8d0b4a0c9e4eff4ef394ee264b6c2e97e043ae01d31044fe36
+Canonical format version
+1
+Supersedes run id
+none yet
+provisional produced before its month was over; a run made after the month ends is the next revisionidentical the same content hash as the revision before it, so nothing changedformat changed written in a newer statement format than the revision before it, so the two hashes cannot be comparedformat v1 an old format whose premium column held the cash collected; the commission base was not stored
+Run a statement
+Broker
+[option value=46db73c9-686e-41f0-a894-bb2bb072eb46] Harbor Point Insurance Services
+[option value=edae60d2-2192-4347-8083-945818e10ce8] Redwood Commercial Brokers
+[option value=2612b695-ffc2-4cc3-9d58-8b14564c4d2c] Sierra Crest Brokerage
+Month, business dates, as 2028-03
+Knowledge cutoff (UTC, optional)
+Run the statement
+Leave the cutoff empty for a fresh close. See About for what the cutoff decides.
+About this screen
+What a statement is
+One broker’s commission account for one calendar month, read from the journal and frozen. Every figure is a movement of a ledger account; nothing on this screen is computed in the browser.
+The two dates
+The month is the business month the entries belong to, by effective date. The knowledge cutoff is the instant up to which the ledger was read. Running the same month again with the same cutoff produces the same content hash, which the list shows as identical to the previous revision.
+The cutoff of a new run
+Leave the knowledge cutoff empty for a fresh close, which reads everything the ledger knows right now. Fill it with the cutoff of an earlier revision to reproduce that revision: the run is stored again, because a re-run is evidence, and is flagged as identical when its content hash matches.
+The two collected figures
+They answer two questions. The cash is what the customers paid, premium plus state premium tax plus policy fee. The premium is the part of it commission is earned on. Commission earned and clawbacks are the movements of the broker’s commission payable account, and the net due is the sum of those movements for the month.
+Provisional and revisions
+A run made before the month is over is marked provisional and stays exactly as it is. Running the month again stores a new revision that names the one it replaces. Nothing is rewritten, so both stay readable.Corgi · Policy administration
