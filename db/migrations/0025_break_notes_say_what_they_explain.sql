@@ -1,6 +1,16 @@
--- 0024: a break note records the report it explained (review finding F-BREAKSBOARD-01).
+-- 0025: a break note records the report it explained (review finding F-BREAKSBOARD-01).
 -- Strictly additive: three nullable columns on reconciliation_break_notes. Nothing from 0001 to
--- 0023 is dropped or altered, and no existing column changes meaning.
+-- 0024 is dropped or altered, and no existing column changes meaning.
+--
+-- WHY IT IS 0025 AND NOT 0024, and why every statement below says `if not exists` (review finding
+-- F-BREAKSBOARD-09). This file was written as 0024 while another slice independently wrote
+-- 0024_mcp_key_creator.sql, which reached `main` first. Two files sharing a number make the
+-- number stop expressing the order, so this one, which existed only on its own branch, is the one
+-- renamed. The runner remembers applied migrations BY FILE NAME (scripts/migrate.ts), so the
+-- renamed file is unknown to the disposable database `corgi_test`, where the old name had already
+-- been applied, and it will be run there a second time. `add column if not exists` is what makes
+-- that second run a no-op instead of an error. The columns it adds are identical either way, so a
+-- database that has them keeps exactly what it has and a fresh database gets them once.
 --
 -- WHAT WAS WRONG. A note was keyed on the break key alone, and the break key is deliberately the
 -- money and not the classification (lib/reconciliation/breaks.ts): a break that gets worse keeps
@@ -29,11 +39,11 @@
 alter table reconciliation_break_notes
   -- The classification of the latest report of this break when the note was written. Never
   -- 'matched': a matched record is not a break and cannot be explained.
-  add column explained_classification text
+  add column if not exists explained_classification text
     check (explained_classification is null
            or explained_classification in ('local_only', 'provider_only', 'amount_mismatch', 'stale', 'probe')),
   -- The two amounts of that same report, in integer cents, either of which is legitimately null
   -- (a provider-only record has no ledger amount). They are on the note so that a break whose
   -- money changed while its classification did not is work again too.
-  add column explained_provider_amount_cents bigint,
-  add column explained_ledger_amount_cents   bigint;
+  add column if not exists explained_provider_amount_cents bigint,
+  add column if not exists explained_ledger_amount_cents   bigint;
