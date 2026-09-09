@@ -13,13 +13,16 @@ import type { McpTool } from "./tool";
 //   ANOTHER USER'S ROWS.   The query filters on actor_user_id = the user behind this key, on the
 //                          MCP route alone. A broker key cannot see a staff key's calls, and a
 //                          staff key cannot see a broker's.
-//   A PAYLOAD.             activity_log has no payload column and never will: migration 0021
-//                          leaves nowhere to put one, so there is nothing here to leak. The
-//                          arguments of a call are not stored anywhere but as a sha256 in
-//                          mcp_calls, and this tool does not read that table.
-//   THE REFUSAL SENTENCE.  `message` is not returned. It is a sanitised sentence, but it is not
-//                          one of the fields this tool promises, and the fewer free-text fields
-//                          an agent reads back, the fewer ways a sentence can travel.
+//   A PAYLOAD.             activity_log has no payload column and no stack column: migration
+//                          0021 leaves nowhere to put a request body, a response body or an
+//                          exception. The arguments of a call are not stored anywhere but as a
+//                          sha256 in mcp_calls, and this tool does not read that table.
+//   THE SENTENCE.          activity_log DOES carry one free-text column, `message`: ONE SANITISED
+//                          SENTENCE the handler wrote (migration 0021 bounds it to 500
+//                          characters and its comment states what may go in it). This tool does
+//                          not select that column, so no free-text sentence comes back through
+//                          it at all. Saying "no payload" alone would be a half-truth, and the
+//                          description below says the same thing to the caller.
 //
 // ONE HONEST LIMIT, stated in the description as well as here: activity_log records the USER
 // behind a call, not the key. A user holding two keys sees both keys' calls through either of
@@ -28,8 +31,38 @@ import type { McpTool } from "./tool";
 // follows (lib/mcp/scope.ts).
 
 // The most rows this tool ever returns. A bound rather than an argument: an agent asking for its
-// last calls wants the recent ones, and an unbounded read of an append-only table grows with the
-// life of the database.
+// last calls wants the recent ones, not all of them.
+//
+// WHAT IS BOUNDED AND WHAT IS NOT, said exactly (review finding F-MCPTOOLS-05 of round 1, which
+// was raised because the sentence here used to claim more than the code does). The ANSWER is
+// bounded to 50 rows. The WORK IS NOT: migration 0021 indexes recorded_at, (subject_kind,
+// subject_id, recorded_at) and correlation_id, and NOTHING indexes actor_user_id, so the query
+// below reads the table and filters, and that work grows with the table.
+//
+// MEASURED with this exact query on the shared disposable database (explain analyze buffers,
+// 2026-09-09), rather than assumed. The table is written to by every agent working on this
+// repository, so its size moves between runs; the plan did not:
+//
+//   1057 rows in the table, 21 of them this actor's
+//   Limit -> Sort (recorded_at DESC, id DESC) -> Seq Scan on activity_log
+//     Rows Removed by Filter: 1036, Buffers: shared hit=45, Execution Time: 0.258 ms
+//   (a run an hour earlier, at 969 rows, gave the same plan at shared hit=41 and 0.216 ms)
+//
+// AND THE INDEX THAT EXISTS WOULD NOT HELP, which is the part worth writing down. Asked again
+// with enable_seqscan off, the planner switched to an Index Scan using activity_log_by_time with
+// an Incremental Sort, and it was WORSE: shared hit=426 and 0.475 ms, still removing 1036 rows of
+// 1057 by filter. Reading in time order cannot skip a row that belongs to somebody else, so it
+// walks the whole table in index order instead of in disk order. What is missing is not an index,
+// it is an index ON THE ACTOR.
+//
+// WHY THE SEQUENTIAL SCAN IS ACCEPTED AT THE SCALE THIS BUILD DELIVERS, rather than fixed with a
+// migration. The table holds one row per request the application answers, and the trial system
+// answers thousands of them, not millions: the whole table is 45 buffer pages and the read takes
+// a quarter of a millisecond. The fix is one index, (actor_user_id, recorded_at desc), and it is
+// deliberately NOT added in this slice: it would be a new migration file while other slices are
+// writing migration numbers in parallel, for a gain that is unmeasurable at this size. It is the
+// first thing to add if this table ever gets big, and this comment is the note that says so out
+// loud instead of leaving a reader to assume the read is indexed.
 const MOST_ROWS = 50;
 
 // Every activity row of this endpoint is written with the route "/api/mcp <tool or method>"
@@ -42,7 +75,7 @@ export const listMyActivity: McpTool = {
   effect: "read",
   description:
     `The last ${MOST_ROWS} calls this API key's user made to this MCP endpoint, newest first: when, which tool or method, how it ended (ok, refused or error), the rule that refused it, how long it took, and the correlation id that identifies the request in the server logs. ` +
-    "It never returns another user's calls and never returns a payload: the activity log has no column for one. Note that the log records the user behind the key, so a user holding two keys sees both keys' calls. Reads only.",
+    "It never returns another user's calls and never returns a payload: the activity log has no column for a request or response body. It does record one sanitised sentence per call in a `message` column, which this tool does not read back, so no free-text sentence comes through it. Note that the log records the user behind the key, so a user holding two keys sees both keys' calls. Reads only.",
   inputSchema: {
     type: "object",
     properties: {},
@@ -87,8 +120,9 @@ export const listMyActivity: McpTool = {
       whatThisMeans:
         `The last ${calls.length} call(s) made to this endpoint by the user this key belongs to, newest first, ` +
         `${refusedCount} of them refused. "rule" is the rule that said no when one did. ` +
-        "This is the request log, not the ledger: no amount, no argument and no payload is recorded, " +
-        "and a call made with another user's key is not here.",
+        "This is the request log, not the ledger: no amount, no argument and no request or response body is " +
+        "recorded. One sanitised sentence per call IS recorded, in a column this tool does not read back, so it " +
+        "is not in the rows above. A call made with another user's key is not here either.",
     };
   },
 };
