@@ -516,14 +516,32 @@ function BreakTable({
                 <>
                   <br />
                   <span className="note">
-                    <strong>Explained before, and changed since.</strong>{" "}
-                    {row.supersededExplanation.explainedByName} wrote &ldquo;{row.supersededExplanation.note}&rdquo; on{" "}
-                    {utc(row.supersededExplanation.recordedAt)}
-                    {row.supersededExplanation.explainedClassification
-                      ? `, when the run reported this break as ${row.supersededExplanation.explainedClassification.replace(/_/g, " ")}`
-                      : ", before a note recorded which report it explained"}
-                    . The latest run reports it as {row.classification.replace(/_/g, " ")}, so it is work again. The
-                    note is still on file; nothing was edited or deleted.
+                    {/*
+                      Two different things put a break back on this list with a note beside it, and
+                      the operator must be able to tell them apart (review finding
+                      F-BREAKSBOARD-08). A note that RECORDS a classification no longer matches the
+                      break, so something about the report did change and "changed since" is the
+                      true heading. A note with no recorded classification predates migration 0025:
+                      nothing changed, we simply cannot know what that note was about.
+                    */}
+                    {row.supersededExplanation.explainedClassification ? (
+                      <>
+                        <strong>Explained before, and changed since.</strong>{" "}
+                        {row.supersededExplanation.explainedByName} wrote &ldquo;{row.supersededExplanation.note}
+                        &rdquo; on {utc(row.supersededExplanation.recordedAt)}, when the run reported this break as{" "}
+                        {row.supersededExplanation.explainedClassification.replace(/_/g, " ")}. The latest run reports
+                        it as {row.classification.replace(/_/g, " ")}, so it is work again.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Explained before this build recorded what was explained.</strong>{" "}
+                        {row.supersededExplanation.explainedByName} wrote &ldquo;{row.supersededExplanation.note}
+                        &rdquo; on {utc(row.supersededExplanation.recordedAt)}, before a note recorded which report it
+                        explained. No run has reported anything different; the note simply cannot be matched against
+                        this break as it stands, so it needs explaining again as it stands today.
+                      </>
+                    )}{" "}
+                    The note is still on file; nothing was edited or deleted.
                   </span>
                 </>
               ) : null}
