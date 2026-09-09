@@ -49,7 +49,8 @@ async function handlePost(request: Request) {
 
   try {
     const run = await runStatement({ brokerId, statementMonth: month, knowledgeCutoff, actorUserId: user.id });
-    return redirectTo(`/statements/${run.runId}`);
+    // The run page renders ?produced= as the success notice naming the revision it created.
+    return redirectTo(`/statements/${run.runId}?produced=${encodeURIComponent(String(run.revision))}`);
   } catch (error) {
     if (error instanceof StatementRunRefused) {
       // A refusal the person can act on: unknown broker, a month written wrong, a cutoff in the
