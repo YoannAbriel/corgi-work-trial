@@ -1910,3 +1910,204 @@ a.as-of-step.current {
   font-size: 11px;
   color: var(--ink-2);
 }
+
+/* --- Slice B12-4 (YOA-637): "explain this amount", animated. Yoann asked on 2026-09-09 for the
+       proof to be watchable: the figure opens its own explanation, the arithmetic is built one
+       line at a time, the result counts up, and a connector is drawn to the journal entry that
+       proves it.
+
+       EVERYTHING BELOW IS A CLASS OR A DATA ATTRIBUTE, and every one of them is written by
+       components/amount-explained-motion.tsx AFTER hydration. Nothing is hidden unless the panel
+       carries data-reveal, so with JavaScript off the fold is exactly the static one B12-2
+       shipped, and the page at rest never moves: the figure keeps its element and its box when it
+       is promoted to a button, and the connector is a fixed overlay that takes no space. --- */
+
+/* The figure, promoted to a control once the browser is running. */
+.amount-explained-figure[role="button"] {
+  cursor: pointer;
+}
+.amount-explained-figure[role="button"]:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.amount-explained-figure[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* The four lines of the reveal, one every 120 ms: the words, the arithmetic, the rounding rule,
+   the result. The hidden state exists only inside a panel carrying data-reveal. */
+.amount-explain-panel[data-reveal] .reveal-step {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.amount-explain-panel[data-reveal="1"] .reveal-step-1,
+.amount-explain-panel[data-reveal="2"] .reveal-step-1,
+.amount-explain-panel[data-reveal="2"] .reveal-step-2,
+.amount-explain-panel[data-reveal="3"] .reveal-step-1,
+.amount-explain-panel[data-reveal="3"] .reveal-step-2,
+.amount-explain-panel[data-reveal="3"] .reveal-step-3,
+.amount-explain-panel[data-reveal="4"] .reveal-step {
+  opacity: 1;
+  transform: none;
+}
+
+/* The operands of the formula light up one at a time (the class is added by the animation loop,
+   which reads the running subtotal off the same row). The result line waits for its own step:
+   opacity only, so no row ever changes height and the panel does not resize while it fills. */
+.amount-explain-panel[data-reveal] tr[data-formula-line] {
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+.amount-explain-panel[data-reveal] tr[data-formula-line].operand-lit {
+  opacity: 1;
+}
+.amount-explain-panel[data-reveal="4"] tr[data-formula-result] {
+  opacity: 1;
+  animation: explain-result-land 800ms ease-out;
+}
+@keyframes explain-result-land {
+  from {
+    background: #fff1e8;
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* The running total, ticking along the lines. Every value it shows is a data-subtotal string the
+   server wrote; the browser only chooses which one is on screen. */
+.amount-explain-ticker {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.amount-explain-ticker b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The rounding rule, as a small badge. */
+.amount-explain-rounding {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.rounding-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f1f1f3;
+  border: 1px solid #e1e1e4;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #44454b;
+}
+
+.trace-to-ledger {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+.trace-to-ledger a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+
+/* The connector: a thin curve from the figure to the journal entry block that proves it. It is
+   drawn into the body so no scrolling table can clip it, it takes no space and it catches no
+   click. pathLength="1" lets one dash cover the whole curve whatever its real length is, so the
+   drawing is a single stroke-dashoffset animation from 1 to 0. */
+.explain-connector {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 60;
+}
+.explain-connector path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: explain-connector-draw 700ms ease-out forwards, explain-connector-fade 500ms ease-in 1300ms forwards;
+}
+.explain-connector circle {
+  fill: var(--accent);
+  opacity: 0;
+  animation: explain-connector-arrive 300ms ease-out 650ms forwards, explain-connector-fade 500ms ease-in 1300ms forwards;
+}
+@keyframes explain-connector-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes explain-connector-arrive {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes explain-connector-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* The journal entry the connector lands on, lit once for 1.5 s. Also used by "Trace to the
+   ledger", which scrolls to the entry and lights it again. */
+.entry-block {
+  scroll-margin: 96px;
+}
+.entry-block.entry-proving {
+  animation: explain-entry-pulse 1500ms ease-out;
+}
+@keyframes explain-entry-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(184, 62, 0, 0.4);
+    border-color: #f4cdb5;
+    background: #fff8f3;
+  }
+  60% {
+    box-shadow: 0 0 0 10px rgba(184, 62, 0, 0);
+    border-color: #f4cdb5;
+    background: #fff1e8;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(184, 62, 0, 0);
+    background: white;
+  }
+}
+
+/* A reader who asked not to be animated gets the finished state at once: every line visible, no
+   count-up (the component leaves the server's text alone), no connector drawn, and the proving
+   entry marked with a plain colour instead of a pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .amount-explain-panel[data-reveal] .reveal-step,
+  .amount-explain-panel[data-reveal] tr[data-formula-line] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .amount-explain-panel[data-reveal="4"] tr[data-formula-result],
+  .explain-connector path,
+  .explain-connector circle,
+  .entry-block.entry-proving {
+    animation: none !important;
+  }
+  .entry-block.entry-proving {
+    background: #fff8f3;
+    border-color: #f4cdb5;
+  }
+}
