@@ -40,8 +40,19 @@
 .needs-you.lists-needs .needs-you-list strong {
   font-size: 13px;
 }
-/* One line of detail: a task that needs a paragraph is a task the inbox lists in full. */
+/* One line of detail: a task that needs a paragraph is a task the inbox lists in full. The text
+   column must be allowed to shrink (min-width: 0) or the ellipsis never applies and the row
+   pushes the page wider than a 375 px screen (measured on production d002f77, /ops, 605 px). */
+.needs-you.lists-needs .needs-you-list li,
+.needs-you.lists-needs .needs-you-list a {
+  min-width: 0;
+}
+.needs-you.lists-needs .needs-you-list a > span:not(.count-chip) {
+  min-width: 0;
+  flex: 1 1 auto;
+}
 .needs-you.lists-needs .needs-you-list a > span > span {
+  display: block;
   margin-top: 0;
   white-space: nowrap;
   overflow: hidden;

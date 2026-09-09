@@ -2719,3 +2719,90 @@ button.secondary.is-working::after {
     grid-template-columns: 110px minmax(0, 1fr) 88px;
   }
 }
+
+/* The account block at the foot of the sidebar is a button that opens the demo-account menu
+   (Yoann, 2026-09-09 22:40). It keeps the identity layout; only the chevrons say it opens. */
+.account-switch {
+  width: 100%;
+  padding: 6px 8px;
+  margin: 0 -8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s var(--ease);
+}
+.account-switch:hover,
+.account-switch:focus-visible {
+  background: #ebecf0;
+}
+.account-switch > span:nth-child(2) {
+  flex: 1 1 auto;
+}
+.account-chevrons {
+  flex-shrink: 0;
+  color: var(--ink-2);
+}
+.sidebar.is-rail .account-chevrons {
+  display: none;
+}
+[popover].pop.pop-account {
+  width: 260px;
+  padding: 8px;
+}
+.pop-account-title {
+  margin: 2px 8px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.pop-account .pop-menu button {
+  width: 100%;
+  justify-content: space-between;
+}
+.pop-account .pop-menu button[disabled] {
+  cursor: default;
+  background: #f6f6f6;
+  opacity: 1;
+}
+.pop-account-line {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  text-align: left;
+}
+.pop-account-line > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pop-account-role {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.pop-account-out {
+  margin: 6px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.pop-account-out .quiet-button {
+  margin-left: 8px;
+}
+/* The menu opens upward: the block sits at the foot of the viewport. */
+@supports (position-anchor: --x) {
+  [popover].pop.pop-account {
+    top: auto;
+    bottom: anchor(top);
+    margin-top: 0;
+    margin-bottom: 6px;
+  }
+}
+.pop-account form {
+  margin-left: 0;
+}
