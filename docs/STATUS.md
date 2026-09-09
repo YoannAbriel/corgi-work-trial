@@ -349,6 +349,11 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - F-B13-50 and F-B13-51 fixed by the console builder: the accepted-and-unconfirmed reader no longer takes the feed cursor and reads over a named 7-day floor (an unconfirmed operation stays visible until a human resolves it, whatever window the operator reads the feed in), the "Being checked" note and the errors disclosure say so, one assertion proves a stuck operation older than the window still appears; the errors panel prints its cap and the chip says "60 or more". Three files. check:console 50 of 50 (run twice by mistake, no contention), typecheck clean, 455 tests. Merged with --no-ff, pushed as code alone, deployed and confirmed by /api/health at 08:52Z; confirmation measurement by the console reviewer requested at e117a61.
 
+## 2026-09-09T08:56:00+00:00 | Console v1 confirmed PASS at e117a61: no open finding on the console
+
+- The console reviewer measured e117a61 on production: 2 unresolved operations visible at the default window and at every wider one (0 before the fix), both sentences rendered, the errors chip reads "60 or more to look at" with the cap sentence above the cap and the true count below it, check:console 50 of 50. Verdict PASS, record docs/reviews/b13-9-console.md (three sections: review, re-review, confirmation). One residual observation, not a finding: at 24 h and wider the 60-row cap of the merged errors panel pushes the older of the two unresolved operations off the list; the cap sentence says to narrow the window and that brings both back.
+- What remains on the console is a recommendation, not a defect: the AF-06 reading map of lib/console/read.ts (six section line ranges in the handoff note, two hardest lines rehearsed). Console v2, the activity log on every route, is a separate decision against the remaining time.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
