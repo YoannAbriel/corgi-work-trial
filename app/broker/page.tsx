@@ -81,7 +81,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
         </div>
       )}
 
-      <WhatNeedsYou tasks={tasks} />
+      <WhatNeedsYou tasks={tasks} showEmptyIllustration={policies.length > 0} />
 
       <Panel title="Policies" className="list-panel">
         {policies.length === 0 ? (

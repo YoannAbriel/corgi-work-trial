@@ -77,7 +77,7 @@ export default async function CustomerPage({
 
       {notices.length > 0 ? <div className="notices">{notices}</div> : null}
 
-      <WhatNeedsYou tasks={tasks} />
+      <WhatNeedsYou tasks={tasks} showEmptyIllustration={rows.length > 0} />
 
       <Panel title="Policies" className="list-panel">
         {rows.length === 0 ? (

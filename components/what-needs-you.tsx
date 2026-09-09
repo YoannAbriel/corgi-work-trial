@@ -228,7 +228,13 @@ function plural(count: number, singular: string, pluralForm?: string): string {
 
 // The block at the top of each role's workspace home. It lists the same tasks the sidebar counts,
 // with a link to the screen where the work is done.
-export function WhatNeedsYou({ tasks }: { tasks: WorkspaceTask[] }) {
+export function WhatNeedsYou({
+  tasks,
+  showEmptyIllustration = true,
+}: {
+  tasks: WorkspaceTask[];
+  showEmptyIllustration?: boolean;
+}) {
   return (
     <section className="needs-you" aria-labelledby="needs-you-heading">
       <h2 id="needs-you-heading">
@@ -236,7 +242,7 @@ export function WhatNeedsYou({ tasks }: { tasks: WorkspaceTask[] }) {
       </h2>
       {tasks.length === 0 ? (
         <div className="needs-you-empty">
-          <DecorativeIllustration name="all-clear" variant="empty" />
+          {showEmptyIllustration ? <DecorativeIllustration name="all-clear" variant="empty" /> : null}
           <p className="note">
             Nothing is waiting for you right now. New work appears here, in your{" "}
             <Link href="/inbox">inbox</Link>, and as a number next to the screen it belongs to.
