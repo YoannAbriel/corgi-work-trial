@@ -191,6 +191,7 @@ export default async function PolicyPage({
   // Applied endorsements that have not taken effect yet: the gap between what the policy is today
   // and what policy_current already carries. Named under the facts rather than folded into them.
   const endorsementsNotYetInForce = schedule.filter((row) => row.effectiveAt > documentDate);
+  const entriesEffectiveByPanelDate = entries.filter((entry) => entry.effectiveAt <= documentDate);
 
   const notices = [
     query.error ? <p key="error" className="error" role="alert">{query.error}</p> : null,
@@ -345,7 +346,9 @@ export default async function PolicyPage({
                             stateCode: policy.stateCode,
                             annualPremiumCents: terms.annualPremiumCents,
                             taxRateBps: terms.taxRateBps,
-                            evidence: evidenceFromJournal(entries, "premium_tax_payable"),
+                            // Only the entries effective on or before the panel's date: a future-dated
+                            // endorsement's tax is not part of today's figure (review finding F-B12-10).
+                            evidence: evidenceFromJournal(entriesEffectiveByPanelDate, "premium_tax_payable"),
                           }),
                           evidenceLabel:
                             "The premium tax entries booked on this policy so far (issuance, and any endorsement or cancellation). They are what was charged over time; the figure above is the tax on the annual premium in force on this date.",
@@ -361,7 +364,7 @@ export default async function PolicyPage({
                         label="Flat policy fee"
                         explanation={explainPolicyFee({
                           feeCents: terms.feeCents,
-                          evidence: evidenceFromJournal(entries, "fee_income"),
+                          evidence: evidenceFromJournal(entriesEffectiveByPanelDate, "fee_income"),
                         })}
                       />
                     ),

@@ -74,6 +74,10 @@ type JsonRpcAnswer = { status: number; body: Record<string, unknown> | null };
 // number of rows the endpoint appended to mcp_calls: one row per call, exactly.
 let postsSent = 0;
 
+// A value no date parser accepts, sent on purpose so the refusal and the audit row can be read
+// back: neither of them may repeat it (review finding F-B11-02).
+const MALFORMED_AS_OF = "not-a-date-but-a-long-string-a-caller-chose";
+
 async function rpc(key: string | null, method: string, params?: unknown, id: number | null = 1): Promise<JsonRpcAnswer> {
   postsSent += 1;
   const response = await fetch(`${baseUrl}/api/mcp`, {
@@ -395,13 +399,42 @@ async function main() {
   });
   report("a staff key reads any policy", staffPolicy.ok, staffPolicy.ok ? String(staffPolicy.value.policyNumber) : staffPolicy.refusal);
 
+  // Review finding F-B11-06: every tool advertises additionalProperties: false, and nothing read
+  // that declaration, so a field a tool ignores looked to the client as if it had been understood.
+  const undeclaredField = await callTool(brokerKey.presentedKey, "get_policy_as_of", {
+    policyNumber: policy.policyNumber,
+    asOfDate: TERM_START,
+  });
+  report(
+    "AN ARGUMENT THE TOOL DOES NOT DECLARE IS REFUSED, not ignored: additionalProperties false is now enforced",
+    !undeclaredField.ok &&
+      /does not declare/.test(undeclaredField.refusal) &&
+      !undeclaredField.refusal.includes("asOfDate"),
+    undeclaredField.ok ? "it answered" : undeclaredField.refusal,
+  );
+
+  const malformedAsOf = await callTool(brokerKey.presentedKey, "get_policy_as_of", {
+    policyNumber: policy.policyNumber,
+    asOf: MALFORMED_AS_OF,
+  });
+  report(
+    "a malformed asOf is refused with the SHAPE it should have, and the value the caller sent is not repeated",
+    !malformedAsOf.ok &&
+      /written as YYYY-MM-DD/.test(malformedAsOf.refusal) &&
+      !malformedAsOf.refusal.includes(MALFORMED_AS_OF),
+    malformedAsOf.ok ? "it answered" : malformedAsOf.refusal,
+  );
+
   const beforeTheTerm = await callTool(brokerKey.presentedKey, "get_policy_as_of", {
     policyNumber: policy.policyNumber,
     asOf: "2027-01-01",
   });
   report(
-    "a date before the policy existed answers a reason, not an empty policy",
-    !beforeTheTerm.ok && /no issued policy event effective on or before/.test(beforeTheTerm.refusal),
+    "a date before the policy existed answers a reason AND THE DATE THE COVER BEGINS, not an empty policy",
+    !beforeTheTerm.ok &&
+      /was not yet in force/.test(beforeTheTerm.refusal) &&
+      beforeTheTerm.refusal.includes(TERM_START) &&
+      !beforeTheTerm.refusal.includes("2027-01-01"),
     beforeTheTerm.ok ? "it answered" : beforeTheTerm.refusal,
   );
 
@@ -643,6 +676,18 @@ async function main() {
       reconciled.value.moneyMoved === false,
     `${beforeReconciliation} journal entries on this check's policies and claim, before and after`,
   );
+  // Review finding F-B11-03: run_by names the key HOLDER, so without this the reconciliation
+  // screen would print a person's name for a run no person launched. The marker rides in the
+  // note the screen already shows, and it names the public key prefix.
+  const noteOfTheFirstRun = runs.length > 0 ? await runNote(runs[0].runId) : "";
+  report(
+    "THE RUN SAYS IT CAME THROUGH THE MCP SURFACE, and names the key: run_by alone would read as the holder's own work",
+    noteOfTheFirstRun.includes("Launched through the MCP surface") &&
+      noteOfTheFirstRun.includes(staffKey.keyPrefix) &&
+      noteOfTheFirstRun.includes("human key"),
+    noteOfTheFirstRun.slice(0, 140),
+  );
+
   const brokerReconciles = await callTool(brokerKey.presentedKey, "run_reconciliation", {});
   report(
     "a broker key cannot run it",
@@ -677,6 +722,33 @@ async function main() {
     "a logged call names the tool, fingerprints the arguments and times itself, and stores no argument",
     stored !== null && /^[0-9a-f]{64}$/.test(stored.arguments_hash ?? "") && stored.duration_ms >= 0,
     stored ? `tool ${stored.tool}, hash ${stored.arguments_hash?.slice(0, 12)}..., ${stored.duration_ms} ms` : "no row",
+  );
+
+  // Review finding F-B11-02: mcp_calls can never be updated, deleted or truncated, so a string a
+  // caller chose the text of would sit in it for the life of the database. This run deliberately
+  // sent four of them: the method "resources/list", the tool name "approve_claim_payment", the
+  // header "1999-01-01" and a malformed asOf. None of the four may be in the rows it wrote.
+  const rowsThisRunWrote = await lastCallRows(postsSent);
+  const callerStrings = ["resources/list", "approve_claim_payment", "1999-01-01", MALFORMED_AS_OF];
+  const rowsQuotingTheCaller = rowsThisRunWrote.filter((row) =>
+    callerStrings.some(
+      (caller) => (row.tool ?? "").includes(caller) || row.method.includes(caller) || (row.detail ?? "").includes(caller),
+    ),
+  );
+  report(
+    "NO CALLER STRING REACHES THE APPEND-ONLY CALL LOG: not the method, the tool name, the header or the argument",
+    rowsQuotingTheCaller.length === 0,
+    `${rowsThisRunWrote.length} rows read back, ${rowsQuotingTheCaller.length} quoting one of the four strings this run sent`,
+  );
+  const boundedRows = rowsThisRunWrote.every(
+    (row) => row.method.length <= 64 && (row.tool ?? "").length <= 64 && (row.detail ?? "").length <= 500,
+  );
+  report(
+    "and every column the caller can influence is bounded: 64 for the method and the tool, 500 for the detail",
+    boundedRows,
+    `longest method ${Math.max(...rowsThisRunWrote.map((row) => row.method.length))}, longest tool ${Math.max(
+      ...rowsThisRunWrote.map((row) => (row.tool ?? "").length),
+    )}, longest detail ${Math.max(...rowsThisRunWrote.map((row) => (row.detail ?? "").length))}`,
   );
 
   console.log("");
@@ -854,6 +926,16 @@ async function oneCallRow(
   return row ?? null;
 }
 
+// The rows this run appended, newest first: the last `count` of them, because the disposable
+// database keeps every earlier run's rows too.
+async function lastCallRows(
+  count: number,
+): Promise<{ method: string; tool: string | null; detail: string | null }[]> {
+  return owner<{ method: string; tool: string | null; detail: string | null }[]>`
+    select method, tool, detail from mcp_calls order by called_at desc, id desc limit ${count}
+  `;
+}
+
 async function latestOperationStatus(operationId: string): Promise<string> {
   if (!operationId) return "no operation";
   const [row] = await owner<{ status: string }[]>`
@@ -876,6 +958,13 @@ async function approvalDecision(requestId: string): Promise<string | null> {
     select decision from approval_decisions where request_id = ${requestId}
   `;
   return row?.decision ?? null;
+}
+
+async function runNote(runId: string): Promise<string> {
+  const [row] = await owner<{ note: string | null }[]>`
+    select note from reconciliation_runs where id = ${runId}
+  `;
+  return row?.note ?? "";
 }
 
 async function runsExist(runIds: string[]): Promise<number> {

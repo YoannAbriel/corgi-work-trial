@@ -598,6 +598,22 @@ export async function approveEndorsement(input: ApprovalInput, database: postgre
   return { approvedEventId: approval.id, alreadyApproved: false };
 }
 
+// The hash of the six facts a stored request carries, recomputed from those facts. Exported
+// because the posting path recomputes it too: migration 0009 says of
+// endorsement_collections.quote_hash that it is "recomputed and compared at posting time", and
+// until review finding F-B4-07 nothing read that column at all (the protection was real but it
+// came from the request event, which is not what the comment describes).
+export function recomputedQuoteHash(request: EndorsementRequest): string {
+  return endorsementQuoteHash({
+    policyId: request.policyId,
+    policyVersion: request.figures.policyVersion,
+    effectiveAt: request.figures.effectiveAt,
+    newAnnualPremiumCents: request.figures.newAnnualPremiumCents,
+    deltaPremiumCents: request.figures.deltaPremiumCents,
+    deltaTaxCents: request.figures.deltaTaxCents,
+  });
+}
+
 // The request an approval or a payment refers to, if it is still the live quote. Refused with a
 // plain message when it was applied, superseded, or when the hash on the form is not the hash
 // on the request (a stale page, or a forged field).
@@ -612,14 +628,7 @@ export async function requireLiveRequest(
     throw new EndorsementRefused("this endorsement request does not exist on this policy");
   }
   // Integrity of the stored figures: the hash is recomputed from the six facts it covers.
-  const recomputed = endorsementQuoteHash({
-    policyId: request.policyId,
-    policyVersion: request.figures.policyVersion,
-    effectiveAt: request.figures.effectiveAt,
-    newAnnualPremiumCents: request.figures.newAnnualPremiumCents,
-    deltaPremiumCents: request.figures.deltaPremiumCents,
-    deltaTaxCents: request.figures.deltaTaxCents,
-  });
+  const recomputed = recomputedQuoteHash(request);
   if (recomputed !== request.figures.quoteHash || quoteHash !== request.figures.quoteHash) {
     throw new EndorsementRefused(
       "this quote is out of date: the figures on your screen are not the ones on file; open the endorsement again",

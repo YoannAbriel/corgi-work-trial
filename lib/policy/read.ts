@@ -1,3 +1,4 @@
+import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { refundStateFromEvents, type RefundState } from "@/lib/payments/refunds";
@@ -501,8 +502,8 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
 // in the unapplied_customer_cash suspense account until staff operations bind the policy or send
 // the money back, so every one of these is work waiting for a person.
 // Read from the policy_current cache, which is the same derived status the policy list shows.
-export async function countPoliciesPaidButNotBound(): Promise<number> {
-  const [row] = await sql<{ waiting: number }[]>`
+export async function countPoliciesPaidButNotBound(database: postgres.Sql = sql): Promise<number> {
+  const [row] = await database<{ waiting: number }[]>`
     select count(*)::int as waiting from policy_current where status = 'paid_not_bound'
   `;
   return row.waiting;
@@ -513,8 +514,8 @@ export async function countPoliciesPaidButNotBound(): Promise<number> {
 // The policy page offers staff operations an "Apply now" button for each of them.
 // An endorsement that was applied afterwards has an 'endorsed' event naming its request, so it
 // stops being counted without anything being rewritten.
-export async function countEndorsementsPaidButNotApplied(): Promise<number> {
-  const [row] = await sql<{ waiting: number }[]>`
+export async function countEndorsementsPaidButNotApplied(database: postgres.Sql = sql): Promise<number> {
+  const [row] = await database<{ waiting: number }[]>`
     select count(distinct link.request_event_id)::int as waiting
       from endorsement_collections link
       join money_operation_events paid

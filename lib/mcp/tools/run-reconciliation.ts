@@ -45,8 +45,15 @@ export const runReconciliationTool: McpTool = {
       from: new Date(context.now.getTime() - windowDays * 24 * 60 * 60 * 1000),
       to: context.now,
     };
+    // The run is filed under the key holder's user id, because that is whose visibility it
+    // borrows. That alone would print "Run by <a person's name>" on /ops/reconciliation for a run
+    // no person launched (review finding F-B11-03), so the run also carries a sentence naming the
+    // principal kind and the public key prefix, in the note the screen already shows.
+    const launchedThrough =
+      `Launched through the MCP surface by ${context.principal.principalKind === "agent" ? "an AGENT" : "a human"} ` +
+      `key ${context.principal.keyPrefix}, not by a person on this screen.`;
     const summaries = await runAllSources(
-      { window, runByUserId: context.user.id, now: context.now },
+      { window, runByUserId: context.user.id, launchedThrough, now: context.now },
       context.database,
     );
 
@@ -66,6 +73,8 @@ export const runReconciliationTool: McpTool = {
         finishedAt: summary.finishedAt.toISOString(),
       })),
       moneyMoved: false,
+      // Repeated in the answer so the caller can see what an operator will see about it.
+      launchedThrough,
       whatThisMeans:
         failed.length > 0
           ? `${failed.length} of ${summaries.length} source(s) could not be fetched, so their runs are stored as ` +

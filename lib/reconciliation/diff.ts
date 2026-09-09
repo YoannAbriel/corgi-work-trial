@@ -97,9 +97,27 @@ const NOTHING_MORE_EXPECTED = new Set(["failed", "returned"]);
 
 export function diffProviderAgainstLedger(input: DiffInput): DiffItem[] {
   const ledgerByOperation = new Map(input.ledger.map((record) => [record.operationId, record]));
-  const ledgerByProviderRef = new Map(
-    input.ledger.filter((record) => record.providerRef !== null).map((record) => [record.providerRef as string, record]),
-  );
+
+  // TWO LEDGER RECORDS CANNOT SHARE ONE PROVIDER REFERENCE and both be the thing the provider is
+  // describing. Building this index with `new Map(...)` kept the last of them and dropped the
+  // other from the pairing without a word, so a provider record could be matched against the
+  // wrong operation (review finding F-B10-09). No path in this build produces it, since every
+  // operation gets its own PaymentIntent, refund or transfer, which is why this is defensive
+  // rather than a rule to be clever about: a shared reference stops being a usable link, and
+  // every record involved is reported instead of one of them being chosen silently.
+  const ledgerByProviderRef = new Map<string, LedgerRecord>();
+  const sharedProviderRefs = new Set<string>();
+  for (const record of input.ledger) {
+    if (record.providerRef === null) {
+      continue;
+    }
+    if (ledgerByProviderRef.has(record.providerRef)) {
+      sharedProviderRefs.add(record.providerRef);
+      continue;
+    }
+    ledgerByProviderRef.set(record.providerRef, record);
+  }
+
   const ledgerAlreadyPaired = new Set<string>();
   const items: DiffItem[] = [];
 
@@ -109,19 +127,25 @@ export function diffProviderAgainstLedger(input: DiffInput): DiffItem[] {
   //    is the ONLY link on the claim payout rail, which carries no operation id at all.
   for (const providerRecord of input.provider) {
     const byOperation = providerRecord.operationId ? ledgerByOperation.get(providerRecord.operationId) : undefined;
-    const ledgerRecord = byOperation ?? ledgerByProviderRef.get(providerRecord.providerRef);
+    // The operation id the provider carries back still decides on its own; only the FALLBACK on
+    // the provider's id is refused when several ledger records claim that id.
+    const refIsShared = sharedProviderRefs.has(providerRecord.providerRef);
+    const byProviderRef = refIsShared ? undefined : ledgerByProviderRef.get(providerRecord.providerRef);
+    const ledgerRecord = byOperation ?? byProviderRef;
     if (ledgerRecord && !ledgerAlreadyPaired.has(ledgerRecord.operationId)) {
       ledgerAlreadyPaired.add(ledgerRecord.operationId);
       items.push(classifyPair(providerRecord, ledgerRecord, input));
     } else {
-      items.push(classifyProviderAlone(providerRecord));
+      items.push(classifyProviderAlone(providerRecord, refIsShared && !byOperation));
     }
   }
 
   // 2. Every ledger record the provider said nothing about.
   for (const ledgerRecord of input.ledger) {
     if (!ledgerAlreadyPaired.has(ledgerRecord.operationId)) {
-      items.push(classifyLedgerAlone(ledgerRecord, input));
+      items.push(
+        classifyLedgerAlone(ledgerRecord, input, ledgerRecord.providerRef !== null && sharedProviderRefs.has(ledgerRecord.providerRef)),
+      );
     }
   }
 
@@ -187,7 +211,9 @@ function classifyPair(provider: ProviderRecord, ledger: LedgerRecord, input: Dif
   );
 }
 
-function classifyProviderAlone(provider: ProviderRecord): DiffItem {
+// `refIsShared`: more than one ledger record carries this provider's id, so the id could not be
+// used to pair it and an operator has to look at the operations involved by hand.
+function classifyProviderAlone(provider: ProviderRecord, refIsShared = false): DiffItem {
   const providerAmount = signedProviderAmount(provider);
   const item = (classification: Classification, note: string): DiffItem => ({
     classification,
@@ -199,9 +225,11 @@ function classifyProviderAlone(provider: ProviderRecord): DiffItem {
     recordAt: provider.createdAt,
     note,
   });
-  const identity = provider.operationId
-    ? `it names operation ${provider.operationId}, which the ledger does not know`
-    : "it carries no operation id at all";
+  const identity = refIsShared
+    ? "MORE THAN ONE LEDGER RECORD CARRIES THIS PROVIDER REFERENCE, so it cannot be used to pair this record; the operations that carry it are reported on their own lines"
+    : provider.operationId
+      ? `it names operation ${provider.operationId}, which the ledger does not know`
+      : "it carries no operation id at all";
 
   if (provider.status === "failed") {
     return item("matched", `${provider.label} ${provider.statusWord} at the provider and no money stayed out; nothing was expected in the ledger (${identity})`);
@@ -212,7 +240,11 @@ function classifyProviderAlone(provider: ProviderRecord): DiffItem {
   return item("provider_only", `the provider shows a ${provider.statusWord} ${provider.label} of ${provider.amountCents} cents with no cash movement in the ledger; ${identity}`);
 }
 
-function classifyLedgerAlone(ledger: LedgerRecord, input: DiffInput): DiffItem {
+function classifyLedgerAlone(ledger: LedgerRecord, input: DiffInput, refIsShared = false): DiffItem {
+  // Said on every line of a shared reference, so the two halves of the problem name each other.
+  const sharedRefNote = refIsShared
+    ? "; ANOTHER LEDGER RECORD CARRIES THE SAME PROVIDER REFERENCE, so the reference could not pair either of them"
+    : "";
   const item = (classification: Classification, note: string): DiffItem => ({
     classification,
     providerRef: ledger.providerRef,
@@ -222,7 +254,7 @@ function classifyLedgerAlone(ledger: LedgerRecord, input: DiffInput): DiffItem {
     differenceCents: -ledger.cashCents,
     // No provider record, so the money operation's own creation time is the date of this record.
     recordAt: ledger.requestedAt,
-    note,
+    note: `${note}${sharedRefNote}`,
   });
 
   if (ledger.cashCents !== 0) {

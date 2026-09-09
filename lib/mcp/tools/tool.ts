@@ -52,6 +52,58 @@ export function usd(amountCents: number): { cents: number; formatted: string } {
 }
 
 // ---------------------------------------------------------------------------
+// The advertised schema, enforced
+// ---------------------------------------------------------------------------
+
+// Every tool declares `additionalProperties: false`, and until review finding F-B11-06 nothing
+// checked it: each tool read its own named fields and ignored the rest, so the closed schema was
+// a promise to the client rather than a control. This is the check, run once by the transport
+// before a tool sees its arguments, so no tool can ever rely on a guarantee nobody enforces.
+//
+// It stays deliberately small: the shapes this build advertises are strings, numbers and a
+// required list. It is not a JSON Schema implementation, and it says so.
+//
+// The sentence never repeats what the caller sent, only what the tool declares, because it is
+// written into the append-only call log (review finding F-B11-02).
+export function argumentsSchemaRefusal(
+  schema: McpTool["inputSchema"],
+  args: Record<string, unknown>,
+): string | null {
+  const declared = Object.keys(schema.properties);
+  const undeclaredCount = Object.keys(args).filter((name) => !declared.includes(name)).length;
+  if (undeclaredCount > 0) {
+    return (
+      `this tool accepts ${declared.length === 0 ? "no arguments" : declared.map((name) => `"${name}"`).join(", ")} ` +
+      `and nothing else; the call sent ${undeclaredCount} argument(s) it does not declare`
+    );
+  }
+
+  for (const name of schema.required ?? []) {
+    if (args[name] === undefined || args[name] === null) {
+      return `"${name}" is required`;
+    }
+  }
+
+  for (const [name, definition] of Object.entries(schema.properties)) {
+    const value = args[name];
+    if (value === undefined || value === null) {
+      continue;
+    }
+    const declaredType = (definition as { type?: unknown }).type;
+    if (declaredType === "string" && typeof value !== "string") {
+      return `"${name}" must be a string`;
+    }
+    if (declaredType === "number" && typeof value !== "number") {
+      return `"${name}" must be a number`;
+    }
+    if (declaredType === "boolean" && typeof value !== "boolean") {
+      return `"${name}" must be true or false`;
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Reading arguments: refuse early, with the field name in the sentence
 // ---------------------------------------------------------------------------
 
