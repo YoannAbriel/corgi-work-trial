@@ -28,9 +28,9 @@ export type { InboxItem, InboxSection } from "./sections";
 // The notification centre: everything waiting for the signed-in person, with the link that does
 // the work (app/inbox/page.tsx).
 //
-// components/what-needs-you.tsx answers "how many"; this file answers "which ones, and where do I
-// click". Both read the same readers the screens themselves read, so a number and its list can
-// never tell two different stories: the policy sections use `policiesOfBroker`,
+// lib/inbox/tasks.ts answers "how many"; this file answers "which ones, and where do I click".
+// Both read the same readers the screens themselves read, so a number and its list can never
+// tell two different stories: the policy sections use `policiesOfBroker`,
 // `liveEndorsementRequest` and `correctionsOfPolicy`, the staff sections use `approvalRequests`,
 // `policiesPaidButNotBound`, `endorsementsPaidButNotApplied`, `claimPayments` and `openBreaks`.
 // No business rule is restated in SQL here.
