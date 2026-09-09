@@ -41,6 +41,22 @@ export function WhatNeedsYou({
   blocking?: BlockingTask | null;
   showEmptyIllustration?: boolean;
 }) {
+  // NOTHING WAITING: one grey line, an illustration the size of a stamp, one sentence (cycle 2).
+  // It used to be a card around a 24-word paragraph, so the block took MORE room saying there was
+  // no work than it takes listing it (round 1, MEDIUM, on /broker and /customer). Where the rest
+  // of the sentence went: the inbox is in the sidebar, and the counts are beside their screens.
+  if (tasks.length === 0 && !blocking) {
+    return (
+      <section className="lists-empty-line lists-needs-empty" aria-labelledby="needs-you-heading">
+        {showEmptyIllustration ? <DecorativeIllustration name="all-clear" variant="empty" /> : null}
+        <h2 id="needs-you-heading">
+          <BellRing size={15} aria-hidden="true" /> What needs you
+        </h2>
+        <p>Nothing is waiting for you.</p>
+      </section>
+    );
+  }
+
   // `lists-needs` is the dense shape of the interface system of 2026-09-09: 32 px rows, the count
   // as a chip, one line of detail. The rules are in app/styles/lists.css, imported at the top of
   // this file so that every screen showing this block gets the same density.
@@ -49,53 +65,43 @@ export function WhatNeedsYou({
       <h2 id="needs-you-heading">
         <BellRing size={15} aria-hidden="true" /> What needs you
       </h2>
-      {tasks.length === 0 && !blocking ? (
-        <div className="needs-you-empty">
-          {showEmptyIllustration ? <DecorativeIllustration name="all-clear" variant="empty" /> : null}
-          <p className="note">
-            Nothing is waiting for you right now. New work appears here, in your{" "}
-            <Link href="/inbox">inbox</Link>, and as a number next to the screen it belongs to.
-          </p>
-        </div>
-      ) : (
-        <ul className="needs-you-list">
-          {blocking ? (
-            // First, because it stops everything else on this screen: a broker whose verification
-            // does not allow binding was being told that nothing needed them, immediately under
-            // the sentence saying Stripe had refused the verification (UI-031).
-            <li key="blocking">
-              <Link href={blocking.href} prefetch={false}>
-                <span className="count-chip">1</span>
-                <span>
-                  <strong>{blocking.label}</strong>
-                  <span title={blocking.detail}>{blocking.detail}</span>
-                </span>
-                <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            </li>
-          ) : null}
-          {tasks.map((task) => (
-            <li key={`${task.section}-${task.label}`}>
-              {/*
-                The count opens the inbox section that holds exactly these items, never the screen
-                this block already sits on: that link led back to /broker, which is the complaint
-                the inbox answers (YOA-636), and the sidebar's section name landed it on a panel
-                counting something else (F-B13-15, F-B13-16).
-              */}
-              <Link href={`/inbox#${task.anchor}`} prefetch={false}>
-                <span className="count-chip">{task.count}</span>
-                <span>
-                  <strong>{task.label}</strong>
-                  {/* One line, cut with an ellipsis: the whole sentence stays in the title and in
-                      the inbox section this row links to. */}
-                  <span title={task.detail}>{task.detail}</span>
-                </span>
-                <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      <ul className="needs-you-list">
+        {blocking ? (
+          // First, because it stops everything else on this screen: a broker whose verification
+          // does not allow binding was being told that nothing needed them, immediately under
+          // the sentence saying Stripe had refused the verification (UI-031).
+          <li key="blocking">
+            <Link href={blocking.href} prefetch={false}>
+              <span className="count-chip">1</span>
+              <span>
+                <strong>{blocking.label}</strong>
+                <span title={blocking.detail}>{blocking.detail}</span>
+              </span>
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </li>
+        ) : null}
+        {tasks.map((task) => (
+          <li key={`${task.section}-${task.label}`}>
+            {/*
+              The count opens the inbox section that holds exactly these items, never the screen
+              this block already sits on: that link led back to /broker, which is the complaint
+              the inbox answers (YOA-636), and the sidebar's section name landed it on a panel
+              counting something else (F-B13-15, F-B13-16).
+            */}
+            <Link href={`/inbox#${task.anchor}`} prefetch={false}>
+              <span className="count-chip">{task.count}</span>
+              <span>
+                <strong>{task.label}</strong>
+                {/* One line, cut with an ellipsis: the whole sentence stays in the title and in
+                    the inbox section this row links to. */}
+                <span title={task.detail}>{task.detail}</span>
+              </span>
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

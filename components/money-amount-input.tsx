@@ -27,18 +27,28 @@ import { useState } from "react";
 // and attributes and submits what the person sees. No server change was needed:
 // parseUsdAmountToCents already accepts thousands separators and a dollar sign, and already
 // refuses "1 200,50", three decimals and everything else (lib/money/cents.test.ts).
+// The sentence under an empty field. It is said ONCE on a form: printed under all three money
+// fields of the quote, its example (1,200.00) contradicted the placeholders of the two limit
+// fields (1,000,000 and 2,000,000), so the same figure meant two things on one screen (round 1,
+// MEDIUM). A caller passes `hint={null}` to keep the echo and drop the sentence.
+const DEFAULT_HINT = "Type an amount in US dollars, for example 1,200.00";
+
 export function MoneyAmountInput({
   id,
   name,
   defaultValue = "",
   placeholder,
   required = false,
+  hint = DEFAULT_HINT,
 }: {
   id: string;
   name: string;
   defaultValue?: string;
   placeholder?: string;
   required?: boolean;
+  // DISPLAY ONLY. It changes nothing about what is typed, parsed, formatted or submitted: the
+  // echo below the field, and the server's own parsing, are untouched.
+  hint?: string | null;
 }) {
   // A default comes from the server ("1200.00"), never from a person, so grouping it is safe.
   const [text, setText] = useState(groupWhenPlain(defaultValue));
@@ -58,7 +68,7 @@ export function MoneyAmountInput({
         onBlur={(event) => setText(groupWhenPlain(event.currentTarget.value))}
       />
       <span className="amount-echo" id={`${id}-echo`}>
-        {echo === null ? "Type an amount in US dollars, for example 1,200.00" : `= $${echo}`}
+        {echo === null ? hint : `= $${echo}`}
       </span>
     </>
   );

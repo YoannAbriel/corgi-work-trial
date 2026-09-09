@@ -10,9 +10,47 @@
    Imported by app/ops/console/page.tsx, .../search/page.tsx, .../infra/page.tsx and
    components/console-parts.tsx. */
 
+/* A masked fact (components/console-parts.tsx, Masked): the two spellings both live in the
+   summary and exactly one of them is drawn, so the cell holds ONE value whether the fold is open
+   or shut. Open, it used to print the masked value and the real one under it, which read as two
+   facts (round 1, MEDIUM). An email is long, so the revealed one is allowed to wrap. */
+.console-masked > summary > .console-masked-shown {
+  display: none;
+}
+.console-masked[open] > summary > .console-masked-hidden {
+  display: none;
+}
+.console-masked[open] > summary > .console-masked-shown {
+  display: inline;
+}
+.console-masked[open] > summary {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* One line of a sentence in a cell, its whole text in `title` and in the row's fold: a recorded
+   refusal naming twelve allowed values took three lines of a table cell (round 1, MEDIUM). Used
+   by the problems table, the refused-and-failed table and the documented limits of the
+   infrastructure screen. */
+.console-reason,
+.console-oneline {
+  display: block;
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The recovery offered beside a problem is at most three words, and it does not wrap: "look this
+   event up" broke over two lines in its column (round 1, MEDIUM). */
+a.console-recovery-link {
+  white-space: nowrap;
+}
+
 /* The AF-02 line under the band: the three integration modes, said in full words, out of any
-   fold, on every console screen (components/console-parts.tsx, IntegrationModes). It is a line
-   of chips rather than a sentence, so the exact wording is read at a glance. */
+   fold (components/console-parts.tsx, IntegrationModes). The nine console and ledger screens no
+   longer draw it, the top bar carries those words now (cycle 2, decision 1); the 360 views, which
+   have no top bar of their own, still do. */
 .console-modes {
   display: flex;
   flex-wrap: wrap;
@@ -32,52 +70,53 @@ h2.console-heading {
   font-weight: 500;
 }
 
-/* HBars draws its fill as a <span> inside .hbar-track. The track is a grid item, so the browser
-   blockifies it; the fill is not, so it stays inline, and width and height on an inline box do
-   nothing: every horizontal bar of the system renders at zero pixels. Measured in the browser on
-   2026-09-09 (getBoundingClientRect().width === 0 while the computed width read 100%).
-
-   The repair belongs in app/styles/system.css, which this builder must not edit, so it is asked
-   for in the report and applied here meanwhile, scoped to the console's own charts. Remove this
-   block once the shared sheet sets the property. */
-.console-charts .hbar-row .hbar-fill {
-  display: block;
-}
-
-/* When the inspector is open, PortalShell puts the screen in `.with-inspector > .stack`. That
-   stack is a grid with no explicit column, so its single column is sized `auto` and takes the
-   MAX-content of what is in it: a row of four stat tiles measured 1098 px inside a 699 px stack
-   and printed straight over the inspector. Measured in the browser on 2026-09-09.
-
-   Naming the column `minmax(0, 1fr)` binds it to the track it was given, and the tiles then wrap.
-   The repair belongs in app/styles/system.css, which this builder must not edit, so it is asked
-   for in the report and applied here meanwhile, on the stacks of the console only. */
-.stack:has(.console-modes) {
-  grid-template-columns: minmax(0, 1fr);
-}
+/* Two blocks stood here and are gone, both because the shared sheet took the repair over:
+   `.console-charts .hbar-row .hbar-fill { display: block }`, which made a horizontal bar visible
+   at all, is now a rule of app/styles/system.css; and `.stack:has(.console-modes)`, which stopped
+   four stat tiles printing over the inspector, is answered by the inspector becoming a drawer
+   over the content rather than a second column (cycle 2, decision 5). */
 
 /* The feed table (components/console-parts.tsx, EventTable). A Stripe Checkout Session id is
    sixty characters. In a narrow Object column the browser broke it into a tower of three-letter
    fragments and made the row twenty lines tall, which is the shape review finding UI-030 named.
-   The token stays on one line; the table's own box scrolls sideways when it has to, and the page
-   never does. */
-.console-event-table .ref {
+
+   Keeping the token on one line fixed the tower and created a second defect: an unbounded nowrap
+   box sets the column's MIN-content, so the Object column claimed 519 px, the What column was
+   crushed to 59 px and printed one letter per line, and the page grew past 20,000 px (measured
+   2026-09-09 at 1024, 1280, and at 1440 and 1920 with the inspector open). The token now stays on
+   one line AND is capped, so it can no longer size the column; what it hides is one hover away in
+   the `title` and printed in full in the row's fold. */
+.console-event-table tr.dt-row td:last-child .ref {
+  display: inline-block;
+  vertical-align: bottom;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* The problems table. Its Reason is the one sentence the console cannot move into a fold: it is
-   what the operator reads before choosing the recovery beside it. Capping it keeps the Recovery
-   column inside the table's box when the inspector is open and the content is 699 px wide:
-   measured, the table then asks for 697 px of a 697 px box. */
-.console-problems .console-reason {
-  display: block;
-  max-width: 30ch;
+/* The fold is the place that shows the id in full, so the rule above must not reach it: nowrap
+   there drew the sixty characters straight over the neighbouring "Who" label and 75 px past the
+   table's right edge (measured 2026-09-09 at 1440). In the fold the id wraps. */
+.console-event-table tr.dt-expansion .ref {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
-/* The What chip is a whole event name ("stripe checkout.session.expired ignored"). The system
+
+/* The problems table. Its Reason is a whole sentence, so it reads in the row's fold now and the
+   cell it used to fill is gone (cycle 2, decision 9).
+
+   The What chip is a whole event name ("stripe checkout.session.expired ignored"). The system
    keeps every chip on one line, which is right in a wide table and wrong in this one: it alone
    asked for 285 px and pushed Recovery out of the box. Here it wraps. */
 .console-problems table.dt .badge {
   white-space: normal;
+}
+/* The Reference column: one line, cut with an ellipsis, its whole value in `title` and printed
+   in the drawer it opens. A 28-character provider event id broke mid-token over two and three
+   lines and read as several different ids (round 1, MEDIUM; cycle 2, decision 7). */
+.console-problems tr.dt-row .ref {
+  max-width: 22ch;
 }
 
 /* A Toolbar that stands on its own rather than on top of a table (the search screen's field).

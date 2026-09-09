@@ -116,13 +116,20 @@
   gap: 2px;
   padding: 0 12px;
 }
+/* An entry of the sidebar: its own line (icon, label, count), and under it the views of the
+   section when the reader is inside it (cycle 2, decision 17). */
 .sidebar-nav-row {
+  display: grid;
+  gap: 2px;
+  position: relative;
+}
+.sidebar-nav-line {
   display: flex;
   align-items: center;
   gap: 6px;
   position: relative;
 }
-.sidebar-nav-row > a:first-child {
+.sidebar-nav-line > a:first-child {
   flex: 1;
   min-width: 0;
 }
@@ -222,7 +229,7 @@
 }
 .sidebar.is-rail .brand > span:last-child,
 .sidebar.is-rail .navigation-label,
-.sidebar.is-rail .sidebar-nav a > span,
+.sidebar.is-rail .sidebar-nav-line > a > span,
 .sidebar.is-rail .account-identity > span:last-child,
 .sidebar.is-rail .sidebar-account form {
   display: none;
@@ -230,11 +237,15 @@
 .sidebar.is-rail .sidebar-nav {
   padding: 8px 12px;
 }
-.sidebar.is-rail .sidebar-nav a {
+.sidebar.is-rail .sidebar-nav-line > a {
   justify-content: center;
   width: 40px;
   height: 40px;
   padding: 0;
+}
+/* Folded, the sidebar has to let the flyout of the current section out of its box. */
+.sidebar.is-rail {
+  overflow: visible;
 }
 .sidebar.is-rail .sidebar-nav a.nav-badge {
   position: absolute;
@@ -256,7 +267,76 @@
   justify-content: center;
 }
 
-/* The section navigation: the views of the screen the reader is in. */
+/* The views of the section the reader is in, under that section's entry, with the line that
+   says they belong to the entry above them. */
+.sidebar-views {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 6px 21px;
+  padding-left: 9px;
+  border-left: 1px solid #e2e2e6;
+}
+.sidebar-views a {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  min-height: 30px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #40414d;
+  text-decoration: none;
+  transition: background-color 0.12s;
+}
+.sidebar-views a svg {
+  flex-shrink: 0;
+  color: var(--ink-2);
+}
+.sidebar-views a:hover {
+  background: #e9eaec;
+  color: var(--ink);
+}
+.sidebar-views a[aria-current="page"] {
+  background: #fff1e8;
+  color: var(--accent);
+  font-weight: 500;
+}
+.sidebar-views a[aria-current="page"] svg {
+  color: var(--orange);
+}
+.sidebar-views details.context-fold > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.sidebar-views details.context-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.sidebar-views details.context-fold + details.context-fold {
+  margin-top: 2px;
+}
+/* Folded to icons: the same list, as a flyout on hover of the entry, and on focus so the
+   keyboard reaches it too. */
+.sidebar.is-rail .sidebar-views {
+  display: none;
+  position: absolute;
+  left: calc(100% + 8px);
+  top: -6px;
+  z-index: 30;
+  min-width: 200px;
+  margin: 0;
+  padding: 6px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px #19191922;
+}
+.sidebar.is-rail .sidebar-nav-row:hover .sidebar-views,
+.sidebar.is-rail .sidebar-nav-row:focus-within .sidebar-views {
+  display: grid;
+}
+
+/* The section navigation as a second column: kept for a caller that still hands one to the
+   frame, no longer built by the shell (cycle 2, decision 17). */
 .context-nav {
   position: sticky;
   top: 0;
@@ -352,10 +432,28 @@
   background: var(--orange);
   color: white;
 }
+/* The heading of a group of views. Inside a <details> it is the summary that folds the group,
+   so it carries a caret drawn from a border, not a glyph. */
 .context-group {
-  padding: 14px 10px 4px;
+  padding: 12px 10px 4px;
   font-size: 11px;
   color: var(--ink-2);
+}
+.sidebar-views summary.context-group {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sidebar-views summary.context-group::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border: 3.5px solid transparent;
+  border-left-color: currentColor;
+  transition: transform 0.15s;
+}
+.sidebar-views details.context-fold[open] > summary.context-group::before {
+  transform: rotate(90deg) translateX(1px);
 }
 
 /* The body: top bar, page band, content, footer. */
@@ -377,6 +475,7 @@
   z-index: 5;
   min-height: var(--top-h);
   display: flex;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
@@ -414,7 +513,7 @@ button.sidebar-toggle:hover {
 }
 .breadcrumb ol {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 2px 6px;
   list-style: none;
@@ -440,12 +539,63 @@ button.sidebar-toggle:hover {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .breadcrumb svg {
   flex-shrink: 0;
   color: #b9bcc4;
 }
+/* The staff search: a GET form to the search screen, in the top bar of every staff screen. */
+.topbar-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 260px;
+  min-width: 0;
+  margin: 0;
+  padding: 0 10px;
+  height: 28px;
+  background: #f5f6f7;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink-2);
+}
+.topbar-search:focus-within {
+  border-color: #a9aaae;
+  background: white;
+}
+.topbar-search svg {
+  flex-shrink: 0;
+}
+.topbar-search input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+}
+.topbar-search input:focus {
+  outline: none;
+}
+
+/* AF-02, once, discreetly (cycle 2, decision 1). The words are exact; the middle dot separates
+   the three slots. It never pushes the Sandbox badge off the bar: it is cut with an ellipsis
+   first. */
+.topbar-modes {
+  margin-right: auto;
+  /* Never cut: AF-02 asks for these words exact and visible, so the search field beside it is
+     what gives way on a narrow screen, never this line. */
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
 .environment-badge {
   position: relative;
   z-index: 3;
@@ -469,8 +619,9 @@ button.sidebar-toggle:hover {
 }
 .environment-detail {
   position: absolute;
+  z-index: 7;
   right: 0;
-  top: 30px;
+  top: 34px;
   width: 240px;
   padding: 14px;
   background: white;
@@ -483,15 +634,18 @@ button.sidebar-toggle:hover {
 }
 
 /* The page band: the title that never moves. */
+/* The band is aligned with the content under it: above 1480 px the page stops growing, so the
+   band has to stop with it or its title and its buttons sit off the grid (round 1, HIGH). */
 .page-band {
   position: sticky;
   top: var(--top-h);
   z-index: 4;
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 14px;
   min-height: var(--band-h);
-  padding: 10px var(--content-x);
+  padding: 10px max(var(--content-x), calc((100% - 1480px) / 2 + var(--content-x)));
   background: white;
   border-bottom: 1px solid var(--line);
   box-shadow: 0 1px 0 #ffffff, 0 6px 16px -12px #19191933;
@@ -512,6 +666,7 @@ button.sidebar-toggle:hover {
   mask-image: radial-gradient(ellipse, #000 46%, transparent 72%);
 }
 .band-title {
+  flex: 1 1 auto;
   min-width: 0;
 }
 .band-title h1 {
@@ -519,9 +674,20 @@ button.sidebar-toggle:hover {
   font-size: 22px;
   letter-spacing: -0.4px;
   line-height: 1.2;
-  overflow-wrap: anywhere;
+  /* A policy number is never cut in half: the title wraps between words or not at all. */
+  overflow-wrap: normal;
+  word-break: normal;
 }
-.band-title h1 small {
+/* The suffix names the record (a customer, a broker). It is bounded: an unbounded one pushed
+   the band to 133 px and squeezed the actions into three lines (round 1, HIGH). */
+.band-title h1 small,
+.band-suffix {
+  display: inline-block;
+  max-width: 34ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
   font-family: "Inter", sans-serif;
   font-size: 13px;
   font-weight: 400;
@@ -529,25 +695,41 @@ button.sidebar-toggle:hover {
   letter-spacing: 0;
   margin-left: 8px;
 }
+/* One row of chips, cut at the end rather than wrapped: a second row took the band past the
+   100 px it is allowed (round 1, MEDIUM). */
 .band-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
   align-items: center;
   gap: 4px 6px;
   margin-top: 4px;
   font-size: 12.5px;
   color: var(--ink-2);
 }
-.band-meta .badge {
-  margin: 0;
+.band-meta::-webkit-scrollbar {
+  display: none;
 }
+.band-meta .badge,
+.band-meta .chip {
+  margin: 0;
+  white-space: nowrap;
+}
+/* The actions stay on one row and keep their width; the title shrinks instead (round 1, HIGH:
+   two buttons stacked took the band to 139 px). */
 .band-actions {
   margin-left: auto;
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
   justify-content: flex-end;
+}
+.band-actions button,
+.band-actions .button-link {
+  white-space: nowrap;
 }
 .band-actions button,
 .band-actions .button-link {
@@ -574,7 +756,7 @@ main:focus {
 }
 .portal-footer {
   margin-top: auto;
-  padding: 16px var(--content-x) 22px;
+  padding: 16px max(var(--content-x), calc((100% - 1480px) / 2 + var(--content-x))) 22px;
   color: var(--ink-2);
   font-size: 11px;
 }
@@ -600,6 +782,10 @@ main:focus {
 /* ---------------------------------------------------------------------------
    Stat tiles
    --------------------------------------------------------------------------- */
+/* A tile is never wider than 360 px: two tiles at 1920 px used to stretch to 700 px each and
+   put one "0" in a half-screen box (round 1, MEDIUM). The cap is on the tile, not on the track:
+   `minmax(168px, 360px)` counts its tracks at 360 px and left four tiles in one column at
+   1024 px (measured 2026-09-09 on /ops/console/ledger). */
 .stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
@@ -611,6 +797,7 @@ main:focus {
   flex-direction: column;
   gap: 3px;
   min-height: 92px;
+  max-width: 360px;
   padding: 14px 16px;
   background: white;
   border: 1px solid var(--line);
@@ -622,12 +809,23 @@ main:focus {
 a.stat:hover {
   border-color: #a9aaae;
 }
+/* Two lines whatever the label says, so the figures under them sit on one baseline across the
+   row (round 1, MEDIUM). */
 .stat-label {
   font-size: 12px;
+  line-height: 1.3;
+  min-height: 2.6em;
   color: var(--ink-2);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
+}
+/* The provider, the window or the rule behind a figure: an icon, and the sentence on hover. */
+.stat-hint {
+  display: inline-flex;
+  align-items: center;
+  color: #b9bcc4;
+  cursor: help;
 }
 .stat-label svg {
   flex-shrink: 0;
@@ -780,18 +978,21 @@ a.stat:hover {
   display: grid;
   gap: 7px;
 }
+/* Every row's track is the same length, because the label column and the value column are
+   fixed: with an `auto` value column the small figure got the long bar (round 1, HIGH). The
+   label wraps rather than being cut, so ten accounts are ten readable names (round 1, MEDIUM). */
 .hbar-row {
   display: grid;
-  grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) auto;
+  grid-template-columns: 180px minmax(0, 1fr) 104px;
   align-items: center;
   gap: 10px;
   font-size: 12.5px;
 }
 .hbar-row .hbar-label {
   color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.3;
+  overflow-wrap: break-word;
 }
 .hbar-row .hbar-track {
   height: 10px;
@@ -809,6 +1010,26 @@ a.stat:hover {
   background: var(--swatch, var(--chart-1));
   transform-origin: left;
   animation: hbar-grow 0.5s var(--ease) both;
+}
+/* A negative figure is drawn in grey and from the right, so -$1,200.00 cannot be read as the
+   same bar as $1,200.00 (round 1, MEDIUM). Its sign is printed in the value cell. */
+.hbar-row .hbar-track.negative {
+  display: flex;
+  justify-content: flex-end;
+}
+.hbar-row .hbar-fill.negative {
+  background: var(--ink-2);
+  transform-origin: right;
+}
+/* A negative figure is drawn in grey and from the right: the same orange bar for -$1,200.00 and
+   $1,200.00 said the opposite of the figure printed beside it (round 1, MEDIUM). */
+.hbar-row .hbar-track.negative {
+  display: flex;
+  justify-content: flex-end;
+}
+.hbar-row .hbar-fill.negative {
+  background: var(--ink-2);
+  transform-origin: right;
 }
 .hbar-row .hbar-value {
   font-variant-numeric: tabular-nums;
@@ -921,9 +1142,13 @@ table.dt tr.dt-row:hover td.dt-chevron {
   color: var(--ink-2);
   font-weight: 400;
 }
-table.dt .badge {
+/* A status is one word by the writing rules, so it stays on one line: "revoked" rendered as
+   "revoke" then "d" on every table of the workspace (round 1, HIGH). The table widens inside
+   its own .dt-scroll instead. */
+table.dt .badge,
+table.dt .chip {
   margin: 0;
-  white-space: normal;
+  white-space: nowrap;
 }
 table.dt td button,
 table.dt td .button-link {
@@ -956,12 +1181,22 @@ table.dt code,
   border-radius: 5px;
   padding: 2px 6px;
 }
+/* A reference is one line, cut with an ellipsis when it is longer than its column, and its
+   whole value is in `title` (components/ui/table.tsx sets it). Broken across three lines, a
+   Stripe id read as three different ids (round 1, HIGH). */
+.ref {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
 a.ref {
   color: var(--ink);
   text-decoration: none;
   border: 1px solid transparent;
   transition: border-color 0.12s, background-color 0.12s;
-  overflow-wrap: anywhere;
 }
 a.ref:hover {
   border-color: #c9cacf;
@@ -1023,6 +1258,16 @@ table.dt tr.dt-expansion > td {
 .dt-facts > div {
   min-width: 0;
 }
+/* References and other lists take the width of the expansion instead of a third of one row,
+   which left two thirds of the fold empty (round 1, MEDIUM). */
+.dt-facts > div.wide {
+  grid-column: 1 / -1;
+}
+/* A list of references is a row of its own: on a third of the grid it left the rest of the
+   expansion empty (round 1, MEDIUM). */
+.dt-facts > div.wide {
+  grid-column: 1 / -1;
+}
 .dt-facts dt {
   color: var(--ink-2);
   font-size: 11.5px;
@@ -1053,6 +1298,45 @@ table.dt tr.dt-expansion > td {
   padding-left: 18px;
   color: var(--ink-2);
 }
+/* The lines of one journal entry: Account, Debit, Credit. Bounded, so that at 1920 px an
+   account and its amount are still read together (cycle 2, decision 10). */
+table.dt.entry-lines-table {
+  max-width: 720px;
+  font-size: 12.5px;
+}
+table.dt.entry-lines-table th,
+table.dt.entry-lines-table td {
+  padding: 6px 12px;
+}
+table.dt.entry-lines-table td.entry-account {
+  overflow-wrap: normal;
+}
+table.dt.entry-lines-table tr.credit td.entry-account {
+  padding-left: 32px;
+  color: var(--ink-2);
+}
+
+/* The lines of one entry: Account, Debit, Credit, credits indented under the account they
+   answer (cycle 2, decision 10). Bounded, so at 1920 px an account and its amount stay together. */
+table.dt.entry-lines-table {
+  max-width: 720px;
+}
+table.dt.entry-lines-table th,
+table.dt.entry-lines-table td {
+  padding: 6px 12px;
+}
+table.dt.entry-lines-table th.num,
+table.dt.entry-lines-table td.num {
+  width: 120px;
+}
+table.dt.entry-lines-table td.entry-account {
+  overflow-wrap: break-word;
+}
+table.dt.entry-lines-table tr.credit td.entry-account {
+  padding-left: 30px;
+  color: var(--ink-2);
+}
+
 .dt-more {
   display: flex;
   justify-content: center;
@@ -1145,7 +1429,9 @@ table.dt tr.dt-expansion > td {
 }
 .toolbar input[type="text"],
 .toolbar input[type="search"] {
-  width: 220px;
+  width: auto;
+  flex: 1 1 220px;
+  max-width: 360px;
 }
 .toolbar input:hover,
 .toolbar select:hover {
@@ -1343,8 +1629,9 @@ button.amount-explained-figure:focus-visible {
      scrolled word by word. Never wider than the window. */
   width: min(520px, calc(100vw - 24px));
   max-width: min(520px, calc(100vw - 24px));
-  max-height: min(72dvh, 640px);
+  max-height: min(70vh, 620px);
   overflow-y: auto;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   font-size: 13px;
   font-weight: 400;
@@ -1420,31 +1707,42 @@ table.entry-lines > thead > tr > th.amount {
 
 
 /* ---------------------------------------------------------------------------
-   The inspector: one record and its whole trail, beside the table it came from
+   The drawer: the inspector and the amount explanation, over the content, from the right
+   (cycle 2, decisions 5 and 6). One panel, one way of opening it, three ways out: the cross,
+   a click outside (the backdrop is a link back to the page) and Escape.
    --------------------------------------------------------------------------- */
+/* Kept defined and unused: the two-column layout the inspector had before the drawer. A page
+   or a stylesheet that still names it keeps working. */
 .with-inspector {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
 .with-inspector > * {
   min-width: 0;
 }
-.with-inspector > .stack {
-  grid-template-columns: minmax(0, 1fr);
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: transparent;
 }
-.inspector {
-  position: sticky;
-  top: calc(var(--top-h) + var(--band-h) + 16px);
-  max-height: calc(100dvh - var(--top-h) - var(--band-h) - 32px);
+.drawer {
+  position: fixed;
+  right: 0;
+  top: var(--top-h);
+  z-index: 40;
+  height: calc(100dvh - var(--top-h));
+  width: min(440px, calc(100vw - 24px));
   overflow-y: auto;
+  overscroll-behavior: contain;
   background: white;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-block);
+  border-left: 1px solid var(--line);
+  box-shadow: -18px 0 44px #19191922;
   animation: slide-from-right 0.22s var(--ease) both;
 }
-.inspector-head {
+.drawer-head {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -1455,20 +1753,20 @@ table.entry-lines > thead > tr > th.amount {
   background: white;
   border-bottom: 1px solid var(--line);
 }
-.inspector-head > div {
+.drawer-head > div {
   min-width: 0;
   flex: 1;
 }
-.inspector-kind {
+.drawer-kind {
   font-size: 11.5px;
   color: var(--ink-2);
 }
-.inspector-head h2 {
+.drawer-head h2 {
   margin: 2px 0 0;
   font-size: 15px;
-  overflow-wrap: anywhere;
+  min-width: 0;
 }
-.inspector-close {
+.drawer-close {
   flex-shrink: 0;
   display: grid;
   place-items: center;
@@ -1478,16 +1776,16 @@ table.entry-lines > thead > tr > th.amount {
   color: var(--ink-2);
   text-decoration: none;
 }
-.inspector-close:hover {
+.drawer-close:hover {
   background: #f3f3f5;
   color: var(--ink);
 }
-.inspector-body {
-  padding: 12px 16px 16px;
+.drawer-body {
+  padding: 12px 16px 24px;
   display: grid;
   gap: 14px;
 }
-.inspector h3 {
+.drawer-body h3 {
   margin: 0 0 6px;
   font-family: "Inter", sans-serif;
   font-size: 11.5px;
@@ -1495,6 +1793,14 @@ table.entry-lines > thead > tr > th.amount {
   color: var(--ink-2);
   letter-spacing: 0;
 }
+.drawer-body .empty {
+  padding: 18px 8px 12px;
+}
+.drawer-body .empty img {
+  width: min(160px, 100%);
+  max-height: 110px;
+}
+
 .inspector-links {
   display: flex;
   flex-wrap: wrap;
@@ -1608,6 +1914,19 @@ table.entry-lines > thead > tr > th.amount {
   color: var(--ink-2);
   background: white;
 }
+.legend > span + span::before {
+  content: "·";
+  margin-right: 10px;
+  color: #b9bcc4;
+}
+/* A dot between definitions: without it the entries ran together into one sentence to the
+   right edge at 1440 px (round 1, MEDIUM). */
+.legend > span + span::before,
+.legend > div + div::before {
+  content: "·";
+  margin-right: 10px;
+  color: #b9bcc4;
+}
 .legend b {
   color: var(--ink);
   font-weight: 500;
@@ -1621,12 +1940,13 @@ table.entry-lines > thead > tr > th.amount {
 .about details.disclosure {
   margin: 0;
 }
+/* One column: two columns split a list item across the fold and opened the right column
+   mid-sentence (round 1, MEDIUM). The <h4> headings give the rhythm the columns were for. */
 .about details.disclosure > div {
-  columns: 2;
-  column-gap: 32px;
+  columns: 1;
+  max-width: 900px;
 }
 .about details.disclosure p {
-  break-inside: avoid;
   margin: 8px 0;
 }
 .about details.disclosure h4 {
@@ -1657,9 +1977,12 @@ table.entry-lines > thead > tr > th.amount {
 .empty button {
   margin-top: 6px;
 }
+/* Each card is its own height: stretching every card to the tallest left 250 px of white
+   under the short ones (round 1, MEDIUM). */
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  align-items: start;
   gap: 12px;
   margin: 0 0 16px;
 }
@@ -1737,25 +2060,30 @@ a.section-card {
   transition: border-color 0.15s, transform 0.15s;
 }
 a.section-card:hover {
-  border-color: #a9aaae;
-  color: var(--ink);
+  background: var(--orange);
+  border-color: var(--orange);
+  color: white;
+}
+a.section-card:hover .section-card-icon,
+a.section-card:hover small,
+a.section-card:hover > svg {
+  color: white;
 }
 a.section-card:active {
   transform: translateY(1px);
 }
+/* No tinted tile behind the icon; the whole card turns orange on hover instead. */
 .section-card-icon {
-  width: 44px;
-  height: 44px;
+  width: 26px;
   flex-shrink: 0;
-  border-radius: 12px;
   display: grid;
   place-items: center;
-  background: #fff1e8;
-  color: var(--accent);
+  background: transparent;
+  color: var(--ink-2);
 }
-a.section-card:hover .section-card-icon {
-  background: var(--orange);
-  color: white;
+.section-card-icon svg {
+  width: 22px;
+  height: 22px;
 }
 a.section-card > span {
   flex: 1;
@@ -1818,7 +2146,7 @@ a.section-card > svg {
   align-items: center;
   margin: 28px calc(-1 * var(--content-x)) 0;
   padding: 0 0 0 var(--content-x);
-  min-height: 160px;
+  min-height: 120px;
   background: linear-gradient(90deg, #ffffff 0%, #fbf5f0 100%);
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
@@ -1842,7 +2170,7 @@ a.section-card > svg {
   color: var(--ink-2);
 }
 .landscape-art {
-  height: 160px;
+  height: 120px;
 }
 .landscape-art img {
   width: 100%;
@@ -1917,6 +2245,7 @@ a.section-card > svg {
   min-width: 0;
   font-size: 13px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 .toast strong {
   display: block;
@@ -2091,7 +2420,7 @@ button.secondary.is-working::after {
 @media (prefers-reduced-motion: reduce) {
   .reveal > *,
   .context-nav,
-  .inspector,
+  .drawer,
   .chart rect.bar,
   .chart rect.hbar,
   .chart path.line,
@@ -2120,67 +2449,31 @@ button.secondary.is-working::after {
   :root {
     --content-x: 24px;
   }
-  .with-inspector {
-    grid-template-columns: minmax(0, 1fr) 340px;
+  /* Under 1200 px the suffix takes its own line rather than sharing the title's: sharing it,
+     the browser broke the policy number itself in half ("Policy CGP-" / "01707", round 1
+     HIGH), because a hyphen is a break opportunity and no CSS property removes it. */
+  .band-title h1 small,
+  .band-suffix {
+    display: block;
+    margin-left: 0;
+    max-width: 100%;
+  }
+  .breadcrumb {
+    display: none;
+  }
+  .topbar-search {
+    flex: 0 1 200px;
   }
   .layout-2 {
     grid-template-columns: minmax(0, 1fr) 300px;
   }
 }
+/* At 1100 px the sidebar used to fold itself to icons. It does not any more: the reader folds
+   it with the button in the top bar when they want the room, and a labelled navigation is what
+   they asked for on a record screen (cycle 2, decision 17, round 1 MEDIUM). */
 @media (max-width: 1100px) {
-  .with-inspector,
   .layout-2 {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .inspector {
-    position: static;
-    max-height: none;
-    animation: none;
-  }
-  .about details.disclosure > div {
-    columns: 1;
-  }
-  .sidebar:not(.is-rail) {
-    width: var(--rail-w);
-  }
-  .sidebar:not(.is-rail) .brand > span:last-child,
-  .sidebar:not(.is-rail) .navigation-label,
-  .sidebar:not(.is-rail) .sidebar-nav a > span,
-  .sidebar:not(.is-rail) .account-identity > span:last-child,
-  .sidebar:not(.is-rail) .sidebar-account form {
-    display: none;
-  }
-  .sidebar:not(.is-rail) .brand {
-    justify-content: center;
-    padding: 18px 0 14px;
-  }
-  .sidebar:not(.is-rail) .sidebar-nav {
-    padding: 8px 12px;
-  }
-  .sidebar:not(.is-rail) .sidebar-nav a {
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-  }
-  .sidebar:not(.is-rail) .sidebar-nav a.nav-badge {
-    position: absolute;
-    top: -4px;
-    right: -2px;
-    width: auto;
-    height: 18px;
-    min-width: 18px;
-    min-height: 18px;
-    line-height: 18px;
-    padding: 0 5px;
-    font-size: 10px;
-    z-index: 1;
-  }
-  .sidebar:not(.is-rail) .sidebar-account {
-    padding: 16px 0 20px;
-  }
-  .sidebar:not(.is-rail) .account-identity {
-    justify-content: center;
   }
 }
 @media (max-width: 800px) {
@@ -2218,8 +2511,8 @@ button.secondary.is-working::after {
     gap: 4px;
     padding: 0 12px 10px;
   }
-  .sidebar .sidebar-nav a,
-  .sidebar.is-rail .sidebar-nav a {
+  .sidebar .sidebar-nav-line > a,
+  .sidebar.is-rail .sidebar-nav-line > a {
     width: auto;
     height: auto;
     padding: 9px 11px;
@@ -2227,9 +2520,21 @@ button.secondary.is-working::after {
     font-size: 13px;
     justify-content: flex-start;
   }
-  .sidebar .sidebar-nav a > span,
-  .sidebar.is-rail .sidebar-nav a > span {
+  .sidebar .sidebar-nav-line > a > span,
+  .sidebar.is-rail .sidebar-nav-line > a > span {
     display: inline;
+  }
+  /* The views of the section take their own row under the wrapped list of sections. */
+  .sidebar .sidebar-views,
+  .sidebar.is-rail .sidebar-views {
+    display: grid;
+    position: static;
+    flex-basis: 100%;
+    box-shadow: none;
+    border: 0;
+    border-left: 1px solid #e2e2e6;
+    padding: 0 0 0 9px;
+    margin: 2px 0 6px 12px;
   }
   .sidebar .sidebar-nav a.nav-badge,
   .sidebar.is-rail .sidebar-nav a.nav-badge {
@@ -2279,7 +2584,7 @@ button.secondary.is-working::after {
   .context-nav nav a[aria-current="page"]::before {
     display: none;
   }
-  .context-group {
+  .context-nav .context-group {
     display: none;
   }
   .portal-body {
@@ -2287,6 +2592,27 @@ button.secondary.is-working::after {
   }
   .topbar {
     position: static;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    row-gap: 4px;
+  }
+  /* The AF-02 words stay exact and visible; on a narrow screen they take a row of their own and
+     wrap, instead of pushing the bar past the viewport. */
+  .topbar-modes {
+    flex: 1 1 100%;
+    order: 3;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    margin-right: 0;
+  }
+  .topbar-search {
+    flex: 1 1 160px;
+  }
+  .drawer {
+    top: 0;
+    height: 100dvh;
   }
   .page-band {
     position: static;
@@ -2297,7 +2623,12 @@ button.secondary.is-working::after {
   .band-actions {
     margin-left: 0;
     width: 100%;
+    flex-wrap: wrap;
     justify-content: flex-start;
+  }
+  .band-meta {
+    flex-wrap: wrap;
+    overflow-x: visible;
   }
   .band-art {
     width: 40px;
@@ -2338,7 +2669,7 @@ button.secondary.is-working::after {
     grid-template-columns: 1fr;
   }
   .hbar-row {
-    grid-template-columns: minmax(70px, 110px) minmax(0, 1fr) auto;
+    grid-template-columns: 110px minmax(0, 1fr) 88px;
   }
   .band-meta {
     font-size: 12px;

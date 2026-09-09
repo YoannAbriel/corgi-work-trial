@@ -13,6 +13,8 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS, endorsementFormulaLines } from "@/lib/money/endorsement";
 import { endorsementRequestStanding, readEndorsementRequest } from "@/lib/policy/endorsement-requests";
 import { policyDetail } from "@/lib/policy/read";
+import { toastsFromQuery } from "@/lib/ui/views";
+import { customerPolicyViews } from "../../../correction-sections";
 import { FormulaLinesTable } from "../../../formula-lines";
 import { isUuid } from "@/lib/http/path-ids";
 
@@ -47,6 +49,11 @@ export default async function ApproveEndorsementPage({
     { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
     { label: "Endorsement approval" },
   ];
+  // The customer's two views of their policy stay in the sidebar while they read the quote.
+  const views = customerPolicyViews(policyId, "Approval", `/policies/${policyId}/endorsements/${requestEventId}/approve`);
+  // POST .../approve redirects back here with ?error= when it refuses, and the screen showed the
+  // sentence but raised no toast (feedback audit of 2026-09-09 19:10).
+  const toasts = toastsFromQuery(query, { error: { tone: "error", title: "Refused" } });
 
   const request = await readEndorsementRequest(sql, policyId, requestEventId);
   if (!request) {
@@ -55,6 +62,7 @@ export default async function ApproveEndorsementPage({
         user={user}
         active="policies"
         trail={trail}
+        views={views}
         band={{ title: "Endorsement approval", suffix: `Policy ${policy.policyNumber}`, meta: <Chip tone="warn">unknown</Chip> }}
       >
         <div className="notices">
@@ -75,6 +83,8 @@ export default async function ApproveEndorsementPage({
       user={user}
       active="policies"
       trail={trail}
+      views={views}
+      toasts={toasts}
       band={{
         title: "Approve the change",
         suffix: `Policy ${policy.policyNumber}`,
@@ -93,7 +103,6 @@ export default async function ApproveEndorsementPage({
                     ? "approved"
                     : "waiting for you"}
             </Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone="neutral">effective {figures.effectiveAt}</Chip>
           </>
         ),

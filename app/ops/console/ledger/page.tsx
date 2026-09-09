@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { Activity, AlertTriangle, BookOpenText, Gauge, ListTree, Scale, Search, ServerCog, TrendingUp } from "lucide-react";
 import { Chip } from "@/components/detail-layout";
-import { IntegrationModes } from "@/components/console-parts";
+import { consoleViews } from "@/components/console-parts";
 import { PortalShell } from "@/components/portal-shell";
 import { EmptyState } from "@/components/ui/empty";
 import { Inspector } from "@/components/ui/inspector";
@@ -39,12 +38,23 @@ import { AccountView, BalancesView, EntriesView, FlowsView, LEDGER_PATH } from "
 
 const VIEWS = ["balances", "account", "entries", "flows"] as const;
 
+// The title of the band is the noun a person would say for the view they are on, never a generated
+// sentence (cycle 2, decision 9).
+const TITLES: Record<(typeof VIEWS)[number], string> = {
+  balances: "Account balances",
+  account: "One account",
+  entries: "Entries",
+  flows: "Flows by day",
+};
+
 // The bounds of the two entry readers, written here because they are a property of the SCREEN.
 const MOST_ACCOUNT_ENTRIES = 50;
 const MOST_ENTRIES = 100;
 const MOST_ENTRIES_WITH_ALL = 500;
 const FLOW_WINDOWS = [7, 30, 90] as const;
-const DEFAULT_FLOW_DAYS = 30;
+// Seven days by default: over thirty, twenty-eight of the thirty columns were empty and the chart
+// had no shape left to read (round 1, MEDIUM). The wider windows stay one chip away.
+const DEFAULT_FLOW_DAYS = 7;
 
 // "2026-09-08" and a date the calendar actually has. Anything else is treated as absent, so a
 // hand-edited URL opens the whole journal instead of reaching the reader with nonsense.
@@ -121,48 +131,11 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
 
   const chosenAccount = balance && ledger ? balance.accounts.find((one) => one.accountId === ledger.accountId) : undefined;
 
-  // The section navigation: the four views of the ledger, then the console's own screens, so an
-  // operator moves between the books and the machine without going back to the sidebar.
-  const views = [
-    {
-      key: "balances",
-      label: "Balances",
-      href: withParams(LEDGER_PATH, query, { view: "balances", inspect: null }),
-      current: view === "balances",
-      icon: Scale,
-      group: "Ledger",
-    },
-    {
-      key: "account",
-      label: "Account",
-      href: withParams(LEDGER_PATH, query, { view: "account", inspect: null }),
-      current: view === "account",
-      icon: BookOpenText,
-      group: "Ledger",
-    },
-    {
-      key: "entries",
-      label: "Entries",
-      href: withParams(LEDGER_PATH, query, { view: "entries", inspect: null }),
-      current: view === "entries",
-      icon: ListTree,
-      count: proof.entryCount,
-      group: "Ledger",
-    },
-    {
-      key: "flows",
-      label: "Flows",
-      href: withParams(LEDGER_PATH, query, { view: "flows", inspect: null }),
-      current: view === "flows",
-      icon: TrendingUp,
-      group: "Ledger",
-    },
-    { key: "feed", label: "Feed", href: "/ops/console", icon: Activity, group: "Console" },
-    { key: "problems", label: "Problems", href: "/ops/console?view=problems", icon: AlertTriangle, group: "Console" },
-    { key: "latency", label: "Latency", href: "/ops/console?view=latency", icon: Gauge, group: "Console" },
-    { key: "search", label: "Search", href: "/ops/console/search", icon: Search, group: "Console" },
-    { key: "infra", label: "Infrastructure", href: "/ops/console/infra", icon: ServerCog, group: "Console" },
-  ];
+  // The same nine entries in the same three groups as every console screen (cycle 2, decision 11);
+  // the list itself lives in components/console-parts.tsx. The entry count that used to sit beside
+  // "Entries" is gone: a count in the navigation is a call to act, and nobody acts on 36 postings
+  // (decision 3).
+  const views = consoleViews(view, { query });
 
   return (
     <PortalShell
@@ -173,15 +146,16 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       viewsSubtitle="Append-only journal"
       inspector={inspected ? <Inspector reference={inspected} closeHref={closeInspectorHref(LEDGER_PATH, query)} user={user} now={now} /> : undefined}
       band={{
-        title: "Ledger",
+        title: TITLES[view],
         suffix: chosenAccount ? chosenAccount.name : asOf ? `as of ${asOf}` : undefined,
+        // Two chips. The whole-journal entry count is dropped on the account view, where the
+        // screen's own tile counts the entries of ONE account and the two figures contradicted each
+        // other with nothing telling them apart (round 1, MEDIUM). The AF-02 modes are in the top
+        // bar of every screen (cycle 2, decision 1).
         meta: (
           <>
             <Chip tone={proof.balanced ? "ok" : "warn"}>{proof.balanced ? "debits = credits" : "UNBALANCED"}</Chip>
-            <Chip tone="neutral">{proof.entryCount} entries</Chip>
-            <Chip tone="neutral">append-only</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
+            {view === "account" ? null : <Chip tone="neutral">{proof.entryCount} entries</Chip>}
           </>
         ),
         actions: (
@@ -215,11 +189,6 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       ) : null}
 
       {view === "flows" ? <FlowsView flows={flows} days={days} query={query} /> : null}
-
-      {/* AF-02, on every console screen: which provider is real and which rail is simulated. */}
-      <div className="notices">
-        <IntegrationModes />
-      </div>
     </PortalShell>
   );
 }

@@ -54,11 +54,47 @@
   overflow-wrap: anywhere;
 }
 
-/* A form above the table it feeds: the reconciliation window and the statement generator. The
- * card and the stacked fields come from the system; the only rule here is a width, so the two or
- * three fields do not stretch across the whole content area and stop reading as one form. */
-.money-form-card {
-  max-width: 460px;
+/* The Decision column of /ops/approvals. It carries the maker-checker rule in words on a waiting
+ * row (cycle 2, decision 15), so it is left aligned and allowed to wrap: right aligned and
+ * nowrap, as the shared .dt-actions cell is, that sentence widened the table past its box at
+ * 1024 px. */
+td.money-decision {
+  text-align: left;
+  white-space: normal;
+  vertical-align: top;
+}
+.money-decision-rule {
+  display: block;
+  max-width: 200px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+/* The rail of a destination stays on one line: the AF-02 words are never split in half by a
+ * wrap. What follows them, the masked tail, may take the next line. */
+.money-rail {
+  white-space: nowrap;
+}
+/* At 1024 px the six columns have about 730 px between them. The decision cell gives way first:
+ * its two buttons stack rather than push the table out of its card. */
+@media (max-width: 1100px) {
+  .money-decide {
+    min-width: 96px;
+  }
+  .money-decision-rule {
+    max-width: 120px;
+  }
+}
+
+/* The identifiers of one break, inside its expansion: a label and its token, one to a line, read
+ * as an ordinary fact rather than hidden behind a dark dot (round 1). The token itself is cut
+ * with an ellipsis by the shared .ref rule and carries its whole value in `title`. */
+.money-references {
+  display: grid;
+  gap: 4px;
+}
+.money-references > span {
+  color: var(--ink-2);
 }
 
 /* The two columns of the statement detail: the movements on the left, the revision facts and
@@ -82,13 +118,45 @@
   }
 }
 
-/* A gap in the shared system, reported to the coordinator and patched here in the meantime.
- * components/ui/charts.tsx draws an HBars fill as a <span> inside .hbar-track, and .hbar-track is
- * not a grid or a flex container, so the fill stays inline: width and height do nothing and every
- * horizontal bar renders at zero size. The track itself escapes the bug only because .hbar-row is
- * a grid and blockifies its own children. One declaration fixes it; it belongs in
- * app/styles/system.css, which this builder does not own, so it is scoped to the charts of this
- * screen until it lands there. */
-.money-charts .hbar-fill {
-  display: block;
+/* --- The breaks board -------------------------------------------------------------------------
+ *
+ * The breaks view of /ops/reconciliation carries three disjoint lists (breaks to act on, probe
+ * payments, explained breaks), so it needs section headings and a note under a bounded table.
+ * Both are one declaration each; nothing here decides a figure or a state. */
+
+/* A heading above one of the three tables. Same size and weight as the console's own headings,
+ * kept in this file because the console stylesheet belongs to another screen. */
+h2.money-heading {
+  margin: 4px 0 10px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* The sentence a bounded table prints INSIDE its own frame, under the legend: same inset and same
+ * size as that legend, so it reads as one more line of the table rather than a stray paragraph. */
+.money-cap {
+  margin: 0;
+  padding: 2px 14px 10px;
+  font-size: 12px;
+}
+
+/* A sentence UNDER a table rather than inside it: what a probe payment is, and the cap notes of
+ * the two lists whose frame has no footer. */
+.money-explainer {
+  margin: -6px 0 20px;
+  max-width: 78ch;
+}
+
+/* The note form of one break, inside that row's menu (components/ui/table.tsx, RowMenu). The
+ * system sizes a menu panel for a list of links; a textarea needs a usable width, so the panel
+ * that holds this form is widened and the field is given a readable height. */
+/* `text-align` is reset because the panel is a child of the row's action cell, and .dt-actions
+ * right-aligns its content; a popover inherits that and the menu title drifted to the right. */
+.pop-menu:has(form.money-explain) {
+  min-width: 320px;
+  text-align: left;
+}
+form.money-explain textarea {
+  min-height: 66px;
+  resize: vertical;
 }

@@ -12,6 +12,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { correctionsOfPolicy } from "@/lib/policy/correction-read";
+import { customerPolicyViews } from "../../../correction-sections";
 import { FormulaLinesTable } from "../../../formula-lines";
 
 // The customer's screen for a correction that costs them more money.
@@ -54,6 +55,7 @@ export default async function ApproveCorrectionPage({
   }
 
   const trail = [{ label: "Your policies", href: "/customer" }, { label: "Correction approval" }];
+  const views = customerPolicyViews(policyId, "Approval", `/policies/${policyId}/corrections/${rebookEventId}/approve`);
 
   if (correction.collection.paidOn) {
     return (
@@ -61,6 +63,7 @@ export default async function ApproveCorrectionPage({
         user={user}
         active="policies"
         trail={trail}
+        views={views}
         band={{ title: "Nothing to approve", suffix: `Policy ${policy.policy_number}`, meta: <Chip tone="ok">paid</Chip> }}
       >
         <EmptyState illustration="all-clear">This difference was already paid on {correction.collection.paidOn}.</EmptyState>
@@ -73,6 +76,7 @@ export default async function ApproveCorrectionPage({
       user={user}
       active="policies"
       trail={trail}
+      views={views}
       band={{
         title: "A correction to approve",
         suffix: `Policy ${policy.policy_number}`,
@@ -81,7 +85,6 @@ export default async function ApproveCorrectionPage({
             <Chip tone={correction.collection.customerApprovedAt ? "ok" : "warn"}>
               {correction.collection.customerApprovedAt ? "approved" : "waiting for you"}
             </Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone="neutral">effective {correction.correctedEffectiveAt}</Chip>
           </>
         ),

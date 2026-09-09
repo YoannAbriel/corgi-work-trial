@@ -40,7 +40,6 @@ export default async function OpsClaimsPage({ searchParams }: { searchParams: Pr
 
   const open = claims.filter((claim) => !claim.position.isClosed);
   const reserveCents = open.reduce((total, claim) => total + claim.position.reserveCents, 0);
-  const paidCents = claims.reduce((total, claim) => total + claim.position.paidCents, 0);
   // A claim whose payment was sent and not confirmed gone by the rail. It is a COUNT of claims,
   // not a subtraction of two totals: this screen adds no arithmetic of its own to money, and
   // "paid" and "settled" are already two folded figures of lib/claims/money-position.ts.
@@ -57,25 +56,16 @@ export default async function OpsClaimsPage({ searchParams }: { searchParams: Pr
       band={{
         title: "Claims",
         suffix: `${claims.length} in total`,
-        meta: (
-          <>
-            <Chip tone={open.length > 0 ? "warn" : "ok"}>{open.length === 0 ? "none open" : `${open.length} open`}</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
-          </>
-        ),
+        // One chip (cycle 2, decision 1): how many claims are open. The AF-02 words are on the
+        // top bar of every workspace screen, and the claim rail says LOCAL SIMULATOR on the row
+        // of every payment it moved, on the claim's own page.
+        meta: <Chip tone={open.length > 0 ? "warn" : "ok"}>{open.length === 0 ? "none open" : `${open.length} open`}</Chip>,
       }}
     >
+      {/* TWO TILES (cycle 2, decision 2): what waits on a person, and the money still expected.
+          The open and closed counts are on the filter chips below, and what each claim has paid
+          is on its own row. */}
       <Stats>
-        <Stat
-          label="Open claims"
-          value={open.length}
-          tone={open.length > 0 ? "warn" : "ok"}
-          href={withParams(PATH, query, { filter: "open" })}
-          note="not closed yet"
-        />
-        <Stat label="Reserve" value={formatCentsAsUsd(reserveCents)} note="still expected on the open claims" />
-        <Stat label="Paid" value={formatCentsAsUsd(paidCents)} note="sent on the rail, returns deducted" />
         <Stat
           label="Waiting payments"
           value={waitingPayments}
@@ -83,6 +73,7 @@ export default async function OpsClaimsPage({ searchParams }: { searchParams: Pr
           tone={waitingPayments > 0 ? "warn" : "neutral"}
           note="sent, not confirmed gone by the rail"
         />
+        <Stat label="Reserve" value={formatCentsAsUsd(reserveCents)} hint="What the open claims are still expected to cost, folded from their own events." />
       </Stats>
 
       <DataTable
@@ -105,12 +96,19 @@ export default async function OpsClaimsPage({ searchParams }: { searchParams: Pr
             </ToolbarCount>
           </Toolbar>
         }
+        // The two columns, then only the statuses the rows below print (cycle 2): "closed" was
+        // defined and "open", which every other row carried, was not.
         legend={
           <Legend
             items={[
               { term: "Reserve", meaning: "what the claim is still expected to cost" },
               { term: "Paid", meaning: "sent on the rail and not returned" },
-              { term: "closed", meaning: "no reserve and no payment can move on it any more" },
+              ...(shown.some((claim) => !claim.position.isClosed)
+                ? [{ term: "open", meaning: "a reserve or a payment can still move on it" }]
+                : []),
+              ...(shown.some((claim) => claim.position.isClosed)
+                ? [{ term: "closed", meaning: "no reserve and no payment can move on it any more" }]
+                : []),
             ]}
           />
         }

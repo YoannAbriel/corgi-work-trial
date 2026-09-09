@@ -1,3 +1,4 @@
+import "@/app/styles/lists.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
@@ -41,6 +42,27 @@ function statusTone(status: PolicyStatus): "ok" | "warn" | "neutral" {
   if (status === "bound") return "ok";
   if (status === "cancelled" || status === "voided") return "neutral";
   return "warn";
+}
+
+// WHAT EACH STATUS MEANS, one clause each. The legend below prints only the ones the reader can
+// see on this page: it used to define "paid not bound", which no row showed, and to define none
+// of the three that were on the screen (round 1, MEDIUM).
+const STATUS_MEANING: Record<PolicyStatus, string> = {
+  draft: "quoted and not sent for payment yet",
+  awaiting_payment: "the customer has been asked to pay",
+  payment_failed: "Stripe refused the payment; the policy is not bound",
+  paid_not_bound: "the customer paid while the broker was not eligible; staff bind it or send the money back",
+  bound: "in force, on the terms this row shows",
+  cancelled: "cover stopped, the unearned premium was refunded",
+  voided: "the issuance was reversed by a correction; the policy never took effect",
+};
+
+// The statuses the rows below actually print, once each, in the order they appear. A legend is a
+// reading of THIS screen, not of the type.
+function statusesOnScreen(rows: { status: PolicyStatus }[]): PolicyStatus[] {
+  const seen: PolicyStatus[] = [];
+  for (const row of rows) if (!seen.includes(row.status)) seen.push(row.status);
+  return seen;
 }
 
 export default async function StaffPoliciesPage({ searchParams }: { searchParams: Promise<Query> }) {
@@ -104,19 +126,17 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
       band={{
         title: "Policies",
         suffix: `${policies.length} across every broker`,
-        meta: (
-          <>
-            {needsAPerson > 0 ? <Chip tone="warn">{needsAPerson} paid, not bound</Chip> : <Chip tone="ok">nothing waiting on a person</Chip>}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-          </>
-        ),
+        // One chip: what is waiting on a person. The AF-02 words are on the top bar of every
+        // workspace screen now (cycle 2, decision 1).
+        meta: needsAPerson > 0 ? <Chip tone="warn">{needsAPerson} paid, not bound</Chip> : <Chip tone="ok">nothing waiting on a person</Chip>,
       }}
     >
+      {/* TWO TILES (cycle 2, decision 2). The total, and the counts per state, are already on the
+          band and on the filter chips of the toolbar; four tiles saying them again were the same
+          figures read three times on one screen. */}
       <Stats>
-        <Stat label="Policies" value={policies.length} note="every broker, every state" />
-        <Stat label="Bound" value={countByFilter("bound")} tone="ok" href={withParams(PATH, query, { filter: "bound" })} note="in force today" />
         <Stat label="Waiting" value={countByFilter("waiting")} tone={countByFilter("waiting") > 0 ? "warn" : "neutral"} href={withParams(PATH, query, { filter: "waiting" })} note="drafts, unpaid, or paid and not bound" />
-        <Stat label="Annual premium bound" value={formatCentsAsUsd(boundPremiumCents)} tone="accent" note="terms in force today, before tax and fee" />
+        <Stat label="Annual premium bound" value={formatCentsAsUsd(boundPremiumCents)} tone="accent" hint="The terms in force today, before state tax and the flat policy fee." />
       </Stats>
 
       <DataTable
@@ -133,7 +153,7 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
                 </FilterChip>
               ))}
             </ToolbarGroup>
-            <form method="get" action={PATH}>
+            <form method="get" action={PATH} className="lists-search">
               {filter ? <input type="hidden" name="filter" value={filter} /> : null}
               <input type="search" name="q" defaultValue={search} placeholder="Policy number, customer, broker" aria-label="Search policies" />
               <button type="submit" className="secondary">
@@ -150,7 +170,8 @@ export default async function StaffPoliciesPage({ searchParams }: { searchParams
           <Legend
             items={[
               { term: "Total", meaning: "annual premium plus state tax and the flat fee, in force today or on the first day of the term" },
-              { term: "paid not bound", meaning: "the customer paid while the broker was not eligible; staff bind it or send the money back" },
+              // Only the statuses a reader can see below, in the order the rows use them.
+              ...statusesOnScreen(shown).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),
               { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
             ]}
           />

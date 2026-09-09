@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Inspector } from "@/components/ui/inspector";
 import { DataTable, ExpandHead, ExpandRow, FactGrid, Num, Ref, RowMenu } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import Link from "next/link";
@@ -27,7 +28,17 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 import { evidenceFromJournal, explainClaimIncurred } from "@/lib/money/explain";
 import { SIMULATED_REACHABLE_ROUTING_NUMBERS } from "@/lib/rails/bank-verification-simulator";
 import { SIMULATED_SETTLEMENT_DELAY_DAYS } from "@/lib/rails/simulator";
-import { firstValue, pickView, toastsFromQuery, withParams, type Query, type ToastNotice } from "@/lib/ui/views";
+import {
+  closeInspectorHref,
+  firstValue,
+  inspectHref,
+  inspectedReference,
+  pickView,
+  toastsFromQuery,
+  withParams,
+  type Query,
+  type ToastNotice,
+} from "@/lib/ui/views";
 
 // One claim: what it has cost, what it still expects to cost, where its payments are on the
 // simulated rail, and every journal entry it produced.
@@ -40,18 +51,16 @@ import { firstValue, pickView, toastsFromQuery, withParams, type Query, type Toa
 // The journal is the same story in double entry. If the two ever disagree, one of them is wrong
 // and the page shows both rather than reconciling them for the reader.
 //
-// Layout (interface system of 2026-09-09): the sticky band names the claim and the mode of the
-// rail its money moves on, and four views hold the rest: the position and the room left before a
-// limit, the payments, the journal, the actions. F-YA-05 says a primary action is never hidden,
-// so the forms are open cards in their own view and the band links straight to it. Every form
-// keeps its endpoint and its fields; the server checks the role, the ceilings and the approval
-// again whatever this page displayed.
-const VIEWS = ["overview", "payments", "journal", "actions"] as const;
+// Layout, cycle 2 (Yoann, decision 16): TWO views instead of four. The overview is the position,
+// the room left before each limit, the loss, the bank account and, at the bottom, the three
+// decisions as one compact panel; the payments view is the payments with the rail in the
+// expansion and the journal under them. F-YA-05 still holds, so the forms are open on the page
+// and never behind a fold. Every form keeps its endpoint and its fields; the server checks the
+// role, the ceilings and the approval again whatever this page displayed.
+const VIEWS = ["overview", "payments"] as const;
 const VIEW_LABEL: Record<(typeof VIEWS)[number], string> = {
   overview: "Overview",
   payments: "Payments",
-  journal: "Journal",
-  actions: "Actions",
 };
 
 export default async function ClaimPage({
@@ -103,6 +112,10 @@ export default async function ClaimPage({
   const now = new Date();
 
   const canAct = user.role === "staff_ops" && !claim.position.isClosed;
+  // The inspector, as a drawer over the content: a rail reference or an operation id opens its
+  // whole trail instead of being a code token nobody can follow (cycle 2, decision 5). This whole
+  // screen is staff only, checked above, so there is no role test left to do here.
+  const inspected = inspectedReference(query.inspect);
   const perOccurrenceLeftCents = claim.perOccurrenceLimitCents - claim.position.paidCents - claim.pendingCents;
   const aggregateLeftCents = claim.aggregateLimitCents - claim.policyCommittedCents;
   const reserveLeftCents = claim.position.reserveCents - claim.pendingCents;
@@ -114,6 +127,11 @@ export default async function ClaimPage({
   const bankOutcome = firstValue(query.bank);
   const paymentOutcome = firstValue(query.payment);
   const closedOutcome = firstValue(query.closed);
+  // POST /api/claims/[claimId] redirects here with ?reserved=<cents> after a reserve is set or
+  // adjusted, and the screen said nothing (feedback audit of 2026-09-09 19:10). The parameter is
+  // the delta the reserve moved by, in integer cents, formatted here like every other figure.
+  const reservedOutcome = firstValue(query.reserved);
+  const reservedDeltaCents = reservedOutcome !== undefined && /^-?\d+$/.test(reservedOutcome) ? Number(reservedOutcome) : null;
 
   const toasts: ToastNotice[] = [
     ...toastsFromQuery(query, { error: { tone: "error", title: "Refused" } }),
@@ -121,6 +139,21 @@ export default async function ClaimPage({
     ...(bankOutcome ? [{ tone: "info" as const, title: "Bank check (LOCAL SIMULATOR)", text: bankOutcome, param: "bank" }] : []),
     ...(paymentOutcome ? [{ tone: "info" as const, title: "Payment", text: paymentOutcome.replace(/[-_]/g, " "), param: "payment" }] : []),
     ...(closedOutcome ? [{ tone: "ok" as const, title: "Claim closed", text: "Nothing more can be paid on it.", param: "closed" }] : []),
+    ...(reservedOutcome !== undefined
+      ? [
+          {
+            tone: "ok" as const,
+            title: "Reserve set",
+            text:
+              reservedDeltaCents === null
+                ? "The reserve was set on this claim."
+                : reservedDeltaCents === 0
+                  ? "The reserve did not move, so no entry was posted."
+                  : `${formatCentsAsUsd(reservedDeltaCents)} was posted to the ledger.`,
+            param: "reserved",
+          },
+        ]
+      : []),
   ];
 
   const notices = [
@@ -137,44 +170,49 @@ export default async function ClaimPage({
       user={user}
       toasts={toasts}
       viewsSubtitle={claim.claimNumber}
+      inspector={
+        inspected ? (
+          <Inspector reference={inspected} closeHref={closeInspectorHref(path, query)} user={user} now={now} />
+        ) : undefined
+      }
       views={VIEWS.map((one) => ({
         key: one,
         label: VIEW_LABEL[one],
-        href: withParams(path, query, { view: one }),
+        href: withParams(path, query, { view: one, inspect: null }),
         current: one === view,
-        count: one === "payments" ? payments.length : one === "journal" ? entries.length : undefined,
+        // A count only where a person must act (cycle 2, decision 3): payments waiting for a
+        // second person or ready to be sent, never the number of rows a view holds.
+        count: one === "payments" && waitingForApproval + readyToSend > 0 ? waitingForApproval + readyToSend : undefined,
       }))}
       trail={[{ label: "Claims", href: "/ops/claims" }, { label: `Claim ${claim.claimNumber}` }]}
       band={{
         title: `Claim ${claim.claimNumber}`,
         suffix: claim.policyNumber,
+        // Two chips (cycle 2, decision 1): the claim's state, and the one count a person has to
+        // act on, which is a payment waiting for a second person or ready to be sent. The AF-02
+        // words are the grey line in the top bar, and every payment row still says LOCAL
+        // SIMULATOR itself. The reserve and the bank account are facts of the cards below.
         meta: (
           <>
             <Chip tone={claim.position.isClosed ? "neutral" : "ok"}>{claim.position.isClosed ? "closed" : "open"}</Chip>
-            {claim.position.hasReserve ? null : <Chip tone="warn">no reserve yet</Chip>}
-            {bankAccount ? (
-              <Chip tone={bankAccount.verificationStatus === "verified" ? "ok" : "warn"}>
-                bank account {bankAccount.verificationStatus}
-              </Chip>
-            ) : (
-              <Chip tone="warn">no bank account</Chip>
-            )}
-            {waitingForApproval > 0 ? <Chip tone="warn">{waitingForApproval} waiting for approval</Chip> : null}
-            {readyToSend > 0 ? <Chip tone="warn">{readyToSend} ready to send</Chip> : null}
-            {/* AF-02: the rail this claim's money moves on, in the band, on every view. */}
-            <Chip tone="neutral">claim payout rail: LOCAL SIMULATOR</Chip>
+            {waitingForApproval > 0 ? (
+              <Chip tone="warn">{waitingForApproval} waiting for approval</Chip>
+            ) : readyToSend > 0 ? (
+              <Chip tone="warn">{readyToSend} ready to send</Chip>
+            ) : null}
           </>
         ),
+        // Two actions, three words each (cycle 2, decision 8). F-YA-05: the decisions are forms,
+        // and a form is not a band button, so the band points at the panel that holds them, open,
+        // at the bottom of the overview.
         actions: (
           <>
             <Link href={`/policies/${claim.policyId}`} prefetch={false} className="button-link secondary">
               The policy
             </Link>
-            {/* F-YA-05: the actions are forms, and a form is not a band button. The band takes the
-                reader to the view that holds them, open, one card each. */}
             {canAct ? (
-              <Link href={withParams(path, query, { view: "actions" })} prefetch={false} className="button-link">
-                Reserve, pay, close
+              <Link href={`${withParams(path, query, { view: "overview" })}#claim-actions`} prefetch={false} className="button-link">
+                Reserve or pay
               </Link>
             ) : null}
           </>
@@ -248,38 +286,37 @@ export default async function ClaimPage({
               }
               note="paid plus reserve"
             />
+            {/* Four tiles, not five (cycle 2, decision 2): what is left on THIS claim is the
+                figure a person acts on before paying. What is left across the policy is a row of
+                the second chart with its own figure, so it is read there and not twice. */}
             <Stat
               label="Per-occurrence left"
               value={formatCentsAsUsd(perOccurrenceLeftCents)}
               tone={perOccurrenceLeftCents <= 0 ? "danger" : "neutral"}
               note={`of ${formatCentsAsUsd(claim.perOccurrenceLimitCents)}, on this claim`}
             />
-            <Stat
-              label="Aggregate left"
-              value={formatCentsAsUsd(aggregateLeftCents)}
-              tone={aggregateLeftCents <= 0 ? "danger" : "neutral"}
-              note={`of ${formatCentsAsUsd(claim.aggregateLimitCents)}, across the policy`}
-            />
           </Stats>
 
           <ChartRow>
             <Chart title="Against the per-occurrence limit" figure={formatCentsAsUsd(claim.perOccurrenceLimitCents)}>
-              {/* The wrapper carries the one rule the shared bars are missing, see
-                  app/styles/policy-detail.css. */}
-              <div className="pd-bars">
               <HBars
                 caption="Incurred and paid on this claim against the per-occurrence limit"
                 max={claim.perOccurrenceLimitCents}
                 rows={[
                   { label: "Incurred", value: claim.position.incurredCents, display: formatCentsAsUsd(claim.position.incurredCents) },
                   { label: "Paid", value: claim.position.paidCents, display: formatCentsAsUsd(claim.position.paidCents), color: "var(--chart-2)" },
-                  { label: "Asked for", value: claim.pendingCents, display: formatCentsAsUsd(claim.pendingCents), color: "var(--chart-3)" },
+                  {
+                    label: "Asked for",
+                    value: claim.pendingCents,
+                    // Nothing has been asked for, said in words: "$0.00" beside two real amounts
+                    // reads as a figure that was computed rather than as an empty queue.
+                    display: claim.pendingCents === 0 ? "nothing asked" : formatCentsAsUsd(claim.pendingCents),
+                    color: "var(--chart-3)",
+                  },
                 ]}
               />
-              </div>
             </Chart>
             <Chart title="Against the aggregate limit" figure={formatCentsAsUsd(claim.aggregateLimitCents)}>
-              <div className="pd-bars">
               <HBars
                 caption="Paid and asked for across every claim of this policy against the aggregate limit"
                 max={claim.aggregateLimitCents}
@@ -292,7 +329,6 @@ export default async function ClaimPage({
                   { label: "Left", value: aggregateLeftCents, display: formatCentsAsUsd(aggregateLeftCents), color: "var(--chart-3)" },
                 ]}
               />
-              </div>
             </Chart>
           </ChartRow>
 
@@ -336,12 +372,12 @@ export default async function ClaimPage({
                   </div>
                   <div>
                     <dt>Result</dt>
-                    <dd>
-                      {bankAccount.reason}
-                      <SandboxReferences
-                        references={[{ label: "Simulated account token (payment destination)", value: bankAccount.accountToken }]}
-                      />
-                    </dd>
+                    <dd>{bankAccount.reason}</dd>
+                    {/* The disclosure is a row of its own under the pair, never inside the value
+                        column, where it broke the fact row apart (round 1, MEDIUM). */}
+                    <SandboxReferences
+                      references={[{ label: "Simulated account token (payment destination)", value: bankAccount.accountToken }]}
+                    />
                   </div>
                 </dl>
               ) : (
@@ -349,12 +385,10 @@ export default async function ClaimPage({
                   No bank account recorded yet. A payment cannot be requested without a verified one.
                 </EmptyState>
               )}
-              <p className="pd-note">
-                LOCAL SIMULATOR: a simulated ownership check, not a live bank integration. It says verified when the
-                account holder name matches the claimant and the routing number is one this simulator can reach (
-                {SIMULATED_REACHABLE_ROUTING_NUMBERS.join(" or ")}), and failed otherwise. Only the last four digits and
-                a token are stored.
-              </p>
+              {/* AF-02 on the record itself, in one line. What the simulator does and does not do
+                  is under its own heading in About (round 1, MEDIUM: four lines of explanation in
+                  the reading flow of a card). */}
+              <p className="pd-note">LOCAL SIMULATOR: a simulated ownership check, not a live bank integration.</p>
             </section>
           </div>
 
@@ -408,6 +442,96 @@ export default async function ClaimPage({
             </tbody>
           </DataTable>
 
+          {/* The three decisions, one compact panel at the bottom of the overview (cycle 2,
+              decision 16): they were a view of their own holding three tall cards. Every form
+              keeps its endpoint, its method and its field names; the server checks the role, the
+              reserve available, both limits and the approval again whatever this panel showed.
+              The bank account is not a decision about this claim's money, so it sits in the menu
+              beside the title rather than taking a third of the panel. */}
+          <section className="card" id="claim-actions">
+            <div className="pd-panel-head">
+              <h2>{canAct ? "Reserve, pay, close" : "Decisions"}</h2>
+              {canAct ? (
+                <span className="pd-panel-menu">
+                  <RowMenu id="bank-account" label="Record a bank account">
+                    <span className="pop-title">Bank account (LOCAL SIMULATOR)</span>
+                    <form method="post" action={`/api/claims/${claim.claimId}`} className="card pd-menu-form">
+                      <input type="hidden" name="action" value="add-bank-account" />
+                      <label htmlFor="accountHolderName">Claimant&apos;s account holder name</label>
+                      <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
+                      <label htmlFor="routingNumber">Routing number (nine digits)</label>
+                      <input
+                        id="routingNumber"
+                        name="routingNumber"
+                        autoComplete="off"
+                        spellCheck={false}
+                        inputMode="numeric"
+                        placeholder="110000000"
+                        required
+                      />
+                      <label htmlFor="accountNumber">Account number</label>
+                      <input
+                        id="accountNumber"
+                        name="accountNumber"
+                        autoComplete="off"
+                        spellCheck={false}
+                        inputMode="numeric"
+                        placeholder="000123456789"
+                        required
+                      />
+                      <SubmitButton className="secondary">Check and record</SubmitButton>
+                    </form>
+                  </RowMenu>
+                </span>
+              ) : null}
+            </div>
+            {canAct ? (
+              <>
+                <div className="pd-actions">
+                  <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+                    <input type="hidden" name="action" value="set-reserve" />
+                    <label htmlFor="reserveAmount">
+                      {claim.position.hasReserve ? "Adjust the reserve to (USD)" : "Set the reserve to (USD)"}
+                    </label>
+                    <MoneyAmountInput id="reserveAmount" name="reserveAmount" placeholder="5,000.00" required />
+                    <label htmlFor="reserveNote">Why (optional)</label>
+                    <input id="reserveNote" name="note" placeholder="engineer's estimate revised" />
+                    <SubmitButton className="secondary">Set reserve</SubmitButton>
+                  </form>
+
+                  <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+                    <input type="hidden" name="action" value="request-payment" />
+                    <label htmlFor="paymentAmount">Pay the claimant (USD)</label>
+                    <MoneyAmountInput id="paymentAmount" name="paymentAmount" placeholder="1,200.00" required />
+                    <SubmitButton className="orange">Request payment</SubmitButton>
+                  </form>
+
+                  {/* Closing is offered only when there is nothing left to pay or to reserve; the
+                      server refuses it in every other case, so the form appears when it would be
+                      accepted rather than as a button that always fails. */}
+                  {claim.position.reserveCents === 0 && claim.pendingCents === 0 ? (
+                    <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
+                      <input type="hidden" name="action" value="close" />
+                      <label htmlFor="closeNote">Closing note (optional)</label>
+                      <input id="closeNote" name="note" placeholder="settled in full" />
+                      <SubmitButton className="danger">Close claim</SubmitButton>
+                    </form>
+                  ) : null}
+                </div>
+                <p className="pd-note">
+                  {formatCentsAsUsd(reserveLeftCents)} of reserve is available, and anything above{" "}
+                  {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} on this claim waits for a second person.
+                </p>
+              </>
+            ) : (
+              <EmptyState illustration="sleeping-corgi">
+                {claim.position.isClosed
+                  ? "This claim is closed: nothing can be reserved, paid or returned on it."
+                  : "An approver reads this screen; staff operations act on it."}
+              </EmptyState>
+            )}
+          </section>
+
           <About>
             <h4>Incurred = paid + reserve</h4>
             <p>
@@ -428,21 +552,33 @@ export default async function ClaimPage({
               {SIMULATED_SETTLEMENT_DELAY_DAYS} days or when a person presses settle, and a return puts the money back. A
               real rail would send those events itself.
             </p>
+            <h4>Every rule is checked again</h4>
+            <p>
+              The server checks the role, the reserve available, both limits and the approval when a form is submitted,
+              whatever this screen showed. A refusal comes back as a sentence at the top.
+            </p>
+            <h4>The bank check is a simulator</h4>
+            <p>
+              LOCAL SIMULATOR: a simulated ownership check, not a live bank integration. It says verified when the
+              account holder name matches the claimant and the routing number is one this simulator can reach (
+              {SIMULATED_REACHABLE_ROUTING_NUMBERS.join(" or ")}), and failed otherwise. Only the last four digits and a
+              token are stored.
+            </p>
           </About>
         </>
       ) : null}
 
       {view === "payments" ? (
         <>
-          {/* The wrapper carries the rule that keeps a closed row menu closed, see
-              app/styles/policy-detail.css. */}
-          <div className="pd-rows">
           <DataTable
             ariaLabel="Claim payments"
             legend={
               <Legend
                 items={[
+                  { term: "waiting for approval", meaning: "above the threshold: a second person decides before anything moves" },
                   { term: "ready to send", meaning: "approved or below the threshold, waiting for a person to send it" },
+                  { term: "rejected", meaning: "the second person refused it; nothing was sent" },
+                  { term: "refused", meaning: "a rule refused it: the reserve, a limit, or the maker-checker gate" },
                   { term: "sent", meaning: "on the simulated rail, not settled yet" },
                   { term: "settled", meaning: "the simulator confirmed the money arrived" },
                   { term: "returned", meaning: "the bank sent it back and the reserve was restored" },
@@ -456,7 +592,6 @@ export default async function ClaimPage({
                 <th className="nowrap">When</th>
                 <th className="num">Amount</th>
                 <th>Status</th>
-                <th>Rail</th>
                 <th>Approval</th>
                 <th>Action</th>
               </tr>
@@ -464,7 +599,7 @@ export default async function ClaimPage({
             {payments.length === 0 ? (
               <tbody>
                 <tr>
-                  <td colSpan={7} className="dt-empty">
+                  <td colSpan={6} className="dt-empty">
                     <EmptyState illustration="umbrella">Nothing has been paid on this claim.</EmptyState>
                   </td>
                 </tr>
@@ -475,7 +610,7 @@ export default async function ClaimPage({
                 return (
                   <ExpandRow
                     key={payment.operationId}
-                    columns={6}
+                    columns={5}
                     cells={
                       <>
                         <td className="nowrap">
@@ -495,14 +630,18 @@ export default async function ClaimPage({
                             {payment.railStatus}
                           </Chip>
                           {payment.settlementDate ? (
-                            <span className="dt-sub">
+                            <span className="dt-sub nowrap">
                               {payment.railStatus === "sent" ? "settles on " : "on "}
                               {payment.settlementDate}
                             </span>
                           ) : null}
+                          {/* AF-02: the rail of every claim payment, named on the row itself. It
+                              was a column of its own repeating one word on every row, which cost
+                              the date beside it enough room to wrap mid-date at 1024 px (round 1,
+                              MEDIUM). Same words, same row, one line under the state they
+                              qualify. */}
+                          <span className="dt-sub nowrap">LOCAL SIMULATOR</span>
                         </td>
-                        {/* AF-02: the rail of every claim payment, named on the row itself. */}
-                        <td className="nowrap">LOCAL SIMULATOR</td>
                         <td>
                           {approval === null || approval === undefined ? (
                             <span className="dt-muted">not needed</span>
@@ -538,7 +677,15 @@ export default async function ClaimPage({
                         },
                         {
                           label: "Transfer",
-                          value: payment.transferRef ? <Ref value={payment.transferRef} /> : "not sent yet",
+                          value: payment.transferRef ? (
+                            <Ref
+                              value={payment.transferRef}
+                              inspectHref={inspectHref(path, query, payment.transferRef)}
+                              open={inspected === payment.transferRef}
+                            />
+                          ) : (
+                            "not sent yet"
+                          ),
                         },
                       ]}
                     />
@@ -565,7 +712,18 @@ export default async function ClaimPage({
               })
             )}
           </DataTable>
-          </div>
+
+          {/* The same money in double entry, under the payments it explains rather than in a view
+              of its own (cycle 2, decision 16). Every line goes through the shared table, so an
+              account and its amount stay side by side at 1920 px (decision 10). */}
+          <section className="card">
+            <h2>Entries</h2>
+            {entries.length === 0 ? (
+              <EmptyState illustration="open-ledger">Nothing posted yet: the first entry appears when a reserve is set.</EmptyState>
+            ) : (
+              <JournalTable entries={entries} panelKey="claim" ariaLabel="Claim journal" />
+            )}
+          </section>
 
           <About>
             <h4>The rail is a simulator</h4>
@@ -578,22 +736,6 @@ export default async function ClaimPage({
               A payment counts as paid from the moment it is sent on the rail. A return puts the money back and restores
               the reserve; it is a new entry, never an edit of the first one.
             </p>
-          </About>
-        </>
-      ) : null}
-
-      {view === "journal" ? (
-        <>
-          <section className="card">
-            <h2>Journal entries of this claim</h2>
-            {entries.length === 0 ? (
-              <EmptyState illustration="open-ledger">Nothing posted yet: the first entry appears when a reserve is set.</EmptyState>
-            ) : (
-              <JournalTable entries={entries} panelKey="claim" ariaLabel="Claim journal" />
-            )}
-          </section>
-
-          <About>
             <h4>The same story in double entry</h4>
             <p>
               Setting a reserve, paying, settling and returning each append their own balanced entry. The position at the
@@ -603,104 +745,6 @@ export default async function ClaimPage({
         </>
       ) : null}
 
-      {view === "actions" ? (
-        <>
-          {canAct ? (
-            <div className="cards">
-              <section className="card pd-form-card">
-                <h2>{claim.position.hasReserve ? "Adjust the reserve" : "Set the reserve"}</h2>
-                <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-                  <input type="hidden" name="action" value="set-reserve" />
-                  <label htmlFor="reserveAmount">
-                    {claim.position.hasReserve ? "Adjust the reserve to (US dollars)" : "Set the reserve to (US dollars)"}
-                  </label>
-                  <MoneyAmountInput id="reserveAmount" name="reserveAmount" placeholder="5,000.00" required />
-                  <label htmlFor="reserveNote">Why (optional)</label>
-                  <input id="reserveNote" name="note" placeholder="engineer's estimate revised" />
-                  <SubmitButton className="secondary">
-                    {claim.position.hasReserve ? "Adjust the reserve" : "Set the reserve"}
-                  </SubmitButton>
-                </form>
-              </section>
-
-              <section className="card pd-form-card">
-                <h2>Record a bank account</h2>
-                <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-                  <input type="hidden" name="action" value="add-bank-account" />
-                  <label htmlFor="accountHolderName">Claimant&apos;s account holder name (LOCAL SIMULATOR)</label>
-                  <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
-                  <label htmlFor="routingNumber">Routing number (nine digits)</label>
-                  <input
-                    id="routingNumber"
-                    name="routingNumber"
-                    autoComplete="off"
-                    spellCheck={false}
-                    inputMode="numeric"
-                    placeholder="110000000"
-                    required
-                  />
-                  <label htmlFor="accountNumber">Account number</label>
-                  <input
-                    id="accountNumber"
-                    name="accountNumber"
-                    autoComplete="off"
-                    spellCheck={false}
-                    inputMode="numeric"
-                    placeholder="000123456789"
-                    required
-                  />
-                  <SubmitButton className="secondary">Check ownership and record the account</SubmitButton>
-                </form>
-              </section>
-
-              <section className="card pd-form-card">
-                <h2>Pay the claimant</h2>
-                <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-                  <input type="hidden" name="action" value="request-payment" />
-                  <label htmlFor="paymentAmount">Pay the claimant (US dollars)</label>
-                  <MoneyAmountInput id="paymentAmount" name="paymentAmount" placeholder="1,200.00" required />
-                  <SubmitButton className="orange">Request this payment</SubmitButton>
-                </form>
-                <p className="pd-note">
-                  {formatCentsAsUsd(reserveLeftCents)} of reserve is available, and anything above{" "}
-                  {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} on this claim waits for a second person.
-                </p>
-              </section>
-
-              {claim.position.reserveCents === 0 && claim.pendingCents === 0 ? (
-                <section className="card pd-form-card">
-                  <h2>Close this claim</h2>
-                  <form method="post" action={`/api/claims/${claim.claimId}`} className="card">
-                    <input type="hidden" name="action" value="close" />
-                    <label htmlFor="closeNote">Closing note (optional)</label>
-                    <input id="closeNote" name="note" placeholder="settled in full" />
-                    <SubmitButton className="danger">Close this claim</SubmitButton>
-                  </form>
-                </section>
-              ) : null}
-            </div>
-          ) : (
-            <EmptyState illustration="sleeping-corgi">
-              {claim.position.isClosed
-                ? "This claim is closed: nothing can be reserved, paid or returned on it."
-                : "An approver reads this screen; staff operations act on it."}
-            </EmptyState>
-          )}
-
-          <About>
-            <h4>Every rule is checked again</h4>
-            <p>
-              The server checks the role, the reserve available, both limits and the approval when the form is submitted,
-              whatever this screen showed. A refusal comes back as a sentence at the top.
-            </p>
-            <h4>The bank check is simulated</h4>
-            <p>
-              LOCAL SIMULATOR: it says verified when the account holder name matches the claimant and the routing number
-              is one this simulator can reach. Only the last four digits and a token are stored.
-            </p>
-          </About>
-        </>
-      ) : null}
     </PortalShell>
   );
 }
