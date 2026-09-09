@@ -237,11 +237,23 @@ export type McpCallRecord = {
 // One row per call, always, whatever the answer was. It is written after the answer is built,
 // so a slow tool does not hold a row open, and it never carries the arguments themselves: only
 // their fingerprint (hashArguments above) and one sanitised sentence.
+//
+// THE LAST BOUND BEFORE THE ROW IS WRITTEN. The callers already choose fixed sentences rather
+// than echoing the caller (lib/mcp/jsonrpc.ts, app/api/mcp/route.ts), and this is the second
+// line: three lengths, applied here so that no future caller of this function can put an
+// unbounded string into a table that has an UPDATE trigger, a DELETE trigger and a TRUNCATE
+// trigger (review finding F-B11-02).
+const LONGEST_METHOD = 64;
+const LONGEST_TOOL_NAME = 64;
+const LONGEST_DETAIL = 500;
+
 export async function recordMcpCall(record: McpCallRecord, database: postgres.Sql = sql): Promise<void> {
   await database`
     insert into mcp_calls (api_key_id, method, tool, arguments_hash, outcome, detail, duration_ms)
-    values (${record.apiKeyId}, ${record.method}, ${record.tool}, ${record.argumentsHash},
-            ${record.outcome}, ${record.detail === null ? null : record.detail.slice(0, 500)},
+    values (${record.apiKeyId}, ${record.method.slice(0, LONGEST_METHOD)},
+            ${record.tool === null ? null : record.tool.slice(0, LONGEST_TOOL_NAME)},
+            ${record.argumentsHash},
+            ${record.outcome}, ${record.detail === null ? null : record.detail.slice(0, LONGEST_DETAIL)},
             ${Math.max(0, Math.round(record.durationMs))})
   `;
 }

@@ -8,7 +8,7 @@ import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { endorsementCheckoutIdempotencyKey } from "@/lib/money/idempotency";
 import { foldPolicyEvents, refreshPolicyCurrent } from "@/lib/policy/current";
-import { applyEndorsement, EndorsementRefused, requireLiveRequest } from "@/lib/policy/endorse";
+import { applyEndorsement, EndorsementRefused, recomputedQuoteHash, requireLiveRequest } from "@/lib/policy/endorse";
 import { endorsementRequestStanding, readEndorsementRequest, type EndorsementRequest } from "@/lib/policy/endorsement-requests";
 import { policyWasVoided } from "@/lib/policy/status";
 import { assertStripeSandbox, stripe } from "@/lib/stripe";
@@ -254,6 +254,11 @@ export async function recordSuccessfulEndorsementPayment(
     await parkPaymentWithoutApplying(database, link, payment, reason);
     return { kind: "application_refused", reason };
   }
+  const quoteRefusal = quoteBindingRefusal(link, request);
+  if (quoteRefusal) {
+    await parkPaymentWithoutApplying(database, link, payment, quoteRefusal);
+    return { kind: "application_refused", reason: quoteRefusal };
+  }
   const standing = await endorsementRequestStanding(database, request);
   if (standing.state === "superseded") {
     const reason = `the quote was superseded by a later ${standing.supersededByEventType ?? "event"} before the payment arrived`;
@@ -295,6 +300,10 @@ export async function retryEndorsementApplication(
   if (!request) {
     return { kind: "refused", reason: `endorsement request ${link.requestEventId} cannot be read` };
   }
+  const quoteRefusal = quoteBindingRefusal(link, request);
+  if (quoteRefusal) {
+    return { kind: "refused", reason: quoteRefusal };
+  }
   const standing = await endorsementRequestStanding(database, request);
   if (standing.state === "superseded" || standing.state === "awaiting_approval") {
     return { kind: "refused", reason: `the quote is ${standing.state.replace("_", " ")}: it cannot be applied` };
@@ -311,6 +320,34 @@ export async function retryEndorsementApplication(
   return postDeltaAndApply(database, link, request, payment, input.actorUserId);
 }
 
+// The quote stopped being applicable between the checks before the lock and the lock itself.
+// Thrown inside the posting transaction so that nothing is journaled, and caught just outside it
+// so the money can be parked.
+class EndorsementNoLongerApplicable extends Error {}
+
+// THE QUOTE THIS PAYMENT WAS BOUND TO, CHECKED AT POSTING TIME (review finding F-B4-07).
+//
+// Migration 0009 says of endorsement_collections.quote_hash: "Recomputed and compared at posting
+// time, so a payment can never apply figures the customer did not approve." Nothing read the
+// column, so the sentence described a control that did not exist; the real protection came from
+// the request event, one step earlier. Two comparisons make it true, and both are cheap:
+//
+//   1. the hash STORED on the link, decided at checkout, is still the hash on the request event;
+//   2. that hash is what the six facts on the request event actually hash to.
+//
+// Neither can fail on any path this build has: the link row is append-only and the request event
+// is append-only, so the pair cannot drift. It fails closed if a future path ever writes one
+// without the other, and the money is parked rather than applied against figures nobody agreed.
+function quoteBindingRefusal(link: EndorsementCollection, request: EndorsementRequest): string | null {
+  if (link.quoteHash !== request.figures.quoteHash) {
+    return "this payment was bound to a different quote from the one on the endorsement request; it cannot be applied";
+  }
+  if (recomputedQuoteHash(request) !== request.figures.quoteHash) {
+    return "the figures on the endorsement request do not match their own quote hash; the delta cannot be applied";
+  }
+  return null;
+}
+
 // The one posting transaction: the four entries, the 'succeeded' status (once), the 'endorsed'
 // event and the refreshed cache. Either the endorsement is in force and the ledger shows the
 // money, or nothing happened.
@@ -323,6 +360,35 @@ async function postDeltaAndApply(
 ): Promise<EndorsementCollectionOutcome> {
   try {
     await database.begin(async (transaction) => {
+      // TWO LOCKS, ALWAYS IN THIS ORDER. This is the only transaction that holds both, and the
+      // order is what keeps it that way: everything else takes one or the other on its own
+      // (recordEndorsementRequest and the corrections take the policy; the collection handlers
+      // take the operation), so no cycle can form.
+      //
+      // The policy first, the same lock recordEndorsementRequest takes (review finding F-B4-12).
+      // Without it the checks above ran outside any lock: a new request could commit between the
+      // standing check and the 'endorsed' insert, and this payment would apply a quote that had
+      // just been superseded. From here until this transaction ends, no new request on this
+      // policy can commit.
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.policyId}))`;
+      // Then the money operation (review finding F-B2-21): the late checkout.session.completed
+      // handler takes the same lock, so it can only look at the operation after this posting has
+      // committed.
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.operationId}))`;
+      // And the standing is read AGAIN, under the policy lock, because a lock cannot undo a
+      // request that committed a moment before it was taken. 'applied' is deliberately not
+      // handled here: it is the unique-violation branch below, which can tell an already-posted
+      // delta from a delta another attempt applied.
+      const standingUnderLock = await endorsementRequestStanding(transaction, request);
+      if (standingUnderLock.state === "superseded") {
+        throw new EndorsementNoLongerApplicable(
+          `the quote was superseded by a later ${standingUnderLock.supersededByEventType ?? "event"} while the payment was being applied`,
+        );
+      }
+      if (standingUnderLock.state === "awaiting_approval") {
+        throw new EndorsementNoLongerApplicable("the customer has not approved this endorsement");
+      }
+
       const { terms } = await foldPolicyEvents(transaction, link.policyId);
       // Was this delta parked in the suspense account at receipt (rule 14)? Then the cash is
       // applied, not booked a second time.
@@ -359,6 +425,14 @@ async function postDeltaAndApply(
     });
     return { kind: "posted" };
   } catch (error) {
+    if (error instanceof EndorsementNoLongerApplicable) {
+      // The transaction rolled back, so nothing of the endorsement was applied. The money is
+      // real all the same, so it is parked exactly as the checks before the lock park it
+      // (review finding F-B4-05). Parking is idempotent, so a payment already parked by an
+      // earlier delivery stays parked once.
+      await parkPaymentWithoutApplying(database, link, payment, error.message);
+      return { kind: "application_refused", reason: error.message };
+    }
     if (isUniqueViolation(error)) {
       // Either the journal key (this operation already posted the delta) or the
       // one-endorsement-per-request index (another attempt applied it). The proof of a posting
@@ -422,6 +496,8 @@ type EndorsementCollection = {
   policyNumber: string;
   brokerId: string;
   requestEventId: string;
+  // The quote the payment was bound to at checkout time, as stored on the link row.
+  quoteHash: string;
   amountCents: number;
   deltaPremiumCents: number;
   deltaTaxCents: number;
@@ -435,6 +511,7 @@ async function loadEndorsementCollection(database: postgres.Sql, operationId: st
       policy_number: string;
       broker_id: string;
       request_event_id: string;
+      quote_hash: string;
       amount_cents: string;
       delta_premium_cents: string;
       delta_tax_cents: string;
@@ -445,6 +522,7 @@ async function loadEndorsementCollection(database: postgres.Sql, operationId: st
            policy.policy_number as policy_number,
            policy.broker_id     as broker_id,
            link.request_event_id,
+           link.quote_hash,
            operation.amount_cents,
            link.delta_premium_cents,
            link.delta_tax_cents
@@ -462,6 +540,7 @@ async function loadEndorsementCollection(database: postgres.Sql, operationId: st
     policyNumber: row.policy_number,
     brokerId: row.broker_id,
     requestEventId: row.request_event_id,
+    quoteHash: row.quote_hash,
     amountCents: centsFromDatabase(row.amount_cents, "amount_cents"),
     deltaPremiumCents: centsFromDatabase(row.delta_premium_cents, "delta_premium_cents"),
     deltaTaxCents: centsFromDatabase(row.delta_tax_cents, "delta_tax_cents"),
@@ -571,6 +650,7 @@ async function parkPaymentWithoutApplying(
 ): Promise<void> {
   try {
     await database.begin(async (transaction) => {
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.operationId}))`;
       const parked = unappliedCashReceivedEntry({
         operationId: link.operationId,
         policyId: link.policyId,

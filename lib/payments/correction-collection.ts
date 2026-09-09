@@ -438,6 +438,9 @@ export async function recordSuccessfulCorrectionPayment(
 
   try {
     await database.begin(async (transaction) => {
+      // One lock per money operation (F-B2-21): the late checkout.session.completed handler takes
+      // the same lock, so it can only look at the operation after this posting has committed.
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.operationId}))`;
       const entries = correctionCollectionEntries({
         operationId: link.operationId,
         policyId: link.policyId,

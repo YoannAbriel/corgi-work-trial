@@ -12,8 +12,11 @@ import {
 } from "@/lib/money/correction";
 import type { FormulaLine } from "@/lib/money/endorsement";
 import { isCalendarDate } from "@/lib/money/dates";
+import { policyAsOfStepsFrom, type PolicyAsOfStep } from "./as-of-steps";
 import { figuresFromPayload } from "./endorsement-requests";
 import type { MoneyOperationStatus } from "./status";
+
+export type { PolicyAsOfStep } from "./as-of-steps";
 
 // Every read the correction screens need: what a correction did, the whole timeline of a policy
 // with both its clocks, and the policy as it stood on any business date.
@@ -236,7 +239,10 @@ async function collectionOfCorrection(database: Queryable, rebookEventId: string
   return {
     operationId: link.operation_id,
     amountCents,
-    latestStatus: events.length > 0 ? events[events.length - 1].status : null,
+    // A final status wins over a later step (F-B2-20, F-B2-21): rows written before the guard
+    // keep their order forever, and what the screen calls the last status is the furthest the
+    // operation got.
+    latestStatus: succeeded ? "succeeded" : events.length > 0 ? events[events.length - 1].status : null,
     checkoutUrl: accepted ? String(accepted.payload.checkout_url) : null,
     paidOn: succeeded && typeof succeeded.payload.paid_on === "string" ? succeeded.payload.paid_on : null,
     isDead: events.some((event) => event.status === "failed" && event.payload.reason === "expired"),
@@ -279,7 +285,18 @@ export type TimelineRow = {
   supersedesEventId: string | null;
 };
 
-export async function policyTimeline(policyId: string, database: Queryable = sql): Promise<TimelineRow[]> {
+// WHO IS READING. An operator reads the words a colleague typed into a correction reason; a
+// customer must not, because those words are written for operations and carry internal
+// references (review finding F-B13-06: on CGP-01061 the reason names a payment intent, a review
+// finding id and "the coordinator"). The audience decides the sentence, never the rows: both
+// audiences see the same events, the same two dates and the same amounts.
+export type TimelineAudience = "operator" | "customer";
+
+export async function policyTimeline(
+  policyId: string,
+  database: Queryable = sql,
+  audience: TimelineAudience = "operator",
+): Promise<TimelineRow[]> {
   const rows = await database<
     {
       id: string;
@@ -307,7 +324,7 @@ export async function policyTimeline(policyId: string, database: Queryable = sql
     eventType: row.event_type,
     effectiveAt: row.effective_at,
     recordedAt: row.recorded_at,
-    summary: summarise(row.event_type, row.payload),
+    summary: summarise(row.event_type, row.payload, audience),
     supersededByEventId: row.superseded_by_id,
     supersededByEventType: row.superseded_by_type,
     supersedesEventId: row.supersedes_event_id,
@@ -316,7 +333,13 @@ export async function policyTimeline(policyId: string, database: Queryable = sql
 
 // One sentence per event, built from the figures the event itself carries. Formatted on the
 // server: no money value is ever computed in the browser.
-function summarise(eventType: string, payload: Record<string, unknown>): string {
+//
+// The only free text in here is written by a person: `description` on an endorsement, which the
+// broker writes FOR the customer and which the customer already reads on the endorsement
+// schedule, and `reason` on a correction, which a staff operator writes for operations. The
+// second is kept from a customer audience (F-B13-06); the dates, the amounts and the fact that a
+// correction happened are shown to both.
+function summarise(eventType: string, payload: Record<string, unknown>, audience: TimelineAudience = "operator"): string {
   const cents = (key: string): string => {
     const value = payload[key];
     return typeof value === "number" ? formatCentsAsUsd(value) : "an amount not recorded";
@@ -339,13 +362,16 @@ function summarise(eventType: string, payload: Record<string, unknown>): string 
       // two dates; the void of a binding that rested on a payment that never happened
       // (lib/policy/void-fabricated-binding.ts, CGP-01061) carries neither, and printing
       // "effective date ? put right to ?" for it was simply wrong.
-      const reason = payload.reason ?? "no reason recorded";
+      // The reason is the operator's own words: shown to an operator, withheld from a customer.
+      const reason = audience === "customer" ? null : (payload.reason ?? "no reason recorded");
       const wrongDate = payload.wrong_effective_at;
       const rightDate = payload.corrected_effective_at;
       if (typeof wrongDate === "string" && typeof rightDate === "string") {
-        return `Correction: effective date ${wrongDate} put right to ${rightDate} (${reason})`;
+        const correction = `Correction: effective date ${wrongDate} put right to ${rightDate}`;
+        return reason === null ? correction : `${correction} (${reason})`;
       }
-      return `Correction: the event above was reversed and nothing re-books it, so it no longer counts (${reason})`;
+      const reversal = "Correction: the event above was reversed and nothing re-books it, so it no longer counts";
+      return reason === null ? reversal : `${reversal} (${reason})`;
     }
     case "correction_rebook":
       return `Endorsement re-booked on ${payload.corrected_effective_at ?? "?"}: ${cents("delta_premium_cents")} of prorated premium, difference ${cents("difference_total_cents")}`;
@@ -354,6 +380,21 @@ function summarise(eventType: string, payload: Record<string, unknown>): string 
     default:
       return eventType;
   }
+}
+
+// ---------------------------------------------------------------------------
+// The dates the "as it stood on" control steps through (slice B12-3)
+// ---------------------------------------------------------------------------
+
+// The steps are built by a pure function (lib/policy/as-of-steps.ts) so they can be tested
+// without a policy; this is only the query that feeds it.
+export async function policyAsOfSteps(
+  policyId: string,
+  termStart: string,
+  today: string,
+  database: Queryable = sql,
+): Promise<PolicyAsOfStep[]> {
+  return policyAsOfStepsFrom(await policyTimeline(policyId, database), termStart, today);
 }
 
 // ---------------------------------------------------------------------------

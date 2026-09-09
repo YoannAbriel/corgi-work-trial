@@ -3,7 +3,13 @@ import { Disclosure } from "@/components/disclosures";
 import { Empty, Panel } from "@/components/detail-layout";
 import { JournalTable } from "@/components/journal-table";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { correctionsOfPolicy, policyAsItStoodOn, policyTimeline } from "@/lib/policy/correction-read";
+import {
+  correctionsOfPolicy,
+  policyAsItStoodOn,
+  policyAsOfSteps,
+  policyTimeline,
+  type TimelineAudience,
+} from "@/lib/policy/correction-read";
 import { FormulaLinesTable } from "./formula-lines";
 
 // The three screens slice B8 adds to a policy: what a correction did, the whole history of the
@@ -158,8 +164,18 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
 // The timeline: effective time and recorded time, side by side
 // ---------------------------------------------------------------------------
 
-export async function PolicyTimeline({ policyId }: { policyId: string }) {
-  const rows = await policyTimeline(policyId);
+// `audience` decides the words, never the rows (review finding F-B13-06). An operator reads the
+// reason a colleague typed into a correction; a customer reads the same events, the same two
+// dates and the same amounts, without the operator's free text and the internal references it
+// carries.
+export async function PolicyTimeline({
+  policyId,
+  audience = "operator",
+}: {
+  policyId: string;
+  audience?: TimelineAudience;
+}) {
+  const rows = await policyTimeline(policyId, undefined, audience);
   if (rows.length === 0) {
     return null;
   }
@@ -187,8 +203,15 @@ export async function PolicyTimeline({ policyId }: { policyId: string }) {
                   <>
                     <br />
                     <span className="note">
-                      Superseded by the {row.supersededByEventType} recorded later ({row.supersededByEventId.slice(0, 8)}
-                      ): the row stays in the table, the fold no longer applies it.
+                      {audience === "customer" ? (
+                        "Put right by a later correction: this line no longer counts, and the corrected one is below."
+                      ) : (
+                        <>
+                          Superseded by the {row.supersededByEventType} recorded later (
+                          {row.supersededByEventId.slice(0, 8)}): the row stays in the table, the fold no longer applies
+                          it.
+                        </>
+                      )}
                     </span>
                   </>
                 ) : null}
@@ -228,13 +251,45 @@ export async function PolicyAsOf({
   today: string;
 }) {
   const requested = asOf ?? "";
-  const result = requested ? await policyAsItStoodOn(policyId, requested) : null;
+  const [result, steps] = await Promise.all([
+    requested ? policyAsItStoodOn(policyId, requested) : Promise.resolve(null),
+    policyAsOfSteps(policyId, termStart, today),
+  ]);
   // The field cannot start on a date it would refuse: on a policy whose term has not begun,
   // today is before the minimum the input accepts, so the term start is the honest default.
   const defaultDate = requested || (today > termStart ? today : termStart);
 
   return (
     <Panel title="As it stood on a date">
+      {/* Where the step links land when they are followed from further down the page. */}
+      <span id="as-of" aria-hidden="true" />
+
+      {/* Slice B12-3 (YOA-626), decided by Yoann: the dates this policy changed, as links that
+          carry ?asOf in the address. Server-rendered on every click, no slider and no state in
+          the browser: the page IS the answer for that date, and it can be bookmarked and shown
+          to somebody else. */}
+      <nav className="as-of-steps" aria-label="Dates this policy changed">
+        {steps.map((step) => {
+          const isCurrent = step.date === requested;
+          return (
+            <Link
+              key={step.date}
+              href={`/policies/${policyId}?asOf=${step.date}#as-of`}
+              className={isCurrent ? "as-of-step current" : "as-of-step"}
+              aria-current={isCurrent ? "date" : undefined}
+            >
+              <span className="as-of-step-date">{step.date}</span>
+              <span className="as-of-step-label">{step.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+      <p className="note">
+        The term start, every change still in force, and today. A change that a correction put
+        right is not a step: the timeline above strikes it through, and the fold no longer applies
+        it. Any other date can be typed below.
+      </p>
+
       <form method="get" className="card">
         <label htmlFor="asOf">As it stood on</label>
         <input id="asOf" name="asOf" type="date" required defaultValue={defaultDate} min={termStart} />

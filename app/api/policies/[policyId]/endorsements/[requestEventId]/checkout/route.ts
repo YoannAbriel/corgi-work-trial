@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { isUniqueViolation } from "@/lib/ledger/post";
 import { EndorsementCheckoutRefused, startEndorsementCheckout } from "@/lib/payments/endorsement-collection";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 
@@ -32,6 +33,15 @@ export async function POST(request: Request, context: { params: Promise<{ policy
   } catch (error) {
     if (error instanceof EndorsementCheckoutRefused) {
       return backToPolicy(policyId, error.message);
+    }
+    // Two Pay clicks at the same instant: the loser hits the unique index on
+    // money_operations.idempotency_key, which is the guard doing its job (one operation per
+    // attempt, never two). It used to reach the browser as HTTP 500 (review finding F-B4-10).
+    if (isUniqueViolation(error)) {
+      return backToPolicy(
+        policyId,
+        "this payment was already started a moment ago, so nothing was charged twice; reload the policy and open the payment page again",
+      );
     }
     throw error;
   }

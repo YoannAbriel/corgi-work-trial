@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   ClipboardCheck,
+  Inbox,
   KeyRound,
   ReceiptText,
   Scale,
@@ -19,6 +20,7 @@ import { workspaceTasks, type WorkspaceTask } from "./what-needs-you";
 
 type Section =
   | "home"
+  | "inbox"
   | "policies"
   | "verification"
   | "claims"
@@ -54,10 +56,14 @@ export async function PortalShell({
     waitingTasks
       .filter((task) => task.section === section)
       .reduce((total, task) => total + task.count, 0);
+  // The inbox entry carries everything, whatever screen it belongs to: it is the one place that
+  // lists what is waiting for this person (app/inbox/page.tsx).
+  const totalWaiting = waitingTasks.reduce((total, task) => total + task.count, 0);
   const isStaff = user?.role === "staff_ops" || user?.role === "staff_approver";
   const links = isStaff
     ? [
         { href: "/ops", label: "Overview", section: "home", icon: Home },
+        { href: "/inbox", label: "Inbox", section: "inbox", icon: Inbox },
         { href: "/ops/policies", label: "Policies", section: "policies", icon: FileText },
         {
           href: "/ops/brokers",
@@ -83,6 +89,7 @@ export async function PortalShell({
       ]
     : user?.role === "broker"
       ? [
+          { href: "/inbox", label: "Inbox", section: "inbox", icon: Inbox },
           {
             href: "/broker",
             label: "Policies",
@@ -98,7 +105,10 @@ export async function PortalShell({
           },
         ]
       : user?.role === "customer"
-        ? [{ href: "/customer", label: "Policies", section: "policies", icon: FileText }]
+        ? [
+            { href: "/inbox", label: "Inbox", section: "inbox", icon: Inbox },
+            { href: "/customer", label: "Policies", section: "policies", icon: FileText },
+          ]
       : [
           { href: "/", label: "Overview", section: "home", icon: Home },
           { href: "/login", label: "Sign in", section: "login", icon: LogIn },
@@ -137,25 +147,28 @@ export async function PortalShell({
       </div>
       <nav aria-label="Main navigation" className="sidebar-nav">
         {links.map(({ href, label, section, icon: Icon }) => {
-          const waiting = waitingCountOf(section as Section);
+          const waiting = section === "inbox" ? totalWaiting : waitingCountOf(section as Section);
           return (
-            <Link
-              key={href}
-              href={href}
-              prefetch={false}
-              aria-current={active === section ? "page" : undefined}
-            >
-              <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
-              <span>{label}</span>
+            <div className="sidebar-nav-row" key={href}>
+              <Link href={href} prefetch={false} aria-current={active === section ? "page" : undefined}>
+                <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
+                <span>{label}</span>
+              </Link>
               {waiting > 0 ? (
-                // The number is announced in words as well, because "Approvals 3" read out as
-                // "Approvals three" says nothing about what the three are.
-                <span className="nav-badge">
+                // The number is a link of its own, to the section of the inbox that lists exactly
+                // those items: a count that cannot be opened is the complaint this answers.
+                // It is announced in words as well, because "Approvals 3" read out as "Approvals
+                // three" says nothing about what the three are.
+                <Link
+                  className="nav-badge"
+                  href={section === "inbox" ? "/inbox" : `/inbox#${section}`}
+                  prefetch={false}
+                >
                   {waiting}
-                  <span className="visually-hidden"> waiting for you</span>
-                </span>
+                  <span className="visually-hidden"> waiting for you, open the inbox</span>
+                </Link>
               ) : null}
-            </Link>
+            </div>
           );
         })}
       </nav>

@@ -69,11 +69,18 @@ function toneOf(entryType: string): "in" | "out" | "reversal" | "neutral" {
   return "neutral";
 }
 
+// The id an "explain this amount" fold points at (slice B12-4, YOA-637): the entry id the ledger
+// gave the entry, prefixed so it cannot collide with anything else on the page. It is only an
+// anchor; nothing on the page reads money out of it.
+export function journalEntryElementId(entryId: string): string {
+  return `journal-entry-${entryId}`;
+}
+
 function EntryBlock({ entry }: { entry: JournalEntryForTable }) {
   const tone = toneOf(entry.entryType);
   const recorded = entry.recordedAt.toISOString().replace("T", " ").slice(0, 19);
   return (
-    <div className="entry-block">
+    <div className="entry-block" id={journalEntryElementId(entry.entryId)}>
       <div className="entry-head">
         <span className={`entry-tag entry-${tone}`}>{entry.entryType}</span>
         <span className="entry-when">

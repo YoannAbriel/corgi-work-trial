@@ -903,6 +903,12 @@ code {
     font-size: 13px;
     min-height: 44px;
   }
+  .sidebar-nav a.nav-badge {
+    padding: 0 8px;
+    min-height: 24px;
+    line-height: 24px;
+    font-size: 12px;
+  }
   .sidebar-account {
     padding: 12px 22px;
     border-top: 1px solid #e8e8eb;
@@ -985,9 +991,6 @@ code {
   .welcome-banner h2 {
     font-size: 24px;
   }
-  .desktop-break {
-    display: none;
-  }
   .login-art-panel {
     display: none;
   }
@@ -1034,25 +1037,12 @@ form.card input[type="checkbox"] { width: 18px; min-height: 18px; }
 
 .workspace-feedback { max-width: 640px; margin: 12vh auto; padding: 32px; background: white; border: 1px solid var(--line); border-radius: var(--radius); }
 .workspace-feedback .page-actions > button { margin-top: 0; }
-.loading-placeholder { height: 22px; margin-top: 18px; border-radius: 6px; background: #ececef; }
-.loading-placeholder:last-child { width: 65%; }
 @media (max-width: 800px) { .workspace-feedback { width: calc(100% - 32px); } }
 .environment-badge { position: relative; z-index: 3; }
 .environment-badge summary { display: flex; align-items: center; gap: 5px; min-height: 32px; cursor: pointer; list-style: none; }
 .environment-badge summary::-webkit-details-marker { display: none; }
 .environment-detail { position: absolute; right: 0; top: 30px; width: 240px; padding: 14px; background: white; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px #19191912; color: var(--ink-2); font-size: 12px; white-space: normal; }
-.demo-feedback { position: fixed; bottom: 24px; right: 24px; max-width: min(380px, calc(100% - 48px)); padding: 16px 20px; border: 1px solid var(--line); border-radius: 12px; background: white; box-shadow: 0 8px 28px #1919191c; z-index: 10; font-size: 14px; }
-
-/* Keep decision context readable instead of squeezing intent text into a narrow column. */
-table.approval-details th { width: 32%; }
-table.approval-details td { min-width: 0; }
 .table-scroll .badge { white-space: nowrap; }
-@media (max-width: 600px) {
-  table.approval-details { min-width: 0; }
-  table.approval-details th, table.approval-details td { display: block; width: 100%; }
-  table.approval-details th { padding-bottom: 4px; border-bottom: 0; }
-  table.approval-details td { padding-top: 4px; }
-}
 
 /* --- Slice B4: the formula lines of an endorsement (preview, approval, explanation). --- */
 table.formula td:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
@@ -1089,9 +1079,38 @@ h3 { margin-top: 24px; font-size: 16px; }
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.sidebar-nav a[aria-current="page"] .nav-badge {
+/* The count is its own link, to the inbox section that lists those items, so it sits beside the
+   navigation link rather than inside it: a link inside a link is not valid HTML. The row holds
+   the two, and the rules below undo the navigation-link shape for the badge. */
+.sidebar-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sidebar-nav-row > a:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-nav a.nav-badge {
+  display: block;
+  flex: 0 0 auto;
+  margin-left: 0;
+  padding: 0 6px;
+  min-height: 20px;
+  border-radius: 999px;
+  color: white;
+  font-size: 11px;
+  line-height: 20px;
+}
+.sidebar-nav a.nav-badge:hover {
+  background: #c04600;
+}
+.sidebar-nav-row a[aria-current="page"] + .nav-badge {
   background: white;
   color: #c04600;
+}
+.sidebar-nav-row a[aria-current="page"] + .nav-badge:hover {
+  background: #f3f3f5;
 }
 
 /* The "what needs you" block at the top of a workspace home. */
@@ -1798,4 +1817,320 @@ button.orange:hover {
   font-size: 12px;
   color: var(--ink-2);
   letter-spacing: 0.01em;
+}
+
+/* --- Slice B12-2: "explain this amount". A figure and, under it, a native fold that says how it
+       was produced. It appears inside a facts grid (.fact dd), inside a table cell and inside the
+       side list, so it inherits the figure's type size rather than setting one, and it expands in
+       place: a floating panel would be clipped by the horizontal scroll containers the tables
+       live in, exactly like the row actions above. --- */
+.amount-explained {
+  display: block;
+  min-width: 0;
+}
+.amount-explained-figure {
+  display: block;
+}
+details.amount-explain {
+  margin-top: 2px;
+}
+details.amount-explain > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+details.amount-explain > summary::-webkit-details-marker {
+  display: none;
+}
+details.amount-explain > summary:hover {
+  color: var(--accent);
+}
+details.amount-explain > div {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+  font-weight: 400;
+  white-space: normal;
+}
+.amount-explain-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+details.amount-explain .note,
+details.amount-explain .error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+details.amount-explain table.formula {
+  font-size: 12px;
+}
+/* Inside a table cell or the side list the figure and its fold stay on the same right edge as
+   every other amount in the column. */
+.amount-explained.inline .amount-explained-figure {
+  display: inline;
+}
+.amount-explained.inline details.amount-explain > div {
+  min-width: 260px;
+}
+.aside-list dd .amount-explained,
+td.amount .amount-explained {
+  text-align: right;
+}
+.aside-list dd details.amount-explain > div,
+td.amount details.amount-explain > div {
+  text-align: left;
+}
+/* The side column is narrow: the fold there takes the width it is given and lets its table
+   scroll, rather than pushing the column out of the page. */
+.aside-list dd details.amount-explain > div {
+  min-width: 0;
+}
+
+/* --- Slice B12-3: the steps of "as it stood on a date". Every step is a plain link carrying
+       ?asOf in the address: the page is rendered again on the server for that date, so there is
+       no slider, no client state and nothing to get out of step with the figures. --- */
+.as-of-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+a.as-of-step {
+  display: grid;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  text-decoration: none;
+  color: var(--ink);
+}
+a.as-of-step:hover {
+  border-color: var(--ink-2);
+}
+a.as-of-step.current {
+  border-color: #f4cdb5;
+  background: #fff1e8;
+}
+.as-of-step-date {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.as-of-step-label {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+
+/* --- Slice B12-4 (YOA-637): "explain this amount", animated. Yoann asked on 2026-09-09 for the
+       proof to be watchable: the figure opens its own explanation, the arithmetic is built one
+       line at a time, the result counts up, and a connector is drawn to the journal entry that
+       proves it.
+
+       EVERYTHING BELOW IS A CLASS OR A DATA ATTRIBUTE, and every one of them is written by
+       components/amount-explained-motion.tsx AFTER hydration. Nothing is hidden unless the panel
+       carries data-reveal, so with JavaScript off the fold is exactly the static one B12-2
+       shipped, and the page at rest never moves: the figure keeps its element and its box when it
+       is promoted to a button, and the connector is a fixed overlay that takes no space. --- */
+
+/* The figure, promoted to a control once the browser is running. */
+.amount-explained-figure[role="button"] {
+  cursor: pointer;
+}
+.amount-explained-figure[role="button"]:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.amount-explained-figure[role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* The four lines of the reveal, one every 120 ms: the words, the arithmetic, the rounding rule,
+   the result. The hidden state exists only inside a panel carrying data-reveal. */
+.amount-explain-panel[data-reveal] .reveal-step {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.amount-explain-panel[data-reveal="1"] .reveal-step-1,
+.amount-explain-panel[data-reveal="2"] .reveal-step-1,
+.amount-explain-panel[data-reveal="2"] .reveal-step-2,
+.amount-explain-panel[data-reveal="3"] .reveal-step-1,
+.amount-explain-panel[data-reveal="3"] .reveal-step-2,
+.amount-explain-panel[data-reveal="3"] .reveal-step-3,
+.amount-explain-panel[data-reveal="4"] .reveal-step {
+  opacity: 1;
+  transform: none;
+}
+
+/* The operands of the formula light up one at a time (the class is added by the animation loop,
+   which reads the running subtotal off the same row). The result line waits for its own step:
+   opacity only, so no row ever changes height and the panel does not resize while it fills. */
+.amount-explain-panel[data-reveal] tr[data-formula-line] {
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+.amount-explain-panel[data-reveal] tr[data-formula-line].operand-lit {
+  opacity: 1;
+}
+.amount-explain-panel[data-reveal="4"] tr[data-formula-result] {
+  opacity: 1;
+  animation: explain-result-land 800ms ease-out;
+}
+@keyframes explain-result-land {
+  from {
+    background: #fff1e8;
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* The running total, ticking along the lines. Every value it shows is a data-subtotal string the
+   server wrote; the browser only chooses which one is on screen. */
+.amount-explain-ticker {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.amount-explain-ticker b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The rounding rule, as a small badge. */
+.amount-explain-rounding {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.rounding-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f1f1f3;
+  border: 1px solid #e1e1e4;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #44454b;
+}
+
+.trace-to-ledger {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+.trace-to-ledger a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+
+/* The connector: a thin curve from the figure to the journal entry block that proves it. It is
+   drawn into the body so no scrolling table can clip it, it takes no space and it catches no
+   click. pathLength="1" lets one dash cover the whole curve whatever its real length is, so the
+   drawing is a single stroke-dashoffset animation from 1 to 0. */
+.explain-connector {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 60;
+}
+.explain-connector path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: explain-connector-draw 700ms ease-out forwards, explain-connector-fade 500ms ease-in 1300ms forwards;
+}
+.explain-connector circle {
+  fill: var(--accent);
+  opacity: 0;
+  animation: explain-connector-arrive 300ms ease-out 650ms forwards, explain-connector-fade 500ms ease-in 1300ms forwards;
+}
+@keyframes explain-connector-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes explain-connector-arrive {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes explain-connector-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+/* The journal entry the connector lands on, lit once for 1.5 s. Also used by "Trace to the
+   ledger", which scrolls to the entry and lights it again. */
+.entry-block {
+  scroll-margin: 96px;
+}
+.entry-block.entry-proving {
+  animation: explain-entry-pulse 1500ms ease-out;
+}
+@keyframes explain-entry-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(184, 62, 0, 0.4);
+    border-color: #f4cdb5;
+    background: #fff8f3;
+  }
+  60% {
+    box-shadow: 0 0 0 10px rgba(184, 62, 0, 0);
+    border-color: #f4cdb5;
+    background: #fff1e8;
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(184, 62, 0, 0);
+    background: white;
+  }
+}
+
+/* A reader who asked not to be animated gets the finished state at once: every line visible, no
+   count-up (the component leaves the server's text alone), no connector drawn, and the proving
+   entry marked with a plain colour instead of a pulse. */
+@media (prefers-reduced-motion: reduce) {
+  .amount-explain-panel[data-reveal] .reveal-step,
+  .amount-explain-panel[data-reveal] tr[data-formula-line] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .amount-explain-panel[data-reveal="4"] tr[data-formula-result],
+  .explain-connector path,
+  .explain-connector circle,
+  .entry-block.entry-proving {
+    animation: none !important;
+  }
+  .entry-block.entry-proving {
+    background: #fff8f3;
+    border-color: #f4cdb5;
+  }
 }

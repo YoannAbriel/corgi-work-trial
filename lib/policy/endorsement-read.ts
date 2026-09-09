@@ -176,7 +176,10 @@ async function latestCollectionOfRequest(database: postgres.Sql, requestEventId:
   return {
     operationId: operation.id,
     amountCents: centsFromDatabase(operation.amount_cents, "amount_cents"),
-    latestStatus: events.length > 0 ? events[events.length - 1].status : null,
+    // A final status wins over a later step (F-B2-20, F-B2-21): rows written before the guard
+    // keep their order forever, and what the screen calls the last status is the furthest the
+    // operation got.
+    latestStatus: succeeded ? "succeeded" : events.length > 0 ? events[events.length - 1].status : null,
     checkoutUrl: accepted ? String(accepted.payload.checkout_url) : null,
     sessionId: accepted?.provider_ref ?? null,
     paymentIntentId: succeeded?.provider_ref ?? null,
@@ -282,14 +285,25 @@ async function recordedAtOfEvent(database: postgres.Sql, eventId: string): Promi
 // that is deliberate: "awaiting_approval" is decided in lib/policy/endorsement-requests.ts from
 // the events recorded after the request, including the cumulative $500 rule. A SQL copy of that
 // rule would be a second definition, and a badge that disagrees with the screen it points at is
-// worse than no badge. One small query per policy, at trial volumes.
+// worse than no badge.
+//
+// What the SQL below DOES decide is which policies are worth asking about, and that is not the
+// rule: a policy that has never carried an endorsement request cannot have one waiting, whatever
+// the rule says. Without that condition this ran one read per policy of the whole book, on every
+// page a broker or a customer opens (review finding F-UI-18); with it, it runs one read per
+// policy that has ever been endorsed, which is the small fraction of a book that it should be.
 export async function countEndorsementsAwaitingCustomerApproval(
   owner: { customerId: string } | { brokerId: string },
   database: postgres.Sql = sql,
 ): Promise<number> {
   const policies = await database<{ id: string }[]>`
-    select id from policies
-     where ${"customerId" in owner ? database`customer_id = ${owner.customerId}` : database`broker_id = ${owner.brokerId}`}
+    select policy.id from policies policy
+     where ${"customerId" in owner ? database`policy.customer_id = ${owner.customerId}` : database`policy.broker_id = ${owner.brokerId}`}
+       and exists (
+             select 1 from policy_events request
+              where request.policy_id = policy.id
+                and request.event_type = 'endorsement_requested'
+           )
   `;
   let waiting = 0;
   for (const policy of policies) {

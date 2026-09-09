@@ -1,5 +1,12 @@
 import { formatBasisPoints, formatCalendarDate, formatCents, formatUtcTimestamp } from "./format";
-import { ISSUER_NAME, ISSUER_TAGLINE, SANDBOX_LABEL, createPdfStyles } from "./pdf-theme";
+import {
+  ISSUER_NAME,
+  ISSUER_TAGLINE,
+  SANDBOX_LABEL,
+  WATERMARK_TEXT,
+  applyPdfTypography,
+  createPdfStyles,
+} from "./pdf-theme";
 import type { MailingAddress, PolicySnapshot } from "./policy-snapshot";
 
 // The two policy documents, rendered from a PolicySnapshot into a real PDF file.
@@ -10,7 +17,14 @@ import type { MailingAddress, PolicySnapshot } from "./policy-snapshot";
 //
 // Nothing here computes money. Every figure printed is a field of the snapshot, passed
 // through the formatters in format.ts. Reordering a row changes where a reader looks; it
-// can never change what the document says.
+// can never change what the document says. There is no arithmetic in this file at all: no
+// addition, no percentage, no proration. If a figure is on the page, `foldPolicyEvents`
+// put it in the snapshot.
+//
+// The layout is the one a broker hands a customer: issuer band, the identifiers, the
+// parties, coverage, premium, endorsements, a signature line, and a footer that repeats.
+// Every sheet carries a diagonal SPECIMEN watermark, because a page of this document
+// separated from the rest must still say what it is.
 //
 // Why `await import(...)` instead of a top-level import: @react-pdf/renderer 4.9.0 is
 // published as ES modules only, and one of its transitive packages (@react-pdf/hyphenate)
@@ -25,10 +39,11 @@ async function loadPdfRenderer() {
 // The declarations page: who is covered, for what, for how long and for how much, as the
 // policy stood on the snapshot date.
 export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<Buffer> {
-  const { Document, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  const { Document, Font, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
   // The look lives in pdf-theme.ts, shared with the endorsement schedule and the broker
-  // statement. StyleSheet arrives from the dynamically loaded module, so the sheet is built
-  // here rather than at the top of the file.
+  // statement. StyleSheet and Font arrive from the dynamically loaded module, so the sheet
+  // is built here rather than at the top of the file.
+  applyPdfTypography(Font);
   const styles = createPdfStyles(StyleSheet);
 
   return renderToBuffer(
@@ -41,6 +56,11 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
       modificationDate={new Date(snapshot.generatedAt)}
     >
       <Page size="LETTER" style={styles.page}>
+        {/* First child of the page, so everything below is drawn on top of it. */}
+        <View style={styles.watermarkLayer} fixed>
+          <Text style={styles.watermarkText}>{WATERMARK_TEXT}</Text>
+        </View>
+
         {/* Who issued the document, and what the figures on it are. `fixed` repeats the
             block at the top of a second page, so a loose sheet is never anonymous. */}
         <View style={styles.issuerHeader} fixed>
@@ -59,32 +79,56 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
               Policy {snapshot.policyNumber} as it stood on {formatCalendarDate(snapshot.asOf)}
             </Text>
           </View>
+          {/* The number a caller reads out on the phone, set apart from the sentence that
+              also contains it. */}
+          <View style={styles.titleBandIdentifier}>
+            <Text style={styles.microLabel}>Policy number</Text>
+            <Text style={styles.summaryValue}>{snapshot.policyNumber}</Text>
+          </View>
         </View>
 
-        <View style={styles.factRow}>
-          <Text style={styles.factLabel}>Named insured</Text>
-          <View style={styles.factValue}>
-            <Text style={styles.factValueLine}>{snapshot.insuredName}</Text>
+        {/* The three facts a broker checks before reading anything else. */}
+        <View style={styles.summaryStrip}>
+          <View style={styles.summaryCell}>
+            <Text style={styles.microLabel}>Policy period</Text>
+            <Text style={styles.summaryValue}>
+              {formatCalendarDate(snapshot.termStart)} to {formatCalendarDate(snapshot.termEnd)}
+            </Text>
+          </View>
+          <View style={styles.summaryCellDivided}>
+            <Text style={styles.microLabel}>Status on {formatCalendarDate(snapshot.asOf)}</Text>
+            <Text style={styles.summaryValue}>{describeStatus(snapshot)}</Text>
+          </View>
+          <View style={styles.summaryCellDivided}>
+            <Text style={styles.microLabel}>Annual premium in force</Text>
+            <Text style={styles.summaryValue}>{formatCents(snapshot.annualPremiumCents)}</Text>
+          </View>
+        </View>
+
+        {/* The two parties, side by side, the way a declarations page presents them. */}
+        <View style={styles.partiesRow}>
+          <View style={styles.partyBlock}>
+            <Text style={styles.microLabel}>Named insured</Text>
+            <Text style={styles.partyName}>{snapshot.insuredName}</Text>
             {mailingAddressLines(snapshot.insuredAddress).map((line) => (
-              <Text key={line} style={styles.factValueLine}>
+              <Text key={line} style={styles.partyLine}>
                 {line}
               </Text>
             ))}
           </View>
-        </View>
-        <View style={styles.factRow}>
-          <Text style={styles.factLabel}>Producing broker</Text>
-          <Text style={styles.factValue}>{snapshot.brokerName}</Text>
-        </View>
-        <View style={styles.factRow}>
-          <Text style={styles.factLabel}>Policy term</Text>
-          <Text style={styles.factValue}>
-            {formatCalendarDate(snapshot.termStart)} to {formatCalendarDate(snapshot.termEnd)}
-          </Text>
-        </View>
-        <View style={styles.factRow}>
-          <Text style={styles.factLabel}>Status on {formatCalendarDate(snapshot.asOf)}</Text>
-          <Text style={styles.factValue}>{describeStatus(snapshot)}</Text>
+          <View style={styles.partyBlock}>
+            <Text style={styles.microLabel}>Producing broker</Text>
+            <Text style={styles.partyName}>{snapshot.brokerName}</Text>
+            {/* The broker's commission rate is deliberately not on this page: a declarations
+                page is the customer's document, and what the broker earns on it is between
+                the broker and the issuer. It is printed on the broker statement
+                (lib/statements/pdf.tsx), which only the broker receives. The snapshot does
+                not even carry the rate, so nothing here could print it by accident. */}
+            <Text style={styles.partyNote}>
+              Commission is not shown on a declarations page. It is reported to the broker on the
+              monthly commission statement.
+            </Text>
+          </View>
         </View>
 
         {/* `wrap={false}` on a coverage row: a row that does not fit moves whole to the next
@@ -92,9 +136,13 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
             its name on another. The coverage table itself may be any length, so only its
             rows are protected, not the table. */}
         <Text style={styles.sectionTitle}>Coverage</Text>
+        <Text style={styles.sectionCaption}>
+          Limits in force on {formatCalendarDate(snapshot.asOf)}. A per-occurrence limit and an
+          aggregate limit are separate limits and are listed as separate lines.
+        </Text>
         <View style={styles.tableHeader}>
-          <Text style={styles.textColumn}>Coverage line</Text>
-          <Text style={styles.limitColumn}>Limit</Text>
+          <Text style={[styles.textColumn, styles.tableHeaderCell]}>Coverage line</Text>
+          <Text style={[styles.limitColumn, styles.tableHeaderCell]}>Limit of liability</Text>
         </View>
         {snapshot.coverageLines.length === 0 ? (
           <Text style={styles.emptyState}>No coverage line was in effect on this date.</Text>
@@ -102,7 +150,7 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
           snapshot.coverageLines.map((coverageLine) => (
             <View key={coverageLine.name} style={styles.tableRow} wrap={false}>
               <View style={styles.textColumn}>
-                <Text>{coverageLine.name}</Text>
+                <Text style={styles.strongCell}>{coverageLine.name}</Text>
                 {coverageLine.description ? (
                   <Text style={styles.columnDetail}>{coverageLine.description}</Text>
                 ) : null}
@@ -116,24 +164,90 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
             itself carries `wrap={false}` and moves whole rather than leaving the total
             stranded on the next page. */}
         <View wrap={false}>
-          <Text style={styles.sectionTitle}>Annual charges</Text>
-          <View style={styles.tableRow}>
-            <Text style={styles.textColumn}>Annual premium</Text>
-            <Text style={styles.chargeAmountColumn}>{formatCents(snapshot.annualPremiumCents)}</Text>
+          <Text style={styles.sectionTitle}>Premium summary</Text>
+          <View style={styles.moneyBox}>
+            <View style={styles.moneyBoxFirstRow}>
+              <Text style={styles.textColumn}>Annual premium</Text>
+              <Text style={styles.chargeAmountColumn}>{formatCents(snapshot.annualPremiumCents)}</Text>
+            </View>
+            <View style={styles.moneyBoxRow}>
+              <Text style={styles.textColumn}>
+                {snapshot.stateName} premium tax ({formatBasisPoints(snapshot.taxRateBasisPoints)})
+              </Text>
+              <Text style={styles.chargeAmountColumn}>{formatCents(snapshot.taxCents)}</Text>
+            </View>
+            <View style={styles.moneyBoxRow}>
+              <Text style={styles.textColumn}>Policy fee</Text>
+              <Text style={styles.chargeAmountColumn}>{formatCents(snapshot.feeCents)}</Text>
+            </View>
+            <View style={styles.moneyBoxTotalRow}>
+              <Text style={[styles.textColumn, styles.strongCell]}>Total charge for the annual term</Text>
+              <Text style={[styles.chargeAmountColumn, styles.strongCell]}>
+                {formatCents(snapshot.totalChargeCents)}
+              </Text>
+            </View>
           </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.textColumn}>
-              {snapshot.stateName} premium tax ({formatBasisPoints(snapshot.taxRateBasisPoints)})
+          {/* The as-of sentence, in the shortest form, next to the figures it qualifies.
+              The footer carries the full statement on every page. */}
+          <Text style={styles.boxCaption}>
+            As the policy stood on {formatCalendarDate(snapshot.asOf)}. This is what the annual term is
+            charged, not what has been collected.
+          </Text>
+        </View>
+
+        {/* Endorsements are what makes this a policy as of a date rather than a policy. The
+            declarations page carries the summary; the endorsement schedule carries the same
+            changes with their recording times. */}
+        <Text style={styles.sectionTitle}>Endorsements in force</Text>
+        {snapshot.endorsements.length === 0 ? (
+          <Text style={styles.emptyState}>
+            No endorsement had taken effect on {formatCalendarDate(snapshot.asOf)}. The policy stands
+            as issued.
+          </Text>
+        ) : (
+          <>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.endorsementSummaryDateColumn, styles.tableHeaderCell]}>Effective</Text>
+              <Text style={[styles.textColumn, styles.tableHeaderCell]}>Change</Text>
+              <Text style={[styles.endorsementSummaryAmountColumn, styles.tableHeaderCell]}>
+                Premium delta
+              </Text>
+            </View>
+            {snapshot.endorsements.map((endorsement, position) => (
+              <View
+                key={`${endorsement.effectiveAt}-${position}`}
+                style={styles.tableRow}
+                wrap={false}
+              >
+                <Text style={styles.endorsementSummaryDateColumn}>
+                  {formatCalendarDate(endorsement.effectiveAt)}
+                </Text>
+                <Text style={styles.textColumn}>{endorsement.description}</Text>
+                <Text style={styles.endorsementSummaryAmountColumn}>
+                  {formatCents(endorsement.premiumDeltaCents)}
+                </Text>
+              </View>
+            ))}
+            <Text style={styles.boxCaption}>
+              Premium delta: the prorated amount charged (positive) or credited (negative) from the
+              effective date to the end of the term.
             </Text>
-            <Text style={styles.chargeAmountColumn}>{formatCents(snapshot.taxCents)}</Text>
+          </>
+        )}
+
+        {/* Ruled lines, printed empty. See the note on `signatureRow` in pdf-theme.ts. */}
+        <View style={styles.signatureRow} wrap={false}>
+          <View style={styles.signatureCell}>
+            <View style={styles.signatureRule} />
+            <Text style={styles.microLabel}>Authorized representative</Text>
+            <Text style={styles.signatureCaption}>{ISSUER_NAME}</Text>
           </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.textColumn}>Policy fee</Text>
-            <Text style={styles.chargeAmountColumn}>{formatCents(snapshot.feeCents)}</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.textColumn}>Total annual charge</Text>
-            <Text style={styles.chargeAmountColumn}>{formatCents(snapshot.totalChargeCents)}</Text>
+          <View style={styles.signatureDateCell}>
+            <View style={styles.signatureRule} />
+            <Text style={styles.microLabel}>Date countersigned</Text>
+            <Text style={styles.signatureCaption}>
+              Specimen: this build signs and countersigns nothing.
+            </Text>
           </View>
         </View>
 
@@ -157,8 +271,18 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
 
 // The endorsement schedule: every change that had taken effect by the snapshot date, with
 // the money it moved and the annual premium it left behind.
+//
+// WHY NO STRUCK-THROUGH SUPERSEDED ROWS
+// A corrected endorsement is not in this list to strike through. `foldPolicyEvents` drops
+// an event undone by a `correction_reversal` together with the reversal itself, so a
+// PolicySnapshot exposes only the endorsements that survive as of its date; there is no
+// "superseded" flag on AppliedEndorsement and no reversed row to print. Showing one would
+// mean changing the snapshot contract (policy-snapshot.ts) and the fold, which are outside
+// a presentation pass. Until then this schedule states business truth as of `asOf`, and the
+// footer says so.
 export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Promise<Buffer> {
-  const { Document, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  const { Document, Font, Page, Text, View, StyleSheet, renderToBuffer } = await loadPdfRenderer();
+  applyPdfTypography(Font);
   const styles = createPdfStyles(StyleSheet);
 
   return renderToBuffer(
@@ -171,6 +295,10 @@ export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Pr
       {/* Landscape US Letter: the schedule has five columns, and squeezing them onto a
           portrait page would wrap the recording timestamps in the middle. */}
       <Page size="LETTER" orientation="landscape" style={styles.page}>
+        <View style={styles.watermarkLayer} fixed>
+          <Text style={styles.watermarkText}>{WATERMARK_TEXT}</Text>
+        </View>
+
         <View style={styles.issuerHeader} fixed>
           <View style={styles.issuerIdentity}>
             <Text style={styles.issuerName}>{ISSUER_NAME}</Text>
@@ -187,30 +315,45 @@ export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Pr
               Policy {snapshot.policyNumber} as it stood on {formatCalendarDate(snapshot.asOf)}
             </Text>
           </View>
+          <View style={styles.titleBandIdentifier}>
+            <Text style={styles.microLabel}>Policy number</Text>
+            <Text style={styles.summaryValue}>{snapshot.policyNumber}</Text>
+          </View>
         </View>
 
-        <View style={styles.factRow}>
-          <Text style={styles.factLabel}>Named insured</Text>
-          <Text style={styles.factValue}>{snapshot.insuredName}</Text>
-        </View>
-        <View style={styles.factRow}>
-          <Text style={styles.factLabel}>Producing broker</Text>
-          <Text style={styles.factValue}>{snapshot.brokerName}</Text>
-        </View>
-        <View style={styles.factRow}>
-          <Text style={styles.factLabel}>Policy term</Text>
-          <Text style={styles.factValue}>
-            {formatCalendarDate(snapshot.termStart)} to {formatCalendarDate(snapshot.termEnd)}
-          </Text>
+        <View style={styles.summaryStrip}>
+          <View style={styles.summaryCell}>
+            <Text style={styles.microLabel}>Named insured</Text>
+            <Text style={styles.summaryValue}>{snapshot.insuredName}</Text>
+          </View>
+          <View style={styles.summaryCellDivided}>
+            <Text style={styles.microLabel}>Producing broker</Text>
+            <Text style={styles.summaryValue}>{snapshot.brokerName}</Text>
+          </View>
+          <View style={styles.summaryCellDivided}>
+            <Text style={styles.microLabel}>Policy period</Text>
+            <Text style={styles.summaryValue}>
+              {formatCalendarDate(snapshot.termStart)} to {formatCalendarDate(snapshot.termEnd)}
+            </Text>
+          </View>
+          <View style={styles.summaryCellDivided}>
+            <Text style={styles.microLabel}>Annual premium in force</Text>
+            <Text style={styles.summaryValue}>{formatCents(snapshot.annualPremiumCents)}</Text>
+          </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Endorsements effective on or before {formatCalendarDate(snapshot.asOf)}</Text>
+        <Text style={styles.sectionTitle}>Endorsement history</Text>
+        <Text style={styles.sectionCaption}>
+          Endorsements effective on or before {formatCalendarDate(snapshot.asOf)}, oldest first. The
+          recorded column is the instant the change was written down, which is what shows a backdated
+          endorsement for what it is.
+        </Text>
         <View style={styles.tableHeader}>
-          <Text style={styles.endorsementEffectiveColumn}>Effective</Text>
-          <Text style={styles.endorsementRecordedColumn}>Recorded</Text>
-          <Text style={styles.textColumn}>Change</Text>
-          <Text style={styles.endorsementAmountColumn}>Premium delta</Text>
-          <Text style={styles.endorsementAmountColumn}>Annual premium</Text>
+          <Text style={[styles.endorsementEffectiveColumn, styles.tableHeaderCell]}>Effective</Text>
+          <Text style={[styles.endorsementRecordedColumn, styles.tableHeaderCell]}>Recorded</Text>
+          <Text style={[styles.textColumn, styles.tableHeaderCell]}>Change</Text>
+          <Text style={[styles.endorsementAmountColumn, styles.tableHeaderCell]}>Premium delta</Text>
+          <Text style={[styles.endorsementAmountColumn, styles.tableHeaderCell]}>Annual premium</Text>
         </View>
 
         {/* The running column starts at the premium the policy was issued with, otherwise
@@ -242,10 +385,16 @@ export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Pr
         <View style={styles.totalRow} wrap={false}>
           <Text style={styles.endorsementEffectiveColumn}>{formatCalendarDate(snapshot.asOf)}</Text>
           <Text style={styles.endorsementRecordedColumn} />
-          <Text style={styles.textColumn}>Annual premium in force</Text>
+          <Text style={[styles.textColumn, styles.strongCell]}>Annual premium in force</Text>
           <Text style={styles.endorsementAmountColumn} />
-          <Text style={styles.endorsementAmountColumn}>{formatCents(snapshot.annualPremiumCents)}</Text>
+          <Text style={[styles.endorsementAmountColumn, styles.strongCell]}>
+            {formatCents(snapshot.annualPremiumCents)}
+          </Text>
         </View>
+
+        {/* No signature block here. The schedule is an attachment to the declarations page,
+            which is the sheet that carries the signature; a second set of ruled lines on the
+            attachment would suggest it is a separately executed instrument. */}
 
         <View style={styles.footer} fixed>
           <Text style={styles.footerSentence}>{asOfStatement(snapshot)}</Text>

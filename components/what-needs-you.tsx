@@ -5,6 +5,7 @@ import { countApprovalRequestsWaitingForDecision } from "@/lib/approvals/read";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import { countClaimsWithPaymentsStillToMove } from "@/lib/claims/read";
 import { countEndorsementsPaidButNotApplied, countPoliciesPaidButNotBound } from "@/lib/policy/read";
+import { countOpenChangeRequests } from "@/lib/policy/change-requests";
 import { countOpenBreaks } from "@/lib/reconciliation/read";
 import { correctionsOfPolicy } from "@/lib/policy/correction-read";
 import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
@@ -111,6 +112,9 @@ async function staffTasks(role: "staff_ops" | "staff_approver"): Promise<Workspa
 // customer has approved and whose delta the broker pays, a correction difference to collect, and
 // an endorsement quote still waiting for the customer (information, since the broker waits).
 async function brokerTasks(brokerId: string): Promise<WorkspaceTask[]> {
+  // Slice B13-6: change requests the broker's customers have sent and nobody has answered yet.
+  // Counted in one query over the broker's policies, not folded from the loop below.
+  const changeRequests = await countOpenChangeRequests({ brokerId });
   const policies = await sql<{ id: string; status: string }[]>`
     select policy.id, current_policy.status
       from policies policy
@@ -170,6 +174,13 @@ async function brokerTasks(brokerId: string): Promise<WorkspaceTask[]> {
       detail: "The delta cannot be collected until the customer approves the quote from their own screen.",
       href: "/broker",
     },
+    {
+      section: "policies",
+      count: changeRequests,
+      label: `${plural(changeRequests, "change request")} to answer`,
+      detail: "A customer has asked for something on their policy. Answering it changes nothing on its own.",
+      href: "/broker",
+    },
   ];
   return tasks.filter((task) => task.count > 0);
 }
@@ -224,14 +235,14 @@ export function WhatNeedsYou({ tasks }: { tasks: WorkspaceTask[] }) {
       </h2>
       {tasks.length === 0 ? (
         <p className="note">
-          Nothing is waiting for you right now. New work appears here and as a number next to the
-          screen it belongs to.
+          Nothing is waiting for you right now. New work appears here, in your{" "}
+          <Link href="/inbox">inbox</Link>, and as a number next to the screen it belongs to.
         </p>
       ) : (
         <ul className="needs-you-list">
           {tasks.map((task) => (
             <li key={`${task.section}-${task.label}`}>
-              <Link href={task.href} prefetch={false}>
+              <Link href={`/inbox#${task.section}`} prefetch={false}>
                 <span className="count-chip">{task.count}</span>
                 <span>
                   <strong>{task.label}</strong>
