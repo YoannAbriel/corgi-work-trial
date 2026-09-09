@@ -91,13 +91,15 @@ export default async function BrokerStatementsPage() {
         />
       </Stats>
 
-      {/* Five columns and the fold. When it was produced is a fact of the expansion: at seven
-          columns the table was one over what the system allows (round 1, HIGH). */}
+      {/* Six columns and the fold, the most the system allows. Produced was a fact of the fold
+          until 2026-09-09: the table sorts by age now, and an order the reader cannot see is an
+          order they will read as arbitrary. */}
       <DataTable ariaLabel="Your statements" legend={<Legend items={STATUS_LEGEND} />}>
         <thead>
           <tr>
             <ExpandHead />
             <th className="nowrap">Month</th>
+            <th className="nowrap">Produced</th>
             <th className="num">Revision</th>
             <th className="num">Commission</th>
             <th className="num">Net due</th>
@@ -107,7 +109,7 @@ export default async function BrokerStatementsPage() {
         {runs.length === 0 ? (
           <tbody>
             <tr>
-              <td colSpan={6} className="dt-empty">
+              <td colSpan={7} className="dt-empty">
                 <EmptyState illustration="open-ledger">No statement has been produced for you yet.</EmptyState>
               </td>
             </tr>
@@ -138,16 +140,21 @@ export default async function BrokerStatementsPage() {
   );
 }
 
-// One statement: the five columns a broker scans, everything else in the expansion, and the PDF
+// One statement: the six columns a broker scans, everything else in the expansion, and the PDF
 // beside the figures it prints.
 function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
   const collected = collectedFigures(run);
   return (
     <ExpandRow
-      columns={5}
+      columns={6}
       cells={
         <>
           <Primary href={`/statements/${run.runId}`}>{run.statementMonth}</Primary>
+          {/* The age at a glance, the exact UTC instant on hover: this is the column the table is
+              sorted by, so it has to be readable without opening the fold. */}
+          <td className="nowrap">
+            <When instant={run.createdAt} now={now} />
+          </td>
           <Num>{run.revision}</Num>
           <Num>{formatCentsAsUsd(run.commissionEarnedCents)}</Num>
           <Num>{formatCentsAsUsd(run.netDueCents)}</Num>
@@ -166,7 +173,6 @@ function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
     >
       <FactGrid
         items={[
-          { label: "Produced", value: `${utc(run.createdAt)} UTC` },
           { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
           {
             label: "Premium collected, the commission base",
