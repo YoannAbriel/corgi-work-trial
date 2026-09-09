@@ -1,5 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
-import { isUniqueViolation } from "@/lib/ledger/post";
+import { isViolationOf } from "@/lib/ledger/post";
 import { approveEndorsement, EndorsementRefused } from "@/lib/policy/endorse";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { withActivity } from "@/lib/observability/log";
@@ -45,7 +45,12 @@ async function handlePost(request: Request, context: { params: Promise<{ policyI
     // hits policy_events_one_approval_per_request. The database did its job (one approval, never
     // two) and the customer used to see HTTP 500 for it (review finding F-B4-10). The answer is
     // the one the winner got, because it is the true one: the endorsement is approved.
-    if (isUniqueViolation(error)) {
+    //
+    // THAT INDEX AND NO OTHER (review finding F-B13-10). "approved=already" is a statement about
+    // the customer's own consent, so it is answered only when the database says this exact index
+    // refused the write. Any other unique violation added under approveEndorsement later stays a
+    // failure and reaches the error handler, instead of being read as consent nobody gave.
+    if (isViolationOf(error, "policy_events_one_approval_per_request")) {
       return redirectTo("/customer?approved=already");
     }
     throw error;

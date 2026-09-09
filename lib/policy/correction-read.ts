@@ -67,6 +67,10 @@ export type CorrectionView = {
   // The verdict on each threshold with the total behind it, rebuilt from the figures the
   // correction stored: the same sentence the preview showed before it was executed.
   approvalSentences: CorrectionApprovalSentences;
+  // The running totals the re-book payload does not carry, named. Empty for every correction
+  // recorded since those totals were stored beside the verdict; not empty for the older ones,
+  // where the figures below read as zero and the sentence says so (review finding F-B13-14).
+  totalsNotStored: string[];
   entries: CorrectionEntryView[];
   collection: CorrectionCollectionView | null; // the difference to collect, when there is one
 };
@@ -125,11 +129,12 @@ export async function correctionsOfPolicy(policyId: string, database: Queryable 
       customerApprovalRequired: row.rebook_payload.difference_customer_approval_required === true,
       refundNeedsApproval: row.rebook_payload.difference_refund_needs_approval === true,
       totals: {
-        policyRefundedCents: signedCents(row.rebook_payload, "policy_refunded_cents"),
-        policyPendingRefundCents: signedCents(row.rebook_payload, "policy_pending_refund_cents"),
-        customerUnapprovedRequestedCents: signedCents(row.rebook_payload, "customer_unapproved_requested_cents"),
+        policyRefundedCents: centsOrZeroWhenTheKeyIsAbsent(row.rebook_payload, "policy_refunded_cents"),
+        policyPendingRefundCents: centsOrZeroWhenTheKeyIsAbsent(row.rebook_payload, "policy_pending_refund_cents"),
+        customerUnapprovedRequestedCents: centsOrZeroWhenTheKeyIsAbsent(row.rebook_payload, "customer_unapproved_requested_cents"),
       },
     };
+    const totalsNotStored = TOTALS_ADDED_AFTER_THE_FIRST_CORRECTIONS.filter((key) => !(key in row.rebook_payload));
     corrections.push({
       reversalEventId: row.reversal_id,
       rebookEventId: row.rebook_id,
@@ -141,7 +146,8 @@ export async function correctionsOfPolicy(policyId: string, database: Queryable 
       description: String(row.rebook_payload.description ?? ""),
       money,
       lines: correctionFormulaLines(money),
-      approvalSentences: correctionApprovalSentences(money),
+      approvalSentences: qualifiedWhenTotalsAreMissing(correctionApprovalSentences(money), totalsNotStored),
+      totalsNotStored,
       entries: await entriesOfCorrection(database, row.reversal_id, row.rebook_id),
       collection: await collectionOfCorrection(database, row.rebook_id),
     });
@@ -253,6 +259,46 @@ async function collectionOfCorrection(database: Queryable, rebookEventId: string
 
 function signedCents(payload: Record<string, unknown>, key: string): number {
   return centsFromDatabase(payload[key], key);
+}
+
+// THE THREE RUNNING TOTALS A CORRECTION RECORDED BEFORE THEY EXISTED (review finding F-B13-14).
+//
+// The cumulative thresholds of F-B8-02 added these keys to the 'correction_rebook' payload. A
+// correction recorded before that carries the verdict but not the totals behind it, and reading
+// them with centsFromDatabase throws "is missing" on the whole policy: the correction screens
+// refuse the page, and the inbox lists the policy as unreadable, for a figure that was never
+// written down. The event is immutable and NOTHING HERE REWRITES IT: the reader tolerates the
+// absence, reads the total as zero, and says on the view (totalsNotStored) and in the sentence
+// that the figure was not recorded, so nobody mistakes it for a policy that never refunded
+// anything. A key that is present but not a whole number of cents still throws: that is a
+// corrupt value, not an old one.
+const TOTALS_ADDED_AFTER_THE_FIRST_CORRECTIONS = [
+  "policy_refunded_cents",
+  "policy_pending_refund_cents",
+  "customer_unapproved_requested_cents",
+];
+
+function centsOrZeroWhenTheKeyIsAbsent(payload: Record<string, unknown>, key: string): number {
+  return key in payload ? centsFromDatabase(payload[key], key) : 0;
+}
+
+// The approval sentences quote those totals ("$0.00 already refunded"), which would be a claim
+// about history the event never made. Where a total is missing the sentence carries the reason
+// with it, so the screen that prints it prints the qualification too.
+function qualifiedWhenTotalsAreMissing(
+  sentences: CorrectionApprovalSentences,
+  totalsNotStored: string[],
+): CorrectionApprovalSentences {
+  if (totalsNotStored.length === 0) {
+    return sentences;
+  }
+  const caveat =
+    " (this correction was recorded before the running totals were stored on the event, so the figures counted here" +
+    ` read as zero: ${totalsNotStored.join(", ")}. The verdict itself is the one the correction decided.)`;
+  return {
+    customer: sentences.customer === null ? null : sentences.customer + caveat,
+    refund: sentences.refund === null ? null : sentences.refund + caveat,
+  };
 }
 
 function settlementOf(payload: Record<string, unknown>): "collect" | "refund" | "none" {
