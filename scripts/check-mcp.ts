@@ -399,6 +399,20 @@ async function main() {
   });
   report("a staff key reads any policy", staffPolicy.ok, staffPolicy.ok ? String(staffPolicy.value.policyNumber) : staffPolicy.refusal);
 
+  // Review finding F-B11-06: every tool advertises additionalProperties: false, and nothing read
+  // that declaration, so a field a tool ignores looked to the client as if it had been understood.
+  const undeclaredField = await callTool(brokerKey.presentedKey, "get_policy_as_of", {
+    policyNumber: policy.policyNumber,
+    asOfDate: TERM_START,
+  });
+  report(
+    "AN ARGUMENT THE TOOL DOES NOT DECLARE IS REFUSED, not ignored: additionalProperties false is now enforced",
+    !undeclaredField.ok &&
+      /does not declare/.test(undeclaredField.refusal) &&
+      !undeclaredField.refusal.includes("asOfDate"),
+    undeclaredField.ok ? "it answered" : undeclaredField.refusal,
+  );
+
   const malformedAsOf = await callTool(brokerKey.presentedKey, "get_policy_as_of", {
     policyNumber: policy.policyNumber,
     asOf: MALFORMED_AS_OF,

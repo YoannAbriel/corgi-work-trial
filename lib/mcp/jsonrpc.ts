@@ -1,7 +1,7 @@
 import { hashArguments } from "./keys";
 import { NEVER_DELEGATED, NEVER_DELEGATED_SUMMARY } from "./never-delegated";
 import { findTool, MCP_TOOLS } from "./tools";
-import { ToolRefused, type ToolContext } from "./tools/tool";
+import { argumentsSchemaRefusal, ToolRefused, type ToolContext } from "./tools/tool";
 
 // The Model Context Protocol, the part of it this application needs, written out.
 //
@@ -225,6 +225,17 @@ async function callTool(
       // The tool column stays null: the name is the caller's own string, and the detail beside
       // it already says what happened (review finding F-B11-02).
       log: log("tools/call", null, argumentsHash, "refused", "unknown tool"),
+    };
+  }
+
+  // The schema the tool advertises is enforced here, once, before the tool sees anything (review
+  // finding F-B11-06). A field the tool does not declare is refused rather than ignored, so no
+  // future tool can be written against a guarantee that was never checked.
+  const schemaRefusal = argumentsSchemaRefusal(tool.inputSchema, args);
+  if (schemaRefusal) {
+    return {
+      response: ok(id, { content: [{ type: "text", text: schemaRefusal }], isError: true }),
+      log: log("tools/call", tool.name, argumentsHash, "refused", schemaRefusal),
     };
   }
 
