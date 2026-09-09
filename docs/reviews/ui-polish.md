@@ -1,7 +1,7 @@
 # Independent review: interface polish merged into main
 
 Reviewer: independent Claude sub-agent assigned by the coordinator. I did not write any of this
-code and I did not see it before the merge. Review performed 2026-09-08, roughly 19:05Z to 20:05Z (21:05 to 22:05 Europe/Zurich; an earlier revision of this header carried the local time with a Z suffix, corrected 2026-09-09T08:40Z),
+code and I did not see it before the merge. Review performed 2026-09-08, roughly 19:05Z to 20:05Z (21:05 to 22:05 Europe/Zurich; an earlier revision of this header carried the local time with a Z suffix, corrected 2026-09-09T08:20Z),
 in my own git worktree.
 
 Reviewed revision: merge `c5bcf2aeb6091713250fac73ceb04060fef834be`, parents `2755d11` (main) and
