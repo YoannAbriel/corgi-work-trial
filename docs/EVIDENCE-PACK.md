@@ -1,8 +1,8 @@
 # Evidence pack (slice B14)
 
 Index of every independent review record, every evidence file and every external sandbox reference
-this repository cites. Written on branch `freeze-package`, refreshed from `main` at `b33edbc`
-(the cycle-2 evidence correction) after a first pass at `49ec797`.
+this repository cites. Written on branch `freeze-package`, refreshed from `main` at `c4618e5`
+(tonight's live-fire evidence and the live-integration pack) after passes at `49ec797` and `b33edbc`.
 
 **What this is.** The README says "Evidence for the live slots is in `docs/STATUS.md` (event ids,
 payment intent and refund ids, amounts) and in the evidence pack." This is that pack. A reviewer
@@ -37,19 +37,27 @@ No `.env.local`, no `.env.vercel.local` and nothing under `.local/` was opened.
 
 ## Counts
 
+**The counting rule.** Every file under `docs/evidence/` counts as an evidence file, whether it is
+an image, a PDF, a JSON manifest or a `.txt`. That is deliberate rather than tidy: in
+`docs/evidence/live-fire-day2/` the `.txt` files are the **primary** evidence, because they are the
+GET readings taken before and after each of Yoann's clicks, and the screenshots illustrate them.
+Counting images only would report 297 files and would drop the very readings the live-fire steps
+rest on. Where a folder's own reading guide counts differently (the live-integration pack counts
+"10 fresh Stripe captures and 4 earlier application captures"), both numbers are given.
+
 | | |
 |---|---|
 | Records walked | **84** (51 review, 29 handoff, 2 checkpoint, STATUS, COMPLIANCE-MATRIX) |
 | Review records carrying a verdict | **50** (`instructions-2026-09-08.md` is an instruction-review record, not a slice review) |
-| Evidence files under `docs/evidence/` | **263**, 27.2 MB, in 8 directories |
-| Evidence files named individually by a record | **53** (the cycle-2 record now names all 24 of its own, with their md5) |
-| Evidence files named individually by a record's own index (`observations.json`) | **121** |
-| Evidence files covered by their directory's citation or by a stated count | **89** |
+| Evidence files under `docs/evidence/` | **371**, 34.1 MB, in 10 directories |
+| Evidence files named individually by a record or its own manifest | **145** |
+| of which by an index or manifest the folder carries itself | **139** (`observations.json` 121, `evidence-manifest.json` and `SHA256SUMS.txt` 14, the cycle-2 md5 table 24, overlapping) |
+| Evidence files covered by their directory's citation, a stated count or a step record | **226** |
 | **Files no record reaches at all (orphans)** | **0** |
 | **Files whose content does not match their name** | **0**. Six were found wrong and all six are corrected (section 4.3, F-UI2-08, closed at `c8d679d`) |
 | Distinct paths under `docs/` cited by the records | **93** |
 | **Dangling citations** | **0** |
-| Distinct real sandbox references cited | **88** (20 `pi_`, 3 `re_`, 10 `cs_`, 23 `acct_`, 18 `evt_`, 2 `we_`, 12 `cmk_`) |
+| Distinct real sandbox references cited | **93** (23 `pi_`, 3 `re_`, 10 `cs_`, 24 `acct_`, 20 `evt_`, 2 `we_`, 12 `cmk_`) |
 | Distinct Linear ids cited | **33** (`YOA-593` to `YOA-656`) |
 | Review records ending "NOT REVIEWED WITH YOANN" | **48 of 50** |
 
@@ -616,13 +624,15 @@ verdict **verbatim**, the evidence the record cites, and the external references
 
 # 2. Evidence files
 
-263 files, 27.2 MB, in eight directories. Every one is reachable from a record. Sizes are from
+371 files, 34.1 MB, in ten directories. Every one is reachable from a record. Sizes are from
 `stat`, pixel sizes from `sips`.
 
 | Directory | Files | Bytes | The record that cites it |
 |---|---|---|---|
+| `docs/evidence/live-fire-day2/` | 90 | 5.0 MB | `docs/handoffs/live-fire-day2.md`, which names every step folder and its files. Five steps: LIVE-0, LIVE-8, LIVE-9, LIVE-7, LIVE-3 |
+| `docs/evidence/live-integration-2026-09-09/` | 18 | 1.9 MB | Carries its own reading guide (`00-START-HERE.md`), manifest, `SHA256SUMS.txt` and an independent Codex review (`REVIEW-NOTES.md`) |
 | `docs/evidence/ui-audit-2026-09-09/` | 124 | 10.3 MB | `docs/ui-audit-2026-09-09.json` (the audit report) and `docs/STATUS.md` at 09:57:00Z; replayed by `docs/reviews/b13-13-ui-audit.md` |
-| `docs/evidence/ui-cycle-2/` | 24 | 4.1 MB | `docs/reviews/ui-cycle-2.md` section 11, which names all 24 with their md5. Six were recaptured to close F-UI2-08, section 4.3 |
+| `docs/evidence/ui-cycle-2/` | 24 | 4.0 MB | `docs/reviews/ui-cycle-2.md` section 11, which names all 24 with their md5. Six were recaptured to close F-UI2-08, section 4.3 |
 | `docs/evidence/b13-screens/` | 38 | 3.0 MB | `docs/reviews/b13-screens.md`, `docs/COMPLIANCE-MATRIX.md`, `docs/reviews/FINDINGS.md` |
 | `docs/evidence/b13-13-ui-audit/` | 30 | 3.8 MB | `docs/reviews/b13-13-ui-audit.md` line 174, "one PNG per issue ... named by issue id" |
 | `docs/evidence/b12-4/` | 18 | 1.5 MB | `docs/handoffs/b12-4-notes.md`, `docs/reviews/inbox-and-motion.md`, `docs/COMPLIANCE-MATRIX.md`, `README.md` |
@@ -645,6 +655,87 @@ One file is small enough to mention: `docs/evidence/b13-screens/statement-run-fo
 is 2 808 bytes at 375x900. It is not empty and not corrupt: it is the frame of a mostly blank
 narrow viewport captured while the fold was open, and it is one half of the F-B13-30 before/after
 pair. No evidence file is zero bytes.
+
+## `docs/evidence/live-integration-2026-09-09/` (18 files: 14 images, 4 text)
+
+The provider-side proof of the two live slots, assembled on 2026-09-09 between 20:12Z and 20:23Z at
+Yoann's request by a desktop session, and reviewed by an independent Codex reviewer at 20:27Z. It is
+the only folder in the repository that carries its own integrity file, and the only one whose
+descriptions were checked by a second model before landing.
+
+**Verified for this pack, not taken on trust:**
+
+- `shasum -a 256 -c SHA256SUMS.txt`: **14 of 14 OK**.
+- The four "earlier capture" files are byte-identical to the sources they name, checked by md5
+  against the rest of the tree: `01-kyb-approved-earlier-capture.jpg` to
+  `ui-audit-2026-09-09/broker-kyb-approved.jpg`, `02-kyb-failed-earlier-capture.jpg` to
+  `broker-kyb-failed.jpg`, `03-correction-and-ledger-earlier-capture.png` to
+  `live-fire-day2/LIVE-8/after/policy-money.png`, `04-reconciliation-earlier-capture.png` to
+  `live-fire-day2/LIVE-0/after/reconciliation.png`. Four of the nine duplicate groups in the tree
+  are these, and they are declared copies, not accidents.
+- `gitleaks dir` over the folder: no leaks. **But gitleaks cannot read pixels**, so two of the
+  dashboard captures were opened and inspected for a visible key or signing secret. Neither shows
+  one: Stripe keeps signing secrets behind the destination's own menu, which is not open in the
+  capture.
+
+**What the images prove.** Each is a Stripe dashboard capture carrying the sandbox banner "You're
+testing in a sandbox. Changes you make here don't affect real customers or payments", which is AF-04
+evidence from the provider rather than from us.
+
+| File | What it shows |
+|---|---|
+| `02-Stripe-Connect-KYB/01-two-active-webhook-destinations.jpg` | **The single strongest AF-02 image.** Two ACTIVE event destinations, both on the exact deployed URL `https://corgi-work-trial-iota.vercel.app/api/webhooks/stripe`: one from **Connected accounts** (1 event) and one from **Your account** (9 events), 0 % error rate on both. Opened for this pack |
+| `01-Stripe-Payments/01-issuance-payment-succeeded.jpg` | `payment_intent.succeeded`, USD 1,253.20, the CGP-01707 issuance |
+| `01-Stripe-Payments/02-issuance-webhook-delivered.jpg` | the same event delivered HTTP 200 to the deployed endpoint at 2026-09-08 18:57:00 UTC |
+| `01-Stripe-Payments/03-issuance-webhook-response-done.jpg` | **the application's own answer, read from Stripe's side**: `200 OK` and a response body of `{"received": true, "status": "done"}`, beside `evt_3UDUCUK6R3v50tIy0MtOqkDo` and `pi_3UDUCUK6R3v50tIy06eM9VlU`. Opened for this pack |
+| `01-Stripe-Payments/04-refund-2081-09-webhook-delivered.jpg` | `refund.updated` for USD 2,081.09 delivered HTTP 200 on 2026-09-08 at 18:27:59 UTC, refund `re_3UDN8aK6R3v50tIy0J6CmRy3` |
+| `01-Stripe-Payments/05-refund-webhook-response-done.jpg` | the same delivery with `received: true`, `status: done` |
+| `01-Stripe-Payments/06-correction-53-84-webhook-response-done.jpg` | the correction collection, USD 53.84, `pi_3UDrW1K6R3v50tIy1GPWqtve`, event `evt_3UDrW1K6R3v50tIy1YusKFe5`, delivered 2026-09-09 at 19:50:43 UTC, HTTP 200 and done |
+| `02-Stripe-Connect-KYB/02-kyb-webhook-response-done.jpg` | the connected-account `account.updated` `evt_1UDOgLK6R3FpfF2DhpwJYnqR` delivered to the deployed endpoint, HTTP 200, done |
+| `02-Stripe-Connect-KYB/03-kyb-webhook-event-and-account.jpg` | the same event tied visibly to connected account `acct_1UDOfRK6R3FpfF2D` and to the endpoint |
+| `02-Stripe-Connect-KYB/04-harbor-point-restricted.jpg` | the Harbor Point test account as **Restricted**, payouts paused |
+| `03-Deployed-Application/01` to `04` | four earlier application captures, byte-identical copies, declared as such: KYB approved, KYB failed, the correction and its ledger entries, the reconciliation board after the 18:38Z run |
+| `evidence-manifest.json`, `SHA256SUMS.txt`, `00-START-HERE.md`, `REVIEW-NOTES.md` | the manifest with a SHA-256 and a capture instant per image, the checksum file, the reading guide, and the Codex review |
+
+**What it does not claim, in its own words.** The bank verification and the claim payout rail are
+`LOCAL SIMULATOR` and are "not claimed as live integration evidence". Stripe Connect is
+"connected-business verification, not a dedicated KYB bureau". Stripe's account label **Restricted**
+is a capability status and "is distinct from the app KYB decision". "A dashboard's HTTP response is
+the application's reported processing result; it does not independently prove all ledger or security
+invariants." **No capture of the transient KYB pending state is included**, and the guide says so
+rather than implying the set is complete. The 2026-09-09 reconciliation capture "is included as an
+operational view, not evidence of a clean reconciliation": it shows four breaks and 32 probes. One
+earlier screen keeps a stale "to collect" badge beside its own collected confirmation, disclosed
+rather than cropped out.
+
+**Provenance and the cross-model review.** Collection was read-only at the provider: no payment,
+refund, approval, replay, API key or sharing permission was created. The independent Codex reviewer
+(`/root/evidence_pack_review`, 2026-09-09 20:27Z) decoded every image with Pillow, checked byte
+sizes, dimensions, formats and the manifest, and reports **14 of 14 passed, 14 unique hashes, 12
+JPEGs and 2 PNGs, none mislabeled**, and **4 of 4 byte-identical** for the earlier captures. Its
+verdict, quoted: **"PASS for the local screenshot pack as prepared for Yoann's review."** It adds,
+in the same sentence, that the verdict "does not complete B14, certify the product, approve hosting
+or submission", which is the right scope for it and the reason this pack quotes it rather than
+leaning on it.
+
+## `docs/evidence/live-fire-day2/` (90 files, 5 step folders)
+
+Tonight's live-fire session: Yoann clicks in the deployed interface, a co-pilot session computes the
+expected figures **before** each click from the repository's own pure functions and reads the result
+**after** it by GET, signed in as the demo roles. That session never submits a form on production
+and never calls a money route. Record: `docs/handoffs/live-fire-day2.md`.
+
+Each step folder holds `before/` and `after/`. **The `.txt` files are the evidence** and the `.png`
+files illustrate them, which is why the counting rule above counts text files.
+
+| Step | Files | What Yoann did | Live-fire item |
+|---|---|---|---|
+| `LIVE-0/` | 14 | the reconciliation run at 18:38:23Z and the Redwood September statement at 18:45:13Z | closes F-BP-01, and F-INT-04 |
+| `LIVE-8/` | 20 | the **backdated correction** of CGP-01707, moving the endorsement from 2026-10-08 to 2026-09-22, recorded 19:33:07Z | **LF-2** |
+| `LIVE-9/` | 15 | the **second endorsement** ($2,400 to $2,700, effective 2026-10-01) and **three as-of dates** | **LF-5** |
+| `LIVE-7/` | 15 | the **cancellation of CGP-01707 with an open claim**, four refunds above the threshold through the approval queue | **LF-4**, and LF-7 observed |
+| `LIVE-3/` | 26 | **broker KYB live on Stripe Connect**: one approved, one failed, binding refused until approved | the KYB slot, live |
+
 
 ## `docs/evidence/b12-1/` (4 files)
 
@@ -1102,13 +1193,47 @@ notice after the click). All three are closed.
 The email header on the thread is the authoritative timestamp in both cases; the send times above
 are as Yoann reported them.
 
-## Live-fire work in progress at the time of writing
+## The evening of 2026-09-09: five more steps, driven by Yoann
 
-A co-pilot session (`corgi-work-trial-e1`, branch `live-fire-evidence`) is running the remaining
-live steps with Yoann and will write `docs/evidence/live-fire-day2/` and
-`docs/handoffs/live-fire-day2.md`. Those artefacts are **not on `main` at `5cfbc26`** and are
-therefore not indexed above. When they land, this pack needs one more section and section 4's LF-2
-and LF-6 lines need revisiting.
+Run with a co-pilot session (`corgi-work-trial-e1`, branch `live-fire-evidence`) that computed the
+expected figures before each click and read the result by GET afterwards, and that never submitted a
+form on production. Full record with a figure-by-figure comparison table per step:
+`docs/handoffs/live-fire-day2.md`. **Every figure of every step agrees.**
+
+**LIVE-0, 18:38:23Z and 18:45:13Z.** The reconciliation run: 42 provider records against 7 ledger
+records, **32 probes and 4 breaks to act on**, matching the prediction exactly; the four survivors
+are the $100.00, the two $12.61 and the -$8.98 refund. Then the Redwood September statement:
+revision 4 superseding revision 3, format version 3 so the comparison reads "format changed", 16
+lines, cash collected $8,328.61, commission $1,209.61, clawback $780.05, **net due $429.56** against
+$389.35 at revision 3, the difference being +$345.20 of CGP-01707 commission and -$304.99 of
+CGP-01274 clawback recorded after the revision-3 cutoff. Content hash
+`7eddb01ae791314713dc57eb69a11d07bbafc1f4926028417391d6af0919c78c`, predicted and read identical.
+
+**LIVE-8, 19:33:07Z: the backdated correction, which no one had performed until tonight.** The
+CGP-01707 endorsement moved from 2026-10-08 to 2026-09-22: reversal entries at the original
+effective date, a re-book at the corrected one, cash untouched, and **$53.84 to collect** (premium
+$52.61 plus tax $1.23), commission $7.89. The customer approved it and the broker paid it; Stripe
+delivered the event at **19:50:43Z** and the deployed application answered `status: done`, which is
+visible from the provider's side in the live-integration pack.
+
+**LIVE-9, 20:11:09Z: the second endorsement, and with it the as-of reading that was impossible.**
+$2,400.00 to $2,700.00 effective 2026-10-01: 342 of 365 days, prorated premium
+`floor(30000 x 342 / 365)` = 28109, tax 660, **delta $287.69**, commission $42.16. The cumulative
+threshold worked as decision 24 says: running total $1,435.06, above $500, so the customer approved
+first. The policy then carried two endorsements for the first time, and the three as-of readings
+were taken: 2026-09-15, **2026-09-25 between the two**, and 2026-10-05.
+
+**LIVE-7, to 20:34:32Z: cancelling CGP-01707 with an open claim.** Four refunds above the threshold
+queued for approval, each shown to the initiator with the chip "not an approver" and no decision
+form, then approved by a distinct human (`approver@`) at 20:34:28Z to 20:34:32Z, each with its
+intent text and hash under "What was approved, exactly".
+
+**LIVE-3, to 20:54:28Z: broker KYB, live on Stripe Connect.** One broker approved (Sierra Crest,
+pending at 20:50:41, approved at 20:53:53, the two-minute settling window visible), one refused
+(Harbor Point, `verification_failed_tax_id_match`), and binding refused until approved. Then, past
+the brief: Yoann paid CGP-01709, $12,307.00, at 20:54:28Z. The record flags the consequences rather
+than hiding them: Sierra Crest's September statement is no longer empty, and the next reconciliation
+matches one more payment.
 
 ---
 
@@ -1145,9 +1270,9 @@ merge of `92379e2` and is indexed in section 1.
 
 ## 4.3 Six evidence files did not show what they were named for: FOUND AND CLOSED (F-UI2-08)
 
-**The hard finding of this pack, and it is closed.** Hashing every evidence file found six
-duplicate-content groups. Five are expected and are recorded in 4.4 as confirmatory. The sixth was a
-defect, and correcting it turned up a seventh file nobody had asked about.
+**The hard finding of this pack, and it is closed.** Hashing every evidence file found one group
+that should not have existed; the others are accounted for in 4.4. This one was a defect, and
+correcting it turned up a further file nobody had asked about.
 
 **What was wrong.** Five files under `docs/evidence/ui-cycle-2/` were byte-identical, md5
 `c5789dd085614cec9ed051b17793d746`, 76 646 bytes each: `approvals.png`, `claim-payments.png`,
@@ -1203,9 +1328,11 @@ evidence, and a capture script without a guard will cheerfully photograph a logi
 *A note on the timestamp: the reviewer's correction section is stamped "20:55Z", which is the local
 time, not UTC; the correction was made at 18:55Z. The coordinator has added a note to the record.*
 
-## 4.4 Five duplicate-content groups that are expected
+## 4.4 Nine duplicate-content groups, all accounted for
 
-The other five groups the hash sweep found are benign, and two of them are themselves evidence:
+Hashing the whole tree finds **nine** groups. Five are benign and two of those are themselves
+evidence; the other four are files the live-integration pack copied on purpose and declares as
+copies. None is a mistake.
 
 | Files | Why they are identical |
 |---|---|
@@ -1215,6 +1342,19 @@ The other five groups the hash sweep found are benign, and two of them are thems
 | `b12-4/reduced-0000ms-at-rest.png` and `visible-0000ms-at-rest.png` | At rest, before any reveal, the reduced and normal cases are the same page by design |
 | `ui-audit/console-feed.jpg` and `console-navigation-after.jpg` | Captured 57 seconds apart. This **is** UI-025: the note on the second reads "No navigation click after Overview; page automatically returned to Console", so the after-shot being the console feed is the finding |
 | `b13-13-ui-audit/regressions-inbox-ops.png` and `ui-016-inbox-first-viewport.png` | One capture filed under two names, serving the UI-016 item and the regression sweep. Harmless duplication, not a wrong image |
+
+The four remaining groups are the live-integration pack's declared copies, each verified for this
+pack to be byte-identical to the source its own manifest names:
+
+| Copy | Source it declares |
+|---|---|
+| `live-integration-2026-09-09/03-Deployed-Application/01-kyb-approved-earlier-capture.jpg` | `ui-audit-2026-09-09/broker-kyb-approved.jpg` |
+| `.../02-kyb-failed-earlier-capture.jpg` | `ui-audit-2026-09-09/broker-kyb-failed.jpg` |
+| `.../03-correction-and-ledger-earlier-capture.png` | `live-fire-day2/LIVE-8/after/policy-money.png` |
+| `.../04-reconciliation-earlier-capture.png` | `live-fire-day2/LIVE-0/after/reconciliation.png` |
+
+Copying an image into a second folder is fine when the copy says where it came from. That is the
+difference between these four and F-UI2-08: these declare their origin and match it byte for byte.
 
 ## 4.5 Records whose own standing verdict is FAIL
 
@@ -1258,23 +1398,28 @@ Two live scenarios were driven by Yoann and both left **his own spoken explanati
 This is not something an agent can close. It closes when Yoann explains the money path back, in his
 own words, on the three stories prepared for the debrief.
 
-## 4.7 Live-fire items not performed by the candidate
+## 4.7 Live-fire items: the table after tonight
 
-From `docs/COMPLIANCE-MATRIX.md` section 4, the live-fire table, as it stood when it was written:
+Five of the seven were driven by Yoann tonight, on branch `live-fire-evidence`, with the expected
+figures computed before each click and the result read by GET after it
+(`docs/handoffs/live-fire-day2.md`). **This table replaces the one in
+`docs/COMPLIANCE-MATRIX.md` section 4**, which was written before tonight and now understates what
+has been done; the matrix needs the same update before the email quotes it.
 
-| Item | Status |
-|---|---|
-| LF-1 issue and pay with a test card | **Live by Yoann**, twice |
-| LF-2 backdated fix on the deployed application | **NOT RUN: not done by anyone.** The mechanism is PASS at `2755d11`; no production policy carries a correction |
-| LF-3 replay the payment webhook twice | **Check only**: coordinator HTTP probes on production plus `check:payment-replay` 34/34. Not driven by Yoann |
-| LF-4 cancel with an open claim | **Live by Yoann**. His spoken explanation of the reserve is still pending |
-| LF-5 the policy as it stood between two endorsements | **NOT RUN, blocked on data**: no production policy has two endorsements; CGP-01707 has exactly one |
-| LF-6 detect a planted payout mismatch on the breaks screen | **PARTIAL**: a planted $42.42 Stripe probe sits on the deployed board as a provider-only break; `local_only`, `amount_mismatch` and `stale` have never been produced on production, and no human planted one and watched it appear |
-| LF-7 the initiator refused on the approvals queue | **Check only**: proven over HTTP by the B7 reviewer against the initiator, a broker, a customer and an anonymous caller. Not driven by Yoann |
+| Item | Status now | Evidence |
+|---|---|---|
+| LF-1 issue and pay with a test card | **Live by Yoann**, twice on 2026-09-08, and a third time tonight (CGP-01709, $12,307.00, 20:54:28Z) | `docs/STATUS.md`; `live-fire-day2/LIVE-3/after/` |
+| LF-2 backdated fix on the deployed application | **Live by Yoann tonight**, 19:33:07Z. Was "NOT RUN: not done by anyone" this morning | `live-fire-day2/LIVE-8/`, and the provider side in `live-integration-2026-09-09/01-Stripe-Payments/06-...jpg` |
+| LF-3 replay the payment webhook twice | **Check only**, unchanged: coordinator HTTP probes plus `check:payment-replay` 34/34. Not driven by Yoann | `docs/reviews/b2-issuance-and-collection.md` |
+| LF-4 cancel with an open claim | **Live by Yoann**, twice: CGP-01274 on 2026-09-08, and CGP-01707 tonight with four refunds above the threshold through the approval queue | `docs/STATUS.md`; `live-fire-day2/LIVE-7/` |
+| LF-5 the policy as it stood between two endorsements | **Live by Yoann tonight.** Was "NOT RUN, blocked on data": no policy carried two endorsements. LIVE-9 created the second, and the three as-of readings are 2026-09-15 ($1,200.00 / $28.20 / $1M / $2M), **2026-09-25, between the two ($2,400.00 / $56.40 / $2M / $4M)**, and 2026-10-05 ($2,700.00 / $63.45) | `live-fire-day2/LIVE-9/after/as-it-stood-on-*.txt` and `.png` |
+| LF-6 detect a planted payout mismatch on the breaks screen | **Partial, unchanged in kind but better evidenced.** The 18:38:23Z run classified 32 probes and left four genuine provider-only breaks. Still true: `local_only`, `amount_mismatch` and `stale` have never been produced on production, and no human planted one and watched it appear | `live-fire-day2/LIVE-0/after/` |
+| LF-7 the initiator refused on the approvals queue | **Observed live tonight**, one step short of driven: on the queue the four requests raised by the broker each carry the chip **"not an approver"** with no decision form, and a distinct human (`approver@`) then approved them at 20:34:28Z. The record is careful about who read what: "the waiting state itself is Yoann's read" | `live-fire-day2/LIVE-7/` |
 
-The live-fire session running tonight on branch `live-fire-evidence` is aimed at exactly these
-lines. Whatever it does or does not close must be re-read into this table before the email is sent,
-because the table above is the state at `5cfbc26` and not a prediction.
+**What is still not done, stated plainly.** LF-3 remains a check-script and HTTP-probe proof rather
+than a rehearsal. LF-6 remains partial: a probe found on the board is not the same as a human
+planting a mismatch and watching it surface, and three of the five classifications have never
+appeared on production data.
 
 ## 4.8 Findings still open at `b33edbc`
 
@@ -1326,14 +1471,22 @@ application prints on `/ops/mcp-keys`.
 
 | Kind | Count | Where they are cited |
 |---|---|---|
-| `pi_` PaymentIntents | 20 | `b10-reconciliation.md` (10), `b2-issuance-and-collection.md`, `b5-cancellation-and-refund.md`, `b13-13-ui-audit.md`, `backend-production-confirmation.md`, the three breaks-board rounds (one probe each), `integration.md`, `recheck-day2.md`, `ui-system.md`, `docs/handoffs/b10-implementation-notes.md`, `docs/handoffs/b12-1-agent-demo.md`, `docs/STATUS.md` |
+| `pi_` PaymentIntents | 23 | `b10-reconciliation.md` (10), `b2-issuance-and-collection.md`, `b5-cancellation-and-refund.md`, `b13-13-ui-audit.md`, `backend-production-confirmation.md`, the three breaks-board rounds (one probe each), `integration.md`, `recheck-day2.md`, `ui-system.md`, `docs/handoffs/b10-implementation-notes.md`, `docs/handoffs/b12-1-agent-demo.md`, `docs/STATUS.md` |
 | `re_` Refunds | 3 | `re_3UDKq0K6R3v50tIy11aPmuHK` (the day-0 feasibility probe), `re_3UDM4KK6R3v50tIy0scSGaps` (created by the delegate's worktree server, which is why F-B5-04 stayed open), **`re_3UDN8aK6R3v50tIy0J6CmRy3`** (the live cancellation refund Yoann drove, $2,081.09) |
 | `cs_` Checkout Sessions | 10 | `docs/STATUS.md` and the B2/B4/B5 records |
-| `acct_` Connect accounts | 23 | `docs/handoffs/docs-kyb-implementation-notes.md` (20 probe accounts), `b3-broker-kyb.md`, `docs/handoffs/b3-implementation-notes.md`, `docs/STATUS.md`. The demo broker's account is `acct_1UDNobK6R3ohMVag`; the failed tax-id fixture is `acct_1UDNv2K6R3y2nGVW` |
-| `evt_` webhook events | 18 | `b2-issuance-and-collection.md`, `b5-cancellation-and-refund.md`, `b3-broker-kyb.md`, `docs/STATUS.md`, `docs/COMPLIANCE-MATRIX.md` |
+| `acct_` Connect accounts | 24 | `docs/handoffs/docs-kyb-implementation-notes.md` (20 probe accounts), `b3-broker-kyb.md`, `docs/handoffs/b3-implementation-notes.md`, `docs/STATUS.md`. The demo broker's account is `acct_1UDNobK6R3ohMVag`; the failed tax-id fixture is `acct_1UDNv2K6R3y2nGVW` |
+| `evt_` webhook events | 20 | `b2-issuance-and-collection.md`, `b5-cancellation-and-refund.md`, `b3-broker-kyb.md`, `docs/STATUS.md`, `docs/COMPLIANCE-MATRIX.md` |
 | `we_` webhook endpoints | 2 | `we_1UDKzYK6R3v50tIybe5BIytW` (the account endpoint) and `we_1UDOHHK6R3v50tIyfbZP2ohD` (the Connect endpoint, `connect=true`, same URL, its own signing secret) |
 | `cmk_` MCP key prefixes | 12 | `b11-mcp.md` (6), `integration.md`, `post-pass-changes.md`, `recheck-day2.md`, `b13-2-low-batch.md`, `docs/handoffs/b11-*.md`, `docs/handoffs/b12-1-agent-demo.md`. The agent key of the MCP demonstration is `cmk_e96f88a4` |
-| **Total real objects** | **88** | |
+| **Total real objects** | **93** | |
+
+**Added by tonight's evidence**, and none of them appeared in any text record before: the CGP-01707
+issuance pair `pi_3UDUCUK6R3v50tIy06eM9VlU` and `evt_3UDUCUK6R3v50tIy0MtOqkDo` (USD 1,253.20,
+2026-09-08 18:57:00 UTC), the correction pair `pi_3UDrW1K6R3v50tIy1GPWqtve` and
+`evt_3UDrW1K6R3v50tIy1YusKFe5` (USD 53.84, 2026-09-09 19:50:43 UTC), and the Harbor Point connected
+account `acct_1UDOfRK6R3FpfF2D`. They come from the Stripe dashboard captures and from
+`docs/evidence/live-integration-2026-09-09/evidence-manifest.json`, which is a reminder that the
+provider side held references our own records had never written down.
 
 Four tokens that look like references and are not: `cmk_deadbeef` and `cmk_xxxxxxxx` (placeholders
 proving a wrong key is refused, and a redaction pattern), `re_check_now_at_stripe` (a prose token),

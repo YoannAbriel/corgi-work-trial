@@ -566,6 +566,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T21:11:00+00:00 | Switcher deployed: /api/health reports 4f10705
+
+- Health at 4f10705 at 21:11Z. Anonymous checks: POST /api/session/switch signed out answers 303 to /login with no Set-Cookie, GET answers 405. The co-pilot re-reads the LIVE-10 before-state on this revision and gives Yoann the go.
+
 ## 2026-09-09T21:10:00+00:00 | Demo-account switcher reviewed PASS, F-SWITCH-01 fixed, pushed at 4f10705
 
 - Independent review `docs/reviews/demo-switch-r1.md` (PASS, five findings, no HIGH): the email list is a code constant checked before the single select, the cookie comes from the same signSessionCookie as login with the same flags, refusals log as refused with rule "sign in". Measurement limit stated by the reviewer: no node_modules in its worktree, so claims rest on code and the shipped classifier, not on curl against a built server.

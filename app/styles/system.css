@@ -2764,8 +2764,19 @@ button.secondary.is-working::after {
 .account-switch:focus-visible {
   background: #ebecf0;
 }
+/* The name column may shrink and the name truncates, so a long name never wraps into the
+   role line beside the chevrons (review finding F-LT-04). */
 .account-switch > span:nth-child(2) {
   flex: 1 1 auto;
+  min-width: 0;
+}
+.account-switch strong,
+.account-switch > span:nth-child(2) > span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
 }
 .account-chevrons {
   flex-shrink: 0;
