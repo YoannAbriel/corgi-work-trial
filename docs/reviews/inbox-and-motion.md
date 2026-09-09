@@ -563,3 +563,246 @@ which is precisely the case the builder asked a reviewer to look at.
 | F-B12-16 | LOW | Under reduced motion the proving entry is never marked at all; the handoff says it is marked with a plain colour | Correct the note, or mark it | OPEN |
 | F-B12-17 | LOW | Reveal steps hidden with `opacity: 0` stay focusable and clickable for the ~480 ms of the build | Add `visibility: hidden`, or `inert` on a step that has not arrived | OPEN |
 | F-B12-18 | LOW | A corrected policy renders the correction entries twice, so two blocks share one `journal-entry-<id>`; the connector would land on the corrections copy (not reachable on today's data) | Prefix the second table's ids, or reuse the journal's anchors | OPEN |
+
+---
+
+# Re-review of the two fix cycles
+
+Reviewer: independent re-reviewer sub-agent, own worktree
+`.claude/worktrees/agent-af42ecb31bce9e99f`, branch `worktree-agent-af42ecb31bce9e99f`.
+Timestamp: 2026-09-09T09:10Z. Timebox: 90 minutes.
+
+Reviewed revision: `41ea2c5` (main), working tree clean at review start. The original record above
+covers `db1762a`; every finding below was re-measured on `41ea2c5`, not carried over.
+
+Deployed revision measured: `https://corgi-work-trial-iota.vercel.app/api/health` returned
+`{"ok":true,"database":"ok","revision":"41ea2c5180fbbe1dd8b0ed80fc103f24bd387c0f"}` at 08:57Z, so
+the deployment already carried the revision under review and no polling was needed.
+
+**Verdicts: inbox PASS. Animation PASS with one finding still open.**
+**Candidate walkthrough status: NOT REVIEWED WITH YOANN.**
+
+## Startup receipt
+
+Read in full: `CLAUDE.md`, `AUTOMATIC-FAILS.md`, `REVIEWER.md`, `AGENTS.md`, `READABLE-CODE.md`,
+`WORKFLOW-48H.md`, the review record above, `docs/handoffs/b13-8-notes.md`,
+`docs/handoffs/b12-4-notes.md`, `lib/inbox/sections.ts`, `lib/inbox/sections.test.ts`,
+`lib/inbox/read.ts`, `components/what-needs-you.tsx`, `app/inbox/page.tsx`,
+`scripts/check-inbox-counts.ts`, `components/amount-explained-motion.tsx`,
+`components/amount-explained.tsx`, `components/journal-table.tsx`,
+`lib/money/amount-explained-motion.test.ts`, and all 18 frames of `docs/evidence/b12-4/` by hash
+plus 6 of them opened as images.
+
+Read in the parts relevant to the scope: `docs/reviews/FINDINGS.md` (the register lines for
+F-B13-15 to F-B13-20 and F-B12-11 to F-B12-18), `app/globals.css` (the reveal, connector, pulse and
+reduced-motion blocks), `components/formula-lines.tsx`, `components/portal-shell.tsx` (the chip
+link), `lib/policy/read.ts` (`endorsementsPaidButNotApplied`), `lib/policy/correction-read.ts` and
+`lib/money/cents.ts` (the refusal message), `lib/policy/endorsement-requests.ts` (its thrown
+errors), `README.md` (the two "Explain this amount" sections), and the diff `db1762a..41ea2c5` over
+the files of both slices.
+
+Not read: `READINESS-CHECKLIST.md`, `STRESS-TEST-PLAN.md`, `READINESS-BACKLOG.json`,
+`GAP-REVIEW.md`, `START-PROMPT.md`; no retained readiness control and no performance work applies
+to two read-only presentation slices. `docs/PLAN.md`, `docs/STATUS.md`, `docs/DECISIONS.md` and
+`docs/COMPLIANCE-MATRIX.md` were not opened: the coordinator owns them and this re-review changes
+no requirement. Absent files: none in scope.
+
+The worktree carries no committed `.env.local`. The main tree's ignored `.env.local` was copied in
+to run the check script and the deployed logins; `git check-ignore` confirms it is ignored, it is
+not staged in the commit that carries this record, and no value from it appears anywhere here.
+
+## Per-finding status
+
+### The inbox (B13-8)
+
+| ID | Status | What was measured on `41ea2c5` |
+|---|---|---|
+| F-B13-15 | **FIXED** | `WorkspaceTask` now carries `anchor: InboxAnchor` beside `section`, and `WhatNeedsYou` links `/inbox#${task.anchor}`. On `corgi_test`, `check:inbox-counts` compared every task's anchor against the section carrying it for 52 users: five brokers with an open change request read `#change-requests 1/1`, where the old link led to an empty `#policies`. Also seen agreeing: `#waiting-for-the-customer 1/1`, `#endorsement-deltas 1/1`, a customer's `#policies 1/1`. On production the only waiting work is 22 open breaks for both staff roles: the block's one task links to `/inbox#reconciliation`, that section's chip reads 22 and it holds 22 table rows |
+| F-B13-16 | **FIXED** | `endorsementsPaidNotApplied` is declared `"endorsements"` in `INBOX_ANCHORS` and used by both sides. On `corgi_test` staff operations read `#policies 11/11` and `#endorsements 39/39` as two separate comparisons, which is exactly the pair the old check added together. The twelve names live once, in `INBOX_ANCHORS`; the unit test walks all twelve; the rendered pages carry every anchor id, with no duplicate id on any page: broker `policies, endorsement-deltas, correction-differences, change-requests, waiting-for-the-customer`, customer `policies, corrections`, staff `approvals, policies, endorsements, claims, reconciliation` |
+| F-B13-17 | **FIXED** | The script builds `countedByAnchor` and `listedByAnchor` and compares anchor by anchor; a second section carrying an anchor already used is reported as a FAIL (`#x is used twice`); it walks the 25 most recent owners of each role by newest policy and prints `50 of 859 brokers and customers compared, the most recent 25 of each role`, so what it left out is stated rather than guessed |
+| F-B13-18 | **FIXED** | `refusedValueOrRethrow` returns `error.message` only for an `Error` that is not a `TypeError`, `RangeError` or `ReferenceError` and carries neither `code` nor `errno`; everything else is rethrown, a non-`Error` throw included. The printed sentence names the refused figure: the message comes from `centsFromDatabase` and reads "policy_refunded_cents is not a whole number of cents: it is missing", and `app/inbox/page.tsx` prints `${policyNumber} (${reason})`. Every plain `Error` reachable from the inbox readers is a stored-payload refusal (`lib/money/cents.ts`, `lib/policy/endorsement-requests.ts`) |
+| F-B13-19 | **FIXED** | The header now reads "the full local environment of `.env.local`, like the other check scripts, and not only the two database URLs it reads by name", and names `lib/stripe.ts` and `STRIPE_SECRET_KEY` as the reason |
+| F-B13-20 | **FIXED** | The `distinct on` is wrapped in a subquery and the outer select orders by `waiting.paid_at`. One read-only query on `corgi_test` through the reader itself: 39 rows, 39 distinct request event ids, first paid `2026-09-08T13:31:57.868Z`, last `2026-09-09T08:56:22.838Z`, non-decreasing throughout. The first date is the one the builder recorded; the count is 39 rather than the builder's 35 because `corgi_test` kept growing between the two runs |
+
+### The animated explanation (B12-4)
+
+| ID | Status | What was measured on `41ea2c5` |
+|---|---|---|
+| F-B12-11 | **FIXED** | `runReveal` step 4 calls `pointAtLedgerIfAlreadyVisible`, which returns unless `isOnScreenWithoutOpening` holds: that function walks every ancestor and refuses on the first closed `<details>`, then requires the target's box inside the viewport. Nothing on the reveal path sets `.open` or calls `scrollIntoView`. `traceToLedger` is the only function that opens ancestors, scrolls and pulses, and it is reached from the link and from the hash effect only. The connector is drawn by `drawConnectorIfBothEndsVisible`, which repeats the same test and also requires the figure to be in view. Still the real case on production: on CGP-01707 4 of 4 distinct trace targets sit inside the closed show-all fold, on CGP-01274 4 of 7, so the reveal points at the ledger by itself on neither. Frames `hidden-1400ms.png` and `hidden-after-trace-to-the-ledger.png` show the reveal leaving the page alone and the link opening the fold, scrolling and lighting the entry |
+| F-B12-12 | **FIXED** | A `useEffect` keyed on `traceEntryElementId` runs `traceToLedger` when `window.location.hash` names that entry, once on arrival and again on every `hashchange`, and removes the listener on unmount. `fragment-arrival-opens-the-fold.png` shows it: the show-all fold open, the connector drawn, the entry lit, and the explanation fold itself still closed. The handoff no longer claims the no-JavaScript case: it now says that with JavaScript off whether the browser opens the surrounding fold "is the browser's decision and not ours" |
+| F-B12-13 | **STILL OPEN** | The client component's header and the handoff both carry the honest wording ("while the count runs, the browser does arithmetic", "it reads the digits of the server-rendered text"). **`README.md` does not.** Its "Explain this amount, animated" section still reads "No money is computed in the browser: every string the animation shows was rendered on the server and arrives in a prop or a data attribute", and `git log db1762a..41ea2c5 -- README.md` shows that no commit of the fix cycle touched it. The second clause is now contradicted by the component's own comment: during the count the strings shown are composed in the browser by `replaceDigits`. The same paragraph also still describes the pre-F-B12-11 connector ("a connector is drawn to the journal entry block that proves it"), which on CGP-01707 never happens by itself |
+| F-B12-14 | **FIXED** | The table now records a bracket read immediately before and after each frame. Checked against the frames themselves: the 560 ms row `[$0,278.76 .. $0,456.43]` and `motion-0560ms.png` reads `$0,456.43`; the 1000 ms row `[$2,375.65 .. $2,379.60]` and `motion-1000ms.png` reads `$2,379.60`; the 1400 ms row `$2,380.44` and `motion-1400ms.png` reads `$2,380.44`. No row claims a digit its frame does not show |
+| F-B12-15 | **FIXED** | `const textFromServer = resultCell.dataset.finalAmount; if (!textFromServer) return;` and a second `return` on empty digits: a cell with no server string is not animated at all, and `closeReveal` only restores from that same attribute. `FormulaLinesTable` writes `data-final-amount={formatCentsAsUsd(line.cents)}` on every amount cell, and the attribute is present on all six production pages fetched |
+| F-B12-16 | **FIXED** | The reduced branch of `runReveal` now ends on `pointAtLedgerIfAlreadyVisible()`, and the reduced-motion CSS block gives `.entry-block.entry-proving` a flat background and border with `animation: none`. `reduced-0140ms.png` shows the whole panel at once, the result already at `$2,380.44`, no connector, and the `premium_collected` block, which is the first evidence entry carrying an id, marked in the flat colour while the other block is plain |
+| F-B12-17 | **FIXED** | `visibility: hidden` sits beside `opacity: 0` on `.amount-explain-panel[data-reveal] .reveal-step` and on the formula rows, with `visibility` transitioned discretely (`0s linear 220ms` hiding, `0s linear 0s` showing) so the fade still runs. All three focusable controls are inside a `.reveal-step`: the trace link and the evidence region in step 4, the formula region (`components/formula-lines.tsx`, `tabIndex={0}`) in step 2 |
+| F-B12-18 | **FIXED** | `journalEntryElementId(panelKey, entryId)`, and `JournalTable` requires `panelKey` with no default. Four call sites: `panelKey="policy"` on the policy page, `"correction"` in `correction-sections.tsx`, `"claim"` on the claim page, `"console"` in `components/console-360.tsx`. Measured on production: CGP-01274 11 ids, CGP-01707 8, the claim 3, the console 360 policy page 35, all shaped `journal-entry-<panel>-<uuid>`, 0 duplicates on any page, and every one of the 17 trace links resolves to an id present in the same document |
+
+## Checks executed
+
+| Check | Command | Result |
+|---|---|---|
+| Deployed revision | `GET /api/health` at 08:57Z | `41ea2c5180fbbe1dd8b0ed80fc103f24bd387c0f` |
+| Types | `npm run typecheck` | exit 0, no output |
+| Unit tests | `npm test` | 456 tests, 455 pass, 1 skipped, 0 fail |
+| Count and anchor agreement | `npm run check:inbox-counts` on `corgi_test`, once, read-only | 53 PASS, 0 FAIL, 0 SKIP; 50 owners of 859 plus one user of each staff role |
+| Ordering of the endorsement section | one read-only call to `endorsementsPaidButNotApplied` on `corgi_test` | 39 rows, 39 distinct request events, oldest payment first, `2026-09-08T13:31:57.868Z` to `2026-09-09T08:56:22.838Z` |
+| Deployed screens | 1 anonymous and 13 authenticated GETs over four identities (4 logins, `303` each) | `/inbox` anonymous `307 -> /login`; every other page `200` |
+| Inbox anchors on production | parsed from the served HTML | broker 5 sections, customer 2, ops and approver 5 each; 0 duplicate ids; heading chips "nothing waiting", "nothing waiting", "22 waiting", "22 waiting"; `#reconciliation` chip 22 and 22 table rows for both staff roles |
+| Entry ids and trace links | parsed from the served HTML of five pages | CGP-01274 11 ids and 9 links, CGP-01707 8 and 5, claim `2f78c23c` 3 and 3, statement `c775c8ce` 0 and 0, console 360 policy 35 and 0; 0 absent targets, 0 duplicate ids |
+| Folds unchanged | same HTML | 14, 8, 3 and 5 folds with 0 disagreement alerts, identical to both earlier records; every hand-checked figure of those reviews still prints (CGP-01274 `5433`, `27870`, `203330`, `4779`, `208109`, `30499`, `34680 - 30499`, `$41.81`; CGP-01707 `110136`, `2588`, `112724`, `125320 + 112724`, `$2,380.44`, `18000 + 16520`, `120000 + 110136`), and the seven `data-subtotal` strings per policy are unchanged. **The fix cycle changed no figure** |
+| No JavaScript advertised | same HTML | `data-reveal` 0 occurrences and `role="button"` 0 occurrences on all six pages, the RSC payload included |
+| Secrets | `gitleaks detect --log-opts="db1762a..41ea2c5" --redact` (8.30.1) | no leaks found, 71 commits, 1.37 MB |
+| Evidence frames | `shasum -a 256` over the 18 PNGs, 6 opened as images | see the note below |
+
+## Checks not executed, and why
+
+- **No browser.** Neither this worktree nor the main tree has Playwright or Puppeteer in
+  `node_modules`, and neither is a dependency of the project, so the animation was **not run** and
+  no 1280 or 375 viewport was exercised. Every statement about it comes from the source of the
+  client component, the CSS, the server-rendered HTML of the deployed revision, and the committed
+  frames. Those frames are the builder's, captured on a throwaway fixture page rather than trial
+  data, so no frame proves anything about a real policy.
+- **`check:money-guards` was not run**, by instruction (184/184 at 0020, 08:32Z).
+- **No `npm run build`**; types and tests were run instead.
+- **The refused-value branch of F-B13-18 was not exercised.** This run of the count check produced
+  **0 SKIP lines**, so no policy in the batch had a refused stored figure. `refusedValueOrRethrow`
+  has no unit test of its own, which the handoff discloses. Its rethrow branches were read, not
+  observed.
+- **Three of the twelve task kinds were never seen with a real item**: a broker's "policies to pay"
+  (`#policies`), "correction differences to collect" (`#correction-differences`) and a customer's
+  "corrections waiting for your approval" (`#corrections`). No owner in the batch of 50 had one.
+  Those three rest on the source and on the unit test, not on a measurement.
+- **The deployed data still cannot exercise the inbox.** Only the 22 open breaks are waiting, for
+  the two staff roles; the broker and customer inboxes, and any staff role with several non empty
+  sections, were measured on `corgi_test` only.
+- **No correction exists on a deployed policy** (`Correction entries`: 0 occurrences on both policy
+  pages fetched), so the duplicate-id case F-B12-18 repaired is still not observable on production;
+  the console 360 page is what proves a second panel key renders live.
+- **The frame table's non visual columns were not verified.** Whether the show-all fold was open,
+  whether the page had scrolled and how many controls were focusable are numbers the builder read
+  in the same run; a frame cannot show them.
+- **The correctness of the underlying figures** stays out of scope, as in the record above.
+
+## Notes on the evidence, not findings
+
+- Three PNGs are byte identical (`hidden-1400ms.png`, `motion-1400ms.png`, `motion-2200ms.png`), as
+  are `reduced-0140ms.png` and `reduced-1400ms.png`, and `visible-0000ms-at-rest.png` and
+  `reduced-0000ms-at-rest.png`. This is consistent rather than wrong: the two fixtures differ only
+  below the fold, and once the panel is open the journal is pushed out of the 940 pixel viewport,
+  so the two runs really do produce the same pixels. It does mean `hidden-1400ms.png` on its own
+  does not distinguish the two scenarios; the frame that does is
+  `hidden-after-trace-to-the-ledger.png`.
+- `fragment-arrival-opens-the-fold.png` carries the Next.js development overlay reading **"1
+  Issue"**, where every other frame shows the plain badge. The fixture route was deleted before the
+  commit, so what the issue was cannot be recovered here. Recorded as an observation.
+- The test suite's own title is still `the client component computes no money`. Its assertions are
+  exactly right and the component header now qualifies the claim, so this is not counted as part of
+  F-B12-13, which is about the README.
+
+## New findings
+
+### F-B13-60, LOW: nothing but the check script holds the per-role half of the anchor promise
+
+**Trigger.** `InboxAnchor` is the union of the **values** of `INBOX_ANCHORS`, that is the ten
+distinct anchor strings. A broker task may therefore be typed `anchor: "claims"` and compile. The
+unit test named "every anchor a task can name is an anchor some section actually has" builds one
+`Set` from the broker, the customer and the staff sections together and asserts membership in that
+union, so it proves the same weaker property. Its own comment claims more: "this checks the other
+direction, that each of the twelve is rendered by the role that uses it."
+
+**Consequence.** The property that actually matters, that the role naming an anchor is the role
+rendering it, is held only by `check:inbox-counts`, and only for a role that has work waiting in
+the sampled data on the day it runs. Three of the twelve kinds had no item in this run, so for
+those three nothing in the repository currently demonstrates it. The wording of the comment would
+also lead the next reader to think the cheap guard is already there.
+
+**Correction.** Group the twelve keys by role in `INBOX_ANCHORS` (or add a small map beside it) and
+assert per role that `brokerSections([], []).map(anchor)` contains exactly the broker keys' values,
+and the same for the customer and for staff. Four lines, no database, and it closes the direction
+the check script cannot always reach. Correct the comment either way.
+
+### F-B12-20, LOW: two folds can name one journal entry, and then both act on a fragment arrival
+
+**Trigger.** `components/amount-explained-motion.tsx`, the hash effect: every
+`AmountExplainedMotion` carrying a `traceEntryElementId` registers its own `hashchange` listener
+and calls `traceToLedger()` when the hash names its entry. Its comment states "Every other fold on
+the page returns on the first line: the hash names exactly one entry." The hash does name one
+entry; what it does not name is one fold.
+
+**Measured on the deployed revision.** Two folds share one trace target on CGP-01274 twice
+(`$54.33` with `$25.00`, and `$304.99` with `$41.81`), once on CGP-01707 (`$28.20` with `$25.00`)
+and once on the claim page. Nine links over seven distinct targets on CGP-01274, five over four on
+CGP-01707. This is normal: several figures are proved by the same entry.
+
+**Consequence.** Arriving at such an address, or following the link on a page already loaded, runs
+`traceToLedger` once per fold that names it: two `scrollIntoView` calls, two pulses with two timers
+racing to remove one class, and after the settle delay two connectors drawn from two different
+figures to the same entry. Cosmetic only, on an `aria-hidden` overlay, with no money and no state
+involved; nothing is persisted and nothing is read back. It is worth fixing because the comment
+asserts the opposite, and a reviewer at the debrief will test exactly that sentence.
+
+**Correction.** Let the fragment act once: either have the hash effect return unless this fold is
+the first on the page naming that entry, or lift the arrival handling out of the per-fold component
+into a single listener.
+
+## Readability, AF-06
+
+Both fixes read the way the slices already read. `INBOX_ANCHORS` is the right shape for this
+problem: one object, one comment saying why the names cannot be typed twice, and the two consumers
+importing it. `refusedValueOrRethrow` is twelve lines with a comment naming each rethrown class and
+why, which is the pattern `READABLE-CODE.md` asks for and the opposite of the bare `catch` it
+replaced. The subquery around the `distinct on` carries the sentence that explains it. On the
+animation side, `isOnScreenWithoutOpening` is the whole of the F-B12-11 fix and it is one readable
+loop plus one rectangle test, and `traceToLedger` is now the only function in the file that changes
+the page, which is a property a reader can check by eye. Two sentences Yoann should have ready: why
+a count is the length of its own list, and why `isOnScreenWithoutOpening` refuses on a closed
+`<details>` before it ever looks at coordinates. Nothing here adds an opaque formula, a float in a
+money path, a hidden side effect or a new abstraction.
+
+## Verdicts
+
+**Inbox (B13-8, YOA-636): PASS** at `41ea2c5`. All six findings fixed and measured, none reopened,
+one new LOW (F-B13-60) about a guard weaker than its own comment. The slice remains read only: no
+migration in the range, no write verb in its files, and the two staff roles' numbers on production
+agree end to end (badge 22, block 22, heading 22, section chip 22, 22 table rows).
+
+**Animated explanation (B12-4, YOA-637): PASS** at `41ea2c5`, with **F-B12-13 still open** and one
+new LOW (F-B12-20). Seven of the eight findings are fixed and were re-measured; the code side of
+F-B12-13 was never in question, and the component and the handoff now say the true thing. What
+remains is the README, which still tells a reader that no money is computed in the browser and that
+a connector is drawn to the proving entry, neither of which is what the code now does. It does not
+block: it changes no behaviour, it is one paragraph, and the accurate statement already exists in
+two other places to copy from. It should be corrected before submission, because the README is the
+document a reviewer reads first and this is the exact sentence F-B12-13 asked to have fixed.
+
+## Residual limitations
+
+- The animation was still never run: no browser is available in this worktree either, so the
+  viewport work asked for (1280 and 375) was not done, and F-B12-11, F-B12-12, F-B12-16, F-B12-17
+  and F-B12-20 rest on the source, the CSS, the deployed markup and the builder's fixture frames.
+- The three inbox task kinds listed above have no live measurement behind them today.
+- One run of the count check, on data other agents share and that grew between the builder's
+  measurement and this one. No contention was observed; the run took about ten minutes.
+- Nothing here is a legal certification, and a technical PASS on two presentation slices says
+  nothing about the correctness of the figures they display.
+
+## Register lines
+
+| ID | Sev | Finding (one line) | Fix | Status |
+|---|---|---|---|---|
+| F-B13-15 | MEDIUM | A "what needs you" item linked to the sidebar section, not the inbox anchor | `anchor` on `WorkspaceTask`, from `INBOX_ANCHORS` | FIXED at 41ea2c5, re-review PASS (five brokers read `#change-requests 1/1` on corgi_test; production `#reconciliation` 22/22) |
+| F-B13-16 | LOW | Staff "endorsements paid and not in force" landed on the policies section | Same fix | FIXED at 41ea2c5 (`#policies 11/11` and `#endorsements 39/39` compared apart) |
+| F-B13-17 | LOW | The count check folded the anchors onto sidebar sections and stopped at the first broker | Anchor by anchor, duplicate id refused, a batch of owners | FIXED at 41ea2c5 (53 PASS, 0 FAIL, 50 of 859 owners, the left-out count printed) |
+| F-B13-18 | LOW | A bare `catch {}` reported any failure as an unreadable policy | Keep a refused stored value, rethrow the rest | FIXED at 41ea2c5; the printed sentence names the refused figure; branch not exercised (0 SKIP this run) |
+| F-B13-19 | LOW | The script documented one variable and needed the whole environment | The header says so | FIXED at 41ea2c5 |
+| F-B13-20 | LOW | The endorsement section was in uuid order | Wrap the `distinct on`, order by `paid_at` | FIXED at 41ea2c5 (39 rows on corgi_test, oldest first from 2026-09-08T13:31:57.868Z) |
+| F-B13-60 | LOW | The anchor type and the unit test prove an anchor exists somewhere, not that the role naming it renders it; the test's comment claims the stronger property | Assert the anchors per role in `lib/inbox/sections.test.ts` and correct the comment | OPEN |
+| F-B12-11 | MEDIUM | The reveal opened the journal's show-all fold and drew the connector off screen | The reveal never opens or scrolls; the trace link is the one action that does | FIXED at 41ea2c5 (4 of 4 targets behind the fold on CGP-01707, 4 of 7 on CGP-01274, and the reveal points at none of them) |
+| F-B12-12 | LOW | The no-JavaScript fragment claim was unverified | The fold opens on arrival and on hashchange; the note softened | FIXED at 41ea2c5 (`fragment-arrival-opens-the-fold.png`) |
+| F-B12-13 | LOW | "The browser never computes money" overstated the count-up | Say that the browser does arithmetic on the digits of the server text | **STILL OPEN**: the component header and the handoff say it, `README.md` still says the opposite and still describes the pre-fix connector |
+| F-B12-14 | LOW | The frame table disagreed with its own frame | Record a bracket read either side of each frame | FIXED at 41ea2c5 (three rows checked against their frames) |
+| F-B12-15 | LOW | The count-up fell back to the cell's current text | Refuse a cell with no `data-final-amount` | FIXED at 41ea2c5 |
+| F-B12-16 | LOW | Reduced motion never marked the proving entry | Mark it with the flat colour when it is already visible | FIXED at 41ea2c5 (`reduced-0140ms.png`) |
+| F-B12-17 | LOW | Hidden reveal steps stayed in the tab order | `visibility: hidden` beside `opacity: 0` | FIXED at 41ea2c5 (all three focusable controls sit inside a `.reveal-step`) |
+| F-B12-18 | LOW | Two panels could print one entry id | `journal-entry-<panel>-<entry>`, `panelKey` required | FIXED at 41ea2c5 (four call sites; 0 duplicate ids and 0 absent targets over five production pages) |
+| F-B12-20 | LOW | Two folds can name one journal entry, so a fragment arrival runs the open, scroll, pulse and connector routine once per fold; the code comment says only one fold acts | Act once per fragment arrival | OPEN |
