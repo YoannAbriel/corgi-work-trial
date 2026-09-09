@@ -1,0 +1,77 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 35 waiting for you, open the inbox
+[a /ops/console] Console
+Records
+[a /ops/policies] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] Overview
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=endorsements] Endorsements
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=claims] Claims
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=money] Money
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=timeline] Timeline
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/corrections/new] Correct
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 35 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] Policy CGP-01707
+Correction preview
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Correction previewPolicy CGP-01707
+nothing recorded yet2026-10-08 to 2026-09-22 Policies
+Booked$1,127.24for 335 days
+Corrected$1,181.08for 351 of 365 days
+Difference$53.84collect
+What changes
+Endorsement
+Annual premium $1,200.00 to $2,400.00; per-occurrence limit $1,000,000.00 to $2,000,000.00; aggregate limit $2,000,000.00 to $4,000,000.00
+Effective date
+2026-10-08 to 2026-09-22
+Reason on every entry
+Backdated correction live fire day 2: the endorsement was agreed on 2026-09-22
+Impact, line by line
+The customer owes $53.84 more, collected through Stripe.
+|
+| Amount | How it was computed (integer cents) | Result
+| Prorated premium as booked, 335 of 365 days remained from 2026-10-08 | floor(120000 x 335 / 365) | $1,101.36
+| Prorated premium at the corrected date, 351 of 365 days remain from 2026-09-22 | floor(120000 x 351 / 365) | $1,153.97
+| Premium difference the correction creates | 115397 - 110136 | $52.61
+| State premium tax difference (the tax follows the premium, rounded down on each figure) | floor(115397 x 235 / 10000) - floor(110136 x 235 / 10000) | $1.23
+| Total to collect from the customer through Stripe | 5261 + 123 | $53.84
+| Broker commission earned on the extra premium (rounded down) | floor(5261 x 1500 / 10000) | $7.89
+|
+| Entry | Effective | Recorded (UTC) | Amount
+| endorsement premium written | 2026-10-08 | 2026-09-09 06:34:34 | $1,101.36
+| endorsement tax billed | 2026-10-08 | 2026-09-09 06:34:34 | $25.88
+Confirm
+In one transaction: a dated correction event superseding the endorsement that was wrong, one reversal entry per line beside, the endorsement re-booked on 2026-09-22 with fresh premium and tax entries, and the difference opened as a money operation. Nothing is deleted and nothing is updated. The $53.84 difference is then collected through a hosted Stripe page.
+Customer approval: $53.84 to collect: with this difference, this policy carries $1,153.97 of additional premium in this term, above $500.00, so the customer has to approve it before it is collected.
+[input endorsedEventId=e3e7c572-def4-47c0-940d-69b10df35d90]
+[input correctedEffectiveAt=2026-09-22]
+[input reason=Backdated correction live fire day 2: the endorsement was agreed on 2026-09-22]
+[input expectedPolicyVersion=5]
+Correct the date
+About this screen
+Every line is integer-cent arithmetic
+Each line of the table shows the formula in integer cents that produced its amount.
+Only what was billed is reversed
+The cash entries stay exactly as they are: Stripe really does hold that money, and reversing them would make the ledger claim it left. What the correction changes is what the customer was billed, and the difference sits in premium receivable until it is settled.
+Nothing is deleted
+The originals stay in the journal for ever; a mirrored entry is appended beside each of them, on the same effective date, recorded now.
+Re-priced from the corrected date
+The endorsement is priced again from the corrected effective date with every other input unchanged, so a correction can never quietly re-price a policy at today's rates.Corgi · Policy administration
