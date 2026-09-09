@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { ChangeRequestRefused, createChangeRequest, workspaceHomeOf } from "@/lib/policy/change-requests";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/change-requests
 //
@@ -8,7 +9,9 @@ import { ChangeRequestRefused, createChangeRequest, workspaceHomeOf } from "@/li
 // comment. Nothing is priced and nothing moves; the request is a message stored append-only
 // (migration 0019). Only the policy's customer, read from the session, can send one; the broker,
 // staff and any agent are refused by createChangeRequest.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/change-requests", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();
   const { policyId } = await context.params;
   const malformedId = badPathIdResponse({ policy: policyId }); // a malformed id answers 400, not 500 (F-B7-07)

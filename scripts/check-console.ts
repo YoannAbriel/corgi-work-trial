@@ -64,10 +64,13 @@ async function main() {
     acceptedAndUnconfirmedOperations,
     approvalsOfSubject,
     changeRequestsOfSubject,
+    activityOfSubject,
     consoleFeed,
     consoleSubject,
     journalEntriesOfSubject,
+    latencyByRoute,
     latencyTiles,
+    refusedAndFailedActivity,
     operationsOfSubject,
     operationsProblems,
     parseSince,
@@ -78,6 +81,11 @@ async function main() {
   } = await import("@/lib/console/read");
   const { consoleAccessFor } = await import("@/lib/console/access");
   const { MCP_TOOLS } = await import("@/lib/mcp/tools");
+  // The activity log (decision 25, migration 0021). The helper is exercised for real, with the
+  // restricted runtime role, so what is proven below is the code the deployed application runs.
+  const { withActivity } = await import("@/lib/observability/log");
+  const { redact } = await import("@/lib/observability/redact");
+  const { ApprovalRefused } = await import("@/lib/approvals/approvals");
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
     select current_database()
@@ -464,6 +472,139 @@ async function main() {
     "the role the console reads with can SELECT every table it reads and UPDATE or DELETE none of them",
     privileges.can_select === true && privileges.can_update === false && privileges.can_delete === false,
     `select ${privileges.can_select}, update ${privileges.can_update}, delete ${privileges.can_delete}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 9. The activity log (decision 25, migration 0021, review finding F-RC-07)
+  // ---------------------------------------------------------------------------
+  //
+  // Three wrapped handlers are run for real against the disposable database, one per outcome the
+  // classifier has to get right, and the rows they leave are read back. Nothing is simulated:
+  // this is withActivity, the restricted runtime role and the real table.
+
+  const okCorrelationId = `console-check-${RUN_TAG}-ok`;
+  const refusedCorrelationId = `console-check-${RUN_TAG}-refused`;
+  const redirectCorrelationId = `console-check-${RUN_TAG}-redirect`;
+  const policyContext = { params: Promise.resolve({ policyId: fixture.policyId }) };
+  const requestWith = (correlationId: string) =>
+    new Request("http://console-check.invalid/api/check", { method: "POST", headers: { "x-request-id": correlationId } });
+
+  // (a) A request that worked.
+  const okHandler = withActivity({ route: "/api/check/ok", subject: "policy" }, async () =>
+    new Response(null, { status: 303, headers: { location: `/policies/${fixture.policyId}?bound=1` } }),
+  );
+  await okHandler(requestWith(okCorrelationId), policyContext);
+
+  // (b) A refusal thrown by one of the application's own refusal classes. The wrapper re-throws
+  //     it after writing the row, on purpose: a route must behave exactly as it did before.
+  const refusedHandler = withActivity({ route: "/api/check/refused", subject: "policy" }, async () => {
+    throw new ApprovalRefused("only a staff_approver may decide a money-out, and never the maker");
+  });
+  let refusalReachedTheCaller = false;
+  try {
+    await refusedHandler(requestWith(refusedCorrelationId), policyContext);
+  } catch (error) {
+    refusalReachedTheCaller = error instanceof ApprovalRefused;
+  }
+  report("the wrapper re-throws a refusal instead of swallowing it", refusalReachedTheCaller, "ApprovalRefused reached the caller");
+
+  // (c) The way nearly every screen of this application says no: a redirect carrying ?error=.
+  const redirectHandler = withActivity({ route: "/api/check/redirect", subject: "policy" }, async () =>
+    new Response(null, {
+      status: 303,
+      headers: { location: `/policies/${fixture.policyId}?error=${encodeURIComponent("only staff operations can bind a policy")}` },
+    }),
+  );
+  await redirectHandler(requestWith(redirectCorrelationId), policyContext);
+
+  const activityRows = await runtime<
+    { correlation_id: string; outcome: string; rule: string | null; message: string | null; duration_ms: number; route: string; subject_kind: string | null; subject_id: string | null }[]
+  >`
+    select correlation_id, outcome, rule, message, duration_ms, route, subject_kind, subject_id
+      from activity_log
+     where correlation_id in (${okCorrelationId}, ${refusedCorrelationId}, ${redirectCorrelationId})
+  `;
+  const okRows = activityRows.filter((row) => row.correlation_id === okCorrelationId);
+  const refusedRows = activityRows.filter((row) => row.correlation_id === refusedCorrelationId);
+  const redirectRows = activityRows.filter((row) => row.correlation_id === redirectCorrelationId);
+
+  report(
+    "an ok request leaves exactly one ok row with a duration",
+    okRows.length === 1 && okRows[0].outcome === "ok" && okRows[0].duration_ms >= 0,
+    okRows.length === 1 ? `${okRows[0].outcome}, ${okRows[0].duration_ms} ms` : `${okRows.length} rows`,
+  );
+  report(
+    "a refused action leaves exactly one refused row that names its rule",
+    refusedRows.length === 1 && refusedRows[0].outcome === "refused" && refusedRows[0].rule === "maker-checker",
+    refusedRows.length === 1 ? `${refusedRows[0].outcome}, rule ${refusedRows[0].rule}` : `${refusedRows.length} rows`,
+  );
+  report(
+    "a redirect carrying ?error= is recorded as a refusal with the sentence it carried",
+    redirectRows.length === 1 &&
+      redirectRows[0].outcome === "refused" &&
+      redirectRows[0].message === "only staff operations can bind a policy",
+    redirectRows.length === 1 ? `${redirectRows[0].outcome}: ${redirectRows[0].message}` : `${redirectRows.length} rows`,
+  );
+  report(
+    "every row names the object its route was about",
+    activityRows.length === 3 && activityRows.every((row) => row.subject_kind === "policy" && row.subject_id === fixture.policyId),
+    `${activityRows.length} rows, subjects ${[...new Set(activityRows.map((row) => row.subject_kind))].join(", ")}`,
+  );
+
+  // The panels read what the wrapper wrote.
+  const refusedPanel = await refusedAndFailedActivity(runtime, { since: beforeFixture });
+  report(
+    "the console's refused-and-failed panel shows this run's refusal",
+    refusedPanel.some((row) => row.correlationId === refusedCorrelationId && row.rule === "maker-checker"),
+    `${refusedPanel.length} rows in the panel`,
+  );
+  report(
+    "the refused-and-failed panel shows no ok row",
+    refusedPanel.every((row) => row.outcome !== "ok"),
+    `${refusedPanel.length} rows, none ok`,
+  );
+
+  const routeLatency = await latencyByRoute(runtime);
+  const okRoute = routeLatency.find((route) => route.route === "/api/check/ok");
+  report(
+    "latency by route is computed by Postgres and names this run's route",
+    okRoute !== undefined && okRoute.sampleCount >= 1 && okRoute.p50Ms !== null && !Number.isNaN(okRoute.p50Ms),
+    okRoute ? `${okRoute.sampleCount} samples, p50 ${okRoute.p50Ms} ms` : "route not found",
+  );
+
+  const activityOfPolicy = subject ? await activityOfSubject(runtime, subject) : [];
+  report(
+    "the 360 page of the policy shows the requests that named it",
+    activityOfPolicy.some((row) => row.correlationId === refusedCorrelationId),
+    `${activityOfPolicy.length} rows on the policy`,
+  );
+
+  const foundByCorrelationId = await resolveReference(runtime, refusedCorrelationId);
+  report(
+    "the reference search resolves a correlation id",
+    foundByCorrelationId.matches.length > 0 && foundByCorrelationId.recognisedAs === "the correlation id of a request",
+    `${foundByCorrelationId.matches.length} matches, read as "${foundByCorrelationId.recognisedAs}"`,
+  );
+
+  // The redaction rule itself, on the two things a log line must never carry.
+  const redacted = redact("refused for ops@example.invalid with Authorization: Bearer cmk_1a2b3c4d.9f8e7d6c5b4a3928");
+  report(
+    "the redaction function masks an email and never prints a bearer token",
+    redacted.includes("ops****") && !redacted.includes("example.invalid") && !redacted.includes("9f8e7d6c5b4a3928"),
+    redacted,
+  );
+
+  // And the row, once written, can never be changed by the role that wrote it.
+  let activityUpdate = "no error raised";
+  try {
+    await runtime`update activity_log set outcome = 'ok' where false`;
+  } catch (error) {
+    activityUpdate = error instanceof Error ? error.message : String(error);
+  }
+  report(
+    "the runtime role cannot UPDATE activity_log",
+    /permission denied/i.test(activityUpdate),
+    activityUpdate,
   );
 }
 

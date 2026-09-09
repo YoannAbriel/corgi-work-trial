@@ -2,6 +2,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { brokerKybState } from "@/lib/broker/kyb";
 import { refreshBrokerKybFromStripe } from "@/lib/broker/kyb-onboarding";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/brokers/{brokerId}/kyb/recheck
 //
@@ -17,7 +18,9 @@ import { refreshBrokerKybFromStripe } from "@/lib/broker/kyb-onboarding";
 //
 // Who may press it: the broker it is about, or staff. The action is audited, because the
 // status row it can append carries `created_by` (migration 0006).
-export async function POST(request: Request, context: { params: Promise<{ brokerId: string }> }) {
+export const POST = withActivity({ route: "/api/brokers/[brokerId]/kyb/recheck", subject: "broker" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ brokerId: string }> }) {
   const user = await currentUser();
   const { brokerId } = await context.params;
   if (!user) {

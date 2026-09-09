@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { createApiKey, KeyRefused, revokeApiKey } from "@/lib/mcp/keys";
 import { isUuid } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/mcp-keys: the two staff actions of /ops/mcp-keys, in one route with a named
 // `action` field, the same shape slice B7 uses for claims.
@@ -14,7 +15,9 @@ import { isUuid } from "@/lib/http/path-ids";
 // answer. A redirect would put it in a URL, and a URL lands in the browser history, in the
 // server log and in the referrer of the next request (AF-05). So the answer is a small page
 // that shows it, and nothing else in the system can ever read it back.
-export async function POST(request: Request): Promise<Response> {
+export const POST = withActivity({ route: "/api/mcp-keys" }, handlePost);
+
+async function handlePost(request: Request): Promise<Response> {
   const user = await currentUser();
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+again");

@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { decideApprovalRequest, ApprovalRefused } from "@/lib/approvals/approvals";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/approvals/{requestId}: a checker approves or rejects one money-out request.
 //
@@ -13,7 +14,9 @@ import { badPathIdResponse } from "@/lib/http/path-ids";
 //
 // The three refusals an approver can meet are all sentences on the approvals screen:
 // wrong role, own request, already decided.
-export async function POST(request: Request, context: { params: Promise<{ requestId: string }> }) {
+export const POST = withActivity({ route: "/api/approvals/[requestId]" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ requestId: string }> }) {
   const user = await currentUser();
   const { requestId } = await context.params;
   if (!user) {

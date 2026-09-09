@@ -7,11 +7,14 @@ import {
   sessionSecret,
   signSessionCookie,
 } from "@/lib/auth/session";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/session/login, called by the plain HTML form on /login.
 // Every demo account shares DEMO_PASSWORD; the password is compared in constant time and is
 // never written to a log or to the database.
-export async function POST(request: Request) {
+export const POST = withActivity({ route: "/api/session/login", actor: "anonymous" }, handlePost);
+
+async function handlePost(request: Request) {
   const form = await request.formData();
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   const password = String(form.get("password") ?? "");
