@@ -430,8 +430,11 @@ async function main() {
     asOf: "2027-01-01",
   });
   report(
-    "a date before the policy existed answers a reason, not an empty policy",
-    !beforeTheTerm.ok && /no issued policy event effective on or before/.test(beforeTheTerm.refusal),
+    "a date before the policy existed answers a reason AND THE DATE THE COVER BEGINS, not an empty policy",
+    !beforeTheTerm.ok &&
+      /was not yet in force/.test(beforeTheTerm.refusal) &&
+      beforeTheTerm.refusal.includes(TERM_START) &&
+      !beforeTheTerm.refusal.includes("2027-01-01"),
     beforeTheTerm.ok ? "it answered" : beforeTheTerm.refusal,
   );
 

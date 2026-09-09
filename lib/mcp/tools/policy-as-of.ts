@@ -90,7 +90,19 @@ export const getPolicyAsOf: McpTool = {
     } catch (error) {
       // A policy not yet in force on that date, or voided, has no state on that date. The reason
       // is returned as the refusal rather than as an empty answer that could read as "no cover".
-      throw new ToolRefused(error instanceof Error ? error.message : "the policy cannot be rebuilt on that date");
+      //
+      // Review finding F-B12-01: "not in force on that date" is only half an answer. The rows are
+      // already in hand, so the refusal names the date the cover DOES begin and the caller's next
+      // call is a right one. It does not repeat the date the caller sent (finding F-B11-02).
+      const reason = error instanceof Error ? error.message : "the policy cannot be rebuilt on that date";
+      const firstEffectiveAt = rows.find((row) => row.event_type === "issued")?.effective_at ?? null;
+      if (firstEffectiveAt && reason.startsWith("no issued policy event effective on or before")) {
+        throw new ToolRefused(
+          `this policy was not yet in force on the date asked for: it takes effect on ${firstEffectiveAt}, ` +
+            "so ask for that date or a later one.",
+        );
+      }
+      throw new ToolRefused(reason);
     }
 
     return {
