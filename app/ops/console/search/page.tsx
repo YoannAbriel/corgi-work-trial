@@ -21,6 +21,7 @@ import { attempt, valueOr } from "@/lib/console/safe-read";
 //   CLM-          a claim number                                       -> the claim
 //   an email      a customer, or a sign-in account                     -> the customer
 //   a uuid        any id this application ever put in a URL            -> whatever it is
+//   anything else the correlation id of a request                      -> the requests it named
 //
 // A GET form, so the search is in the URL and can be pasted into a ticket. Read only.
 
@@ -40,7 +41,7 @@ export default async function ConsoleSearchPage({
     <PortalShell user={user} active="console" trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Search" }]}>
       <DetailHeading
         title="Find a reference"
-        lead="A Stripe id, a connected account, an MCP key prefix, a policy or claim number, an email, or any identifier of this application. All times UTC."
+        lead="A Stripe id, a connected account, an MCP key prefix, a policy or claim number, an email, the correlation id of a request, or any identifier of this application. All times UTC."
         chips={reference === "" ? null : <Chip tone="neutral">read as {recogniseReference(reference)}</Chip>}
         actions={
           <Link href="/ops/console" prefetch={false} className="button-link">
@@ -172,6 +173,10 @@ export default async function ConsoleSearchPage({
                   { label: "CLM-", value: "a claim number" },
                   { label: "an email", value: "a customer, or a sign-in account" },
                   { label: "a uuid", value: "policy, claim, customer, broker, money operation, journal entry, statement run" },
+                  {
+                    label: "a correlation id",
+                    value: "the id on a JSON log line and on every console activity row: the requests it names",
+                  },
                 ]}
               />
               <Disclosure title="Why the shape is named before the answer">
