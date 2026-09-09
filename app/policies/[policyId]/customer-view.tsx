@@ -226,7 +226,10 @@ export async function CustomerPolicyView({
               )}
             </Panel>
 
-            <PolicyTimeline policyId={policy.policyId} />
+            {/* The customer audience: the same events, the same two dates and the same amounts,
+                without the free text a staff operator writes into a correction reason for
+                operations (F-B13-06). */}
+            <PolicyTimeline policyId={policy.policyId} audience="customer" />
           </>
         }
         aside={

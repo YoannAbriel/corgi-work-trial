@@ -425,6 +425,44 @@ async function main() {
     repeatedInDatabase === "NOTHING WAS REFUSED: the call succeeded",
     repeatedInDatabase,
   );
+
+  // ---------------------------------------------------------------------------
+  // 9. The customer's timeline never reprints what an operator typed
+  // ---------------------------------------------------------------------------
+
+  // F-B13-06: a correction reason is written by a staff operator FOR operations, and on the trial
+  // data it names a payment intent, a review finding and "the coordinator". The customer reads
+  // the correction, its two dates and its amounts; never those words.
+  const { policyTimeline } = await import("@/lib/policy/correction-read");
+  const OPERATOR_WORDS = "Reversed by the coordinator per review finding F-B2-01 (pi_local_reference)";
+  await runtime`
+    insert into policy_events (policy_id, event_type, effective_at, payload)
+    values (${fixture.policyId}, 'correction_reversal', '2028-03-01',
+            ${runtime.json({ reason: OPERATOR_WORDS })})
+  `;
+  const forTheOperator = await policyTimeline(fixture.policyId, runtime, "operator");
+  const forTheCustomer = await policyTimeline(fixture.policyId, runtime, "customer");
+  const correctionForTheOperator = forTheOperator.find((row) => row.eventType === "correction_reversal");
+  const correctionForTheCustomer = forTheCustomer.find((row) => row.eventType === "correction_reversal");
+  report(
+    "the operator reads the correction reason as it was typed",
+    correctionForTheOperator?.summary.includes(OPERATOR_WORDS) === true,
+    correctionForTheOperator?.summary ?? "no correction row",
+  );
+  report(
+    "the customer reads the same correction without the operator's words or the internal references",
+    correctionForTheCustomer !== undefined &&
+      !correctionForTheCustomer.summary.includes(OPERATOR_WORDS) &&
+      !/pi_local|F-B2-01|coordinator/.test(correctionForTheCustomer.summary) &&
+      correctionForTheCustomer.summary.startsWith("Correction:"),
+    correctionForTheCustomer?.summary ?? "no correction row",
+  );
+  report(
+    "both audiences see the same events and the same dates",
+    forTheOperator.length === forTheCustomer.length &&
+      forTheOperator.every((row, index) => row.eventId === forTheCustomer[index].eventId && row.effectiveAt === forTheCustomer[index].effectiveAt),
+    `${forTheOperator.length} events on both sides`,
+  );
 }
 
 // A permission refusal (the runtime role has no such grant) or a trigger refusal (the owner has
