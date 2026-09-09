@@ -17,6 +17,8 @@ import postgres from "postgres";
 //      its own heading and never counted as a break to act on (review finding F-YA-10);
 //   6. an operator can EXPLAIN a break: the note takes it out of the count and the inbox, leaves
 //      it listed with its author and date, repairs nothing, and can never be edited or deleted;
+//      and a break a later run reports DIFFERENTLY is work again, because the note explains the
+//      report it was written against and not the key for ever (review finding F-BREAKSBOARD-01);
 //   7. a failed fetch is NEVER reported as a clean reconciliation: it stores a failed run with
 //      its reason and no items, and it does not clear the breaks the last complete run found.
 //
@@ -103,9 +105,8 @@ async function main() {
   const { claimsRailSourceOn } = await import("@/lib/reconciliation/claims-rail-source");
   const { stripeRecordsFromListing } = await import("@/lib/reconciliation/stripe-records");
   const { ledgerCashMovements } = await import("@/lib/reconciliation/ledger-side");
-  const { countOpenBreaks, explainedBreaksPage, openBreaks, probesPage, recentRuns, resolvedBreaks } = await import(
-    "@/lib/reconciliation/read"
-  );
+  const { countOpenBreaks, explainedBreaksPage, openBreaks, openBreaksPage, probesPage, recentRuns, resolvedBreaks } =
+    await import("@/lib/reconciliation/read");
   const { BreakNoteRefused, explainBreak, NOTE_MINIMUM_CHARACTERS } = await import("@/lib/reconciliation/break-notes");
   const { PROBE_AMOUNT_CENTS, PROBE_DESCRIPTION_PREFIX, PROBE_METADATA_MARKER } = await import(
     "@/lib/reconciliation/diff"
@@ -306,6 +307,25 @@ async function main() {
     staleItems.get(`op:${refundOperationId}`)?.classification === "stale",
     describeItem(staleItems.get(`op:${refundOperationId}`)),
   );
+  // A NOTE EXPLAINS THE REPORT IT WAS WRITTEN AGAINST, not the key for ever (review finding
+  // F-BREAKSBOARD-01). The refund is explained here, while it is stale; the run just below reports
+  // the same key as provider_only with a real difference, and the break must be work again.
+  const staleRefundKey = staleItems.get(`op:${refundOperationId}`)?.break_key ?? "";
+  await explainBreak(
+    {
+      breakKey: staleRefundKey,
+      note: "waiting on the Stripe refund to confirm; nothing to do while it is only late",
+      actor: maker,
+    },
+    runtime,
+  );
+  const afterExplainingTheStaleRefund = await openBreaks(runtime);
+  report(
+    "a break explained while it is stale leaves the list to act on",
+    staleRefundKey !== "" && !afterExplainingTheStaleRefund.some((row) => row.breakKey === staleRefundKey),
+    `${staleRefundKey} is not among the ${afterExplainingTheStaleRefund.length} breaks to act on`,
+  );
+
   // A break that gets worse: the same refund, now listed as succeeded by Stripe with nothing
   // booked on our side. Different classification, same money (review finding F-B10-02).
   const reclassifiedListing: StripeWindowListing = {
@@ -344,6 +364,31 @@ async function main() {
     "the worse break is not filed as resolved just because its classification moved",
     !afterReclassification.some((row) => row.breakKey === staleRefundItem?.break_key),
     `${afterReclassification.length} resolved breaks on file`,
+  );
+
+  // The same key, reported worse by a later run: the note was about the stale report, so it no
+  // longer applies and the break is back in the count, the inbox, the MCP tool and the window the
+  // daily job widens. Nothing was edited or deleted to get here: the note is still on file.
+  const afterTheWorseReport = await openBreaks(runtime);
+  const explainedAfterTheWorseReport = await explainedBreaksPage(runtime, 500);
+  report(
+    "a break a later run reports differently is WORK AGAIN, and leaves the explained list",
+    afterTheWorseReport.some((row) => row.breakKey === staleRefundKey) &&
+      !explainedAfterTheWorseReport.rows.some((row) => row.breakKey === staleRefundKey),
+    `${staleRefundKey}: open again ${afterTheWorseReport.some((row) => row.breakKey === staleRefundKey)}, still listed as explained ${explainedAfterTheWorseReport.rows.some((row) => row.breakKey === staleRefundKey)}`,
+  );
+  // The board page is ordered oldest first, and corgi_test is shared with the other slices'
+  // checks, so a fixed page would not reach a break first seen a moment ago. The limit is taken
+  // from the count of what is open right now, which puts every open break on the page.
+  const boardAfterTheWorseReport = await openBreaksPage(runtime, (await countOpenBreaks(runtime)) + 50);
+  const reopenedRow = boardAfterTheWorseReport.rows.find((row) => row.breakKey === staleRefundKey);
+  report(
+    "the superseded note is still on file and shown beside the break it no longer explains",
+    reopenedRow?.supersededExplanation?.note.startsWith("waiting on the Stripe refund") === true &&
+      reopenedRow.supersededExplanation.explainedClassification === "stale",
+    reopenedRow?.supersededExplanation
+      ? `note written against ${reopenedRow.supersededExplanation.explainedClassification}, row now ${reopenedRow.classification}`
+      : "no superseded note on the reopened row",
   );
 
   report(
