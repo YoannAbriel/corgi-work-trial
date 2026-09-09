@@ -1,0 +1,61 @@
+/* Presentation fixes from the desktop UI audit of 2026-09-09 (docs/ui-audit-2026-09-09.json).
+   Every rule here is layout or spacing only: no colour of a figure, no money format, no state.
+
+   It is a stylesheet of its own, imported by the three screens that need it, rather than more
+   lines in app/globals.css, because three builders were changing the interface at the same time
+   and one shared file is one shared conflict. Each rule below names the audit finding it closes
+   and the screen it applies to. */
+
+/* UI-003, /login. The signed-out frame lays its children out in a column flex box and `main`
+   carries `margin: 0 auto` (app/globals.css). An automatic margin on the cross axis cancels the
+   stretch, so `main` was measuring ITS OWN CONTENT: opening "Demo accounts and access" grew the
+   page from 809 px of content to 1128 px, moved the form 159 px to the left and widened its
+   inputs from 323 px to 482 px. A definite width takes the content out of that measurement, so
+   the help opens under the form and nothing beside it moves. The selector matches the login
+   layout only; the width is the one the closed page already had. */
+.signed-out > main:has(.login-grid) {
+  width: 100%;
+  max-width: 900px;
+}
+
+/* UI-008, /ops/approvals. Two panels stacked in the page body had no gutter at all, so the
+   bottom border of "Waiting for a decision" sat on the top border of "Already decided". 22 px is
+   the gap the detail screens already use between their panels (.detail-main in globals). */
+.stacked-panel + .stacked-panel {
+  margin-top: 22px;
+}
+
+/* UI-008, second half. "raised by an AGENT" is a badge and the sentence naming the MCP key that
+   raised the request followed it on the same line, with the two touching. The sentence is a line
+   of its own under the badge. */
+.raised-through {
+  display: block;
+  margin-top: 6px;
+}
+
+/* UI-016, /inbox. Sections holding work come first and an empty queue folds to one line, so the
+   first screen is the work rather than five empty states. The fold keeps the section's anchor,
+   its title and its sentence: a count in the sidebar still lands on the section it counted. */
+.inbox-block + .inbox-block {
+  margin-top: 14px;
+}
+.inbox-empty-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  padding: 12px 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: white;
+}
+.inbox-empty-line h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.inbox-empty-line p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}

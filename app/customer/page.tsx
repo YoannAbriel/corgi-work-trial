@@ -7,8 +7,10 @@ import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { correctionsOfPolicy } from "@/lib/policy/correction-read";
+import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
+import { policyDetail } from "@/lib/policy/read";
+import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { centsFromDatabase } from "@/lib/money/cents";
 
 // The customer's own policies: what is in force, the documents, and any endorsement waiting for
@@ -55,7 +57,12 @@ export default async function CustomerPage({
         correction.collection.customerApprovedAt === null &&
         correction.collection.paidOn === null,
     );
-    rows.push({ ...policy, live, correctionsToApprove });
+    rows.push({
+      ...policy,
+      live,
+      correctionsToApprove,
+      annualPremiumInForceCents: await annualPremiumInForceOn(policy.policy_id, policy.effective_at, today, policy.annual_premium_cents),
+    });
   }
 
   // What is waiting for this customer, read once for the sidebar count and for the block below.
@@ -94,12 +101,17 @@ export default async function CustomerPage({
                   <th className="amount">Annual premium in force</th>
                   <th>Waiting for you</th>
                   <th>Documents</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((policy) => (
                   <tr key={policy.policy_id}>
-                    <td>{policy.policy_number}</td>
+                    {/* UI-034: the policy number opens the policy, where the change-request form
+                        is. It was plain text, so the only way in was to know the URL. */}
+                    <td>
+                      <Link href={`/policies/${policy.policy_id}`}>{policy.policy_number}</Link>
+                    </td>
                     <td>{policy.broker_name}</td>
                     <td>
                       {policy.effective_at} to {policy.term_end}
@@ -109,7 +121,7 @@ export default async function CustomerPage({
                         {policy.status.replace(/_/g, " ")}
                       </Chip>
                     </td>
-                    <td className="amount">{formatCentsAsUsd(centsFromDatabase(policy.annual_premium_cents, "annual_premium_cents"))}</td>
+                    <td className="amount">{formatCentsAsUsd(policy.annualPremiumInForceCents)}</td>
                     <td>
                       {policy.live?.standing.state === "awaiting_approval" ? (
                         <Link
@@ -137,6 +149,11 @@ export default async function CustomerPage({
                       {" / "}
                       <a href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}>Schedule</a>
                     </td>
+                    <td>
+                      <Link href={`/policies/${policy.policy_id}`} className="button-link secondary small">
+                        Open
+                      </Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -152,4 +169,31 @@ export default async function CustomerPage({
       </IllustrationBanner>
     </PortalShell>
   );
+}
+
+// THE PREMIUM IN FORCE TODAY, not the latest premium the policy record carries (UI-035).
+//
+// `policy_current` applies every event whatever its effective date, so a policy holding an
+// endorsement effective next month already answers next month's premium there. On 2026-09-09 this
+// list said $2,400.00 was in force on CGP-01707 while the policy's own page, folded on the same
+// day, said $1,200.00 and named the $2,400.00 endorsement as taking effect on 2026-10-08. Both
+// screens now ask the same question of the same helper, lib/policy/terms-in-force.ts.
+//
+// The date is the one the detail page uses: today, unless the term has not started yet, since a
+// policy cannot be rebuilt on a day before its own first one.
+async function annualPremiumInForceOn(
+  policyId: string,
+  effectiveAt: string,
+  today: string,
+  // What the list already read from `policy_current`. It is used only if the policy has gone
+  // between that query and this one, which append-only tables do not do: there is no third
+  // figure to fall back on, and printing nothing would be worse than printing the stored one.
+  storedAnnualPremiumCents: string,
+): Promise<number> {
+  const policy = await policyDetail(policyId);
+  if (!policy) {
+    return centsFromDatabase(storedAnnualPremiumCents, "annual_premium_cents");
+  }
+  const onDate = today > effectiveAt ? today : effectiveAt;
+  return termsInForceOn(policy, await policyAsItStoodOn(policyId, onDate)).annualPremiumCents;
 }

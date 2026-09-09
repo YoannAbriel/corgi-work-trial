@@ -1,10 +1,11 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
+import { WhatNeedsYou, workspaceTasks, type BlockingTask } from "@/components/what-needs-you";
 import { IllustrationBanner } from "@/components/decorative-illustration";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
+import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { policiesOfBroker } from "@/lib/policy/read";
@@ -45,6 +46,18 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
     searchParams,
   ]);
 
+  // UI-031: a verification that does not allow binding is the first thing waiting on this broker.
+  // The notice below already explains the status; the block used to say "nothing is waiting for
+  // you right now" three lines under it. The rule is the one the server enforces before binding
+  // (lib/broker/eligibility.ts): unknown and pending are not permission either.
+  const verificationBlocking: BlockingTask | null = bindingIsAllowed(kyb.status)
+    ? null
+    : {
+        label: `Business verification ${kyb.status}: you cannot bind a policy`,
+        detail: kyb.explanation,
+        href: "/broker/kyb",
+      };
+
   return (
     <PortalShell active="policies" user={user} tasks={tasks}>
       <DetailHeading
@@ -81,7 +94,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
         </div>
       )}
 
-      <WhatNeedsYou tasks={tasks} showEmptyIllustration={policies.length > 0} />
+      <WhatNeedsYou tasks={tasks} blocking={verificationBlocking} showEmptyIllustration={policies.length > 0} />
 
       <Panel title="Policies" className="list-panel">
         {policies.length === 0 ? (
