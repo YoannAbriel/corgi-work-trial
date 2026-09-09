@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { DecorativeIllustration, type IllustrationName } from "./decorative-illustration";
 
 // The shape of every detail screen (policy, claim, statement run, broker), decided with Yoann on
 // 2026-09-08 (YOA-633): an identity band with the primary actions as buttons, then two columns,
@@ -74,13 +75,13 @@ export function Facts({
 }
 
 // A vertical label and value list for the side column.
-export function AsideList({ items }: { items: { label: ReactNode; value: ReactNode }[] }) {
+export function AsideList({ items }: { items: { label: ReactNode; value: ReactNode; nowrap?: boolean }[] }) {
   return (
     <dl className="aside-list">
       {items.map((item, index) => (
         <div key={index}>
           <dt>{item.label}</dt>
-          <dd>{item.value}</dd>
+          <dd className={item.nowrap ? "aside-value-nowrap" : undefined}>{item.value}</dd>
         </div>
       ))}
     </dl>
@@ -93,6 +94,14 @@ export function Chip({ tone = "neutral", children }: { tone?: "ok" | "warn" | "n
 }
 
 // The sentence a table or a list would otherwise have replaced.
-export function Empty({ children }: { children: ReactNode }) {
-  return <p className="panel-empty">{children}</p>;
+export function Empty({ children, illustration }: { children: ReactNode; illustration?: IllustrationName }) {
+  if (!illustration) {
+    return <p className="panel-empty">{children}</p>;
+  }
+  return (
+    <div className="panel-empty-state">
+      <DecorativeIllustration name={illustration} variant="empty" />
+      <p className="panel-empty">{children}</p>
+    </div>
+  );
 }

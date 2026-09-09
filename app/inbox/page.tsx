@@ -55,13 +55,19 @@ export default async function InboxPage() {
 
       {inbox.sections.length === 0 ? (
         <Panel title="Nothing to do here">
-          <Empty>
+          <Empty illustration="in-tray">
             This account has no workspace of its own. Sign in as a broker, a customer or a member
             of staff to see what is waiting.
           </Empty>
         </Panel>
       ) : (
-        inbox.sections.map((section) => <InboxPanel key={section.anchor} section={section} />)
+        inbox.sections.map((section, index) => (
+          <InboxPanel
+            key={section.anchor}
+            section={section}
+            showEmptyIllustration={inbox.totalWaiting === 0 && index === 0}
+          />
+        ))
       )}
     </PortalShell>
   );
@@ -69,7 +75,13 @@ export default async function InboxPage() {
 
 // One section. The anchor is on the wrapper, so the count chip in the sidebar (/inbox#approvals)
 // lands on the section that holds exactly the items it counted.
-function InboxPanel({ section }: { section: InboxSection }) {
+function InboxPanel({
+  section,
+  showEmptyIllustration = false,
+}: {
+  section: InboxSection;
+  showEmptyIllustration?: boolean;
+}) {
   return (
     <div id={section.anchor}>
       <Panel
@@ -82,7 +94,7 @@ function InboxPanel({ section }: { section: InboxSection }) {
         className="list-panel"
       >
         {section.items.length === 0 ? (
-          <Empty>{section.emptySentence}</Empty>
+          <Empty illustration={showEmptyIllustration ? "in-tray" : undefined}>{section.emptySentence}</Empty>
         ) : (
           <div className="table-scroll" role="region" aria-label={section.title} tabIndex={0}>
             <table>

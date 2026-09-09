@@ -8,12 +8,18 @@ import { ChevronRight } from "lucide-react";
 // 2026-09-09: an explanation you can watch being built, from the figure down to the ledger line).
 //
 // THE RULE THIS FILE OBEYS, AND THE REASON IT IS THE ONLY CLIENT COMPONENT IN THE FEATURE:
-// the browser never computes money. Every string it shows was rendered on the server and arrives
-// either as a prop or in a data attribute; this file decides WHEN a string appears, never WHAT it
-// says. The count-up is the one place a number is read, and it reads only the digits of the
-// server-rendered text so it can draw the intermediate frames; the frame it stops on is that same
-// text, put back verbatim. lib/money/amount-explained-motion.test.ts asserts this against the
-// source of this file.
+// the browser never computes a money figure. Every figure it shows AT REST is a string the server
+// rendered, arriving either as a prop or in a data attribute, and this file decides WHEN such a
+// string appears, never WHAT it says.
+//
+// The count-up is the one exception and it is worth being exact about (review finding F-B12-13):
+// while it runs, THE BROWSER DOES DO ARITHMETIC. It reads the digits of the server-rendered text
+// as a number and multiplies it by a fraction of the animation to pick each intermediate frame, so
+// those frames are strings the browser composed. They are frames of a count, not amounts: no
+// figure this application states, stores, posts or totals is ever produced here, and the frame the
+// count stops on is the server's own text, put back verbatim.
+// lib/money/amount-explained-motion.test.ts asserts this against the source of this file: one
+// number, read from those digits, and nowhere else.
 //
 // WITH JAVASCRIPT OFF nothing here runs and nothing is hidden: the shell server-renders as a
 // native <details> with a plain <summary>, the panel carries no data-reveal attribute, and the CSS
@@ -30,6 +36,8 @@ const COUNT_UP_MS = 600;
 // How long the proving journal entry stays highlighted, and how long the connector stays drawn.
 const PULSE_MS = 1500;
 const CONNECTOR_MS = 1800;
+// How long a smooth scroll is given to settle before the connector is measured.
+const SCROLL_SETTLE_MS = 450;
 
 // Where the connector starts and ends, in viewport pixels. Positions, never money.
 type ConnectorGeometry = { fromX: number; fromY: number; toX: number; toY: number };
@@ -95,6 +103,22 @@ export function AmountExplainedMotion({
 
   useEffect(() => stopEverything, []);
 
+  // A reader who arrives on the address of the proving entry, or who follows the "Trace to the
+  // ledger" link of a page that was already loaded, lands on a block that may be inside a closed
+  // fold (review finding F-B12-12). Browsers differ on whether a fragment opens the <details> that
+  // holds it, so the one fold that owns this entry opens it and lights it. Every other fold on the
+  // page returns on the first line: the hash names exactly one entry.
+  useEffect(() => {
+    if (!traceEntryElementId) return;
+    const openWhenTargeted = () => {
+      if (window.location.hash !== `#${traceEntryElementId}`) return;
+      traceToLedger();
+    };
+    openWhenTargeted();
+    window.addEventListener("hashchange", openWhenTargeted);
+    return () => window.removeEventListener("hashchange", openWhenTargeted);
+  }, [traceEntryElementId]);
+
   // The reader asked not to be animated. Checked at the moment the fold opens rather than once at
   // mount, because the setting can change while the page is open.
   function prefersReducedMotion(): boolean {
@@ -106,7 +130,14 @@ export function AmountExplainedMotion({
   // animation borrows the cell for 600 ms to draw the intermediate frames, then writes that exact
   // text back. Nothing else in the application reads this cell.
   function countUpResultCell(resultCell: HTMLElement) {
-    const textFromServer = resultCell.dataset.finalAmount ?? resultCell.textContent ?? "";
+    // NO FALLBACK (review finding F-B12-15). A cell that does not carry the server's own string is
+    // not animated at all. Falling back to its current text would mean that a cell interrupted
+    // mid-count could be read back as "the server's text" on the next open, and a frame of the
+    // count would become the permanent content of a money cell.
+    const textFromServer = resultCell.dataset.finalAmount;
+    if (!textFromServer) {
+      return;
+    }
     const digits = textFromServer.replace(/[^0-9]/g, "");
     if (digits === "") {
       return;
@@ -133,27 +164,41 @@ export function AmountExplainedMotion({
   }
 
   // ---- the connector and the pulse ------------------------------------------------------------
-  function proveOnTheLedger(scrollFirst: boolean) {
-    if (!traceEntryElementId) return;
-    const target = document.getElementById(traceEntryElementId);
-    if (!target) return;
-    // The entry may be inside the journal's "show all" fold. Open every fold above it, or the
-    // reader would be sent to something they cannot see.
-    let ancestor: HTMLElement | null = target.parentElement;
-    while (ancestor) {
-      if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
-      ancestor = ancestor.parentElement;
+  // NOTHING HERE OPENS A FOLD OR MOVES THE PAGE ON ITS OWN (review finding F-B12-11). The first
+  // version ended every reveal by opening every <details> above the target, which on a policy with
+  // more than four entries expanded the whole journal under the reader and then drew a connector
+  // to a block below the fold. Opening the journal is now something the reader asks for, once, by
+  // following "Trace to the ledger".
+
+  // The journal entry this fold points at, if it is on the page at all.
+  function ledgerTarget(): HTMLElement | null {
+    return traceEntryElementId ? document.getElementById(traceEntryElementId) : null;
+  }
+
+  // Whether the entry can be seen WITHOUT opening anything: no closed <details> above it, and its
+  // top edge (where the connector lands) inside the viewport.
+  function isOnScreenWithoutOpening(target: HTMLElement): boolean {
+    for (let ancestor = target.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (ancestor instanceof HTMLDetailsElement && !ancestor.open) return false;
     }
-    const reduced = prefersReducedMotion();
-    if (scrollFirst) {
-      target.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
-    }
+    const box = target.getBoundingClientRect();
+    return box.top >= 0 && box.top < window.innerHeight && box.left >= 0 && box.right <= window.innerWidth;
+  }
+
+  function pulse(target: HTMLElement) {
     target.classList.add("entry-proving");
     later(() => target.classList.remove("entry-proving"), PULSE_MS);
-    if (reduced) return;
+  }
+
+  // The curve, drawn only when the reader can actually see both of its ends. Anything else would
+  // be a line pointing off the page.
+  function drawConnectorIfBothEndsVisible(target: HTMLElement) {
+    if (prefersReducedMotion()) return;
     const figure = figureRef.current;
     if (!figure) return;
     const from = figure.getBoundingClientRect();
+    if (from.bottom < 0 || from.top > window.innerHeight) return;
+    if (!isOnScreenWithoutOpening(target)) return;
     const to = target.getBoundingClientRect();
     setConnector({
       fromX: from.left + from.width / 2,
@@ -162,6 +207,33 @@ export function AmountExplainedMotion({
       toY: to.top,
     });
     later(() => setConnector(null), CONNECTOR_MS);
+  }
+
+  // End of the reveal. If the proving entry happens to be visible already, it is pointed at and
+  // lit. If it is not, nothing happens at all: the "Trace to the ledger" link is there for that.
+  function pointAtLedgerIfAlreadyVisible() {
+    const target = ledgerTarget();
+    if (!target || !isOnScreenWithoutOpening(target)) return;
+    pulse(target);
+    drawConnectorIfBothEndsVisible(target);
+  }
+
+  // The one action that is allowed to change the page: the reader asked to be taken to the entry.
+  // It opens the folds the entry is hidden in, scrolls to it, lights it, and draws the connector
+  // only if the figure is still on screen once the scrolling has settled.
+  function traceToLedger() {
+    const target = ledgerTarget();
+    if (!target) return;
+    for (let ancestor = target.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+    }
+    const reduced = prefersReducedMotion();
+    target.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+    // Smooth scrolling is not finished when this returns, so the measurement waits for it.
+    later(() => {
+      pulse(target);
+      drawConnectorIfBothEndsVisible(target);
+    }, reduced ? 0 : SCROLL_SETTLE_MS);
   }
 
   // ---- the reveal -----------------------------------------------------------------------------
@@ -173,10 +245,14 @@ export function AmountExplainedMotion({
     const resultCell = panel.querySelector<HTMLElement>("tr[data-formula-result] td.amount");
 
     if (prefersReducedMotion()) {
-      // Everything at once, in its final state: no stagger, no count-up, no connector.
+      // Everything at once, in its final state: no stagger, no count-up, no connector. The proving
+      // entry is still marked when it is already visible (review finding F-B12-16), with the flat
+      // colour the reduced-motion CSS gives it instead of a pulse, so this reader is not the only
+      // one who never learns which entry proves the figure.
       for (const row of operandRows) row.classList.add("operand-lit");
       setRevealStep(4);
       setTickerText(lastSubtotalOf(operandRows));
+      pointAtLedgerIfAlreadyVisible();
       return;
     }
 
@@ -201,7 +277,7 @@ export function AmountExplainedMotion({
     later(() => {
       setRevealStep(4);
       if (resultCell) countUpResultCell(resultCell);
-      later(() => proveOnTheLedger(false), COUNT_UP_MS);
+      later(pointAtLedgerIfAlreadyVisible, COUNT_UP_MS);
     }, STEP_INTERVAL_MS * 4 + operandRows.length * OPERAND_INTERVAL_MS);
   }
 
@@ -214,7 +290,8 @@ export function AmountExplainedMotion({
     for (const row of panel.querySelectorAll<HTMLElement>("tr[data-formula-line]")) {
       row.classList.remove("operand-lit");
     }
-    // Whatever frame the count-up stopped on, the cell goes back to the server's text.
+    // Whatever frame the count-up stopped on, the cell goes back to the server's text. It is the
+    // same attribute the count refused to start without, so there is always one to go back to.
     const resultCell = panel.querySelector<HTMLElement>("tr[data-formula-result] td.amount");
     if (resultCell?.dataset.finalAmount) resultCell.textContent = resultCell.dataset.finalAmount;
   }
@@ -291,10 +368,10 @@ export function AmountExplainedMotion({
                 <a
                   href={`#${traceEntryElementId}`}
                   onClick={(event) => {
-                    // The browser would jump. We scroll, open any fold the entry is hidden in, and
+                    // The browser would jump. We open any fold the entry is hidden in, scroll and
                     // light it up. With JavaScript off the same link still jumps to the entry.
                     event.preventDefault();
-                    proveOnTheLedger(true);
+                    traceToLedger();
                   }}
                 >
                   Trace to the ledger

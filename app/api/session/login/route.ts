@@ -28,10 +28,11 @@ export async function POST(request: Request) {
   const expiresAtEpochSeconds = Math.floor(Date.now() / 1000) + SESSION_LIFETIME_SECONDS;
   const cookie = signSessionCookie(user.id, expiresAtEpochSeconds, sessionSecret());
 
-  // Staff land on the operations map, everybody else on the broker journey (customers find
-  // their approvals from there; the screens ask the role question again for themselves).
+  // Each role lands on its own home: staff on the operations map, a customer on /customer,
+  // a broker on /broker. A customer never lands on the broker page that would tell them they
+  // are on the wrong screen (finding F-YA-08); every screen still checks the role for itself.
   const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
-  const response = redirectTo(isStaff ? "/ops" : "/broker");
+  const response = redirectTo(isStaff ? "/ops" : user.role === "customer" ? "/customer" : "/broker");
   response.headers.append(
     "set-cookie",
     // HttpOnly: no script can read it. SameSite=Lax: it is not sent from another site's form.

@@ -8,6 +8,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { WhatNeedsYou, type WorkspaceTask } from "./what-needs-you";
+import { IllustrationBanner } from "./decorative-illustration";
 
 export function WorkspaceOverview({
   isApprover,
@@ -129,6 +130,12 @@ export function WorkspaceOverview({
           </div>
         </section>
       </div>
+      <IllustrationBanner
+        name="moonlit-hills"
+        title={<>The whole operation. <em>In view.</em></>}
+      >
+        From the first policy to the latest reconciliation, every next step stays close.
+      </IllustrationBanner>
     </>
   );
 }

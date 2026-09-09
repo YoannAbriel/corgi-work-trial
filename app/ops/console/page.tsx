@@ -2,13 +2,15 @@ import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { EventTable, FailureLine, RecoveryCell, describeMinutes, formatSeconds, utc } from "@/components/console-parts";
+import { EventTable, FailureLine, IntegrationModes, RecoveryCell, describeMinutes, formatSeconds, utc } from "@/components/console-parts";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import {
   CONSOLE_EVENT_KINDS,
   MOST_FEED_ROWS,
+  MOST_PROBLEM_ROWS,
   UNKNOWN_OUTCOME_AFTER_MINUTES,
+  UNRESOLVED_OPERATIONS_FLOOR_DAYS,
   LATENCY_WINDOW_HOURS,
   acceptedAndUnconfirmedOperations,
   consoleFeed,
@@ -71,16 +73,24 @@ export default async function OperationsConsolePage({
   // is not one of the known kinds is dropped rather than passed to a reader.
   const selectedKinds = (Array.isArray(query.kind) ? query.kind : query.kind ? [query.kind] : []).filter(isConsoleEventKind);
 
-  const [feed, tiles, problems, inFlight] = await Promise.all([
+  // Read FIRST and alone, because two panels are built from the same rows: "being checked" shows
+  // the operations under the threshold, and the errors panel shows the ones over it as unknown
+  // outcomes. Reading it once and passing it down is the correction of review finding F-B13-23;
+  // before it, this page asked the same question twice on every ten-second refresh.
+  //
+  // It takes no cursor (review finding F-B13-50): an operation nobody has confirmed stays on
+  // this page until a human resolves it, whatever window the operator is reading the feed in.
+  const inFlight = await attempt("the operations in flight", acceptedAndUnconfirmedOperations(sql));
+  const { checking, unknownOutcome } = valueOr(inFlight, { checking: [], unknownOutcome: [] });
+
+  const [feed, tiles, problems] = await Promise.all([
     attempt("the feed", consoleFeed(sql, { since, kinds: selectedKinds, limit: MOST_FEED_ROWS })),
     attempt("the latency tiles", latencyTiles(sql)),
-    attempt("the errors and unknowns", operationsProblems(sql, { since })),
-    attempt("the operations in flight", acceptedAndUnconfirmedOperations(sql)),
+    attempt("the errors and unknowns", operationsProblems(sql, { since, unknownOutcome })),
   ]);
 
   const events = valueOr(feed, []);
   const problemRows = valueOr(problems, []);
-  const checking = valueOr(inFlight, { checking: [], unknownOutcome: [] }).checking;
 
   // The hidden inputs that make "Refresh now" and the meta refresh keep the current view.
   const currentView = (
@@ -104,7 +114,11 @@ export default async function OperationsConsolePage({
         chips={
           <>
             <Chip tone={problemRows.length > 0 ? "warn" : "ok"}>
-              {problemRows.length === 0 ? "nothing failing" : `${problemRows.length} to look at`}
+              {problemRows.length === 0
+                ? "nothing failing"
+                : problemRows.length >= MOST_PROBLEM_ROWS
+                  ? `${MOST_PROBLEM_ROWS} or more to look at`
+                  : `${problemRows.length} to look at`}
             </Chip>
             <Chip tone={checking.length > 0 ? "warn" : "neutral"}>
               {checking.length} being checked
@@ -129,6 +143,8 @@ export default async function OperationsConsolePage({
           </>
         }
       />
+
+      <IntegrationModes />
 
       <Panel title={`How long things are taking, over the last ${LATENCY_WINDOW_HOURS} hours`}>
         <FailureLine attempted={tiles} />
@@ -203,7 +219,16 @@ export default async function OperationsConsolePage({
                         <tr key={`${problem.family}-${problem.instant.toISOString()}-${index}`}>
                           <td>{utc(problem.instant)}</td>
                           <td>{describeMinutes(problem.ageMinutes)}</td>
-                          <td>{problem.family.replace(/_/g, " ")}</td>
+                          <td>
+                            {problem.family.replace(/_/g, " ")}
+                            {/* The rail, on the row (AF-02, recheck finding F-RC-08). */}
+                            {problem.rail ? (
+                              <>
+                                <br />
+                                <span className="note">{problem.rail}</span>
+                              </>
+                            ) : null}
+                          </td>
                           <td>
                             <Chip tone="warn">{problem.title}</Chip>
                           </td>
@@ -220,6 +245,12 @@ export default async function OperationsConsolePage({
                   </table>
                 </div>
               )}
+              {problemRows.length >= MOST_PROBLEM_ROWS ? (
+                <p className="note">
+                  Showing {MOST_PROBLEM_ROWS} rows, which is the hard limit of this panel. There are probably more:
+                  narrow the window to see the rest.
+                </p>
+              ) : null}
               <Disclosure title="What counts as a problem here">
                 <p>
                   A money operation whose last provider answer was <strong>failed</strong> or <strong>unknown</strong>;
@@ -229,6 +260,11 @@ export default async function OperationsConsolePage({
                   <strong>refused</strong>; a <strong>failed reconciliation run</strong>, which compared nothing and
                   must never read as clean; and an operation the provider accepted more than{" "}
                   {UNKNOWN_OUTCOME_AFTER_MINUTES} minutes ago that has said nothing since.
+                </p>
+                <p>
+                  Every line here is inside the window above <strong>except the unknown outcomes</strong>: those are
+                  read over a fixed floor of {UNRESOLVED_OPERATIONS_FLOOR_DAYS} days, whatever window the feed is
+                  showing, because an operation nobody has confirmed must stay visible until a human resolves it.
                 </p>
                 <p>
                   The {UNKNOWN_OUTCOME_AFTER_MINUTES}-minute threshold is <strong>an assumption of this build</strong>,
@@ -263,7 +299,11 @@ export default async function OperationsConsolePage({
                           <td>
                             <Chip tone="neutral">checking, {operation.ageMinutes} min</Chip>
                           </td>
-                          <td>{operation.kind}</td>
+                          <td>
+                            {operation.kind}
+                            <br />
+                            <span className="note">{operation.rail}</span>
+                          </td>
                           <td className="amount">{formatCentsAsUsd(operation.amountCents)}</td>
                           <td>
                             <code>{operation.providerRef ?? "none yet"}</code>
@@ -290,7 +330,9 @@ export default async function OperationsConsolePage({
               <p className="note">
                 A temporary status, not a problem: the provider has taken the request and we are waiting for the event
                 that confirms it. Past {UNKNOWN_OUTCOME_AFTER_MINUTES} minutes the same operation moves up into the
-                errors panel as an unknown outcome.
+                errors panel as an unknown outcome. This list <strong>ignores the window above</strong>: it is read
+                over a fixed floor of {UNRESOLVED_OPERATIONS_FLOOR_DAYS} days, so an operation the provider accepted
+                and never confirmed stays on this page whatever window the feed is showing.
               </p>
             </Panel>
 

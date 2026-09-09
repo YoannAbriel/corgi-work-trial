@@ -1,0 +1,758 @@
+{
+  "001-paper-kite": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Individually inspected at full size: clear subject, coherent reference style, clean whitespace, complete silhouette, no text or visible malformed anatomy."
+  },
+  "071-corgi-archivist": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "131-meadow-path-pilot": {
+    "attempt": 1,
+    "verdict": "rejected",
+    "jobId": "f06e0e66-a9b1-4e5e-85e1-24a87c3ee90c",
+    "reason": "Landscape is strong, but the tiny corgi has a black cartoon outline inconsistent with the painted scene. Regenerate with matching brushwork."
+  },
+  "002-closed-folder": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Full-size inspection: coherent textured monochrome archive folder, ribbon and folded paper edges readable; complete silhouette. Off-white backdrop is suitable for local Spark background removal."
+  },
+  "003-open-folder": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Full-size original and transparent pilot inspected: folder and leaf are coherent, no lettering, clean complete silhouette; alpha range and background verified."
+  },
+  "004-paper-stack": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Full-size inspection: blank paper and single clip clearly legible, complete corners, subtle black ink texture, no text or accidental marks."
+  },
+  "005-sealed-envelope": {
+    "attempt": 2,
+    "verdict": "accepted",
+    "reason": "The retry clearly shows a complete sealed envelope with wax seal and restrained botanical sprig, generous margins, no text and a coherent monochrome engraved treatment."
+  },
+  "007-magnifying-glass": {
+    "attempt": 2,
+    "verdict": "accepted",
+    "reason": "The retry shows the complete magnifying glass and handle inside the canvas with generous white space, fine engraved texture and no text or logos."
+  },
+  "010-compass": {
+    "attempt": 2,
+    "verdict": "accepted",
+    "reason": "The retry shows a complete plain compass with a simple two-ended needle, clean margins and no letters, numbers, text or logos."
+  },
+  "006-open-mailbox": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Clearly recognizable empty mailbox, complete silhouette, clean white space and coherent black editorial rendering."
+  },
+  "008-binoculars": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Complete, recognizable binoculars with crisp monochrome editorial texture and no unwanted typography."
+  },
+  "009-telescope": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Complete telescope and tripod, well centered, legible at thumbnail size and free of text."
+  },
+  "011-hourglass": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Balanced, complete hourglass with restrained texture, clear silhouette and no unwanted details."
+  },
+  "012-pocket-watch": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Complete pocket watch with a plain face and ribbon, well spaced and coherent with the monochrome family."
+  },
+  "013-calendar-leaf": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Clean unnumbered ruled calendar sheet, complete and readable as a scheduling motif without unwanted text."
+  },
+  "014-empty-basket": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Complete empty woven basket with cloth detail, strong whitespace and coherent engraved texture."
+  },
+  "015-in-tray": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Two clearly empty stacked document trays, complete silhouette and strong legibility at UI scale."
+  },
+  "016-archive-box": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Open empty archive box and separate lid are complete, well spaced and suitable for an archive empty state."
+  },
+  "017-bookshelf": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Compact small bookshelf with blank-spined books and an empty shelf, clear even at thumbnail scale."
+  },
+  "018-book-and-key": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Complete clothbound book and small key, restrained monochrome rendering with generous margins."
+  },
+  "019-open-ledger": {
+    "attempt": 2,
+    "verdict": "accepted",
+    "reason": "The retry clearly shows a physical open hardbound ledger with covers, spine, layered pages and blank ruled lines, with no text or logos."
+  },
+  "020-balance-scales": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Level empty pans, complete antique scale silhouette, centered with ample whitespace and no labels."
+  },
+  "021-paired-coins": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Two distinct balanced stacks of blank metal discs, strong symmetrical composition and no currency markings."
+  },
+  "022-coin-return": {
+    "attempt": 2,
+    "verdict": "accepted",
+    "reason": "The retry shows one completely blank featureless token beside an open drawstring purse, with clean margins and no portrait, emblem, currency mark, text or logo."
+  },
+  "023-empty-vault": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Clearly empty open vault, complete door and body, strong central silhouette and generous white space."
+  },
+  "024-receipt-roll": {
+    "attempt": 3,
+    "verdict": "accepted",
+    "reason": "The third attempt clearly places a narrow blank accounting tape on a compact mechanical office machine, removing the household-roll ambiguity while preserving the monochrome engraved style."
+  },
+  "025-wax-seal": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Plain wax seal and matching unmarked stamp are complete, cleanly spaced and recognizable without typography."
+  },
+  "026-shield-leaf": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Simple complete shield outline with a clear olive branch, restrained and suitable for coverage UI."
+  },
+  "027-umbrella": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Complete umbrella visibly protecting a potted plant, clear metaphor and strong engraved silhouette."
+  },
+  "028-rain-boots": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "029-lighthouse": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "030-life-ring": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "031-safety-net": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "032-helmet": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "033-toolbox": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "034-wrench-gears": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "036-connected-link": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "037-padlock": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "038-open-padlock": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "039-key-ring": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "040-server-box": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "041-laptop-closed": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "042-cable-plug": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "043-cloud-ladder": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "044-paper-cloud": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "045-bird-branch": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "046-dove-envelope": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "047-nest": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "048-seedling": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "049-watering-can": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "050-acorn-oak": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "051-bonsai": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "052-olive-branch": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "053-wildflower": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "054-stepping-stones": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "055-bridge": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "056-sailboat": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "057-anchor": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "058-mountain-flag": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "059-kite-string": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "060-hot-air-balloon": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "061-parcel": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "062-handshake-gloves": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "063-chess-knight": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "064-chess-king": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "065-puzzle-piece": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "066-stacking-stones": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "067-corgi-search": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "068-corgi-sleeping": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "069-corgi-guard": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "070-corgi-letter": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "072-corgi-founder-notebook": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "073-corgi-broker-satchel": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "074-corgi-accountant": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "075-corgi-checker": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "076-corgi-researcher": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Named subject is immediately recognizable, fully contained, free of text and logos, and visually coherent with the Corgi illustration family."
+  },
+  "035-broken-link": {
+    "attempt": 2,
+    "verdict": "accepted",
+    "reason": "The retry shows exactly two complete chain links separated by a wide unmistakable gap, with clean margins, strong UI-scale legibility and no text or logos."
+  },
+  "077-corgi-gardener": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Character, role props and silhouette are clear; the warm hand-painted treatment matches the Corgi character family and contains no text or logo."
+  },
+  "078-corgi-chef": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Character, role props and silhouette are clear; the warm hand-painted treatment matches the Corgi character family and contains no text or logo."
+  },
+  "079-corgi-doctor": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Character, role props and silhouette are clear; the warm hand-painted treatment matches the Corgi character family and contains no text or logo."
+  },
+  "080-corgi-architect": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "Character, role props and silhouette are clear; the warm hand-painted treatment matches the Corgi character family and contains no text or logo."
+  },
+  "081-corgi-engineer": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The work jacket and cogwheel make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "082-corgi-designer": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The scarf and restrained color swatches communicate the design role; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "083-corgi-teacher": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The glasses, books and red knitwear make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "084-corgi-scientist": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The lab coat and glass flask make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "085-corgi-florist": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The apron and fresh flower bundle make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "086-corgi-barista": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The dark apron and coffee cup make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "087-corgi-baker": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The baker cap, apron and bread loaf make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "088-corgi-carpenter": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The work apron, wooden mallet and timber make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "089-corgi-photographer": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The vest and camera make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "090-corgi-musician": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The scarf and acoustic guitar make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "091-corgi-artist": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The beret, palette and brushes make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "092-corgi-librarian": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The glasses, knitwear and closed book make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "093-corgi-courier": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The cap, satchel and parcel make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "094-corgi-sailor": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The navy neckerchief and coiled rope make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "095-corgi-hiker": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The backpack and walking stick make the activity clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "096-corgi-ranger": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The ranger hat, green scarf and acorn make the woodland role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "097-corgi-lifeguard": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The orange neckerchief and life ring make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "098-corgi-mechanic": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The blue overalls and open toolbox make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "099-corgi-electrician": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The tan work vest and visibly unplugged cable coil match the specified safe electrician scene; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "100-corgi-pilot": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The leather flight cap, goggles and paper aircraft make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "101-corgi-astronomer": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The blue scarf, upward gaze and telescope make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "102-corgi-geologist": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The field jacket, attentive pose and rock samples make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "103-corgi-tailor": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The burgundy waistcoat and cream thread spool make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "104-corgi-beekeeper": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The cream beekeeping veil and blank honey pot make the role clear; the face remains readable and the warm painted treatment contains no text or logos."
+  },
+  "105-corgi-shopkeeper": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The terracotta apron and empty wicker basket make the role clear; the complete silhouette and warm painted treatment match the Corgi character family without text or logos."
+  },
+  "106-corgi-welcoming": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The open expression, lifted front paw and ochre bandana create a clear welcoming pose; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "107-corgi-resting": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The curled sleeping pose and folded cream blanket clearly convey rest; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "108-corgi-waiting": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The crossed forepaws, blue scarf and hourglass clearly convey waiting; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "109-corgi-curious": {
+    "attempt": 3,
+    "verdict": "accepted",
+    "reason": "The third attempt shows one open flat manila folder with a broad visibly blank interior beside a strong inquisitive head tilt; the composition contains no documents, text or logos."
+  },
+  "110-corgi-celebrating": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The rust neckerchief and restrained paper confetti convey a modest celebration; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "111-corgi-careful-step": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The raised paw over the small wooden threshold clearly conveys a careful step; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "112-corgi-umbrella": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The dog is clearly sheltered beneath a complete mustard umbrella; the balanced composition and warm painted treatment contain no text or logos."
+  },
+  "113-corgi-raincoat": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The ochre raincoat and two small puddles clearly convey wet weather; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "114-corgi-winter-scarf": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The thick rust knit scarf and gently closed eyes create a clear winter comfort image; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "115-corgi-spring-daisy": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The single daisy held gently in the mouth and pale green bandana clearly convey spring; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "116-corgi-summer-hat": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The woven straw hat and closed picnic basket clearly convey a summer outing; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "117-corgi-autumn-leaf": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The alert sniffing pose and single large golden maple leaf clearly convey autumn; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "118-corgi-reading": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The round spectacles, lying pose and open blank book clearly convey reading; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "119-corgi-laptop-work": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The cocoa hoodie and plain open laptop clearly convey focused computer work; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "120-corgi-phone-message": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The blue cardigan, curious gaze and unbranded phone propped against a book clearly convey a message; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "121-corgi-folder-delivery": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The walking pose and closed blank folder held gently in the mouth clearly convey delivery; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "122-corgi-blanket-fort": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The corgi peeks clearly from beneath a cream blanket draped over a small stool; the complete composition and warm painted treatment contain no text or logos."
+  },
+  "123-corgi-window-watch": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The seated dog, freestanding window frame and leafy sill sprig match the requested watchful scene; the warm painted treatment contains no text or logos."
+  },
+  "124-corgi-plant-care": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The sage apron, small watering can and healthy leafy plant clearly convey plant care; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "125-corgi-star-gazing": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The navy neckerchief and upward head tilt toward a single gold hanging star match the requested scene; the warm painted treatment contains no text or logos."
+  },
+  "126-corgi-map-explorer": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The tan backpack and attentive gaze toward a folded blank map clearly convey exploration; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "127-corgi-tea-break": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The dusty rose cardigan, resting pose, tiny cream teapot and cup clearly convey a tea break; the complete composition contains no text or logos."
+  },
+  "128-corgi-stretching": {
+    "attempt": 2,
+    "verdict": "accepted",
+    "reason": "The retry shows a recognizable waking stretch with chest lowered, forelegs extended and hindquarters raised; the complete silhouette and warm painted treatment contain no text or logos."
+  },
+  "129-corgi-partner-pair": {
+    "attempt": 2,
+    "verdict": "accepted",
+    "reason": "The retry clearly differentiates one ginger-and-white and one dark sable partner while preserving matching blue neckerchiefs, coherent anatomy and the warm painted family."
+  },
+  "130-corgi-proud-finish": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The tall seated posture, sage waistcoat and unmarked trophy clearly convey a proud finish; the complete composition contains no text or logos."
+  },
+  "131-meadow-path": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The winding meadow path, cottage and layered hills form a polished panoramic landscape; the tiny rear-view corgi is integrated with soft brushwork and has no cartoon outline or text."
+  },
+  "132-orchard-morning": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The misty orchard, fruit tree and wooden baskets form a polished morning landscape; the tiny rear-view corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "133-coastal-lighthouse": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The white lighthouse, grassy headland and calm sea form a clear panoramic coastal scene; the tiny rear-view corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "134-village-square": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The quiet terracotta-roofed square, central fountain and leafy trees form a polished village scene; the tiny rear-view corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "135-river-bridge": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The arched stone bridge, reflective river, willows and golden reeds form a clear pastoral panorama; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "136-rolling-wheat": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The rolling wheat fields, narrow path and distant windmill form a polished panoramic scene; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "137-forest-clearing": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The sunlit woodland edge, abundant ferns, mossy ground and old bench form a polished clearing; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "138-hilltop-cottage": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The small hilltop cottage, winding garden path and broad cloud-filled sky form a polished landscape; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "139-harbor-dawn": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The sheltered sailboat harbor and pale golden dawn form a calm polished panorama; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "140-lavender-garden": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The muted lavender rows, cream farmhouse and cypress trees form a polished garden landscape; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "141-autumn-valley": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The ochre trees, winding stream and distant blue hills form a polished autumn valley; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "142-winter-cabin": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The snow-covered cabin, dark firs and pale warm sky form a clear winter landscape; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "143-spring-terrace": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The terracotta pots, fresh leaves and distant rolling hills form a clear spring terrace; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "144-summer-picnic": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The folded cream cloth, wicker basket and orchard path form a clear summer picnic scene; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "145-mountain-lake": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The calm reflective lake, softly painted mountains and sparse pines form a polished alpine panorama; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "146-garden-gate": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The open wooden gate, flowering vines and path beyond form a clear welcoming garden scene; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "147-countryside-train": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The cream-and-green train, low stone viaduct and open fields form a clear countryside panorama; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "148-island-retreat": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The wooded island, small cottage, calm reflective lake and clouded sky form a polished retreat; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "149-moonlit-hills": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The muted blue-green hills, small warm moon and softly lit cottage windows create a calm evening scene; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  },
+  "150-sunset-road": {
+    "attempt": 1,
+    "verdict": "accepted",
+    "reason": "The welcoming road curves clearly toward warm sunset light behind low olive hills; the tiny corgi is naturally integrated and the scene contains no text or logos."
+  }
+}

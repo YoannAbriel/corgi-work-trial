@@ -5,7 +5,7 @@ Feature IDs: B12 (docs/PLAN.md), items 2 and 3 of the three decided by Yoann on 
 YOA-626.
 
 Reviewer: independent reviewer sub-agent, own worktree `worktree-agent-ae1296a4ce5b46bb2`.
-Timestamp: 2026-09-09T09:05Z. Timebox: 60 minutes.
+Timestamp: 2026-09-09T07:05Z (09:05 Europe/Zurich; an earlier revision of this header carried the local time with a Z suffix, corrected 2026-09-09T08:20Z). Timebox: 60 minutes.
 
 Reviewed revision: `b40e803` (main), working tree clean at review start. The slice under review
 landed with the merge `a6aca56` of `worktree-agent-acc7e1cd088537310` (branch commit `d7ee2d3`).
@@ -360,7 +360,7 @@ cannot certify understanding on his behalf.
 
 ---
 
-# Re-review after the fixes, 2026-09-09T09:20Z
+# Re-review after the fixes, 2026-09-09T07:19Z (09:19 Europe/Zurich; an earlier revision of this line carried the local time with a Z suffix, corrected 2026-09-09T08:28Z)
 
 New revision reviewed: **`19baf15`** (merge of `worktree-agent-acc7e1cd088537310` into main,
 "B12 explanation fixes (F-B12-02 to 07, 09) and terms in force on today (F-YA-07)"). The eight fix

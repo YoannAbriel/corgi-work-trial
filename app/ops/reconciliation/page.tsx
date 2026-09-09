@@ -115,9 +115,9 @@ export default async function ReconciliationPage({
           <>
             <Panel title="Open breaks">
               {runs.length === 0 ? (
-                <Empty>No reconciliation has ever run. Press &ldquo;Reconcile both sources now&rdquo;.</Empty>
+                <Empty illustration="all-clear">No reconciliation has ever run. Press &ldquo;Reconcile both sources now&rdquo;.</Empty>
               ) : breaks.length === 0 ? (
-                <Empty>
+                <Empty illustration="all-clear">
                   No open break. The latest completed run of each source compared{" "}
                   {latestComplete.map((run) => `${run.providerRecordCount} provider records for ${run.source}`).join(" and ")}{" "}
                   and found every one of them in the ledger.

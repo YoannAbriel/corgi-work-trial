@@ -1,6 +1,7 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
+import { IllustrationBanner } from "@/components/decorative-illustration";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
@@ -80,11 +81,11 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
         </div>
       )}
 
-      <WhatNeedsYou tasks={tasks} />
+      <WhatNeedsYou tasks={tasks} showEmptyIllustration={policies.length > 0} />
 
       <Panel title="Policies" className="list-panel">
         {policies.length === 0 ? (
-          <Empty>No policy yet. Start with &quot;New policy&quot;.</Empty>
+          <Empty illustration="closed-folder">No policy yet. Start with &quot;New policy&quot;.</Empty>
         ) : (
           <div className="table-scroll" role="region" aria-label="Policies" tabIndex={0}>
             <table>
@@ -126,6 +127,12 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
           </div>
         )}
       </Panel>
+      <IllustrationBanner
+        name="garden-gate"
+        title={<>Built for <em>growing businesses.</em></>}
+      >
+        Coverage, records and the next customer decision stay together.
+      </IllustrationBanner>
     </PortalShell>
   );
 }

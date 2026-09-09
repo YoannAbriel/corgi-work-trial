@@ -858,7 +858,7 @@ export default async function PolicyPage({
 
             <Panel title="Claims">
               {claims.length === 0 ? (
-                <Empty>No claim on this policy.</Empty>
+                <Empty illustration="search-corgi">No claim on this policy.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Policy claims" tabIndex={0}>
                   <table>
@@ -907,7 +907,7 @@ export default async function PolicyPage({
               {entries.length === 0 ? (
                 <Empty>Nothing has been posted yet. The four issuance entries are written when Stripe confirms the payment.</Empty>
               ) : (
-                <JournalTable entries={entries} ariaLabel="Policy journal" />
+                <JournalTable entries={entries} panelKey="policy" ariaLabel="Policy journal" />
               )}
             </Panel>
           </>
