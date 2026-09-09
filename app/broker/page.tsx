@@ -162,7 +162,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
       toasts={toasts}
       band={{
         title: "Your policies",
-        suffix: user.displayName,
+        // No name here: the sidebar already says who is signed in (Yoann, 2026-09-09).
         // One chip, one action (cycle 2). The AF-02 words are on the top bar of every workspace
         // screen; business verification and statements are two entries of the sidebar, and a
         // band that repeats the navigation is the navigation drawn twice.

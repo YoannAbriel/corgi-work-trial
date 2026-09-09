@@ -36,16 +36,9 @@ export default async function OpsHomePage({ searchParams }: { searchParams: Prom
       toasts={toasts}
       band={{
         title: "Overview",
-        suffix: user.displayName,
-        // Two chips (cycle 2, decision 1): who you are, and how much is waiting. The AF-02 words
-        // are on the top bar of every workspace screen now, exact and visible, so a band that
-        // repeated them said the same thing twice within 100 px.
-        meta: (
-          <>
-            <Chip tone="neutral">{isApprover ? "Staff approver" : "Staff operations"}</Chip>
-            <Chip tone={totalWaiting > 0 ? "warn" : "ok"}>{totalWaiting === 0 ? "nothing waiting" : `${totalWaiting} waiting`}</Chip>
-          </>
-        ),
+        // One chip: how much is waiting. The signed-in name and the role are already at the
+        // bottom of the sidebar, so the band no longer repeats them (Yoann, 2026-09-09).
+        meta: <Chip tone={totalWaiting > 0 ? "warn" : "ok"}>{totalWaiting === 0 ? "nothing waiting" : `${totalWaiting} waiting`}</Chip>,
         actions: (
           <>
             <Link href="/inbox" prefetch={false} className="button-link secondary">

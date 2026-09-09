@@ -73,7 +73,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       toasts={toasts}
       band={{
         title: "Inbox",
-        suffix: user.displayName,
+        // No name here: the sidebar already says who is signed in (Yoann, 2026-09-09).
         // One chip: how much is waiting. The AF-02 words are on the top bar of every workspace
         // screen (cycle 2, decision 1), so a band repeating them said it twice within 100 px.
         meta: (

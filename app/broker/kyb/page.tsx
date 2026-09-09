@@ -83,11 +83,11 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
       active="verification"
       user={user}
       views={views}
-      viewsSubtitle={user.displayName}
       toasts={toasts}
       band={{
         title: "Business verification",
-        suffix: user.displayName,
+        // No name in the band or under the views: the sidebar already says who is signed in
+        // (Yoann, 2026-09-09).
         // ONE CHIP, ONE ACTION of three words. At 1024 px the three chips wrapped to a second
         // line and the button wrapped inside itself, and the band was 113 px tall against the
         // 100 it is allowed (round 1, MEDIUM). The AF-02 words are on the top bar; whether a

@@ -116,7 +116,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
       toasts={toasts}
       band={{
         title: "Your policies",
-        suffix: user.displayName,
+        // No name here: the sidebar already says who is signed in (Yoann, 2026-09-09).
         // Two chips (cycle 2, decision 1): what is in force, and what waits on you. The AF-02
         // words are on the top bar of every signed-in screen.
         meta: (
