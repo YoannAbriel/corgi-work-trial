@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ChevronDown, Search as SearchIcon, UserRound } from "lucide-react";
+import { Check, ChevronDown, ChevronsUpDown, Search as SearchIcon, UserRound } from "lucide-react";
+import { DEMO_ACCOUNTS } from "@/lib/auth/demo-accounts";
+import { PopoverButton, PopoverPanel } from "@/components/ui/popover";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import type { ToastNotice } from "@/lib/ui/views";
 import { workspaceTasks, type WorkspaceTask } from "@/lib/inbox/tasks";
@@ -44,7 +46,7 @@ export async function PortalShell({
   toasts,
 }: {
   children: ReactNode;
-  user?: Pick<SignedInUser, "displayName" | "role" | "brokerId" | "customerId">;
+  user?: Pick<SignedInUser, "displayName" | "role" | "brokerId" | "customerId" | "email">;
   active?: SectionId;
   trail?: BreadcrumbItem[];
   tasks?: WorkspaceTask[];
@@ -198,22 +200,60 @@ export async function PortalShell({
         })}
       </nav>
       <div className="sidebar-account">
-        <div className="account-identity">
-          <span className="account-avatar" title={user ? `${user.displayName}, ${roleLabel}` : "Corgi workspace"}>
-            <UserRound size={19} aria-hidden="true" />
-          </span>
-          <span>
-            <strong>{user?.displayName ?? "Corgi workspace"}</strong>
-            <span>{user ? roleLabel : "Policy administration"}</span>
-          </span>
-        </div>
         {user ? (
-          <form method="post" action="/api/session/logout">
-            <button type="submit" className="quiet-button">
-              Sign out
-            </button>
-          </form>
-        ) : null}
+          <>
+            {/* THE ACCOUNT BLOCK IS A MENU (Yoann, 2026-09-09 22:40). Every demo account shares one
+                password the reviewers already hold, so switching between them from here saves the
+                typing and adds no access: POST /api/session/switch accepts only the six emails of
+                lib/auth/demo-accounts.ts and signs the new session exactly as login does. The
+                menu is the native popover the row menus use, so it closes on a click outside. */}
+            <PopoverButton id="account" className="account-identity account-switch" label={`${user.displayName}, ${roleLabel}. Switch demo account`}>
+              <span className="account-avatar" aria-hidden="true">
+                <UserRound size={19} aria-hidden="true" />
+              </span>
+              <span>
+                <strong>{user.displayName}</strong>
+                <span>{roleLabel}</span>
+              </span>
+              <ChevronsUpDown size={15} strokeWidth={1.8} aria-hidden="true" className="account-chevrons" />
+            </PopoverButton>
+            <PopoverPanel id="account" className="pop-account">
+              <p className="pop-account-title">Demo accounts</p>
+              <div className="pop-menu">
+                {DEMO_ACCOUNTS.map((account) => {
+                  const isCurrent = account.email.toLowerCase() === user.email.toLowerCase();
+                  return (
+                    <form method="post" action="/api/session/switch" key={account.email}>
+                      <input type="hidden" name="email" value={account.email} />
+                      <button type="submit" disabled={isCurrent} aria-current={isCurrent ? "true" : undefined}>
+                        <span className="pop-account-line">
+                          <span>{account.email}</span>
+                          <span className="pop-account-role">{account.role}</span>
+                        </span>
+                        {isCurrent ? <Check size={14} aria-hidden="true" /> : null}
+                      </button>
+                    </form>
+                  );
+                })}
+              </div>
+              <form method="post" action="/api/session/logout" className="pop-account-out">
+                <button type="submit" className="quiet-button">
+                  Sign out
+                </button>
+              </form>
+            </PopoverPanel>
+          </>
+        ) : (
+          <div className="account-identity">
+            <span className="account-avatar" title="Corgi workspace">
+              <UserRound size={19} aria-hidden="true" />
+            </span>
+            <span>
+              <strong>Corgi workspace</strong>
+              <span>Policy administration</span>
+            </span>
+          </div>
+        )}
       </div>
     </>
   );
