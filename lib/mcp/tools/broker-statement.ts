@@ -38,7 +38,9 @@ export const getBrokerStatement: McpTool = {
   async run(args, context) {
     const month = requiredText(args, "month");
     if (!isStatementMonth(month)) {
-      throw new ToolRefused(`"${month}" is not a statement month; write it as YYYY-MM, for example 2028-03`);
+      // Same rule as policy-as-of: the refusal says the shape, not what the caller sent, because
+      // it is written into the append-only call log (review finding F-B11-02).
+      throw new ToolRefused('"month" is not a statement month; write it as YYYY-MM, for example 2028-03');
     }
     const revision = optionalWholeNumber(args, "revision");
     if (revision !== null && revision < 1) {

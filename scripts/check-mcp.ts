@@ -74,6 +74,10 @@ type JsonRpcAnswer = { status: number; body: Record<string, unknown> | null };
 // number of rows the endpoint appended to mcp_calls: one row per call, exactly.
 let postsSent = 0;
 
+// A value no date parser accepts, sent on purpose so the refusal and the audit row can be read
+// back: neither of them may repeat it (review finding F-B11-02).
+const MALFORMED_AS_OF = "not-a-date-but-a-long-string-a-caller-chose";
+
 async function rpc(key: string | null, method: string, params?: unknown, id: number | null = 1): Promise<JsonRpcAnswer> {
   postsSent += 1;
   const response = await fetch(`${baseUrl}/api/mcp`, {
@@ -395,6 +399,18 @@ async function main() {
   });
   report("a staff key reads any policy", staffPolicy.ok, staffPolicy.ok ? String(staffPolicy.value.policyNumber) : staffPolicy.refusal);
 
+  const malformedAsOf = await callTool(brokerKey.presentedKey, "get_policy_as_of", {
+    policyNumber: policy.policyNumber,
+    asOf: MALFORMED_AS_OF,
+  });
+  report(
+    "a malformed asOf is refused with the SHAPE it should have, and the value the caller sent is not repeated",
+    !malformedAsOf.ok &&
+      /written as YYYY-MM-DD/.test(malformedAsOf.refusal) &&
+      !malformedAsOf.refusal.includes(MALFORMED_AS_OF),
+    malformedAsOf.ok ? "it answered" : malformedAsOf.refusal,
+  );
+
   const beforeTheTerm = await callTool(brokerKey.presentedKey, "get_policy_as_of", {
     policyNumber: policy.policyNumber,
     asOf: "2027-01-01",
@@ -679,6 +695,33 @@ async function main() {
     stored ? `tool ${stored.tool}, hash ${stored.arguments_hash?.slice(0, 12)}..., ${stored.duration_ms} ms` : "no row",
   );
 
+  // Review finding F-B11-02: mcp_calls can never be updated, deleted or truncated, so a string a
+  // caller chose the text of would sit in it for the life of the database. This run deliberately
+  // sent four of them: the method "resources/list", the tool name "approve_claim_payment", the
+  // header "1999-01-01" and a malformed asOf. None of the four may be in the rows it wrote.
+  const rowsThisRunWrote = await lastCallRows(postsSent);
+  const callerStrings = ["resources/list", "approve_claim_payment", "1999-01-01", MALFORMED_AS_OF];
+  const rowsQuotingTheCaller = rowsThisRunWrote.filter((row) =>
+    callerStrings.some(
+      (caller) => (row.tool ?? "").includes(caller) || row.method.includes(caller) || (row.detail ?? "").includes(caller),
+    ),
+  );
+  report(
+    "NO CALLER STRING REACHES THE APPEND-ONLY CALL LOG: not the method, the tool name, the header or the argument",
+    rowsQuotingTheCaller.length === 0,
+    `${rowsThisRunWrote.length} rows read back, ${rowsQuotingTheCaller.length} quoting one of the four strings this run sent`,
+  );
+  const boundedRows = rowsThisRunWrote.every(
+    (row) => row.method.length <= 64 && (row.tool ?? "").length <= 64 && (row.detail ?? "").length <= 500,
+  );
+  report(
+    "and every column the caller can influence is bounded: 64 for the method and the tool, 500 for the detail",
+    boundedRows,
+    `longest method ${Math.max(...rowsThisRunWrote.map((row) => row.method.length))}, longest tool ${Math.max(
+      ...rowsThisRunWrote.map((row) => (row.tool ?? "").length),
+    )}, longest detail ${Math.max(...rowsThisRunWrote.map((row) => (row.detail ?? "").length))}`,
+  );
+
   console.log("");
   console.log(`${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
 }
@@ -852,6 +895,16 @@ async function oneCallRow(
      order by called_at desc limit 1
   `;
   return row ?? null;
+}
+
+// The rows this run appended, newest first: the last `count` of them, because the disposable
+// database keeps every earlier run's rows too.
+async function lastCallRows(
+  count: number,
+): Promise<{ method: string; tool: string | null; detail: string | null }[]> {
+  return owner<{ method: string; tool: string | null; detail: string | null }[]>`
+    select method, tool, detail from mcp_calls order by called_at desc, id desc limit ${count}
+  `;
 }
 
 async function latestOperationStatus(operationId: string): Promise<string> {

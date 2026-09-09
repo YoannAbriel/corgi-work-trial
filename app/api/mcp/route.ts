@@ -55,11 +55,14 @@ export async function POST(request: Request): Promise<Response> {
   const declaredVersion = request.headers.get("mcp-protocol-version");
   if (declaredVersion && !SUPPORTED_PROTOCOL_VERSIONS.includes(declaredVersion)) {
     const message = `unsupported MCP-Protocol-Version "${declaredVersion}"; this server speaks ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}`;
+    // The answer quotes the header the caller sent; the audit row does not (review finding
+    // F-B11-02). mcp_calls can never be updated, deleted or truncated, so a header holding a
+    // pasted credential would sit there for the life of the database.
     await logCall({
       apiKeyId: principal.keyId,
-      log: { method: "unknown", tool: null, argumentsHash: null, outcome: "refused", detail: message },
+      log: { method: "unknown", tool: null, argumentsHash: null, outcome: "refused", detail: null },
       outcome: "refused",
-      detail: message,
+      detail: "unsupported MCP-Protocol-Version header",
       startedAtMs,
     });
     return jsonResponse({ jsonrpc: "2.0", id: null, error: { code: -32600, message } }, 400);

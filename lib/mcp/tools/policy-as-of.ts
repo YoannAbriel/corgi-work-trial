@@ -37,7 +37,9 @@ export const getPolicyAsOf: McpTool = {
     const policyNumber = requiredText(args, "policyNumber");
     const asOf = optionalText(args, "asOf") ?? context.now.toISOString().slice(0, 10);
     if (!isCalendarDate(asOf)) {
-      throw new ToolRefused(`"asOf" must be a calendar date such as 2028-03-01, got "${asOf}"`);
+      // The value the caller sent is deliberately not repeated: this sentence is written into
+      // mcp_calls, which nothing can ever clean (review finding F-B11-02).
+      throw new ToolRefused('"asOf" must be a calendar date written as YYYY-MM-DD, for example 2028-03-01');
     }
 
     const [policy] = await context.database<
