@@ -322,12 +322,14 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
 //     force yet. The line names the amount, the day, and what still has to happen before it
 //     takes effect: the customer's own yes counts when the request is still waiting for it.
 type PremiumRow = {
+  status: string;
   terms: Pick<TermsInForce, "onDate" | "annualPremiumCents">;
   latestAnnualPremiumCents: number;
   live: { request: EndorsementRequest; standing: EndorsementRequestStanding } | null;
 };
 
 function writtenLaterPremium(row: PremiumRow): string | null {
+  if (policyIsClosed(row)) return null;
   // The fold has no answer for that date, so the figure above IS the policy record's own and
   // there is nothing later to compare it with.
   if (row.terms.onDate === null) return null;
@@ -335,10 +337,21 @@ function writtenLaterPremium(row: PremiumRow): string | null {
   return `${formatCentsAsUsd(row.latestAnnualPremiumCents)} on the latest terms`;
 }
 
+// A CLOSED POLICY HAS NOTHING LATER TO SHOW. Cover has stopped or never started, so terms
+// written for a later date can no longer take effect and naming them would promise cover that
+// will not happen (Yoann's rule, 2026-09-09). ACCEPTED EDGE CASE: a cancellation recorded now
+// but effective in the future, with an endorsement effective before it, really does take effect
+// and is hidden here. Telling the two apart needs the cancellation's effective date, which
+// these lists do not read (cancellationOfPolicy, lib/policy/read.ts); week two, "cancellation
+// effective date on the lists".
+function policyIsClosed(row: PremiumRow): boolean {
+  return row.status === "cancelled" || row.status === "voided";
+}
+
 // What still has to happen before the requested change takes effect. `approved` is the standing
 // where the only thing left is the money; `awaiting_approval` needs the customer's yes first.
 function requestedCondition(row: PremiumRow): string | null {
-  if (!row.live) return null;
+  if (policyIsClosed(row) || !row.live) return null;
   return row.live.standing.state === "approved" ? ONCE_PAID : IF_APPROVED_AND_PAID;
 }
 
