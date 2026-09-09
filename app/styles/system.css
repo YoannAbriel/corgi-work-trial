@@ -94,10 +94,20 @@
   place-items: center;
   width: 32px;
   height: 32px;
-  background: #ffc69f;
-  border-radius: 10px;
-  color: #99470e;
+  color: var(--orange);
   flex-shrink: 0;
+}
+/* The Corgi mark, from public/brand/corgi-mark-mask.png (scripts/brand-assets.mjs).
+   It is a MASK and not an <img>: the browser reads only the alpha channel of the file and
+   fills the shape with `currentColor`, so the mark takes the colour of the header it sits in
+   and would follow a theme change without a second file. The 512 px source drawn at 24 px is
+   a 21x downscale, which is why it stays clean at this size. */
+.workspace-mark {
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  -webkit-mask: url("/brand/corgi-mark-mask.png") center / contain no-repeat;
+  mask: url("/brand/corgi-mark-mask.png") center / contain no-repeat;
 }
 .brand-product {
   display: block;
