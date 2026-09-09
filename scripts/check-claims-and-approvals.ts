@@ -802,6 +802,17 @@ async function main() {
     /approv/i.test(afterSplitAttempt),
     afterSplitAttempt,
   );
+  // Review finding F-B7-13: the same refusal blocks a payment that WAS below the ceiling when it
+  // was asked for, as soon as a second request lands on the claim. Failing closed is right; the
+  // operator has to be able to read why, and what releases it.
+  const firstSixHundredBlocked = await refusal(() => sendClaimPayment({ operationId: firstSixHundred.operationId, actor: maker }, runtime));
+  report(
+    "AND THE FIRST $600, BELOW THE CEILING WHEN IT WAS ASKED FOR, IS BLOCKED TOO, with the arithmetic and the way out in the sentence",
+    /\$1,000\.00 approval ceiling/.test(firstSixHundredBlocked) &&
+      /\$600\.00 waiting/.test(firstSixHundredBlocked) &&
+      /rejected and this payment becomes sendable again/.test(firstSixHundredBlocked),
+    firstSixHundredBlocked,
+  );
 
   // ---------------------------------------------------------------------------
   // 11c. Every road to Stripe passes the maker-checker gate (review finding F-B7-01)
