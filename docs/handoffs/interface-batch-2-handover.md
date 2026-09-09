@@ -47,3 +47,7 @@ F-EV-08 LOW pre-existing, fixed; F-EV-02 reclassified (slow /inbox, not a dead l
 ## Week-two lines gathered by the interface session
 
 CHECK constraint on mcp_api_keys.label; ActivitySubjectKind "user" for the switch row; the sticky height published for the drawer; latest terms date and cancellation date on the lists (LATERAL join); tests for the Billing pure functions; the approved-refunds inbox section; direct bill (decision 44).
+
+## Update at 21:44Z: five PASS verdicts, records on the branch
+
+The interface session's correction after its handover: the two unfinished reviews reported PASS and all five records are committed and pushed on `origin/ui-evening-2` at 79a96c7 (`docs/reviews/ui-evening-2-{tokens,statements,screens,billing,late}.md` plus `docs/handoffs/ui-evening-2-handover.md`). Screens PASS at 7b527f0 (F-EV2-08 fixed from 888 px up; F-EV2-09 LOW accepted for 801 to 887 px with an inspector open: no submission screenshot below 888 px with a drawer open). Late slices PASS at d8aa06d (F-LT-01 to 04 resolved; F-LT-05 downgraded to LOW, the README sentence on the second credential is on main at 21:44Z; F-LT-13 LOW legend wording; F-LT-14 LOW an em dash in a source comment at app/policies/[policyId]/page.tsx line 243, to remove before the merge). No open MED. Remaining before the merge: remove that dash on the branch, the guards proof with 0026, `npm run migrate` on the trial database, then the procedure above.

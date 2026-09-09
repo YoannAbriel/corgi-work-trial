@@ -566,6 +566,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T21:44:00+00:00 | Batch 2: five PASS verdicts on origin/ui-evening-2 at 79a96c7, ready for the next session's merge
+
+- Correction to the wrap-up: the screens and late-slices reviews finished PASS after the handover; five records on the branch. Remaining before the merge: an em dash in a source comment (F-LT-14, app/policies/[policyId]/page.tsx line 243), the guards proof with 0026, the trial migration, then merge, push code alone, docs. The F-LT-05 sentence (a session becomes the approver without a second credential on this demo) is in the README now. Details in `docs/handoffs/interface-batch-2-handover.md`.
+
 ## 2026-09-09T21:40:00+00:00 | SESSION WRAP-UP at the usage limit (coordinator session corgi-track-policy-admin): state of everything, for the next session
 
 **Production**: ff88934 on /api/health at 21:37Z; 66fb863 (the F-INSPECT-05 sentence) pushed at 21:39Z and deploying. **main == origin/main** after this docs push. Freeze at 2026-09-10T05:50Z; runbook `docs/handoffs/freeze-checklist.md`.
