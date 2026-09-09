@@ -16,9 +16,11 @@ import { withActivity } from "@/lib/observability/log";
 // The password is not read here, and there is nothing to read: the answer removes the cookie
 // without ever looking at what was in it.
 //
-// No rule is named in the descriptor, for the same reason as POST /api/brokers: the closed list
-// in lib/observability/log.ts has no name for this gate, and the refusal is recorded as refused
-// either way.
+// No rule is named in the descriptor, the same known deviation as POST /api/brokers and recorded
+// for the same reason (review finding F-NEWBROKER-02): the 401 and the 403 below are stored in
+// activity_log with rule = none, so the console's Rule column reads "none" for them until the
+// coordinator adds "broker creation" to the closed union of lib/observability/log.ts after the
+// merge. The outcome is still recorded as refused.
 export const POST = withActivity({ route: "/ops/brokers/reveal/consume" }, handlePost);
 
 async function handlePost() {

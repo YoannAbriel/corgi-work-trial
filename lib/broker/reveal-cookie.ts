@@ -33,6 +33,25 @@ export function revealCookieValue(signIn: RevealedSignIn): string {
   return `${signIn.email}|${signIn.password}`;
 }
 
+// The characters RFC 6265 allows inside a cookie value: every printable character except the
+// space, the double quote, the comma, the semicolon and the backslash.
+//
+// WHY THIS IS CHECKED AND NOT ESCAPED (review finding F-NEWBROKER-01). A semicolon inside the
+// value ends the value early, so the browser would keep a truncated email and NO password at
+// all, for an account that was created and whose password nothing can show again. A comma makes
+// some HTTP clients read what follows as a SECOND cookie, on this cookie's path. Both come in
+// through the contact email, which is the only part of the value a person types: the one-time
+// password is drawn from an alphabet of letters and digits only (lib/auth/password.ts).
+//
+// So the address is refused BEFORE anything is written (lib/broker/create-broker.ts,
+// readNewBrokerForm), rather than encoded on the way out and decoded on the way back in. One
+// gate, on the field a person fills in, is the version a reader can check in one place.
+const CHARACTERS_A_COOKIE_VALUE_MAY_HOLD = /^[\u0021\u0023-\u002B\u002D-\u003A\u003C-\u005B\u005D-\u007E]*$/;
+
+export function isCookieSafeValue(value: string): boolean {
+  return CHARACTERS_A_COOKIE_VALUE_MAY_HOLD.test(value);
+}
+
 // Reads that value back. Anything else is null: the page then says the password is gone rather
 // than printing half of it.
 export function readRevealCookieValue(raw: string | undefined): RevealedSignIn | null {
@@ -43,6 +62,11 @@ export function readRevealCookieValue(raw: string | undefined): RevealedSignIn |
 }
 
 // The Set-Cookie header that hands the details to the browser.
+//
+// The value is written as it is, with no escaping: both halves of it are already known to hold
+// only characters a cookie value may hold. The email was checked by isCookieSafeValue above,
+// through readNewBrokerForm, before the broker was created; the password comes from the
+// letters-and-digits alphabet of lib/auth/password.ts.
 //
 // Secure only in production: the flag would stop the cookie from being set at all on the plain
 // HTTP of local development, and the deployment is HTTPS. This is the same rule as the session

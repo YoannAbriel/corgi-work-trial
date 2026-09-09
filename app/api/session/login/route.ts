@@ -1,5 +1,5 @@
 import { sql } from "@/db/client";
-import { passwordHashMatches } from "@/lib/auth/password";
+import { passwordHashMatches, spendPasswordCheckTime } from "@/lib/auth/password";
 import {
   demoPassword,
   passwordMatches,
@@ -34,6 +34,10 @@ async function handlePost(request: Request) {
   // which accounts exist. An 'agent' principal (slice B11) is refused with the same message: it
   // exists to hold an MCP API key, and a browser session is not a thing it may have.
   if (!user || user.role === "agent") {
+    // The same sentence is not enough on its own: a branch that returns without hashing anything
+    // answers faster than the branch below, and the difference in time says "this account
+    // exists" (review finding F-NEWBROKER-03). This spends that time and matches nothing.
+    await spendPasswordCheckTime(password);
     return redirectTo(UNKNOWN_EMAIL_OR_PASSWORD);
   }
 

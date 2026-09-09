@@ -64,6 +64,14 @@ const BROKER_NAME = `New broker check ${RUN_ID}`;
 const BROKER_EMAIL = `new-broker-check-${RUN_ID}@example.invalid`;
 const COMMISSION_RATE_BPS = "1500";
 
+// The two hostile addresses of review finding F-NEWBROKER-01. Both pass the "one @ and a dot"
+// shape check and both attack the reveal cookie rather than the database: the semicolon would end
+// the cookie value early and throw the one-time password away, the comma would make a splitting
+// HTTP client read a second cookie on Path=/ops/brokers. They carry this run's id like every
+// other fixture here, because the disposable database is shared and keeps what earlier runs left.
+const SEMICOLON_EMAIL = `probe;max-age=99999-${RUN_ID}@example.invalid`;
+const COMMA_EMAIL = `probe,corgi_session=x-${RUN_ID}@example.invalid`;
+
 // Above this many brokers, /ops/brokers takes minutes to render and the two screen checks are
 // skipped out loud rather than waited for. See the comment beside them.
 const MOST_BROKERS_A_SCREEN_CHECK_WAITS_FOR = 100;
@@ -159,6 +167,10 @@ async function main() {
     ["a commission rate with a decimal part", { name: BROKER_NAME, email: BROKER_EMAIL, commissionRateBps: "15.5" }],
     ["a negative commission rate", { name: BROKER_NAME, email: BROKER_EMAIL, commissionRateBps: "-1" }],
     ["a commission rate over 10000", { name: BROKER_NAME, email: BROKER_EMAIL, commissionRateBps: "10001" }],
+    // The two hostile addresses declared above. They must be refused BEFORE the account is
+    // created, which is what the "no sign-in account" line below proves.
+    ["an email carrying a semicolon", { name: BROKER_NAME, email: SEMICOLON_EMAIL, commissionRateBps: COMMISSION_RATE_BPS }],
+    ["an email carrying a comma", { name: BROKER_NAME, email: COMMA_EMAIL, commissionRateBps: COMMISSION_RATE_BPS }],
   ];
   for (const [what, form] of invalidForms) {
     const refused = await createBroker(operationsSession, form);
@@ -170,6 +182,12 @@ async function main() {
     (await countBrokersNamed(BROKER_NAME)) === 0,
     `${await countBrokersNamed(BROKER_NAME)} brokers named "${BROKER_NAME}"`,
   );
+  // The hostile addresses again, from the other side: no sign-in account was created for either
+  // of them. This is the line that says the refusal happened before the INSERT and not after it,
+  // which is the whole point: an account created with a broken cookie could never be repaired,
+  // because nothing anywhere holds the password it was supposed to show.
+  const hostileAccounts = (await countUsersWithEmail(SEMICOLON_EMAIL)) + (await countUsersWithEmail(COMMA_EMAIL));
+  report("no sign-in account exists for either hostile address", hostileAccounts === 0, `${hostileAccounts} accounts`);
 
   // ---------------------------------------------------------------------------
   // 4. The creation itself
@@ -272,6 +290,15 @@ async function main() {
   // that: every check script of this repository leaves its fixture brokers behind, and one page
   // load there was measured at 217 seconds for 1153 brokers on 2026-09-09. Rather than hang, or
   // pretend, this half is skipped out loud with its reason and its count.
+  //
+  // WHAT THAT MEANS FOR THE FOUR ASSERTIONS BELOW, recorded honestly (review finding
+  // F-NEWBROKER-05): corgi_test already holds more than a thousand brokers, so this script takes
+  // the SKIP branch every time and those four lines do not run here. Their evidence for this
+  // revision is the independent reviewer, who ran them by hand against the built server and
+  // reported all four passing. That evidence covers this revision only: on the next change to
+  // this screen they must be run again, either by the reviewer or on a fresh database where the
+  // count is under the ceiling. Counting only the brokers this run created would not help: what
+  // makes the page slow is every OTHER broker in the table, which is exactly what is counted.
   const brokersOnTheScreen = await countBrokers();
   if (brokersOnTheScreen > MOST_BROKERS_A_SCREEN_CHECK_WAITS_FOR) {
     console.log(
@@ -452,6 +479,14 @@ async function createSeededUser(role: string): Promise<{ id: string; email: stri
 // what makes the "nothing was written" lines safe on a database several checks share.
 async function countBrokersNamed(name: string): Promise<number> {
   const [row] = await owner<{ count: string }[]>`select count(*)::text as count from brokers where name = ${name}`;
+  return Number(row.count);
+}
+
+// How many sign-in accounts carry exactly this address. Used only for the two hostile addresses
+// of review finding F-NEWBROKER-01, which must have created nothing at all. Exact and not a
+// pattern, for the same reason the broker counts are by name: the database is shared.
+async function countUsersWithEmail(email: string): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`select count(*)::text as count from users where email = ${email}`;
   return Number(row.count);
 }
 

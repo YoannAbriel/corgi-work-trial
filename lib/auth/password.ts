@@ -66,6 +66,30 @@ export async function passwordHashMatches(plain: string, stored: string): Promis
   return timingSafeEqual(derivedKey, expectedKey);
 }
 
+// Spends the time a real hash check would spend, and matches nothing.
+//
+// WHY IT EXISTS (review finding F-NEWBROKER-03). passwordHashMatches runs scrypt, which is slow
+// on purpose. A login route that skips it when the email matches no account answers an unknown
+// address measurably faster than an account that carries a hash, and that gap on its own lets an
+// unauthenticated caller find out which brokers were created. Calling this on the "no such
+// account" branch makes the two answers take the same kind of time.
+//
+// WHAT IT DOES NOT HIDE, said plainly: a SEEDED demo account has no hash at all and is checked
+// against the shared demo password, which is fast. So a fast answer still means "a seeded demo
+// account", and those accounts are the documented ones anyone may already try.
+//
+// The hash is derived once, on the first call, from a random password nobody holds. It is not a
+// secret: it opens no account, and no account is ever made from it.
+let hashOfNoAccount: Promise<string> | null = null;
+
+// 32 random bytes, written as hexadecimal: far past guessing, and it never leaves this file.
+const BYTES_OF_THE_PASSWORD_NOBODY_HOLDS = 32;
+
+export async function spendPasswordCheckTime(submittedPassword: string): Promise<void> {
+  hashOfNoAccount ??= hashPassword(randomBytes(BYTES_OF_THE_PASSWORD_NOBODY_HOLDS).toString("hex"));
+  await passwordHashMatches(submittedPassword, await hashOfNoAccount);
+}
+
 // The password the operator reads once, on the screen that created the broker.
 //
 // 20 characters out of an alphabet of 56 is roughly 116 bits of entropy, which is far more than

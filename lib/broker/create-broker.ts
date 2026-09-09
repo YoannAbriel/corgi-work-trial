@@ -1,6 +1,6 @@
-import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { generateOneTimePassword, hashPassword } from "@/lib/auth/password";
+import { isCookieSafeValue } from "@/lib/broker/reveal-cookie";
 
 // Creating a broker from the operations screen (decision 52, Yoann, 2026-09-09 at 22:45 local).
 //
@@ -59,6 +59,13 @@ export function readNewBrokerForm(form: NewBrokerForm): NewBroker {
   if (email.length === 0 || email.length > EMAIL_MAX_LENGTH || !looksLikeAnEmailAddress(email)) {
     throw new BrokerCreationRefused(`The contact email must be an email address of at most ${EMAIL_MAX_LENGTH} characters`);
   }
+  // The address is handed straight back to the browser inside the reveal cookie, so it may only
+  // hold characters a cookie value may hold (review finding F-NEWBROKER-01). Refused HERE, before
+  // any INSERT, because the harm of letting one through is an account that exists and whose
+  // one-time password was destroyed on the way to the screen that was supposed to show it.
+  if (!isCookieSafeValue(email)) {
+    throw new BrokerCreationRefused("The contact email must not contain a semicolon, a comma, a quote or a backslash");
+  }
 
   // Number() on "" is 0 and on "12abc" is NaN, so both are rejected by the two checks below
   // rather than being read as a rate. `10000` basis points is 100%, the ceiling the database
@@ -90,14 +97,14 @@ export type CreatedBroker = {
 
 // Writes the broker and its sign-in account, in one transaction, and returns the password the
 // operator has to be shown. Throws BrokerCreationRefused when the email is already an account.
-export async function createBrokerWithSignIn(newBroker: NewBroker, database: postgres.Sql = sql): Promise<CreatedBroker> {
+export async function createBrokerWithSignIn(newBroker: NewBroker): Promise<CreatedBroker> {
   const oneTimePassword = generateOneTimePassword();
   // Hashed BEFORE the transaction opens: scrypt takes about a tenth of a second on purpose, and
   // that is time a database transaction would otherwise spend holding its rows.
   const passwordHash = await hashPassword(oneTimePassword);
 
   try {
-    const brokerId = await database.begin(async (transaction) => {
+    const brokerId = await sql.begin(async (transaction) => {
       const [broker] = await transaction<{ id: string }[]>`
         insert into brokers (name, commission_rate_bps)
         values (${newBroker.name}, ${newBroker.commissionRateBps})

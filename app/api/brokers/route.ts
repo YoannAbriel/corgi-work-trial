@@ -15,10 +15,16 @@ import { withActivity } from "@/lib/observability/log";
 // NEVER IN THE URL, never in the activity row, never in a log line: only the broker id travels
 // in the open, and it is not a secret.
 //
-// The descriptor names NO RULE deliberately: the closed list in lib/observability/log.ts has no
-// name for "who may create a broker", and inventing one would edit a file every other route
-// shares. The refusal is still recorded as refused, with its sentence, which is what an operator
-// reads.
+// THE DESCRIPTOR NAMES NO RULE, and this is a KNOWN DEVIATION from the convention documented in
+// lib/observability/log.ts, recorded here rather than hidden (review finding F-NEWBROKER-02).
+// That convention omits the rule only on a route with no gate of its own; this route has three
+// gates. The consequence, exactly: every refusal of this route is stored in activity_log with
+// rule = none, so the console's Rule column reads "none" on the role wall, on an invalid field
+// and on a duplicate email. WHY IT IS LEFT THAT WAY FOR NOW: the rule list is a closed union
+// that all 34 routes share, and adding a name to it from this branch is an edit to a file
+// several slices are changing at the same time. The coordinator adds "broker creation" to that
+// union after the merge. Nothing else is lost meanwhile: the row still records the outcome as
+// refused, with its sentence, which is what an operator reads.
 export const POST = withActivity({ route: "/api/brokers" }, handlePost);
 
 const FORM = "/ops/brokers?view=new";
