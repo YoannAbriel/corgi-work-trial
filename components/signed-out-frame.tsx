@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Shapes, ShieldCheck } from "lucide-react";
 
 // The frame of a page nobody is signed in to. It is deliberately NOT the workspace shell: a
@@ -7,7 +8,7 @@ import { Shapes, ShieldCheck } from "lucide-react";
 //
 // What it keeps from the shell: the brand, the sandbox disclosure, the skip link and the footer.
 // There is no navigation and no client component at all.
-export function SignedOutFrame({ children }: { children: React.ReactNode }) {
+export function SignedOutFrame({ children, actions }: { children: ReactNode; actions?: ReactNode }) {
   return (
     <div className="signed-out">
       <a className="skip-link" href="#main-content">
@@ -23,12 +24,17 @@ export function SignedOutFrame({ children }: { children: React.ReactNode }) {
             <span className="brand-product">Policy administration</span>
           </span>
         </div>
-        <details className="environment-badge">
-          <summary>
-            <ShieldCheck size={13} aria-hidden="true" /> Sandbox
-          </summary>
-          <p className="environment-detail">Sandbox providers and test data. No real money.</p>
-        </details>
+        <div className="signed-out-actions">
+          <details className="environment-badge">
+            <summary>
+              <ShieldCheck size={13} aria-hidden="true" /> Sandbox
+            </summary>
+            <p className="environment-detail">Sandbox providers and test data. No real money.</p>
+          </details>
+          {/* The landing page's one button. A page without an action leaves this empty, and the
+              header keeps the layout it always had. */}
+          {actions}
+        </div>
       </header>
       <main id="main-content" tabIndex={-1}>
         {children}
