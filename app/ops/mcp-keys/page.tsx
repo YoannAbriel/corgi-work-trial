@@ -118,13 +118,6 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
       ? tokens
       : tokens.filter((token) => `${token.label} ${token.keyPrefix} ${token.holderName}`.toLowerCase().includes(search));
 
-  // The revocation toast says a sentence: `?revoked=1` used to show a toast whose body was the
-  // bare value "1" (feedback audit of 2026-09-09). The rule's own `text` replaces that value.
-  const toasts = toastsFromQuery(query, {
-    error: { tone: "error", title: "Refused" },
-    revoked: { tone: "ok", title: "Token revoked", text: "It answers 401 from now on." },
-    created: { tone: "ok", title: "Token created", text: "Copy it now. It is shown once and never stored." },
-  });
   const inspected = inspectedReference(query.inspect);
 
   // The secret of the token this browser has just created, for at most 120 seconds, read from the
@@ -142,6 +135,27 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
   const cookieStore = await cookies();
   const revealedToken = cookieStore.get(TOKEN_REVEAL_COOKIE)?.value ?? null;
   const revealed = createdPrefix !== null && revealedToken !== null && keyPrefixOf(revealedToken) === createdPrefix ? revealedToken : null;
+  // `?created=` with no matching cookie: the consume step already ran, the two minutes are up, the
+  // Done button was pressed, or somebody typed a prefix into the address bar. There is nothing to
+  // show and saying "copy it now" would be a lie, so the screen says what actually happened
+  // (finding F-TK-06). Two tabs creating at the same time land here too: the second Set-Cookie
+  // replaces the first, and the first tab is told plainly instead of showing an empty promise.
+  // A cookie name carrying the prefix would let both tabs keep their own secret; it is not done
+  // tonight because the name is what the redaction rule and the three clearing sites match on,
+  // and one constant with an honest failure is the smaller risk at this hour.
+  const createdButGone = createdPrefix !== null && revealed === null;
+
+  // The revocation toast says a sentence: `?revoked=1` used to show a toast whose body was the
+  // bare value "1" (feedback audit of 2026-09-09). The rule's own `text` replaces that value.
+  // The created toast is only added when the panel is actually about to show the secret: it used
+  // to be drawn from the query alone, so any `?created=` said "copy it now" with nothing to copy.
+  const toasts = toastsFromQuery(query, {
+    error: { tone: "error", title: "Refused" },
+    revoked: { tone: "ok", title: "Token revoked", text: "It answers 401 from now on." },
+    ...(revealed
+      ? { created: { tone: "ok" as const, title: "Token created", text: "Copy it now. It is shown once and never stored." } }
+      : {}),
+  });
 
   const isCreating = firstValue(query.new) === "1";
   const closeDrawerHref = withParams(PATH, query, { new: null, inspect: null });
@@ -193,11 +207,18 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
         ),
       }}
     >
-      {query.error ? (
+      {query.error || createdButGone ? (
         <div className="notices">
-          <p className="error" role="alert">
-            {query.error}
-          </p>
+          {query.error ? (
+            <p className="error" role="alert">
+              {query.error}
+            </p>
+          ) : null}
+          {createdButGone ? (
+            <p className="note" role="status">
+              This token can no longer be shown. Revoke it and create another.
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -212,13 +233,13 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
               label="Active tokens"
               value={active}
               tone={active > 0 ? "ok" : "neutral"}
-              note={expiringSoon > 0 ? `${expiringSoon} expire within 7 days` : "answer the endpoint today"}
+              note={expiringSoon > 0 ? `${plural(expiringSoon, "token")} expiring within 7 days` : "answer the endpoint today"}
             />
             <Stat
               label="Used by an agent"
               value={agentTokens}
               tone={agentTokens > 0 ? "warn" : "neutral"}
-              note={`${calls} calls recorded in all`}
+              note={`${plural(calls, "call")} recorded in all`}
             />
           </Stats>
 
@@ -247,7 +268,7 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
                 ]}
               />
             }
-            footer={<div className="dt-more">{tokens.length} tokens</div>}
+            footer={<div className="dt-more">{plural(tokens.length, "token")}</div>}
           >
             <thead>
               <tr>
@@ -317,7 +338,7 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
                       </td>
                       <td className="nowrap">
                         <When instant={token.lastCallAt} now={now} />
-                        <span className="dt-sub">{token.callCount} calls</span>
+                        <span className="dt-sub">{plural(token.callCount, "call")}</span>
                       </td>
                       <td>
                         <Chip tone={status === "active" ? "ok" : "neutral"}>{status}</Chip>
@@ -372,6 +393,21 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
 // The state of a token, read the same way here and by the endpoint
 // ---------------------------------------------------------------------------
 
+// "1 calls" was on every row of a screen about counting things (finding F-TK-02). The twin of this
+// function is `plural` in lib/inbox/tasks.ts, private to that module; giving the two a shared home
+// is a tidy-up for week two, not a change to make on the evening of a freeze.
+function plural(count: number, singular: string, pluralForm?: string): string {
+  return `${count} ${count === 1 ? singular : (pluralForm ?? `${singular}s`)}`;
+}
+
+// The name of an account in the create form. The seeded display names already end with the role
+// ("Dana Ruiz, broker"), so appending it again printed "Dana Ruiz, broker, broker" (finding
+// F-TK-03). The role is added only when the name does not already end with it, which keeps it for
+// the names that do not say it ("Sam Patel, operations" is a staff_ops).
+function accountOption(displayName: string, role: string): string {
+  return displayName.toLowerCase().endsWith(role.toLowerCase()) ? displayName : `${displayName}, ${role}`;
+}
+
 // Revoked wins over expired: a token somebody took away is a decision, and a decision is what an
 // operator wants to read on the row, whatever the clock says afterwards.
 type TokenStatus = "active" | "expired" | "revoked";
@@ -413,7 +449,7 @@ function CreateTokenDrawer({
         <select id="userId" name="userId" required>
           {holders.map((holder) => (
             <option key={holder.id} value={holder.id}>
-              {holder.display_name}, {holder.role}
+              {accountOption(holder.display_name, holder.role)}
             </option>
           ))}
         </select>
