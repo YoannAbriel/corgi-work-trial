@@ -1,12 +1,10 @@
 import "@/app/styles/console.css";
 import Link from "next/link";
-import { BookOpenText, Gauge, Rss, Search, ServerCog, TriangleAlert } from "lucide-react";
 import { ConsoleAutoRefresh } from "./auto-refresh";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
-import { ActivityTable, EventTable, FailureLine, IntegrationModes, RecoveryCell, describeMinutes, formatSeconds } from "@/components/console-parts";
+import { ActivityTable, EventTable, FailureLine, RailsAbout, RecoveryCell, consoleViews, describeMinutes, formatSeconds, railLabel, utc } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
-import { Bars, Chart, ChartRow, HBars } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty";
 import { Inspector } from "@/components/ui/inspector";
 import { Legend } from "@/components/ui/legend";
@@ -71,9 +69,17 @@ import { closeInspectorHref, firstValue, inspectHref, inspectedReference, pickVi
 const PATH = "/ops/console";
 
 const VIEWS = ["feed", "problems", "latency"] as const;
-type View = (typeof VIEWS)[number];
-const VIEW_LABEL: Record<View, string> = { feed: "Feed", problems: "Problems", latency: "Latency" };
-const VIEW_ICON = { feed: Rss, problems: TriangleAlert, latency: Gauge };
+
+// When a step or a route is slow enough to be worth a chip, stated on the screen beside the table
+// it marks (cycle 2, decision 14). A step includes the provider, so it is allowed seconds; a route
+// is time spent inside our own handler, so a second is already a lot.
+const SLOW_STEP_SECONDS = 5;
+const SLOW_ROUTE_MS = 1000;
+
+// One sentence per percentile, on the column header, where a reader who does not know the word
+// will look for it.
+const P50_MEANING = "p50: half the samples were faster than this";
+const P95_MEANING = "p95: 95 out of 100 samples were faster than this";
 
 // The windows an operator actually asks for, as chips. An empty `since` means the last hour,
 // which is what lib/console/read.ts parseSince does, so "1 hour" is the chip lit by default.
@@ -107,9 +113,6 @@ const FAMILY_LABEL: Record<ProblemFamily, string> = {
   unknown_outcome: "Unknown outcome",
 };
 const FAMILIES = Object.keys(FAMILY_LABEL) as ProblemFamily[];
-
-// The feed's slices, drawn from the rows this page already read and from nothing else.
-const FEED_SLICES = 16;
 
 // The link that toggles one kind on or off while keeping the others. `withParams` cannot express
 // a repeated parameter, so the kinds are appended by hand after it has written everything else.
@@ -162,30 +165,30 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
   const latencyRows = valueOr(tiles, []);
   const routeRows = valueOr(routeLatency, []);
 
-  // How many events landed in each slice of the window. The rows are the ones already read, so
-  // this picture costs no query; it therefore shows the shape of AT MOST MOST_FEED_ROWS events,
-  // which the About says.
-  const windowStartMs = since.getTime();
-  const sliceMs = Math.max(1, Math.round((now.getTime() - windowStartMs) / FEED_SLICES));
-  const sliceCounts = new Array<number>(FEED_SLICES).fill(0);
-  for (const event of events) {
-    const slice = Math.floor((event.instant.getTime() - windowStartMs) / sliceMs);
-    if (slice >= 0) sliceCounts[Math.min(FEED_SLICES - 1, slice)] += 1;
-  }
-  const clockLabelOf = (index: number) => {
-    const iso = new Date(windowStartMs + index * sliceMs).toISOString();
-    if (sliceMs < 60_000) return iso.slice(14, 19); // MM:SS
-    if (sliceMs < 3_600_000) return iso.slice(11, 16); // HH:MM
-    if (sliceMs < 86_400_000) return `${iso.slice(8, 10)} ${iso.slice(11, 13)}`; // DD HH
-    return iso.slice(5, 10); // MM-DD
-  };
-  const clockLabels = sliceCounts.map((_, index) => clockLabelOf(index));
-  // A very short window can put two slices inside the same clock label. The chart then numbers
-  // the slices rather than printing the same label twice, which would also collide as a key.
-  const sliceLabels = new Set(clockLabels).size === clockLabels.length ? clockLabels : sliceCounts.map((_, index) => String(index + 1));
-
   const countOfFamily = (family: ProblemFamily) => problemRows.filter((problem) => problem.family === family).length;
   const toLookAt = problemRows.length;
+  // A tile is drawn only for a family that actually has something in it (cycle 2, decision 2): a
+  // row of five tiles reading 0, 34, 1, 0, 0 spent a screen saying nothing four times.
+  const familiesWithProblems = FAMILIES.filter((family) => countOfFamily(family) > 0);
+
+  // The drawer opened from a problems row. When the reference is a provider event this database
+  // never resolved into an operation, the inspector would answer "nothing matches", which reads as
+  // a broken link; it is handed the row's own facts instead and says so in one sentence (cycle 2,
+  // decision 5).
+  const inspectedProblem = inspected === null ? undefined : problemRows.find((problem) => problem.reference === inspected);
+  const inspectorContext = inspectedProblem
+    ? {
+        title: FAMILY_LABEL[inspectedProblem.family],
+        sentence: "No operation of this database carries that reference, so what the console knows about it is the row you clicked.",
+        facts: [
+          { label: "What", value: inspectedProblem.title },
+          { label: "When", value: `${utc(inspectedProblem.instant)} UTC` },
+          { label: "Age", value: describeMinutes(inspectedProblem.ageMinutes) },
+          { label: "Rail", value: inspectedProblem.rail ? railLabel(inspectedProblem.rail) : "not a rail" },
+          { label: "Reason", value: inspectedProblem.detail },
+        ],
+      }
+    : undefined;
 
   // The hidden inputs that make "Refresh now" keep the current view and filters. The ten-second
   // timer keeps them too, for free: it re-renders this URL rather than navigating to a new one.
@@ -199,19 +202,9 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
     </>
   );
 
-  const views = [
-    ...VIEWS.map((one) => ({
-      key: one,
-      label: VIEW_LABEL[one],
-      href: withParams(PATH, query, { view: one, inspect: null }),
-      current: one === view,
-      icon: VIEW_ICON[one],
-      count: one === "problems" ? toLookAt : undefined,
-    })),
-    { key: "ledger", label: "Ledger", href: "/ops/console/ledger", icon: BookOpenText, group: "More" },
-    { key: "search", label: "Search", href: "/ops/console/search", icon: Search, group: "More" },
-    { key: "infra", label: "Infrastructure", href: "/ops/console/infra", icon: ServerCog, group: "More" },
-  ];
+  // The same nine entries in the same three groups as every other console and ledger screen (cycle
+  // 2, decision 11); the list itself lives in components/console-parts.tsx.
+  const views = consoleViews(view, { query, problemCount: toLookAt });
 
   const refOf = (reference: string) => inspectHref(PATH, query, reference);
 
@@ -221,18 +214,22 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
       active="console"
       views={views}
       viewsSubtitle={reading}
-      inspector={inspected ? <Inspector reference={inspected} closeHref={closeInspectorHref(PATH, query)} user={user} now={now} /> : undefined}
+      inspector={
+        inspected ? (
+          <Inspector reference={inspected} closeHref={closeInspectorHref(PATH, query)} user={user} now={now} context={inspectorContext} />
+        ) : undefined
+      }
       band={{
         title: "Operations console",
         suffix: reading,
+        // Two chips, both counts of something a person acts on. The AF-02 modes are in the top bar
+        // of every screen now and are no longer repeated here (cycle 2, decision 1).
         meta: (
           <>
             <Chip tone={toLookAt > 0 ? "warn" : "ok"}>
               {toLookAt >= MOST_PROBLEM_ROWS ? `${MOST_PROBLEM_ROWS} or more to look at` : `${toLookAt} to look at`}
             </Chip>
             <Chip tone={checking.length > 0 ? "warn" : "neutral"}>{checking.length} being checked</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
           </>
         ),
         actions: (
@@ -253,43 +250,12 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
       {/* The ten-second refresh, mounted with this page and cleared when it is left (UI-025). */}
       <ConsoleAutoRefresh everySeconds={10} />
 
-      <IntegrationModes />
-
+      {/* The feed is its toolbar and its table, and nothing between them: the four tiles restated
+          the two counts already in the band and the histogram restated the table under it (cycle 2,
+          decisions 2 and 4). */}
       {view === "feed" ? (
         <>
           <FailureLine attempted={feed} />
-          <Stats>
-            <Stat label="Events" value={events.length} note="in this window" />
-            <Stat
-              label="Refused or failed"
-              value={refusedRows.length}
-              tone={refusedRows.length > 0 ? "warn" : "ok"}
-              note="requests in this window"
-            />
-            <Stat
-              label="To look at"
-              value={toLookAt}
-              tone={toLookAt > 0 ? "warn" : "ok"}
-              href={withParams(PATH, query, { view: "problems", inspect: null })}
-              note="errors and unknowns"
-            />
-            <Stat label="Being checked" value={checking.length} tone={checking.length > 0 ? "warn" : "neutral"} note="accepted, no answer yet" />
-          </Stats>
-
-          <ChartRow>
-            <Chart title="Events per slice" figure={events.length}>
-              {/* No value on top of each bar: the chart is drawn with preserveAspectRatio="none",
-                  so at full width its text is stretched and "100" reads as "1 0 0". The shape is
-                  what this picture is for, the total is beside the title, and the exact counts
-                  are in the table the chart carries for screen readers. */}
-              <Bars
-                points={sliceCounts.map((value, index) => ({ label: sliceLabels[index], value }))}
-                showValues={false}
-                caption={`Events read in this window, split into ${FEED_SLICES} slices, oldest first`}
-              />
-            </Chart>
-          </ChartRow>
-
           <EventTable
             events={events}
             ariaLabel="Operations feed"
@@ -348,7 +314,7 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
               <Legend
                 items={[
                   { term: "When", meaning: "age at a glance, the UTC instant on hover and in the fold" },
-                  { term: "Stripe LIVE SANDBOX", meaning: "the row moved money on the real Stripe sandbox" },
+                  { term: "Stripe: LIVE SANDBOX", meaning: "the row moved money on the real Stripe sandbox" },
                   { term: "LOCAL SIMULATOR", meaning: "the row moved money on a rail simulated in this application" },
                 ]}
               />
@@ -365,17 +331,13 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
       {view === "problems" ? (
         <>
           <FailureLine attempted={problems} />
-          <Stats>
-            {FAMILIES.map((family) => (
-              <Stat
-                key={family}
-                label={FAMILY_LABEL[family]}
-                value={countOfFamily(family)}
-                tone={countOfFamily(family) > 0 ? "warn" : "ok"}
-                note="in this window"
-              />
-            ))}
-          </Stats>
+          {familiesWithProblems.length > 0 ? (
+            <Stats>
+              {familiesWithProblems.map((family) => (
+                <Stat key={family} label={FAMILY_LABEL[family]} value={countOfFamily(family)} tone="warn" note="in this window" />
+              ))}
+            </Stats>
+          ) : null}
 
           <div className="console-problems">
             <DataTable
@@ -401,7 +363,7 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
                 <Legend
                   items={[
                     { term: "Unknown outcome", meaning: `accepted over ${UNKNOWN_OUTCOME_AFTER_MINUTES} minutes ago, silent since` },
-                    { term: "Age", meaning: "how long the line has been in this state" },
+                    { term: "When", meaning: "the instant, with how long it has been in this state under it" },
                     { term: "Recovery", meaning: "the form or the screen that already repairs it" },
                   ]}
                 />
@@ -414,54 +376,77 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
             >
               <thead>
                 <tr>
+                  <ExpandHead />
                   <th className="nowrap">When</th>
-                  <th className="nowrap">Age</th>
                   <th>What</th>
-                  <th>Reason</th>
                   <th>Reference</th>
                   <th>Recovery</th>
                 </tr>
               </thead>
-              <tbody>
-                {problemRows.length === 0 ? (
+              {problemRows.length === 0 ? (
+                <tbody>
                   <tr>
-                    <td colSpan={6} className="dt-empty">
+                    <td colSpan={5} className="dt-empty">
                       <EmptyState illustration="all-clear">Nothing failed and nothing is unresolved.</EmptyState>
                     </td>
                   </tr>
-                ) : (
-                  problemRows.map((problem, index) => (
-                    <Row
+                </tbody>
+              ) : (
+                problemRows.map((problem, index) => {
+                  // The lookup offered on a webhook is the console's own drawer, over this table,
+                  // not the search screen: the search would answer "nothing matches" for a provider
+                  // event id this database never resolved into an operation, which reads as a dead
+                  // end (cycle 2, decision 5). Every other recovery is unchanged.
+                  const recovery =
+                    problem.recovery.kind === "link" && problem.reference !== null && problem.recovery.href.startsWith("/ops/console/search")
+                      ? { ...problem.recovery, href: refOf(problem.reference) }
+                      : problem.recovery;
+                  return (
+                    <ExpandRow
                       key={`${problem.family}-${problem.instant.toISOString()}-${index}`}
+                      columns={4}
                       selected={problem.reference != null && problem.reference === inspected}
+                      cells={
+                        <>
+                          {/* One time column: the instant, with its age under it. Two columns
+                              reading "16 min" and "15 min" said the same thing twice (round 1). */}
+                          <td className="nowrap">
+                            <When instant={problem.instant} now={now} />
+                            <span className="dt-sub">{describeMinutes(problem.ageMinutes)} old</span>
+                          </td>
+                          <td>
+                            <Chip tone="warn">{problem.title}</Chip>
+                            {/* The rail, on the row and never in a fold (AF-02, recheck finding F-RC-08). */}
+                            {problem.rail ? <Chip tone="neutral">{railLabel(problem.rail)}</Chip> : null}
+                            <span className="dt-sub">{FAMILY_LABEL[problem.family]}</span>
+                          </td>
+                          <td>
+                            {problem.reference ? (
+                              <Ref value={problem.reference} inspectHref={refOf(problem.reference)} open={inspected === problem.reference} />
+                            ) : (
+                              <span className="dt-muted">none</span>
+                            )}
+                          </td>
+                          <td>
+                            <RecoveryCell recovery={recovery} />
+                          </td>
+                        </>
+                      }
                     >
-                      <td className="nowrap">
-                        <When instant={problem.instant} now={now} />
-                      </td>
-                      <td className="nowrap">{describeMinutes(problem.ageMinutes)}</td>
-                      <td>
-                        <Chip tone="warn">{problem.title}</Chip>
-                        {/* The rail, on the row and never in a fold (AF-02, recheck finding F-RC-08). */}
-                        {problem.rail ? <Chip tone="neutral">{problem.rail}</Chip> : null}
-                        <span className="dt-sub">{FAMILY_LABEL[problem.family]}</span>
-                      </td>
-                      <td>
-                        <span className="console-reason">{problem.detail}</span>
-                      </td>
-                      <td>
-                        {problem.reference ? (
-                          <Ref value={problem.reference} inspectHref={refOf(problem.reference)} open={inspected === problem.reference} />
-                        ) : (
-                          <span className="dt-muted">none</span>
-                        )}
-                      </td>
-                      <td>
-                        <RecoveryCell recovery={problem.recovery} />
-                      </td>
-                    </Row>
-                  ))
-                )}
-              </tbody>
+                      {/* The reason is a whole sentence, so it reads here rather than in a cell. */}
+                      <FactGrid
+                        items={[
+                          { label: "Reason", value: problem.detail, wide: true },
+                          { label: "When", value: `${utc(problem.instant)} UTC` },
+                          { label: "Age", value: describeMinutes(problem.ageMinutes) },
+                          { label: "Family", value: FAMILY_LABEL[problem.family] },
+                          { label: "Rail", value: problem.rail ? railLabel(problem.rail) : "not a rail" },
+                        ]}
+                      />
+                    </ExpandRow>
+                  );
+                })
+              )}
             </DataTable>
           </div>
 
@@ -508,7 +493,7 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
                     <td>
                       {operation.kind}
                       {/* The rail, on the row (AF-02). */}
-                      <span className="dt-sub">{operation.rail}</span>
+                      <span className="dt-sub">{railLabel(operation.rail)}</span>
                     </td>
                     <Num>{formatCentsAsUsd(operation.amountCents)}</Num>
                     <td>
@@ -541,34 +526,31 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
 
       {view === "latency" ? (
         <>
+          {/* The two bar charts that stood here restated, figure for figure, the p50 and p95
+              columns of the table under them (cycle 2, decision 4). What an operator needed from
+              them was "which line is slow", and that is now a chip on the line itself. */}
           <FailureLine attempted={tiles} />
-          <div className="console-charts">
-            <ChartRow>
-              <Chart title={`p50 per step, last ${LATENCY_WINDOW_HOURS} h`}>
-                <HBars
-                  rows={latencyRows.map((tile) => ({ label: tile.name, value: tile.p50Seconds ?? 0, display: formatSeconds(tile.p50Seconds) }))}
-                  caption="Median seconds per step"
-                />
-              </Chart>
-              <Chart title={`p95 per step, last ${LATENCY_WINDOW_HOURS} h`}>
-                <HBars
-                  rows={latencyRows.map((tile) => ({ label: tile.name, value: tile.p95Seconds ?? 0, display: formatSeconds(tile.p95Seconds) }))}
-                  caption="95th percentile seconds per step"
-                />
-              </Chart>
-            </ChartRow>
-          </div>
-
           <DataTable
             ariaLabel="Latency by step"
-            legend={<Legend items={[{ term: "Samples", meaning: "how many pairs of instants the percentile was computed over" }]} />}
+            legend={
+              <Legend
+                items={[
+                  { term: "slow", meaning: `p95 over ${SLOW_STEP_SECONDS} s for a step that includes the provider` },
+                  { term: "Samples", meaning: "how many pairs of instants the percentile was computed over" },
+                ]}
+              />
+            }
           >
             <thead>
               <tr>
                 <ExpandHead />
                 <th>Step</th>
-                <th className="num">p50</th>
-                <th className="num">p95</th>
+                <th className="num" title={P50_MEANING}>
+                  p50
+                </th>
+                <th className="num" title={P95_MEANING}>
+                  p95
+                </th>
                 <th className="num">max</th>
                 <th className="num">Samples</th>
               </tr>
@@ -588,7 +570,10 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
                   columns={5}
                   cells={
                     <>
-                      <td>{tile.name}</td>
+                      <td>
+                        {tile.name}
+                        {tile.p95Seconds !== null && tile.p95Seconds > SLOW_STEP_SECONDS ? <Chip tone="warn">slow</Chip> : null}
+                      </td>
                       <Num>{formatSeconds(tile.p50Seconds)}</Num>
                       <Num>{formatSeconds(tile.p95Seconds)}</Num>
                       <Num>{formatSeconds(tile.maxSeconds)}</Num>
@@ -608,14 +593,25 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
           <FailureLine attempted={routeLatency} />
           <DataTable
             ariaLabel="Latency by route"
-            legend={<Legend items={[{ term: "Not ok", meaning: "requests on that route the application did not answer with ok" }]} />}
+            legend={
+              <Legend
+                items={[
+                  { term: "slow", meaning: `p95 over ${SLOW_ROUTE_MS} ms inside our own handler` },
+                  { term: "Not ok", meaning: "requests on that route the application did not answer with ok" },
+                ]}
+              />
+            }
             footer={routeRows.length >= MOST_LATENCY_ROUTES ? <div className="dt-more">{MOST_LATENCY_ROUTES} routes, the hard limit of this view.</div> : undefined}
           >
             <thead>
               <tr>
                 <th>Route</th>
-                <th className="num">p50</th>
-                <th className="num">p95</th>
+                <th className="num" title={P50_MEANING}>
+                  p50
+                </th>
+                <th className="num" title={P95_MEANING}>
+                  p95
+                </th>
                 <th className="num">max</th>
                 <th className="num">Requests</th>
                 <th className="num">Not ok</th>
@@ -632,7 +628,10 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
                 routeRows.map((route) => (
                   <Row key={route.route}>
                     <td>
-                      <code className="ref">{route.route}</code>
+                      <code className="ref" title={route.route}>
+                        {route.route}
+                      </code>
+                      {route.p95Ms !== null && route.p95Ms > SLOW_ROUTE_MS ? <Chip tone="warn">slow</Chip> : null}
                     </td>
                     <Num>{route.p50Ms === null ? "no sample" : `${Math.round(route.p50Ms)} ms`}</Num>
                     <Num>{route.p95Ms === null ? "no sample" : `${Math.round(route.p95Ms)} ms`}</Num>
@@ -678,9 +677,15 @@ export default async function OperationsConsolePage({ searchParams }: { searchPa
         </p>
         <h4>The feed is bounded</h4>
         <p>
-          The feed can never return more than {MOST_FEED_ROWS} rows, whatever the query string asks for. The slices
-          chart is drawn from those rows and from no extra query, so it shows the shape of what was read, not of what
-          exists. Narrow the window or the kinds to see the rest.
+          The feed can never return more than {MOST_FEED_ROWS} rows, whatever the query string asks for. Narrow the
+          window or the kinds to see the rest.
+        </p>
+        <RailsAbout />
+        <h4>When a line is called slow</h4>
+        <p>
+          A step is <strong>slow</strong> when its p95 is over {SLOW_STEP_SECONDS} s, a route when its p95 is over{" "}
+          {SLOW_ROUTE_MS} ms. Both are <strong>assumptions of this build</strong>, not a promise of Stripe and not a
+          rule of Corgi: a step waits on a provider, a route is our own handler, so they cannot share a threshold.
         </p>
         <h4>What counts as a problem</h4>
         <p>

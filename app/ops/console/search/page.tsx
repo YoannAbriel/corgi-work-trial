@@ -1,9 +1,8 @@
 import "@/app/styles/console.css";
 import Link from "next/link";
-import { BookOpenText, Gauge, Rss, Search, ServerCog, TriangleAlert } from "lucide-react";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
-import { EventTable, FailureLine, IntegrationModes, Masked } from "@/components/console-parts";
+import { EventTable, FailureLine, Masked, RailsAbout, consoleViews } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { FactGrid } from "@/components/ui/table";
@@ -45,14 +44,8 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
   const matches = result?.matches ?? [];
   const trail = result?.trail ?? [];
 
-  const views = [
-    { key: "feed", label: "Feed", href: "/ops/console?view=feed", icon: Rss },
-    { key: "problems", label: "Problems", href: "/ops/console?view=problems", icon: TriangleAlert },
-    { key: "latency", label: "Latency", href: "/ops/console?view=latency", icon: Gauge },
-    { key: "ledger", label: "Ledger", href: "/ops/console/ledger", icon: BookOpenText, group: "More" },
-    { key: "search", label: "Search", href: PATH, icon: Search, current: true, group: "More" },
-    { key: "infra", label: "Infrastructure", href: "/ops/console/infra", icon: ServerCog, group: "More" },
-  ];
+  // The same nine entries in the same three groups as every other console screen (decision 11).
+  const views = consoleViews("search");
 
   return (
     <PortalShell
@@ -62,15 +55,11 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
       viewsSubtitle="one reference, its whole trail"
       trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Search" }]}
       band={{
-        title: "Find a reference",
+        title: "Search",
         suffix: reference === "" ? undefined : reference,
-        meta: (
-          <>
-            {reference === "" ? null : <Chip tone="neutral">read as {recogniseReference(reference)}</Chip>}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
-          </>
-        ),
+        // One chip: what shape the reference was read as, which is the fact this screen exists to
+        // state. The AF-02 modes are in the top bar (cycle 2, decision 1).
+        meta: reference === "" ? undefined : <Chip tone="neutral">read as {recogniseReference(reference)}</Chip>,
         actions: (
           <Link href="/ops/console" prefetch={false} className="button-link secondary">
             Back to the feed
@@ -78,8 +67,6 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
         ),
       }}
     >
-      <IntegrationModes />
-
       <div className="console-toolbar">
         <Toolbar>
           <ToolbarGroup label="Reference">
@@ -95,7 +82,7 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
                 placeholder="pi_3Nx... , CGP-01001, CLM-00007, cmk_1a2b3c4d, an email, a uuid"
               />
               <button type="submit" className="secondary">
-                Find it
+                Find
               </button>
             </form>
           </ToolbarGroup>
@@ -169,6 +156,7 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
       ) : null}
 
       <About>
+        <RailsAbout />
         <h4>What each prefix means</h4>
         <p>
           <code>pi_</code> a Stripe PaymentIntent, the payment itself. <code>cs_</code> a Stripe Checkout Session, the
