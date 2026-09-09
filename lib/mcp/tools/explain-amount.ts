@@ -1,4 +1,4 @@
-import { isStaff, policyVisibilityRefusal, type ScopedUser } from "@/lib/mcp/scope";
+import { explanationVisibilityRefusal, policyVisibilityRefusal } from "@/lib/mcp/scope";
 import { isUuid } from "@/lib/http/path-ids";
 import { isCalendarDate } from "@/lib/money/dates";
 import {
@@ -6,7 +6,6 @@ import {
   FigureNotOnThisPolicy,
   isPolicyFigureKey,
   POLICY_FIGURE_KEYS,
-  type PolicyFigureKey,
 } from "@/lib/policy/explain-figure";
 import { optionalText, requiredText, ToolRefused, usd, type McpTool } from "./tool";
 
@@ -18,16 +17,25 @@ import { optionalText, requiredText, ToolRefused, usd, type McpTool } from "./to
 // composes the same functions the policy page composes (lib/money/explain.ts), so a figure an
 // agent quotes here is the figure a person reads on /policies/{id}.
 //
-// Scope, in TWO gates, because they answer two different questions (review finding F-MCPTOOLS-01).
+// Scope, in TWO gates, because they answer two different questions (review findings
+// F-MCPTOOLS-01, F-MCPTOOLS-02 and F-MCPTOOLS-03).
+//
+//   WHO MAY EXPLAIN AT ALL: a broker key and a staff key, never a customer key. The customer's
+//   own policy screen (app/policies/[policyId]/customer-view.tsx) prints no explanation fold at
+//   all: no formula lines, no journal entries, no broker commission. There is nothing on that
+//   screen for a customer key to explain, so the honest rule is a whole refusal rather than a
+//   list of figure keys it may name.
 //
 //   WHICH POLICIES are reachable: exactly get_policy_as_of's rule. The owning broker, the covered
 //   customer, or staff; a policy this key may not see and a policy that does not exist give the
 //   same sentence, so the tool cannot be used to discover which policy numbers exist.
 //
-//   WHICH FIGURES come back: what this key's user reads on their own screen, which is not the
-//   same set for a customer as for the broker who wrote the policy. Seeing the policy is not
-//   seeing every figure on it, and the first gate alone was handing a customer key the ledger
-//   sums and the broker's commission.
+// WHY THE PER-FIGURE ALLOWLIST OF ROUND 2 IS GONE. It gated the figure key a caller may NAME and
+// never what the answer CONTAINS, and the answer is always the whole fold: the endorsement delta
+// carried the broker's commission line and its rate in basis points, and the premium tax carried
+// journal entry ids and the cancellation's refunded tax. A caller refused a figure by name still
+// received it inside a figure it was allowed to name. Refusing the customer role outright is the
+// rule that cannot leak, because it never reads the fold at all.
 //
 // The closed list of figure keys is published twice, because an agent reads one or the other:
 // in the description below, and in the tools/list annotation `figureKeys`, which carries what
@@ -35,36 +43,10 @@ import { optionalText, requiredText, ToolRefused, usd, type McpTool } from "./to
 
 const FIGURE_KEY_LIST = POLICY_FIGURE_KEYS.map((figure) => figure.key).join(", ");
 
-// WHICH FIGURES A CUSTOMER KEY MAY READ. The customer's own policy screen
-// (app/policies/[policyId]/customer-view.tsx) prints the terms in force on a date and the
-// endorsement schedule, and deliberately withholds the journal, the ledger sums, the broker's
-// commission and the cancellation figures. lib/mcp/scope.ts states the surface rule: an API key
-// sees exactly what its user sees on the screens, never more. So the same line is drawn here.
-const FIGURE_KEYS_A_CUSTOMER_KEY_READS: PolicyFigureKey[] = [
-  "premium_tax",
-  "policy_fee",
-  "total_charge",
-  "endorsement_delta",
-];
-
-// The second gate, applied after the visibility one. Staff and the owning broker read every
-// figure; anybody else reads the four above and is refused the rest.
-//
-// The refusal NAMES THE RULE AND NEVER THE FIGURE THE CALLER ASKED FOR: it is written into
-// mcp_calls, which can never be updated, deleted or truncated (finding F-B11-02).
-function figureVisibilityRefusal(user: ScopedUser, figure: PolicyFigureKey): string | null {
-  if (isStaff(user) || user.role === "broker") {
-    return null;
-  }
-  if (FIGURE_KEYS_A_CUSTOMER_KEY_READS.includes(figure)) {
-    return null;
-  }
-  return (
-    "this figure is not on the policy screen this key's user reads: a customer sees the terms in force on a date " +
-    "(premium_tax, policy_fee, total_charge) and the endorsement delta, and never the journal, the four ledger sums, " +
-    "the broker's commission or the cancellation figures"
-  );
-}
+// The two rules this tool applies both live in lib/mcp/scope.ts, beside every other rule about
+// what a key may see, and both are unit-tested there (lib/mcp/scope.test.ts). Their refusal
+// sentences NAME THE RULE AND NEVER THE FIGURE OR THE POLICY THE CALLER ASKED FOR, because they
+// are written into mcp_calls, which can never be updated, deleted or truncated (F-B11-02).
 
 export const explainAmount: McpTool = {
   name: "explain_amount",
@@ -73,17 +55,17 @@ export const explainAmount: McpTool = {
   description:
     "Where one figure on a policy comes from: the formula in words, the same formula in integer cents, the rounding rule by name, the result, and the journal entries that prove it. It returns the very explanation the policy screen renders under that figure, computed by the same functions, never a second calculation. " +
     `"figure" must be one of: ${FIGURE_KEY_LIST}. ` +
-    "Which policies are reachable is exactly get_policy_as_of's rule. Which figures come back is what this key's " +
-    `user reads on their own screen: a customer key gets ${FIGURE_KEYS_A_CUSTOMER_KEY_READS.join(", ")} and is ` +
-    "refused the ledger sums, the broker's commission and the cancellation figures, which its own policy screen " +
-    "does not show either. Reads only.",
+    "Which policies are reachable is exactly get_policy_as_of's rule. Who may explain at all is the screen rule: a " +
+    "broker key explains its own policies and a staff key explains any of them, while a customer key is refused the " +
+    "whole tool, because the customer policy screen prints no explanation fold, no journal entries and no broker " +
+    "commission. Reads only.",
   annotations: {
     // Not part of the protocol's own shape, and deliberately here: a client that reads
     // annotations gets the closed list with the meaning of each key, without a round trip.
     figureKeys: POLICY_FIGURE_KEYS,
-    // The subset a customer key may ask for, published for the same reason: an agent should be
-    // able to see the line before it walks into it.
-    figureKeysACustomerKeyReads: FIGURE_KEYS_A_CUSTOMER_KEY_READS,
+    // Which keys the tool answers at all, published for the same reason: an agent should be able
+    // to see the line before it walks into it.
+    rolesThatMayExplain: ["broker", "staff_ops", "staff_approver"],
   },
   inputSchema: {
     type: "object",
@@ -110,13 +92,25 @@ export const explainAmount: McpTool = {
     const askedPolicy = requiredText(args, "policy");
     const figure = requiredText(args, "figure");
     if (!isPolicyFigureKey(figure)) {
-      // The refusal names the CLOSED LIST and never the value the caller sent: it is written
-      // into mcp_calls, which can never be updated, deleted or truncated (finding F-B11-02).
+      // A caller coming through the endpoint never reaches this line: the transport enforces the
+      // `enum` this tool advertises before calling it (lib/mcp/tools/tool.ts, finding
+      // F-MCPTOOLS-07), so an unknown key is refused by name before any read. This stays as the
+      // second line of defence and as the narrowing TypeScript needs, and its sentence follows
+      // the same rule: it names the CLOSED LIST and never the value the caller sent, because it
+      // is written into mcp_calls, which can never be updated, deleted or truncated (F-B11-02).
       throw new ToolRefused(`"figure" is not one of the figures this tool explains; it must be one of: ${FIGURE_KEY_LIST}`);
     }
     const asOf = optionalText(args, "asOf");
     if (asOf !== null && !isCalendarDate(asOf)) {
       throw new ToolRefused('"asOf" must be a calendar date written as YYYY-MM-DD, for example 2028-03-01');
+    }
+
+    // The role gate, BEFORE the policy is even looked up: it does not depend on the policy, and
+    // asking it first means a customer key gets the same sentence for every policy number,
+    // existing or not (review findings F-MCPTOOLS-02 and F-MCPTOOLS-03).
+    const explanationRefusal = explanationVisibilityRefusal(context.user);
+    if (explanationRefusal) {
+      throw new ToolRefused(explanationRefusal);
     }
 
     // A policy number or an id: two plain queries rather than one clever one, and the visibility
@@ -136,12 +130,6 @@ export const explainAmount: McpTool = {
     );
     if (refusal) {
       throw new ToolRefused(refusal);
-    }
-    // The figure gate, beside the visibility one: this key may see the policy, which does not
-    // settle whether it may see this figure of it (review finding F-MCPTOOLS-01).
-    const figureRefusal = figureVisibilityRefusal(context.user, figure);
-    if (figureRefusal) {
-      throw new ToolRefused(figureRefusal);
     }
 
     let explained;

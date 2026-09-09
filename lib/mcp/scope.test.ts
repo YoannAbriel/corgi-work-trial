@@ -2,7 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   claimPaymentRequesterRefusal,
+  explanationVisibilityRefusal,
   isStaff,
+  NO_EXPLANATION_FOR_THIS_KEY,
+  POLICY_NOT_VISIBLE,
   policyVisibilityRefusal,
   staffOnlyRefusal,
   statementBrokerFor,
@@ -65,6 +68,59 @@ test("an agent principal with no broker and no customer sees nothing", () => {
 
 test("a broker user with no broker attached sees nothing", () => {
   assert.notEqual(policyVisibilityRefusal(user({ role: "broker" }), policyOfA), null);
+});
+
+// ---------------------------------------------------------------------------
+// The explanation behind a figure (explain_amount)
+// ---------------------------------------------------------------------------
+//
+// Review finding F-MCPTOOLS-05 of round 2: the round-2 gate was proved over HTTP on one figure
+// key out of fifteen, for one role out of four, which is why a leak survived a round that was
+// about that very gate. The rule is now one line, so it can be walked exhaustively here: every
+// role, and the two policies, in five assertions.
+
+test("a customer key is refused the explanation of a figure, whatever the figure and whatever the policy", () => {
+  assert.equal(explanationVisibilityRefusal(customerKey), NO_EXPLANATION_FOR_THIS_KEY);
+});
+
+test("the customer refusal names the rule and never a figure key or a policy number", () => {
+  const refusal = explanationVisibilityRefusal(customerKey) ?? "";
+  assert.match(refusal, /no explanation fold, no journal entries and no broker commission/);
+  // get_policy_as_of is named on purpose: it is where the amounts legitimately are. A figure key
+  // is not, or the refusal would start teaching a caller what to ask for next, and the sentence
+  // goes into mcp_calls, which can never be updated, deleted or truncated (F-B11-02).
+  assert.match(refusal, /get_policy_as_of/);
+  for (const figure of ["commission_payable", "premium_tax", "endorsement_delta"]) {
+    assert.ok(!refusal.includes(figure), `the refusal names the figure key "${figure}"`);
+  }
+});
+
+test("a broker key may explain, and WHICH policies is the policy rule's job, not this one", () => {
+  assert.equal(explanationVisibilityRefusal(brokerKey), null);
+  // Its own policy: allowed by both rules. Another broker's: allowed by this rule and refused by
+  // the policy rule, which is the pair the tool applies in that order.
+  assert.equal(policyVisibilityRefusal(brokerKey, policyOfA), null);
+  assert.match(policyVisibilityRefusal(brokerKey, policyOfB) ?? "", /no policy with that number is visible/);
+});
+
+test("both staff roles may explain any policy", () => {
+  assert.equal(explanationVisibilityRefusal(opsKey), null);
+  assert.equal(explanationVisibilityRefusal(approverKey), null);
+  assert.equal(policyVisibilityRefusal(opsKey, policyOfB), null);
+});
+
+test("the rule FAILS CLOSED: a role that is neither broker nor staff is refused", () => {
+  // 'agent' is the fifth role of the application. It cannot hold a key on this endpoint today,
+  // and this assertion is what keeps a role added tomorrow from being allowed by omission.
+  assert.equal(explanationVisibilityRefusal(agentKey), NO_EXPLANATION_FOR_THIS_KEY);
+});
+
+test("a broker user with no broker attached passes the role gate and is stopped by the policy gate", () => {
+  // The two rules are independent on purpose, and this is the case that shows it: the role is
+  // allowed to explain, and there is still no policy it can name.
+  const brokerWithoutABroker = user({ role: "broker" });
+  assert.equal(explanationVisibilityRefusal(brokerWithoutABroker), null);
+  assert.equal(policyVisibilityRefusal(brokerWithoutABroker, policyOfA), POLICY_NOT_VISIBLE);
 });
 
 // ---------------------------------------------------------------------------
