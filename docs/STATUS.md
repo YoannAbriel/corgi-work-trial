@@ -306,6 +306,12 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 - Guards proof on an ephemeral database migrated to 0020 running (previous proof: 184/184 at 0019).
 - README: console section and the check:console line.
 
+## 2026-09-09T08:26:00+00:00 | Animated explanation fix cycle merged (5590242), deploy in progress
+
+- The motion builder closed F-B12-11 (MEDIUM) and F-B12-12 to F-B12-18: the reveal points at the proving entry only when it is already on screen and never opens a fold nor scrolls; "Trace to the ledger" is the one action that opens, scrolls and pulses; the README and handoff now say exactly what the browser does during the 600 ms count (arithmetic on the digits of the server text, never a money figure); entry ids carry the panel key, which caught a fourth JournalTable call site on the console 360 page. 455 tests (454 pass, 1 skipped), typecheck and build clean on the merged tree, 18 evidence frames re-recorded under docs/evidence/b12-4/.
+- Merged fast-forward to main at 5590242 and pushed as code alone; health check polling for the revision. Re-review of docs/reviews/inbox-and-motion.md requested once the inbox fix cycle (F-B13-15 to 20) lands, so one re-review covers both.
+- First thing to look at on the deployed data: CGP-01274, the "Unearned premium, refunded" fold, whose proving entry sits behind the show-all fold.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
