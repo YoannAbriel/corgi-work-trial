@@ -1280,9 +1280,9 @@ because the table above is the state at `5cfbc26` and not a prediction.
 
 The full register is `docs/reviews/FINDINGS.md`. The ones that matter for the freeze:
 
-- **F-BP-01 (MED)**: **the evidence shows this closed, and the register caught up at 57a0051 and ad44d32: CLOSED by Yoann's LIVE-0 click at 18:38:23Z, figures in `docs/handoffs/live-fire-day2.md` (3c67d45).** Its
-  line still reads "EXPECTED, closes with one reconciliation run on production" and predicts the
-  board will then read "0 to act on and the probes apart". The recaptured `recon-ops-board.png`, at
+- **F-BP-01 (MED)**: **the evidence shows this closed, and the register caught up at 57a0051 and ad44d32: CLOSED by Yoann's LIVE-0 click at 18:38:23Z, figures in `docs/handoffs/live-fire-day2.md` (3c67d45).** Before
+  that, its line read "EXPECTED, closes with one reconciliation run on production" and predicted the
+  board would then read "0 to act on and the probes apart". The recaptured `recon-ops-board.png`, at
   `92379e2` and opened for this pack, shows a run has happened: the band reads **`4 breaks to act
   on`** and **`32 probes from check runs`**, the probe table holds 32 rows of $42.42, and the four
   breaks left are the $100.00, the two $12.61 and the -$8.98 that the backend review predicted would
