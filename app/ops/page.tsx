@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
 import { workspaceTasks } from "@/components/what-needs-you";
 import { WorkspaceOverview } from "@/components/workspace-overview";
@@ -20,9 +19,9 @@ export default async function OpsHomePage({ searchParams }: { searchParams: Prom
 
   const isApprover = user.role === "staff_approver";
   // Read once here and given to the shell (the sidebar counts), the tiles and the "what needs
-  // you" block, so the home page counts what is waiting a single time.
+  // you" block, so the home page counts what is waiting a single time. The band adds no total of
+  // its own: the sidebar badges are the count (Yoann, 2026-09-09).
   const [tasks, query] = await Promise.all([workspaceTasks(user), searchParams]);
-  const totalWaiting = tasks.reduce((total, task) => total + task.count, 0);
 
   // A refused action on another screen sends staff back here with its sentence (review finding
   // F-B13-08): the sentence has to be printed, or the refusal is silent.
@@ -36,9 +35,8 @@ export default async function OpsHomePage({ searchParams }: { searchParams: Prom
       toasts={toasts}
       band={{
         title: "Overview",
-        // One chip: how much is waiting. The signed-in name and the role are already at the
-        // bottom of the sidebar, so the band no longer repeats them (Yoann, 2026-09-09).
-        meta: <Chip tone={totalWaiting > 0 ? "warn" : "ok"}>{totalWaiting === 0 ? "nothing waiting" : `${totalWaiting} waiting`}</Chip>,
+        // Nothing but the title (Yoann, 2026-09-09): the role sits at the bottom of the sidebar,
+        // and how much is waiting is in the sidebar badges and in the tiles below.
         actions: (
           <>
             <Link href="/inbox" prefetch={false} className="button-link secondary">

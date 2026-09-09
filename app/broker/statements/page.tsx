@@ -60,7 +60,6 @@ export default async function BrokerStatementsPage() {
   // person's name: that is a different thing, and the sidebar already says who is signed in
   // (Yoann, 2026-09-09). With no run yet there is no firm name to show, and the band drops it.
   const brokerName = runs[0]?.brokerName;
-  const provisional = runs.filter((run) => run.monthWasStillRunning).length;
   // The newest revision's own figure, not a total: adding the net due of several revisions of the
   // same month would count the same money once per revision.
   const latestRun = runs[0] ?? null;
@@ -76,16 +75,8 @@ export default async function BrokerStatementsPage() {
       band={{
         title: "Your statements",
         suffix: brokerName,
-        meta: (
-          <>
-            {/* Two chips (cycle 2, decision 1): how many statements there are, and how many of
-                them are still provisional. The AF-02 words are in the top bar of every screen. */}
-            <Chip tone="neutral">
-              {runs.length} {runs.length === 1 ? "statement" : "statements"}
-            </Chip>
-            {provisional > 0 ? <Chip tone="warn">{provisional} provisional</Chip> : null}
-          </>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): how many statements there are is the
+        // length of the table, and each row says on its own line whether it is provisional.
       }}
     >
       {/* One tile: the figure a broker opens this screen for. The month and the revision it

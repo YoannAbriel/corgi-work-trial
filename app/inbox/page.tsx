@@ -73,14 +73,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
       toasts={toasts}
       band={{
         title: "Inbox",
-        // No name here: the sidebar already says who is signed in (Yoann, 2026-09-09).
-        // One chip: how much is waiting. The AF-02 words are on the top bar of every workspace
-        // screen (cycle 2, decision 1), so a band repeating them said it twice within 100 px.
-        meta: (
-          <Chip tone={inbox.totalWaiting > 0 ? "warn" : "ok"}>
-            {inbox.totalWaiting === 0 ? "nothing waiting" : `${inbox.totalWaiting} waiting`}
-          </Chip>
-        ),
+        // No name and no chip (Yoann, 2026-09-09): the sidebar badge already carries how much is
+        // waiting, and the sections below count themselves.
       }}
     >
       {/* The inline sentence stays beside the toast: the review scripts read this block. */}

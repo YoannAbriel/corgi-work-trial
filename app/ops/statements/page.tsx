@@ -75,11 +75,8 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
       toasts={toasts}
       band={{
         title: "Broker statements",
-        meta: (
-          // One chip: what is provisional and still owes a final run. The AF-02 words are in the
-          // top bar of every screen (cycle 2, decision 1).
-          provisional > 0 ? <Chip tone="warn">{provisional} provisional</Chip> : <Chip tone="ok">none provisional</Chip>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): what is provisional is the first tile,
+        // and every row says it again for itself.
       }}
     >
       {query.error ? (

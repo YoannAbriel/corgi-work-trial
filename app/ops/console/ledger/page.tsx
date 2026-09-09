@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Chip } from "@/components/detail-layout";
 import { consoleViews } from "@/components/console-parts";
 import { PortalShell } from "@/components/portal-shell";
 import { EmptyState } from "@/components/ui/empty";
@@ -148,16 +147,8 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       band={{
         title: TITLES[view],
         suffix: chosenAccount ? chosenAccount.name : asOf ? `as of ${asOf}` : undefined,
-        // Two chips. The whole-journal entry count is dropped on the account view, where the
-        // screen's own tile counts the entries of ONE account and the two figures contradicted each
-        // other with nothing telling them apart (round 1, MEDIUM). The AF-02 modes are in the top
-        // bar of every screen (cycle 2, decision 1).
-        meta: (
-          <>
-            <Chip tone={proof.balanced ? "ok" : "warn"}>{proof.balanced ? "debits = credits" : "UNBALANCED"}</Chip>
-            {view === "account" ? null : <Chip tone="neutral">{proof.entryCount} entries</Chip>}
-          </>
-        ),
+        // No chip (Yoann, 2026-09-09): the balances view proves debits equal credits in its own
+        // panel, where the two totals are printed side by side, which says more than a chip.
         actions: (
           <Link href="/ops/reconciliation" prefetch={false} className="button-link secondary">
             Reconciliation

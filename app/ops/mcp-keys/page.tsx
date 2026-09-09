@@ -81,14 +81,8 @@ export default async function McpKeysPage({ searchParams }: { searchParams: Prom
       band={{
         title: "MCP keys",
         suffix: `${keys.length} ever created`,
-        // Two chips (cycle 2, decision 1): how many keys answer, and how many an agent holds.
-        // What a write tool may do is a rule, and a rule belongs in About.
-        meta: (
-          <>
-            <Chip tone={live > 0 ? "ok" : "neutral"}>{live} live</Chip>
-            <Chip tone={agentKeys > 0 ? "warn" : "neutral"}>{agentKeys} held by an agent</Chip>
-          </>
-        ),
+        // No chip on a list screen (Yoann, 2026-09-09): live keys and agent keys are the two
+        // tiles right under the band.
       }}
     >
       {query.error || query.revoked ? (

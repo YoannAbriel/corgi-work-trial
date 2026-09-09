@@ -1,7 +1,6 @@
 import "@/app/styles/lists.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Chip } from "@/components/detail-layout";
 import { MoneyAmountInput } from "@/components/money-amount-input";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
@@ -26,7 +25,6 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
 
   const [states, kyb, query] = await Promise.all([statesWithTaxRates(), brokerKybState(user.brokerId), searchParams]);
   const toasts = toastsFromQuery(query, { error: { tone: "error", title: "Refused" } });
-  const statusWord = kyb.status === "unknown" && !kyb.providerAccountId ? "not submitted" : kyb.status;
 
   return (
     <PortalShell
@@ -37,9 +35,9 @@ export default async function NewPolicyPage({ searchParams }: { searchParams: Pr
       band={{
         title: "New policy",
         suffix: "commercial general liability, annual term",
-        // One chip (cycle 2, decision 1): whether this broker may bind what they are quoting.
-        // The term is in the band's suffix; the AF-02 words are on the top bar.
-        meta: <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>business verification {statusWord}</Chip>,
+        // No chip: this is a form, and whether the broker may bind is the state of the business
+        // verification, which has its own screen and its own chip (Yoann, 2026-09-09). The refusal
+        // is still spelled out in the page when the broker is not eligible.
       }}
     >
       {query.error ? (
