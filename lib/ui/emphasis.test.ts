@@ -27,8 +27,16 @@ test("money, dates, percentages and day counts are the figures that stand out", 
   assert.deepEqual(strongPieces("the difference is +$52.61 and the other -$52.61"), ["+$52.61", "-$52.61"]);
   assert.deepEqual(strongPieces("re-booked on 2026-09-22"), ["re-booked", "2026-09-22"]);
   assert.deepEqual(strongPieces("CA premium tax on it (2.35%)"), ["2.35%"]);
-  assert.deepEqual(strongPieces("351 of 365 days remain"), ["365 days"]);
+  // A proration is one piece, so the days REMAINING are emphasised with the term they are read
+  // against; matching plain days first bolded the term length alone (F-LT-11).
+  assert.deepEqual(strongPieces("351 of 365 days remain"), ["351 of 365 days"]);
+  assert.deepEqual(strongPieces("Prorated premium as booked, 351 of 365 days remained from 2028-08-09"), [
+    "351 of 365 days",
+    "2028-08-09",
+  ]);
+  assert.deepEqual(strongPieces("1 of 1 day"), ["1 of 1 day"]);
   assert.deepEqual(strongPieces("1 day of cover"), ["1 day"]);
+  assert.deepEqual(strongPieces("335 days"), ["335 days"]);
 });
 
 test("the words that say what happens to the money, whatever their case", () => {
