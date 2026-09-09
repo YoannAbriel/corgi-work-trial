@@ -8,7 +8,7 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { explainStatementTotal } from "@/lib/money/explain";
-import { CANONICAL_STATEMENT_VERSION, collectedFigures } from "@/lib/statements/compute";
+import { STATEMENT_VERSIONS_WITH_KNOWN_TOTALS, collectedFigures } from "@/lib/statements/compute";
 import { commissionPayableMovementCents } from "@/lib/statements/journal";
 import { isUuid } from "@/lib/http/path-ids";
 import {
@@ -92,7 +92,9 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
   // and not ">=" (review finding F-B12-06): a future v3 that redefined a column would otherwise be
   // explained with v2 semantics, which is the same mistake in the other direction, and the rule
   // behind F-B9-09 is that a column never changes meaning.
-  const explainable = run.canonicalVersion === CANONICAL_STATEMENT_VERSION;
+  // Only a format whose totals this code knows how to explain gets a fold (F-B12-06): versions
+  // 2 and 3 store cash and premium apart; a v1 run or an unknown future version gets the amount alone.
+  const explainable = (STATEMENT_VERSIONS_WITH_KNOWN_TOTALS as readonly number[]).includes(run.canonicalVersion);
   const totalsForExplanation = {
     lines,
     commissionEarnedCents: run.commissionEarnedCents,

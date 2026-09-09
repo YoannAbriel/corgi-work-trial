@@ -20,6 +20,7 @@
     "check:change-requests": "tsx scripts/check-change-requests.ts",
     "check:console": "tsx scripts/check-console.ts",
     "check:claims-and-approvals": "tsx scripts/check-claims-and-approvals.ts",
+    "check:inbox-counts": "tsx scripts/check-inbox-counts.ts",
     "check:reconciliation": "tsx scripts/check-reconciliation.ts",
     "check:statements": "tsx scripts/check-statements.ts",
     "check:mcp": "tsx scripts/check-mcp.ts",

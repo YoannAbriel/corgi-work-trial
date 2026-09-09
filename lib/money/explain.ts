@@ -23,6 +23,11 @@ export type ExplanationEvidence = {
   effectiveAt: string;
   recordedAt: Date;
   detail: string; // "Dr cash_stripe 125320" or "Cr premium_tax_payable 2820"
+  // The journal entry this line belongs to, when the caller had it (slice B12-4, YOA-637). It is
+  // only ever used to point at the entry block already printed on the same page: the screen draws
+  // a connector from the figure to `#journal-entry-<entryId>`. Optional, because a statement fold
+  // is built from stored statement lines and has no journal entry to point at.
+  entryId?: string;
 };
 
 // What the fold under a figure shows.
@@ -69,6 +74,34 @@ export function explainedCents(explanation: AmountExplanation): number {
     throw new Error(`this explanation has no line keyed "${explanation.resultKey}"`);
   }
   return line.cents;
+}
+
+// The running total a reader's finger reaches after each line of an explanation: after the first
+// line, after the first two, and so on (slice B12-4, YOA-637). The screen prints these strings in
+// data attributes so the animation can tick a subtotal along the lines WITHOUT adding anything in
+// the browser: every cent below is added here, on the server.
+//
+// It returns null rather than a wrong number whenever the lines are not a plain addition ending on
+// the figure. That is the case for most folds: a tax fold ends on `floor(premium x rate / 10000)`,
+// and a cancellation fold points at one line among seven that do not add up to it. Only a fold
+// whose lines really do add up to its result gets a ticker, and the last subtotal of that ticker
+// is the figure itself, checked here on every render.
+export function runningSubtotals(explanation: AmountExplanation): { key: string; cents: number }[] | null {
+  const resultLine = explanationResultLine(explanation);
+  if (!resultLine) {
+    return null;
+  }
+  const contributingLines = explanation.lines.filter((line) => line.key !== explanation.resultKey);
+  // One line adding up to itself is not a running total worth watching.
+  if (contributingLines.length < 2) {
+    return null;
+  }
+  let runningCents = 0;
+  const subtotals = contributingLines.map((line) => {
+    runningCents += line.cents;
+    return { key: line.key, cents: runningCents };
+  });
+  return runningCents === resultLine.cents ? subtotals : null;
 }
 
 function percentOfBasisPoints(basisPoints: number): string {
@@ -359,6 +392,9 @@ export type JournalEntryForExplanation = {
   entryType: string;
   effectiveAt: string;
   recordedAt: Date;
+  // Present on both journals that feed these folds (lib/policy/read.ts, lib/claims/read.ts).
+  // Optional here so a caller that only has the sums still type-checks.
+  entryId?: string;
   lines: { accountId: string; accountName: string; debitCents: number; creditCents: number }[];
 };
 
@@ -432,6 +468,7 @@ export function explainAccountSum(input: {
         effectiveAt: entry.effectiveAt,
         recordedAt: entry.recordedAt,
         detail,
+        entryId: entry.entryId,
       });
       position += 1;
     }
@@ -481,6 +518,7 @@ export function evidenceFromJournal(
         effectiveAt: entry.effectiveAt,
         recordedAt: entry.recordedAt,
         detail: `${side} ${line.accountName} ${movedCents}`,
+        entryId: entry.entryId,
       });
     }
   }

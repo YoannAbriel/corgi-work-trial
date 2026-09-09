@@ -235,14 +235,14 @@ export function WhatNeedsYou({ tasks }: { tasks: WorkspaceTask[] }) {
       </h2>
       {tasks.length === 0 ? (
         <p className="note">
-          Nothing is waiting for you right now. New work appears here and as a number next to the
-          screen it belongs to.
+          Nothing is waiting for you right now. New work appears here, in your{" "}
+          <Link href="/inbox">inbox</Link>, and as a number next to the screen it belongs to.
         </p>
       ) : (
         <ul className="needs-you-list">
           {tasks.map((task) => (
             <li key={`${task.section}-${task.label}`}>
-              <Link href={task.href} prefetch={false}>
+              <Link href={`/inbox#${task.section}`} prefetch={false}>
                 <span className="count-chip">{task.count}</span>
                 <span>
                   <strong>{task.label}</strong>

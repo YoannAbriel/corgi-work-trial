@@ -135,7 +135,15 @@ const REVERSAL_PREFIX = "reversal_of_";
 //
 // Bumping this is not a formality: a run of an older version keeps its lines, its totals and its
 // hash forever, and a new run is honestly not comparable with it by hash.
-export const CANONICAL_STATEMENT_VERSION = 2;
+// v3 since 2026-09-09 (decision 22): the F-B8-08 fix made each refund line carry its own premium
+// base, which changes the canonical text, so the format number moves with it. A run of an
+// earlier version keeps the meaning it was written with; the screen says "format changed, not
+// comparable by hash" between two revisions of different versions instead of "identical" or
+// "changed". Versions 2 and 3 share the same column meanings (cash and premium stored apart);
+// version 1 does not (its premium column held the cash).
+export const CANONICAL_STATEMENT_VERSION = 3;
+export const FIRST_VERSION_WITH_PREMIUM_COLUMN = 2;
+export const STATEMENT_VERSIONS_WITH_KNOWN_TOTALS = [2, 3] as const;
 
 // What the note says on a screen or a document rendered from a v1 row.
 export const STATEMENT_FORMAT_V1_NOTE =
@@ -156,7 +164,7 @@ export function collectedFigures(run: {
   cashCollectedCents: number;
   premiumCollectedCents: number;
 }): CollectedFigures {
-  if (run.canonicalVersion >= CANONICAL_STATEMENT_VERSION) {
+  if (run.canonicalVersion >= FIRST_VERSION_WITH_PREMIUM_COLUMN) {
     return {
       cashCollectedCents: run.cashCollectedCents,
       premiumCollectedCents: run.premiumCollectedCents,
