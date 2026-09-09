@@ -31,6 +31,7 @@ const CLEARING_ACCOUNTS: { id: string; meaning: string }[] = [
 export const listReconciliationBreaks: McpTool = {
   name: "list_reconciliation_breaks",
   title: "Open reconciliation breaks",
+  effect: "read",
   description:
     "The open breaks of the latest complete reconciliation run of each source (Stripe, and the LOCAL SIMULATOR claim payout rail): what each one is, how long it has been open, the two amounts and what it means. Also the clearing account balances, which should be zero once every flow has completed. Staff keys only.",
   inputSchema: {

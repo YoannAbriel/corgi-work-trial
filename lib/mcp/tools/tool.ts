@@ -33,10 +33,23 @@ export class ToolRefused extends Error {}
 
 export type ToolAnswer = Record<string, unknown>;
 
+// WHAT A TOOL CHANGES, declared by the tool rather than guessed from its name:
+//   'read'                it writes nothing at all;
+//   'appends_a_run'       it appends a reconciliation run and its items, and moves no money;
+//   'queues_for_a_human'  the ONE write tool of this surface: it creates an approval request.
+// tools/list publishes it as the protocol's readOnlyHint, and lib/mcp/never-delegated.test.ts
+// asserts that exactly one tool of the last kind exists, so a future write tool cannot be added
+// without that test saying so.
+export type ToolEffect = "read" | "appends_a_run" | "queues_for_a_human";
+
 export type McpTool = {
   name: string;
   title: string;
   description: string;
+  effect: ToolEffect;
+  // Extra fields for this tool's tools/list annotations, on top of the hints the transport adds
+  // for every tool. Used by explain_amount to publish the closed list of figure keys it accepts.
+  annotations?: Record<string, unknown>;
   inputSchema: {
     type: "object";
     properties: Record<string, unknown>;

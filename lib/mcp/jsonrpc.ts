@@ -20,7 +20,8 @@ import { argumentsSchemaRefusal, ToolRefused, type ToolContext } from "./tools/t
 //                               shows the model (including what is never delegated);
 //   notifications/initialized   accepted and answered 202 with no body, as the spec requires;
 //   ping                        answers {}: clients use it to check the connection;
-//   tools/list                  the five tools, plus this build's `policy` block;
+//   tools/list                  the seven tools with their annotations, plus this build's
+//                               `policy` block;
 //   tools/call                  runs one tool.
 //
 // WHAT IS NOT, deliberately, each with the reason:
@@ -192,6 +193,16 @@ function toolsListResult() {
       title: tool.title,
       description: tool.description,
       inputSchema: tool.inputSchema,
+      // The protocol's hints, taken from what the tool declares it changes rather than from its
+      // name, plus whatever else that tool publishes (explain_amount lists its figure keys here,
+      // so a client never has to guess one). Nothing on this surface destroys anything or reaches
+      // outside this application, so those two hints are false for every tool.
+      annotations: {
+        readOnlyHint: tool.effect === "read",
+        destructiveHint: false,
+        openWorldHint: false,
+        ...(tool.annotations ?? {}),
+      },
     })),
     // Not part of the protocol's own shape, and deliberately here: an agent reading this surface
     // must be able to see, without asking anybody, which operations are never delegated to it.

@@ -19,6 +19,7 @@ import { optionalText, requiredText, ToolRefused, usd, type McpTool } from "./to
 export const getPolicyAsOf: McpTool = {
   name: "get_policy_as_of",
   title: "Policy as of a date",
+  effect: "read",
   description:
     "The policy as it stood on a business date: status, term, annual premium in force, state premium tax, policy fee, coverage limits and every endorsement applied by that date. Rebuilt from the policy's immutable events, not from a cache. Scoped to what this API key's user may see.",
   inputSchema: {
