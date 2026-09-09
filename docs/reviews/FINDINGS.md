@@ -271,7 +271,7 @@ One line per finding from the independent reviews (design and implementation). F
 | F-INT-09 | LOW | brokers.commission_rate_bps and state_tax_rates.rate_bps determine money and are among the six tables of 34 with no UPDATE/DELETE guard; historical figures are safe because every rate is frozen on its event | Add the guards, or record in DECISIONS why they are configuration | OPEN (B13 backlog) |
 | F-INT-10 | LOW | Rule 21's fail-closed branch (lib/claims/payments.ts:484) has never been observed firing; no check builds the state and no constraint ties a claim payout to an approval request | One assertion that constructs the state and proves the refusal | FIXED 5fc56cb, merged a1e525d: check:claims-and-approvals builds a $10 agent-raised payout with no approval request and proves the send is refused with the rule-21 sentence (74/74); re-review PASS |
 | F-INT-11 | LOW | requestedThrough is a parameter of requestClaimPayment rather than derived inside it from the principal; unspoofable today because only two callers exist | Derive it inside, or name the invariant in a comment | OPEN (B13 backlog) |
-| F-INT-12 | LOW | The endorsement preview and the payment gate use two different bases for the $500 customer threshold (endorse.ts:685 against endorsement-requests.ts:138); it fails safe, but the preview can promise a path the gate refuses | One shared function for the base | FIXED 356b900, merged 20439ad (12:13 local), decision 24: one function endorsementNeedsCustomerApproval, the running total from additionalPremiumOfTheTerm, used by the preview, the request standing and the payment gate; unit tests and check:endorsement-replay section 3b (90/90); RE-REVIEW PENDING (money path) |
+| F-INT-12 | LOW | The endorsement preview and the payment gate use two different bases for the $500 customer threshold (endorse.ts:685 against endorsement-requests.ts:138); it fails safe, but the preview can promise a path the gate refuses | One shared function for the base | FIXED 356b900, merged 20439ad, decision 24: one function endorsementNeedsCustomerApproval, the running total from additionalPremiumOfTheTerm, used by the preview, the request standing and both payment gates; re-review PASS at 20439ad (12:26 local): every old base name gone from the tree, the diff of lib/payments, lib/ledger and db/migrations empty, a read-only preview on CGP-01707 names the running total $1,143.96 and asks for the customer, check:endorsement-replay 90/90; the correction path's own base is an accepted scope line (week two) |
 
 ## Inbox and animation re-review (docs/reviews/inbox-and-motion.md, inbox PASS and animation PASS at 41ea2c5, 11:13 local)
 
@@ -287,3 +287,9 @@ One line per finding from the independent reviews (design and implementation). F
 | F-INT-20 | LOW | The console 360 shows a green succeeded badge next to an older "Your card was declined." reason on an operation that later succeeded | Print the reason only for the terminal status, or date it | OPEN (B13 backlog) |
 | F-INT-21 | LOW | The /ops home still offers an approver the MCP keys card (components/workspace-overview.tsx:73) while the page and the sidebar refuse it | Hide the card for staff_approver | OPEN (B13 backlog) |
 | F-INT-22 | LOW | The customer terms panel says "on that date" when no date is given | Wording | OPEN (B13 backlog) |
+
+## Decision 24 re-review (docs/reviews/integration.md, PASS at 20439ad, 12:26 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-INT-23 | LOW | The preview calls the running total the premium the policy "has since issuance", although it is scoped to the current term and includes the quote on screen | Wording: "of additional premium in this term, this quote included" | OPEN (B13 backlog) |
