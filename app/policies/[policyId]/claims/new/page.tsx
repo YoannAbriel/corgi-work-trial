@@ -9,6 +9,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { policyDetail } from "@/lib/policy/read";
+import { policyFormViews } from "../../correction-sections";
 
 // Opening a claim on a policy (slice B7), on its own page since the layout rebuild of
 // 2026-09-08: the policy page shows the button, this page holds the form. The form posts to the
@@ -45,14 +46,13 @@ export default async function NewClaimPage({ params }: { params: Promise<{ polic
         { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Open a claim" },
       ]}
+      views={policyFormViews({ policyId, formLabel: "New claim", formHref: `/policies/${policyId}/claims/new` })}
       band={{
         title: "Open a claim",
         suffix: `Policy ${policy.policyNumber}`,
         meta: (
           <>
             <Chip tone={policy.status === "bound" ? "ok" : "warn"}>{policy.status.replace(/_/g, " ")}</Chip>
-            {/* AF-02: a claim is paid on the simulated rail, and this screen opens one. */}
-            <Chip tone="neutral">claim payout rail: LOCAL SIMULATOR</Chip>
           </>
         ),
       }}

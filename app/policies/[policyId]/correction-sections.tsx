@@ -1,10 +1,9 @@
 import Link from "next/link";
+import { Download } from "lucide-react";
 import { SandboxReferences } from "@/components/disclosures";
 import { Chip } from "@/components/detail-layout";
 import { JournalTable } from "@/components/journal-table";
-import { About } from "@/components/ui/about";
-import { EmptyState } from "@/components/ui/empty";
-import { DataTable, FactGrid } from "@/components/ui/table";
+import { DataTable, ExpandHead, ExpandRow, FactGrid } from "@/components/ui/table";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { When } from "@/components/ui/time";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -17,15 +16,150 @@ import {
 } from "@/lib/policy/correction-read";
 import { FormulaLinesTable } from "./formula-lines";
 
-// The four blocks slice B8 adds to a policy: the form that corrects an effective date, what a
+// Everything the policy screens share, and the four blocks slice B8 added to a policy: the list
+// of the policy's views, the two documents, the form that corrects an effective date, what a
 // correction did, the whole history of the policy with both of its clocks, and the policy as it
-// stood on any business date. The interface system of 2026-09-09 spread them over the views of
-// the policy screen: the corrections go with the money, the timeline and the date answer make the
-// timeline view, and the dates a policy changed sit beside the documents they rebuild.
+// stood on any business date.
+//
+// They live here because a Next.js page module may only export the page itself, and the policy
+// screen, the customer's own view of the same policy and the six form pages all draw some of
+// them. The interface system spread the B8 blocks over the views of the policy screen: the
+// corrections go with the money, and the timeline, the dates a policy changed and the date answer
+// make the timeline view.
 //
 // They are server components. Every amount arrives already computed in integer cents from the
 // events and the journal; nothing here does arithmetic, and no money value is ever computed in
 // the browser.
+
+// ---------------------------------------------------------------------------
+// The pieces the policy screens share
+// ---------------------------------------------------------------------------
+
+// The views of a policy, named once. The screen itself cannot hold this list: a Next.js page
+// module may only export the page, and the six form pages need the same list to keep the policy's
+// navigation open while a form is on screen (cycle 2, decision 17).
+export const POLICY_VIEWS = ["overview", "endorsements", "claims", "money", "timeline"] as const;
+export type PolicyView = (typeof POLICY_VIEWS)[number];
+export const POLICY_VIEW_LABEL: Record<PolicyView, string> = {
+  overview: "Overview",
+  endorsements: "Endorsements",
+  claims: "Claims",
+  money: "Money",
+  timeline: "Timeline",
+};
+
+// The same, for the customer, whose policy has two views and no money screens. Their two approval
+// pages are forms on top of their own policy, so the sidebar keeps that policy while they read.
+export function customerPolicyViews(policyId: string, formLabel: string, formHref: string) {
+  return [
+    { key: "overview", label: "Overview", href: `/policies/${policyId}`, current: false },
+    { key: "documents", label: "Documents", href: `/policies/${policyId}?view=documents`, current: false },
+    { key: "form", label: formLabel, href: formHref, current: true },
+  ];
+}
+
+// The same navigation, for a form opened on top of a policy (endorse, cancel, correct, open a
+// claim, the two approvals): the policy's own views, then the form itself as the entry the reader
+// is on. Without it the sidebar emptied the moment a form opened and the reader lost the record
+// they were working in (round 1, MEDIUM).
+export function policyFormViews({
+  policyId,
+  formLabel,
+  formHref,
+}: {
+  policyId: string;
+  // What the form is, in one or two words: "Endorse", "Cancel", "Correct".
+  formLabel: string;
+  // Where the reader is, so the current entry is a link to the page they are on.
+  formHref: string;
+}) {
+  return [
+    ...POLICY_VIEWS.map((one) => ({
+      key: one,
+      label: POLICY_VIEW_LABEL[one],
+      href: one === "overview" ? `/policies/${policyId}` : `/policies/${policyId}?view=${one}`,
+      current: false,
+    })),
+    { key: "form", label: formLabel, href: formHref, current: true },
+  ];
+}
+
+// The two documents of a policy, in the Documents card of the overview: one line each, the date
+// they are rebuilt on beside the button that opens them (cycle 2, decision 16 folded the
+// Documents view into this card). Same action, same method, same field name as before: the route
+// reads `asOf` and rebuilds the PDF from the events effective on or before it.
+//
+// The label of a button is two words, so neither wraps at any desktop width (round 1: both ran to
+// two lines everywhere), and the icon says what pressing it does. The date the browser draws in
+// its own locale is said again underneath in the ISO format the rest of the product prints, so
+// one screen never shows a date two ways (round 1).
+export function PolicyDocuments({
+  policyId,
+  documentDate,
+  termStart,
+}: {
+  policyId: string;
+  documentDate: string;
+  termStart: string;
+}) {
+  return (
+    <>
+      <DocumentRow
+        policyId={policyId}
+        endpoint="declarations"
+        fieldId="asOfDeclarations"
+        label="Declarations"
+        documentDate={documentDate}
+        termStart={termStart}
+      />
+      <DocumentRow
+        policyId={policyId}
+        endpoint="endorsement-schedule"
+        fieldId="asOfSchedule"
+        label="Endorsement schedule"
+        documentDate={documentDate}
+        termStart={termStart}
+      />
+    </>
+  );
+}
+
+function DocumentRow({
+  policyId,
+  endpoint,
+  fieldId,
+  label,
+  documentDate,
+  termStart,
+}: {
+  policyId: string;
+  // The route that rebuilds this document. It is also what the form posts to, so the two cannot
+  // drift apart.
+  endpoint: "declarations" | "endorsement-schedule";
+  fieldId: string;
+  label: string;
+  documentDate: string;
+  termStart: string;
+}) {
+  return (
+    <form method="get" action={`/api/policies/${policyId}/documents/${endpoint}`} className="pd-doc-row">
+      <input
+        id={fieldId}
+        name="asOf"
+        type="date"
+        defaultValue={documentDate}
+        min={termStart}
+        required
+        aria-label={`${label} as of`}
+      />
+      <button type="submit" className="secondary">
+        <Download size={14} aria-hidden="true" />
+        {label}
+      </button>
+      <span className="pd-doc-asof">as of {documentDate}, PDF</span>
+    </form>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // The form: correct the effective date of one endorsement
@@ -48,9 +182,13 @@ export function CorrectEndorsementDateForm({
   termEnd: string;
 }) {
   return (
-    <form method="get" action={`/policies/${policyId}/corrections/new`} className="card">
+    // One line under the schedule, not a block of its own (cycle 2, decision 16): the date it
+    // should have carried, the reason that goes on every entry, and the button. Same GET, same
+    // action, same three field names; the preview it opens is what writes nothing and shows the
+    // whole impact first.
+    <form method="get" action={`/policies/${policyId}/corrections/new`} className="pd-inline-form">
       <input type="hidden" name="endorsedEventId" value={endorsedEventId} />
-      <label htmlFor={`correctedEffectiveAt-${endorsedEventId}`}>Effective date it should have carried</label>
+      <label htmlFor={`correctedEffectiveAt-${endorsedEventId}`}>Correct the effective date to</label>
       <input
         id={`correctedEffectiveAt-${endorsedEventId}`}
         name="correctedEffectiveAt"
@@ -60,20 +198,18 @@ export function CorrectEndorsementDateForm({
         min={termStart}
         max={termEnd}
       />
-      <label htmlFor={`reason-${endorsedEventId}`}>Why (written on the correction and on every entry)</label>
       <input
         id={`reason-${endorsedEventId}`}
         name="reason"
         required
         minLength={10}
         maxLength={300}
-        placeholder="the broker's email asked for June 9, the endorsement was keyed as July 9"
+        aria-label="Why the date is corrected, written on the correction and on every entry"
+        placeholder="why: the broker's email asked for June 9"
       />
-      <button type="submit">Preview the correction</button>
-      <p className="pd-note">
-        Correcting reverses what was booked and re-books the endorsement on the right date. Nothing is deleted, and the
-        money already collected stays exactly where it is.
-      </p>
+      <button type="submit" className="secondary">
+        Preview
+      </button>
     </form>
   );
 }
@@ -198,37 +334,80 @@ export async function PolicyTimeline({
     <DataTable ariaLabel="Policy timeline">
       <thead>
         <tr>
+          <ExpandHead />
           <th className="nowrap">Effective</th>
           <th className="nowrap">Recorded</th>
           <th>Event</th>
-          <th>What it says</th>
+          <th>What</th>
         </tr>
       </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.eventId} className="dt-row">
-            <td className="nowrap">{row.supersededByEventId ? <s>{row.effectiveAt}</s> : row.effectiveAt}</td>
-            <td className="nowrap">
-              <When instant={row.recordedAt} now={now} />
-            </td>
-            <td>
-              <Chip tone={row.supersededByEventId ? "neutral" : "ok"}>{row.eventType.replace(/_/g, " ")}</Chip>
-            </td>
-            <td>
-              {row.supersededByEventId ? <s>{row.summary}</s> : row.summary}
-              {row.supersededByEventId ? (
-                <span className="dt-sub">
-                  {audience === "customer"
-                    ? "Put right by a later correction: this line no longer counts."
-                    : `Superseded by the ${row.supersededByEventType} recorded later (${row.supersededByEventId.slice(0, 8)}).`}
-                </span>
-              ) : null}
-            </td>
-          </tr>
-        ))}
-      </tbody>
+      {rows.map((row) => (
+        <ExpandRow
+          key={row.eventId}
+          columns={4}
+          cells={
+            <>
+              <td className="nowrap">{row.supersededByEventId ? <s>{row.effectiveAt}</s> : row.effectiveAt}</td>
+              <td className="nowrap">
+                <When instant={row.recordedAt} now={now} />
+              </td>
+              <td>
+                <Chip tone={row.supersededByEventId ? "neutral" : "ok"}>{row.eventType.replace(/_/g, " ")}</Chip>
+              </td>
+              <td>{row.supersededByEventId ? <s>{eventLabel(row.summary)}</s> : eventLabel(row.summary)}</td>
+            </>
+          }
+        >
+          <FactGrid
+            items={[
+              { label: "What it says", value: row.summary, wide: true },
+              { label: "Effective", value: row.effectiveAt },
+              { label: "Recorded", value: <When instant={row.recordedAt} now={now} mode="utc" /> },
+              ...(row.supersededByEventId
+                ? [
+                    {
+                      label: "Superseded",
+                      value:
+                        audience === "customer"
+                          ? "Put right by a later correction: this line no longer counts."
+                          : `by the ${row.supersededByEventType} recorded later (${row.supersededByEventId.slice(0, 8)})`,
+                      wide: true,
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        </ExpandRow>
+      ))}
     </DataTable>
   );
+}
+
+// The head of an event's sentence, for the cell; the sentence itself is in the row's expansion.
+// The system brief bans a sentence in a table cell, and these ran to twenty-two words over two
+// lines (round 1, HIGH). Three cuts, in this order:
+//   1. everything up to the first colon goes, because it names the event and the chip beside the
+//      cell already says the same thing ("Endorsement quoted: Annual premium ..." keeps the
+//      premium);
+//   2. what is left is cut at its first semicolon, which is where the list of further figures
+//      starts ("Annual premium $1,200.00 to $2,400.00; per-occurrence limit ...");
+//   3. a trailing parenthesis is kept only when it is shorter than what it qualifies. Two things
+//      arrive in one: a figure ("($1,127.24)"), which belongs in the cell, and the free text an
+//      operator typed as the reason for a correction, which can run to 300 characters and does
+//      not.
+// NEVER A COMMA. A formatted amount carries one ("$1,200.00"), and cutting there printed "$1"
+// under a heading that promised the figure (measured on this policy on 2026-09-09).
+// A sentence with no colon and no semicolon is already short ("Policy bound at $1,200.00 of
+// annual premium") and is printed whole. Presentation only: the sentence in the expansion is the
+// one the server built, whole.
+function eventLabel(summary: string): string {
+  const afterTheEventName = summary.includes(":") ? summary.slice(summary.indexOf(":") + 1) : summary;
+  const firstClause = afterTheEventName.split(";")[0].trim();
+  const parenthesis = firstClause.indexOf(" (");
+  if (parenthesis === -1) return firstClause;
+  const whatItQualifies = firstClause.slice(0, parenthesis);
+  const inTheParenthesis = firstClause.slice(parenthesis);
+  return inTheParenthesis.length < whatItQualifies.length ? firstClause : whatItQualifies;
 }
 
 // ---------------------------------------------------------------------------
@@ -291,27 +470,29 @@ export async function PolicyAsOf({
   const defaultDate = requested || (today > termStart ? today : termStart);
 
   return (
-    <section className="card pd-form-card" id="as-of">
-      <h2>As it stood on a date</h2>
-      <form method="get" className="card">
+    <div id="as-of">
+      {/* One line, at the top of the view: a date and a button (cycle 2, decision 16). It was a
+          card with a heading, a stacked label, a full-width field and a full-width black button
+          for a question that is one field wide. Same GET, same field name, same hidden view, so
+          the answer still comes back on this view and is still a bookmarkable address. */}
+      <form method="get" className="pd-asof">
         <label htmlFor="asOf">As it stood on</label>
         <input id="asOf" name="asOf" type="date" required defaultValue={defaultDate} min={termStart} />
-        {/* The view is carried with the date, so the answer comes back on this same view. */}
         <input type="hidden" name="view" value="timeline" />
-        <button type="submit">Show the policy on that date</button>
+        <button type="submit" className="secondary">
+          Show
+        </button>
       </form>
 
-      {result === null ? (
-        <EmptyState illustration="magnifying-glass">
-          Pick a date: the policy is rebuilt from the events effective on or before it, superseded events dropped.
-        </EmptyState>
-      ) : "error" in result ? (
-        <p className="error">
-          Nothing to show on {result.asOf}: {result.error}
-        </p>
+      {result === null ? null : "error" in result ? (
+        <div className="notices">
+          <p className="error">
+            Nothing to show on {result.asOf}: {result.error}
+          </p>
+        </div>
       ) : (
-        <div className="pd-answer">
-          <h3>The policy on {result.asOf}</h3>
+        <section className="card">
+          <h2>The policy on {result.asOf}</h2>
           <FactGrid
             items={[
               {
@@ -368,15 +549,8 @@ export async function PolicyAsOf({
             {" / "}
             <Link href={`/api/policies/${policyId}/documents/endorsement-schedule?asOf=${result.asOf}`}>schedule</Link>.
           </p>
-          <About title="About the written premium segments">
-            <p>
-              Each piece of premium earns over its own window. The issuance premium earns over the whole term; an
-              endorsement earns its prorated amount from its own effective date to the end of the term. This is why the
-              annual premium in force is not the written premium once a policy has been endorsed.
-            </p>
-          </About>
-        </div>
+        </section>
       )}
-    </section>
+    </div>
   );
 }

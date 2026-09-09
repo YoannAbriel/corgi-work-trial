@@ -14,6 +14,7 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CorrectionRefused, planEndorsementDateCorrection } from "@/lib/policy/correct-endorsement-date";
 import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
 import { policyDetail } from "@/lib/policy/read";
+import { policyFormViews } from "../../correction-sections";
 import { FormulaLinesTable } from "../../formula-lines";
 
 // The impact preview of a backdated correction, and the point of this slice: the operator sees
@@ -76,6 +77,7 @@ export default async function CorrectEndorsementDatePage({
             { label: "Policy", href: `/policies/${policyId}` },
             { label: "Correction preview" },
           ]}
+          views={policyFormViews({ policyId, formLabel: "Correct", formHref: `/policies/${policyId}/corrections/new` })}
           band={{ title: "Correction preview", meta: <Chip tone="warn">refused</Chip> }}
         >
           <div className="notices">
@@ -109,13 +111,13 @@ export default async function CorrectEndorsementDatePage({
         { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Correction preview" },
       ]}
+      views={policyFormViews({ policyId, formLabel: "Correct", formHref: `/policies/${policyId}/corrections/new` })}
       band={{
         title: "Correction preview",
         suffix: `Policy ${plan.policyNumber}`,
         meta: (
           <>
             <Chip tone="warn">nothing recorded yet</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone="neutral">
               {money.wrongEffectiveAt} to {money.correctedEffectiveAt}
             </Chip>
@@ -148,7 +150,7 @@ export default async function CorrectEndorsementDatePage({
 
           <section className="card">
             <h2>Impact, line by line</h2>
-            <p className="pd-note">{direction}. Each line shows the integer-cent formula that produced it.</p>
+            <p className="pd-note">{direction}.</p>
             <FormulaLinesTable lines={plan.lines} />
           </section>
 
@@ -201,19 +203,16 @@ export default async function CorrectEndorsementDatePage({
             {/* The policy as it stood when this preview was computed. The server recomputes it
                 under a lock and refuses the confirmation if the policy changed in between. */}
             <input type="hidden" name="expectedPolicyVersion" value={String(plan.policyVersion)} />
-            <SubmitButton>
-              Correct the effective date to {money.correctedEffectiveAt}
-              {money.settlement === "collect"
-                ? ` and ask for ${formatCentsAsUsd(money.differenceTotalCents)}`
-                : money.settlement === "refund"
-                  ? ` and give back ${formatCentsAsUsd(-money.differenceTotalCents)}`
-                  : ""}
-            </SubmitButton>
+            {/* Three words (cycle 2, decision 8): the two dates are the band's chip, the
+                difference is the tile above, and the paragraph beside says what is written. */}
+            <SubmitButton>Correct the date</SubmitButton>
           </form>
         </section>
       </div>
 
       <About>
+        <h4>Every line is integer-cent arithmetic</h4>
+        <p>Each line of the table shows the formula in integer cents that produced its amount.</p>
         <h4>Only what was billed is reversed</h4>
         <p>
           The cash entries stay exactly as they are: Stripe really does hold that money, and reversing them would make
@@ -263,12 +262,13 @@ async function CorrectionForm({
     { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
     { label: "Correct" },
   ];
+  // The policy's own navigation stays open while the form is (cycle 2, decision 17).
+  const views = policyFormViews({ policyId, formLabel: "Correct", formHref: `/policies/${policyId}/corrections/new` });
   const band = {
     title: "Correct a date",
     suffix: `Policy ${policy.policyNumber}`,
     meta: (
       <>
-        <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
         <Chip tone="neutral">
           term {policy.effectiveAt} to {policy.termEnd}
         </Chip>
@@ -278,7 +278,7 @@ async function CorrectionForm({
 
   if (schedule.length === 0) {
     return (
-      <PortalShell user={user} active="policies" trail={trail} band={band}>
+      <PortalShell user={user} active="policies" trail={trail} views={views} band={band}>
         <EmptyState
           illustration="closed-folder"
           action={
@@ -300,7 +300,7 @@ async function CorrectionForm({
   const mostRecentlyRecorded = schedule.reduce((latest, row) => (row.recordedAt > latest.recordedAt ? row : latest));
 
   return (
-    <PortalShell user={user} active="policies" trail={trail} band={band}>
+    <PortalShell user={user} active="policies" trail={trail} views={views} band={band}>
       <div className="layout-2">
         <section className="card pd-form-card">
           <h2>The date it should have carried</h2>
@@ -346,14 +346,15 @@ async function CorrectionForm({
               { label: "Annual premium after it", value: formatCentsAsUsd(mostRecentlyRecorded.figures.newAnnualPremiumCents) },
             ]}
           />
-          <p className="pd-note">
-            Only the endorsement recorded most recently can be corrected. Any endorsement entered after it was priced
-            against it, so that one has to be put right first; the preview refuses the others and says so.
-          </p>
         </section>
       </div>
 
       <About>
+        <h4>Only the last endorsement</h4>
+        <p>
+          Only the endorsement recorded most recently can be corrected. Any endorsement entered after it was priced
+          against it, so that one has to be put right first; the preview refuses the others and says so.
+        </p>
         <h4>What the next screen shows</h4>
         <p>
           The exact money the correction moves, line by line, before anything is recorded. Nothing is ever deleted: what

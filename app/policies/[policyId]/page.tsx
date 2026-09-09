@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { Inspector } from "@/components/ui/inspector";
 import { Chevron, DataTable, ExpandHead, ExpandRow, FactGrid, Num, Primary, Ref, Row } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import Link from "next/link";
@@ -43,13 +44,26 @@ import {
 } from "@/lib/policy/read";
 import { policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
-import { firstValue, pickView, toastsFromQuery, withParams, type Query, type ToastNotice } from "@/lib/ui/views";
+import {
+  closeInspectorHref,
+  firstValue,
+  inspectHref,
+  inspectedReference,
+  pickView,
+  toastsFromQuery,
+  withParams,
+  type Query,
+  type ToastNotice,
+} from "@/lib/ui/views";
 import {
   CorrectEndorsementDateForm,
   CorrectionsExplained,
   PolicyAsOf,
   PolicyChangeSteps,
+  PolicyDocuments,
   PolicyTimeline,
+  POLICY_VIEWS,
+  POLICY_VIEW_LABEL,
 } from "./correction-sections";
 import { CustomerChangeRequestsPanel, CustomerPolicyView } from "./customer-view";
 import { FormulaLinesTable } from "./formula-lines";
@@ -58,9 +72,10 @@ import { FormulaLinesTable } from "./formula-lines";
 //
 // Layout (rebuilt on the interface system of 2026-09-09): the sticky band names the policy, its
 // state and the mode of every slot whose money is on the page, and holds the actions. The screen
-// then has six views, one at a time, named in the address (?view=): the terms in force, the
-// endorsements, the claims, the money, the timeline, the documents. Only the view being read is
-// rendered, so a reader meets one table at a time instead of eleven panels.
+// then has five views, one at a time, named in the address (?view=): the terms in force, the
+// endorsements, the claims, the money, the timeline. Only the view being read is rendered, so a
+// reader meets one table at a time instead of eleven panels. The documents are two buttons in a
+// card of the overview, not a view of their own (cycle 2, decision 16).
 //
 // The forms that start a change live on their own pages (endorse, cancel, open a claim); the
 // server checks every rule again there and again on submit, so what this page shows or hides is
@@ -68,15 +83,7 @@ import { FormulaLinesTable } from "./formula-lines";
 //
 // The ledger is still the point of the page: the amounts at the top must be findable, line by
 // line, in the journal of the money view.
-const VIEWS = ["overview", "endorsements", "claims", "money", "timeline", "documents"] as const;
-const VIEW_LABEL: Record<(typeof VIEWS)[number], string> = {
-  overview: "Overview",
-  endorsements: "Endorsements",
-  claims: "Claims",
-  money: "Money",
-  timeline: "Timeline",
-  documents: "Documents",
-};
+
 
 export default async function PolicyPage({
   params,
@@ -141,7 +148,7 @@ export default async function PolicyPage({
     ]);
 
   const path = `/policies/${policy.policyId}`;
-  const view = pickView(query.view, VIEWS);
+  const view = pickView(query.view, POLICY_VIEWS);
   const now = new Date();
 
   // ONE as-of date, even when the address carries several (review finding F-B13-32). Next gives
@@ -300,13 +307,21 @@ export default async function PolicyPage({
   ].filter(Boolean);
 
   const statusTone = policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "warn" : "neutral";
-  const views = VIEWS.map((one) => ({
+  // A count only where a person must act (cycle 2, decision 3): an open claim is work, and the
+  // number of endorsements, of journal entries and of closed claims is not. Opening a view says
+  // how many rows it holds; the navigation does not have to.
+  const views = POLICY_VIEWS.map((one) => ({
     key: one,
-    label: VIEW_LABEL[one],
-    href: withParams(path, query, { view: one }),
+    label: POLICY_VIEW_LABEL[one],
+    href: withParams(path, query, { view: one, inspect: null }),
     current: one === view,
-    count: one === "claims" ? claims.length : one === "endorsements" ? schedule.length : one === "money" ? entries.length : undefined,
+    count: one === "claims" && openClaims.length > 0 ? openClaims.length : undefined,
   }));
+
+  // The inspector, on the staff views that carry a Stripe or an operation reference: a reference
+  // opens its whole trail in the drawer instead of being a code token nobody can follow (cycle 2,
+  // decision 5). Staff only, never the owning broker: the console it reads is not theirs.
+  const inspected = isStaff ? inspectedReference(query.inspect) : null;
 
   return (
     <PortalShell
@@ -315,22 +330,25 @@ export default async function PolicyPage({
       views={views}
       viewsSubtitle={policy.policyNumber}
       toasts={toasts}
+      inspector={
+        inspected ? (
+          <Inspector reference={inspected} closeHref={closeInspectorHref(path, query)} user={user} now={now} />
+        ) : undefined
+      }
       trail={[...(isOwningBroker ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: `Policy ${policy.policyNumber}` }]}
       band={{
         title: `Policy ${policy.policyNumber}`,
         suffix: policy.customerName,
+        // Two chips at most (cycle 2, decision 1): the policy's status, and the open claims when
+        // there are any, which is the one count on this page a person has to act on. The AF-02
+        // words did not go anywhere: they are the grey line in the top bar of every workspace
+        // screen, said once instead of as three coloured chips on every band, and every simulated
+        // row still carries LOCAL SIMULATOR itself. The broker's verification, a third chip
+        // before, is a fact of the Broker card; an endorsement in progress is the heading of its
+        // own card in the endorsements view.
         meta: (
           <>
             <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>
-            <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>KYB {kyb.status}</Chip>
-            {/* The mode of each slot whose money is on this page, in the same words as the
-                reconciliation screen and never behind a fold (AF-02, review finding F-B13-34).
-                The premium, the endorsement deltas and the refunds are Stripe; the amount paid on
-                a claim went out on the simulated rail, so the second chip appears with the claims
-                that carry it and never on its own. */}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            {claims.length > 0 ? <Chip tone="neutral">claim payout rail: LOCAL SIMULATOR</Chip> : null}
-            {liveEndorsement ? <Chip tone="warn">endorsement in progress</Chip> : null}
             {openClaims.length > 0 ? (
               <Chip tone="warn">{openClaims.length === 1 ? "1 open claim" : `${openClaims.length} open claims`}</Chip>
             ) : null}
@@ -459,22 +477,22 @@ export default async function PolicyPage({
               </p>
             </div>
           ) : null}
-          {/* Finding F-YA-07: what the policy is today, and separately what it becomes. The
-              figures come from the endorsement's own stored event; nothing is recomputed. */}
+          {/* Finding F-YA-07: what the policy is today, and separately what it becomes. One short
+              line beside the tiles, and the rest of it under its own heading in About (round 1,
+              HIGH: a 37 word paragraph sat in the reading flow between the tiles and the cards).
+              The figures come from the endorsement's own stored event; nothing is recomputed. */}
           {endorsementsNotYetInForce.length > 0 ? (
-            <div className="notices">
+            <p className="pd-lead">
               {endorsementsNotYetInForce.map((row) => (
-                <p key={`not-yet-${row.endorsedEventId}`} className="note">
-                  An endorsement effective {row.effectiveAt} brings the annual premium to{" "}
-                  {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}
-                  {row.newLimitLabel ? ` (${row.newLimitLabel})` : ""}. It is in the endorsements view with the delta it
-                  collected; the figures above are the ones in force on {terms.onDate}.
-                </p>
+                <span key={`not-yet-${row.endorsedEventId}`}>
+                  From {row.effectiveAt} the annual premium becomes {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}.{" "}
+                </span>
               ))}
-            </div>
+              <Link href={withParams(path, query, { view: "endorsements" })}>The endorsements</Link>
+            </p>
           ) : null}
 
-          <div className="cards">
+          <div className="cards pd-cards-4">
             <section className="card">
               <h2>Cover</h2>
               <FactGrid
@@ -495,19 +513,16 @@ export default async function PolicyPage({
                 operation={operation}
                 openClaims={openClaims.length}
                 openClaimReserveCents={openClaimReserveCents}
+                referenceHref={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
+                inspected={inspected}
               />
-              <p className="pd-note">
-                Sums of the journal lines of this policy: cash at Stripe in and out, the commission payable balance, the
-                unearned premium balance.
-              </p>
               {reversedPairCount > 0 ? (
                 // UI-022: said out loud rather than left to be inferred from four figures that no
-                // longer match the journal line by line.
+                // longer match the journal line by line. One line here, the reason in About.
                 <p className="pd-note">
                   {reversedPairCount === 1
-                    ? "One entry a correction reversed is left out, with its mirror: "
-                    : `${reversedPairCount} entries a correction reversed are left out, with their mirrors: `}
-                  a reversal puts our own books right. Both sides are in the money view.
+                    ? "One reversed entry is left out, with its mirror."
+                    : `${reversedPairCount} reversed entries are left out, with their mirrors.`}
                 </p>
               ) : null}
             </section>
@@ -530,15 +545,16 @@ export default async function PolicyPage({
                   <dd>{policy.customerEmail}</dd>
                 </div>
               </dl>
-              <p className="pd-note">{kyb.explanation}</p>
+              {/* AF-02 on the record itself when the status is not provider evidence; what the
+                  status means is under its own heading in About (cycle 2, decision 9). */}
               {kyb.isProviderEvidence ? null : (
-                <p className="pd-note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
+                <p className="pd-note">{KYB_NOT_LIVE_LABEL}: a seeded placeholder, not provider evidence.</p>
               )}
             </section>
 
-            <section className="card pd-form-card">
+            <section className="card">
               <h2>Documents</h2>
-              <DocumentForms policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
+              <PolicyDocuments policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
             </section>
           </div>
 
@@ -548,6 +564,28 @@ export default async function PolicyPage({
           <CustomerChangeRequestsPanel policyId={policy.policyId} canReply={isOwningBroker || user.role === "staff_ops"} now={now} />
 
           <About>
+            {endorsementsNotYetInForce.length > 0 ? (
+              <>
+                <h4>The change that is not in force yet</h4>
+                {endorsementsNotYetInForce.map((row) => (
+                  <p key={`about-not-yet-${row.endorsedEventId}`}>
+                    An endorsement effective {row.effectiveAt} brings the annual premium to{" "}
+                    {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}
+                    {row.newLimitLabel ? ` (${row.newLimitLabel})` : ""}. It is in the endorsements view with the delta
+                    it collected; the figures above are the ones in force on {terms.onDate}.
+                  </p>
+                ))}
+              </>
+            ) : null}
+            <h4>What the four sums are</h4>
+            <p>
+              Sums of the journal lines of this policy: cash at Stripe in and out, the commission payable balance, the
+              unearned premium balance. An entry a correction reversed, and the reversal that mirrors it, are left out
+              of them, because a reversal puts our own books right rather than moving money at Stripe. Both sides stay
+              in the journal of the money view.
+            </p>
+            <h4>The broker&apos;s verification</h4>
+            <p>{kyb.explanation}</p>
             <h4>In force is not collected</h4>
             <p>
               The terms in force are today&apos;s premium and limits. What was actually collected and refunded is in the
@@ -670,10 +708,21 @@ export default async function PolicyPage({
                       </Num>
                       <Num>{formatCentsAsUsd(row.figures.newAnnualPremiumCents)}</Num>
                       <td>
-                        {row.stripeReferences.length > 0 ? (
-                          <Ref value={row.stripeReferences[0]} />
+                        {/* The reference the endorsement stored is a labelled sentence ("payment
+                            pi_3UD..."). The cell shows the token itself, which is what opens the
+                            inspector and what a reader would paste into Stripe; the sentence
+                            around it is in the row's expansion. */}
+                        {stripeToken(row.stripeReferences[0]) ? (
+                          <Ref
+                            value={stripeToken(row.stripeReferences[0]) as string}
+                            title={row.stripeReferences[0]}
+                            inspectHref={
+                              isStaff ? inspectHref(path, query, stripeToken(row.stripeReferences[0]) as string) : undefined
+                            }
+                            open={inspected === stripeToken(row.stripeReferences[0])}
+                          />
                         ) : (
-                          <span className="dt-muted">none</span>
+                          <span className="dt-muted">{row.stripeReferences[0] ?? "none"}</span>
                         )}
                       </td>
                     </>
@@ -705,18 +754,16 @@ export default async function PolicyPage({
 
           {/* Slice B8: the live-fire test of this view. Staff operations can put a wrong effective
               date right; the preview shows the whole impact before anything is written. It is a
-              primary action, so it is an open card and not a fold (F-YA-05). */}
+              primary action, so it is open and never a fold (F-YA-05), and one line rather than a
+              block, because it is one date and one reason (cycle 2, decision 16). */}
           {user.role === "staff_ops" && policy.status === "bound" && schedule.length > 0 ? (
-            <section className="card pd-form-card">
-              <h2>Correct an effective date</h2>
-              <CorrectEndorsementDateForm
-                policyId={policy.policyId}
-                endorsedEventId={schedule[schedule.length - 1].endorsedEventId}
-                effectiveAt={schedule[schedule.length - 1].effectiveAt}
-                termStart={policy.effectiveAt}
-                termEnd={policy.termEnd}
-              />
-            </section>
+            <CorrectEndorsementDateForm
+              policyId={policy.policyId}
+              endorsedEventId={schedule[schedule.length - 1].endorsedEventId}
+              effectiveAt={schedule[schedule.length - 1].effectiveAt}
+              termStart={policy.effectiveAt}
+              termEnd={policy.termEnd}
+            />
           ) : null}
 
           {historicalRequests.length > 0 ? (
@@ -863,6 +910,8 @@ export default async function PolicyPage({
               operation={operation}
               openClaims={openClaims.length}
               openClaimReserveCents={openClaimReserveCents}
+              referenceHref={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
+              inspected={inspected}
             />
             {reversedPairCount > 0 ? (
               <p className="pd-note">
@@ -1034,7 +1083,11 @@ export default async function PolicyPage({
                       <Num>{formatCentsAsUsd(refund.amountCents)}</Num>
                       <td>
                         {refund.refundId ? (
-                          <Ref value={refund.refundId} />
+                          <Ref
+                            value={refund.refundId}
+                            inspectHref={isStaff ? inspectHref(path, query, refund.refundId) : undefined}
+                            open={inspected === refund.refundId}
+                          />
                         ) : (
                           <span className="dt-muted">not created yet</span>
                         )}
@@ -1146,15 +1199,23 @@ export default async function PolicyPage({
 
       {view === "timeline" ? (
         <>
-          <PolicyTimeline policyId={policy.policyId} now={now} />
-          {/* UI-020: the key is the date the page was asked for. Following one of the step links
-              is a client-side navigation, so React keeps the same date input; a field the reader
-              had already typed in keeps what they typed (the browser's dirty value flag) while
-              the panel beside it answers another date, and the next submit silently goes back to
-              the typed one. A new key builds a new field, which starts on the date that was
-              applied. Nothing else changes: the answer is still server-rendered and the form is
-              still a plain GET. */}
+          {/* The question first, as one line, then its answer, then the whole history under it
+              (cycle 2, decision 16). UI-020: the key is the date the page was asked for.
+              Following one of the step links is a client-side navigation, so React keeps the same
+              date input; a field the reader had already typed in keeps what they typed (the
+              browser's dirty value flag) while the panel beside it answers another date, and the
+              next submit silently goes back to the typed one. A new key builds a new field, which
+              starts on the date that was applied. Nothing else changes: the answer is still
+              server-rendered and the form is still a plain GET. */}
           <PolicyAsOf key={asOfRequested ?? "default"} policyId={policy.policyId} asOf={asOfRequested} termStart={policy.effectiveAt} today={today} />
+          <PolicyChangeSteps
+            policyId={policy.policyId}
+            termStart={policy.effectiveAt}
+            today={today}
+            hrefForDate={(date) => withParams(path, query, { view: "timeline", asOf: date })}
+            currentDate={asOfRequested}
+          />
+          <PolicyTimeline policyId={policy.policyId} now={now} />
 
           <About>
             <h4>Two clocks, never merged</h4>
@@ -1168,67 +1229,27 @@ export default async function PolicyPage({
               It was superseded by a correction. The row stays in the table for ever; the fold that rebuilds the policy
               no longer applies it.
             </p>
-          </About>
-        </>
-      ) : null}
-
-      {view === "documents" ? (
-        <>
-          <div className="cards">
-            <section className="card pd-form-card">
-              <h2>Documents as of a date</h2>
-              <DocumentForms policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
-            </section>
-            <section className="card">
-              <h2>Dates this policy changed</h2>
-              <PolicyChangeSteps
-                policyId={policy.policyId}
-                termStart={policy.effectiveAt}
-                today={today}
-                hrefForDate={(date) => withParams(path, query, { view: "timeline", asOf: date })}
-                currentDate={asOfRequested}
-              />
-              <p className="pd-note">
-                The term start, every change still in force, and today. A change a correction put right is not a step.
-              </p>
-            </section>
-          </div>
-
-          <About>
-            <h4>Rebuilt, not stored</h4>
+            <h4>The dates this policy changed</h4>
             <p>
-              Real PDFs rebuilt from the events effective on or before the date: between two endorsements the
-              declarations page shows the premium and limits in force that day.
+              The term start, every change still in force, and today. A change a correction put right is not a step.
+              Picking one rebuilds the policy from the events effective on or before it.
             </p>
-            <h4>The same date on the screen</h4>
-            <p>The timeline view answers the same question on the page, with the written premium segments behind it.</p>
+            <h4>Written premium segments</h4>
+            <p>
+              Each piece of premium earns over its own window. The issuance premium earns over the whole term; an
+              endorsement earns its prorated amount from its own effective date to the end of the term. This is why the
+              annual premium in force is not the written premium once a policy has been endorsed.
+            </p>
+            <h4>The same date as a document</h4>
+            <p>
+              Both PDFs are rebuilt from the same events: between two endorsements the declarations page shows the
+              premium and the limits that were in force that day. They are in the Documents card of the overview, and
+              the answer above links to them for the date it is showing.
+            </p>
           </About>
         </>
       ) : null}
     </PortalShell>
-  );
-}
-
-// The two as-of document forms, on the overview and in the documents view. Same action, same
-// method, same field name as before: the route reads `asOf` and rebuilds the PDF from the events.
-function DocumentForms({ policyId, documentDate, termStart }: { policyId: string; documentDate: string; termStart: string }) {
-  return (
-    <div className="pd-stack">
-      <form method="get" action={`/api/policies/${policyId}/documents/declarations`} className="card">
-        <label htmlFor="asOfDeclarations">Declarations page as of</label>
-        <input id="asOfDeclarations" name="asOf" type="date" defaultValue={documentDate} min={termStart} required />
-        <button type="submit" className="secondary">
-          Open the declarations page (PDF)
-        </button>
-      </form>
-      <form method="get" action={`/api/policies/${policyId}/documents/endorsement-schedule`} className="card">
-        <label htmlFor="asOfSchedule">Endorsement schedule as of</label>
-        <input id="asOfSchedule" name="asOf" type="date" defaultValue={documentDate} min={termStart} required />
-        <button type="submit" className="secondary">
-          Open the endorsement schedule (PDF)
-        </button>
-      </form>
-    </div>
   );
 }
 
@@ -1241,28 +1262,43 @@ function LedgerSoFarFacts({
   operation,
   openClaims,
   openClaimReserveCents,
+  referenceHref,
+  inspected,
 }: {
   ledger: ReturnType<typeof ledgerSoFar>;
   entries: JournalEntryView[];
   operation: Awaited<ReturnType<typeof checkoutOperationOfPolicy>>;
   openClaims: number;
   openClaimReserveCents: number;
+  // How this screen opens a reference in the inspector, or undefined for a reader who has no
+  // inspector (the owning broker). The card only draws what it is given.
+  referenceHref?: (reference: string) => string;
+  inspected?: string | null;
 }) {
   return (
     <dl className="pd-facts">
       <div>
         <dt>Premium payment</dt>
-        <dd>
-          {operation ? operation.latestStatus ?? "none" : "not started"}
-          {operation ? (
-            <SandboxReferences
-              references={[
-                { label: "Money operation id", value: operation.operationId },
-                { label: "Stripe Checkout Session", value: operation.providerRef },
-              ]}
-            />
-          ) : null}
-        </dd>
+        <dd>{operation ? operation.latestStatus ?? "none" : "not started"}</dd>
+        {/* The Stripe session of the payment, as a reference that opens its whole trail, on the
+            row's own third line. It used to be a dark (i) toggle inside the value column, where
+            an open panel pushed the label onto two lines and took the value over (round 1,
+            MEDIUM); a reference nobody can follow was the other half of the complaint (cycle 2,
+            decision 5). */}
+        {operation ? (
+          <div className="pd-facts-refs">
+            {[operation.providerRef, operation.operationId]
+              .filter((reference): reference is string => Boolean(reference))
+              .map((reference) => (
+                <Ref
+                  key={reference}
+                  value={reference}
+                  inspectHref={referenceHref?.(reference)}
+                  open={inspected === reference}
+                />
+              ))}
+          </div>
+        ) : null}
       </div>
       {/* Slice B12-2: each of these four folds lists the journal lines that were summed, and its
           total comes from the same accountSumCents call that produced the figure beside it. */}
@@ -1340,6 +1376,15 @@ function LedgerSoFarFacts({
       </div>
     </dl>
   );
+}
+
+// The Stripe id inside a reference the read layer labelled for a human ("payment pi_3UD...",
+// "refund re_1AB... (completed)"). The inspector resolves a token, not a sentence, and a token is
+// what a reader would paste into Stripe, so the cell shows the token and keeps the whole sentence
+// in its `title` and in the row's expansion. Null when the reference carries no id at all
+// ("refund not created yet"), which is a fact about the money and is printed as it stands.
+function stripeToken(reference: string | undefined): string | null {
+  return reference?.match(/\b(?:pi|re|cs|ch|py)_[A-Za-z0-9]+/)?.[0] ?? null;
 }
 
 // What the journal already says about this policy, as plain sums of the lines shown on the page.

@@ -14,6 +14,7 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CancellationRefused, planCancellation } from "@/lib/policy/cancel";
 import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
 import { policyDetail } from "@/lib/policy/read";
+import { policyFormViews } from "../correction-sections";
 
 // The preview, and the point of this slice: the broker sees exactly what the cancellation will
 // do to the money BEFORE anything happens, computed by the same pure functions that will post
@@ -67,6 +68,7 @@ export default async function CancelPolicyPage({
             { label: "Policy", href: `/policies/${policyId}` },
             { label: "Cancellation preview" },
           ]}
+          views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
           band={{ title: "Cancellation preview", meta: <Chip tone="warn">refused</Chip> }}
         >
           <div className="notices">
@@ -91,13 +93,13 @@ export default async function CancelPolicyPage({
         { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Cancellation preview" },
       ]}
+      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
       band={{
         title: "Cancellation preview",
         suffix: `Policy ${plan.policyNumber}`,
         meta: (
           <>
             <Chip tone="warn">nothing recorded yet</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone="neutral">cover stops {plan.effectiveAt}</Chip>
           </>
         ),
@@ -246,10 +248,9 @@ export default async function CancelPolicyPage({
             {/* The policy as it stood when these figures were computed. The server refuses the
                 confirmation if the policy changed in the meantime. */}
             <input type="hidden" name="policyVersion" value={plan.policyVersion} />
-            <SubmitButton className="danger">
-              Cancel the policy as of {plan.effectiveAt}
-              {breakdown.totalRefundCents > 0 ? ` and request a ${formatCentsAsUsd(breakdown.totalRefundCents)} refund` : ""}
-            </SubmitButton>
+            {/* Three words (cycle 2, decision 8). The date is the band's own chip and the amount
+                is the tile above; the sentence beside says what confirming records. */}
+            <SubmitButton className="danger">Cancel the policy</SubmitButton>
           </form>
         </section>
       </div>
@@ -304,12 +305,12 @@ async function CancellationForm({
         { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Cancel" },
       ]}
+      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
       band={{
         title: "Cancel the policy",
         suffix: `Policy ${policy.policyNumber}`,
         meta: (
           <>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone="neutral">
               term {policy.effectiveAt} to {policy.termEnd}
             </Chip>
@@ -321,23 +322,30 @@ async function CancellationForm({
         <section className="card pd-form-card">
           <h2>The day cover stops</h2>
           <form method="get" action={`/policies/${policy.policyId}/cancel`} className="card">
-            <label htmlFor="effectiveAt">Cancellation effective date</label>
-            <input
-              id="effectiveAt"
-              name="effectiveAt"
-              type="date"
-              required
-              defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}
-              min={policy.effectiveAt}
-              max={policy.termEnd}
-            />
-            <label htmlFor="calculationMethod">Calculation method</label>
-            {/* Short-rate cancellation is representable, not computed: the method is stored on
+            {/* One date and one method: two short fields on one line (cycle 2, decision 16).
+                Short-rate cancellation is representable, not computed: the method is stored on
                 the event and the short_rate_penalty_income account exists, but this build only
                 calculates pro-rata and the server refuses any other value. */}
-            <select id="calculationMethod" name="calculationMethod" defaultValue="pro_rata">
-              <option value="pro_rata">Pro-rata</option>
-            </select>
+            <div className="pd-field-pair">
+              <span>
+                <label htmlFor="effectiveAt">Cancellation effective date</label>
+                <input
+                  id="effectiveAt"
+                  name="effectiveAt"
+                  type="date"
+                  required
+                  defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}
+                  min={policy.effectiveAt}
+                  max={policy.termEnd}
+                />
+              </span>
+              <span>
+                <label htmlFor="calculationMethod">Calculation method</label>
+                <select id="calculationMethod" name="calculationMethod" defaultValue="pro_rata">
+                  <option value="pro_rata">Pro-rata</option>
+                </select>
+              </span>
+            </div>
             <button type="submit">Preview the cancellation</button>
           </form>
         </section>
@@ -354,14 +362,15 @@ async function CancellationForm({
               { label: "Endorsements", value: schedule.length === 0 ? "none" : String(schedule.length) },
             ]}
           />
-          <p className="pd-note">
-            A past date is allowed: an insurer often learns late that cover stopped, and the money is always computed
-            from the day cover really stopped.
-          </p>
         </section>
       </div>
 
       <About>
+        <h4>A past date is allowed</h4>
+        <p>
+          An insurer often learns late that cover stopped, and the money is always computed from the day cover really
+          stopped, never from the day the cancellation was typed.
+        </p>
         <h4>What the next screen shows</h4>
         <p>Exactly what would be refunded and clawed back, before anything is written.</p>
         <h4>Endorsed policies</h4>

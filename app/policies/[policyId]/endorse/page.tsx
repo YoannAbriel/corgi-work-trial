@@ -15,6 +15,7 @@ import { endorsementScheduleOfPolicy, endorsementsOfPolicy } from "@/lib/policy/
 import { policyDetail } from "@/lib/policy/read";
 import { MoneyAmountInput } from "@/components/money-amount-input";
 import { FormulaLinesTable } from "../formula-lines";
+import { policyFormViews } from "../correction-sections";
 import { isUuid } from "@/lib/http/path-ids";
 
 // The impact preview, and the point of this slice: the broker sees exactly what the endorsement
@@ -98,13 +99,14 @@ export default async function EndorsePolicyPage({
         { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Endorsement preview" },
       ]}
+      views={policyFormViews({ policyId, formLabel: "Endorse", formHref: `/policies/${policyId}/endorse` })}
+      viewsSubtitle={plan.policyNumber}
       band={{
         title: "Endorsement preview",
         suffix: `Policy ${plan.policyNumber}`,
         meta: (
           <>
             <Chip tone="warn">nothing recorded yet</Chip>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone="neutral">effective {figures.effectiveAt}</Chip>
           </>
         ),
@@ -139,7 +141,7 @@ export default async function EndorsePolicyPage({
 
           <section className="card">
             <h2>Impact, line by line</h2>
-            <p className="pd-note">{direction}. Each line shows the integer-cent formula that produced it.</p>
+            <p className="pd-note">{direction}.</p>
             <FormulaLinesTable lines={plan.lines} />
             {figures.taxRefundWasCappedAtCharged ? (
               <p className="pd-note">
@@ -188,18 +190,25 @@ export default async function EndorsePolicyPage({
             {/* The quote as it was computed. The server recomputes it under a lock and refuses the
                 confirmation if the policy changed in between. */}
             <input type="hidden" name="quoteHash" value={figures.quoteHash} />
+            {/* Three words: the amount is the tile above and the paragraph beside says what the
+                confirmation does (cycle 2, decision 8). The full sentence ran to two lines. */}
             <SubmitButton>
               {figures.direction === "charge"
-                ? `Request the endorsement (${formatCentsAsUsd(figures.deltaTotalCents)} to collect)`
+                ? "Request the change"
                 : figures.direction === "refund"
-                  ? `Apply the endorsement and refund ${formatCentsAsUsd(-figures.deltaTotalCents)}`
-                  : "Apply the endorsement"}
+                  ? "Apply and refund"
+                  : "Apply the change"}
             </SubmitButton>
           </form>
         </section>
       </div>
 
       <About>
+        <h4>Every line is integer-cent arithmetic</h4>
+        <p>
+          Each line of the table shows the formula in integer cents that produced its amount. Nothing on this page is
+          computed in the browser, and nothing is rounded except where the rounding line says so.
+        </p>
         <h4>Nothing has happened yet</h4>
         <p>
           These are the amounts as of {figures.effectiveAt}, the day the change takes effect: {figures.daysRemaining} of{" "}
@@ -290,12 +299,13 @@ async function EndorsementForm({
         { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Endorse" },
       ]}
+      views={policyFormViews({ policyId, formLabel: "Endorse", formHref: `/policies/${policyId}/endorse` })}
+      viewsSubtitle={policy.policyNumber}
       band={{
         title: "Endorse",
         suffix: `Policy ${policy.policyNumber}`,
         meta: (
           <>
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone="neutral">
               term {policy.effectiveAt} to {policy.termEnd}
             </Chip>
@@ -322,20 +332,28 @@ async function EndorsementForm({
               required
               defaultValue={submitted?.newAnnualPremium ?? (policy.annualPremiumCents / 100).toFixed(2)}
             />
-            <label htmlFor="newPerOccurrenceLimit">New per-occurrence limit (USD)</label>
-            <MoneyAmountInput
-              id="newPerOccurrenceLimit"
-              name="newPerOccurrenceLimit"
-              required
-              defaultValue={submitted?.newPerOccurrenceLimit ?? (policy.perOccurrenceLimitCents / 100).toFixed(2)}
-            />
-            <label htmlFor="newAggregateLimit">New aggregate limit (USD)</label>
-            <MoneyAmountInput
-              id="newAggregateLimit"
-              name="newAggregateLimit"
-              required
-              defaultValue={submitted?.newAggregateLimit ?? (policy.aggregateLimitCents / 100).toFixed(2)}
-            />
+            {/* The two limits are one decision and two short fields, so they sit on one line
+                (cycle 2, decision 16). Same names, same values, same order as the route reads. */}
+            <div className="pd-field-pair">
+              <span>
+                <label htmlFor="newPerOccurrenceLimit">New per-occurrence limit (USD)</label>
+                <MoneyAmountInput
+                  id="newPerOccurrenceLimit"
+                  name="newPerOccurrenceLimit"
+                  required
+                  defaultValue={submitted?.newPerOccurrenceLimit ?? (policy.perOccurrenceLimitCents / 100).toFixed(2)}
+                />
+              </span>
+              <span>
+                <label htmlFor="newAggregateLimit">New aggregate limit (USD)</label>
+                <MoneyAmountInput
+                  id="newAggregateLimit"
+                  name="newAggregateLimit"
+                  required
+                  defaultValue={submitted?.newAggregateLimit ?? (policy.aggregateLimitCents / 100).toFixed(2)}
+                />
+              </span>
+            </div>
             <label htmlFor="endorsementEffectiveAt">Effective date</label>
             <input
               id="endorsementEffectiveAt"
@@ -366,20 +384,24 @@ async function EndorsementForm({
               { label: "Customer", value: policy.customerName },
             ]}
           />
-          <p className="pd-note">
-            The latest terms written on the record, which the fields start from. What is in force on a given date is on
-            the policy page.
-          </p>
-          {latestEndorsementEffectiveAt && latestEndorsementEffectiveAt > policy.effectiveAt ? (
-            <p className="pd-note">
-              This policy is already endorsed with effect from {latestEndorsementEffectiveAt}, so a new change cannot
-              take effect before that date; correcting the earlier one is the way to move it.
-            </p>
-          ) : null}
         </section>
       </div>
 
       <About>
+        <h4>These are the terms on the record</h4>
+        <p>
+          The latest terms written on the record, which the fields start from. What is in force on a given date is on
+          the policy page, which folds the events effective on or before that date.
+        </p>
+        {latestEndorsementEffectiveAt && latestEndorsementEffectiveAt > policy.effectiveAt ? (
+          <>
+            <h4>The earliest date this change can take</h4>
+            <p>
+              This policy is already endorsed with effect from {latestEndorsementEffectiveAt}, so a new change cannot
+              take effect before that date; correcting the earlier one is the way to move it.
+            </p>
+          </>
+        ) : null}
         <h4>What the next screen shows</h4>
         <p>
           The exact money the change moves, line by line, before anything is recorded. Nothing is written until you

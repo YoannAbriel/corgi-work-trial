@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { PopoverButton, PopoverPanel } from "@/components/ui/popover";
+import { X } from "lucide-react";
 
 // The animated shell of "explain this amount" (slice B12-4, Linear YOA-637, asked for by Yoann on
 // 2026-09-09: an explanation you can watch being built, from the figure down to the ledger line).
@@ -21,18 +21,24 @@ import { PopoverButton, PopoverPanel } from "@/components/ui/popover";
 // lib/money/amount-explained-motion.test.ts asserts this against the source of this file: one
 // number, read from those digits, and nowhere else.
 //
-// WITH JAVASCRIPT OFF nothing here runs and nothing is hidden: the figure is a real button that
-// opens a native popover (components/ui/popover.tsx), which the browser opens and closes on its
-// own, and the panel carries no data-reveal attribute, so the CSS that hides a line before its
-// turn never applies (app/globals.css hides only inside a panel that HAS that attribute).
+// WITH JAVASCRIPT OFF nothing here runs and nothing is hidden: the drawer is a native <details>
+// whose summary is the figure, so the browser opens and closes it on its own, and the panel
+// carries no data-reveal attribute, so the CSS that hides a line before its turn never applies
+// (app/globals.css hides only inside a panel that HAS that attribute). What that reader loses is
+// the two conveniences that need a script anywhere in this build: Escape and the click outside.
 //
 // THE PANEL MOVED OUT OF THE CELL on 2026-09-09 (interface system): it used to be a <details>
 // expanding inside the table cell it sits in, where the horizontal scroll container of the table
-// clipped it. A popover is drawn in the browser's top layer, so nothing on the page can cut it,
-// and it closes on a click outside or on Escape without a line of script of ours.
+// clipped it. IT IS THE DRAWER SINCE CYCLE 2 (Yoann, decision 6): the same panel as the inspector,
+// over the content on the right, closed by its cross, by a click outside or by Escape. A popover
+// anchored to the figure covered half the screen wherever the figure happened to sit; the drawer
+// always comes from the same edge, so a reader learns one way of opening a detail and one way out.
+// The panel's own markup, the formula it prints and the reveal below are unchanged.
 
-// The four lines of the reveal, in order, one every 120 ms.
-const STEP_INTERVAL_MS = 120;
+// The four lines of the reveal, in order. Shortened from 120 ms in cycle 2: the panel used to sit
+// on screen, empty but for its title, for more than a second before its first line arrived
+// (round 1, MEDIUM). It now opens on step 1, so the words are there the moment it appears.
+const STEP_INTERVAL_MS = 70;
 // One operand of the formula table lights up every 70 ms once the table's turn comes.
 const OPERAND_INTERVAL_MS = 70;
 // How long the result takes to count up to the figure.
@@ -60,7 +66,7 @@ export function AmountExplainedMotion({
   // The figure, already formatted by the server (lib/money/cents.ts). It is shown as-is and is the
   // text the count-up ends on.
   finalText: string;
-  // What the figure is, so the button that opens the panel is named by more than its digits.
+  // What the figure is, so the summary that opens the panel is named by more than its digits.
   label: string;
   size: "figure" | "inline";
   // The id of the journal entry block on this page that proves the figure, when there is one.
@@ -75,22 +81,26 @@ export function AmountExplainedMotion({
   rounding: ReactNode;
   evidence: ReactNode;
 }) {
-  // The id of the popover and of its anchor, unique per figure on the page. React's own id can
-  // carry punctuation, and the anchor is a CSS custom property name, so only its letters and
-  // digits are kept.
-  const popoverId = useId().replace(/[^A-Za-z0-9]/g, "");
   // False until hydration: the server-rendered HTML must be the version that works without us.
   const [enhanced, setEnhanced] = useState(false);
-  // 0 = nothing revealed yet, 4 = the whole panel. The CSS reads it from data-reveal.
-  const [revealStep, setRevealStep] = useState(0);
+  // Whether the drawer is on screen, as the browser reports it on the details element's toggle.
+  // It is read here only to bind Escape while the panel is open; the opening itself is the
+  // browser's, not ours.
+  const [open, setOpen] = useState(false);
+  // 1 = the words are on screen, 4 = the whole panel. The CSS reads it from data-reveal. It
+  // starts at 1 rather than 0, so the drawer is never an empty box while it is on screen.
+  const [revealStep, setRevealStep] = useState(1);
   // What the running-total line says right now. Always a string taken from a data-subtotal
   // attribute the server wrote.
   const [tickerText, setTickerText] = useState<string | null>(null);
   const [connector, setConnector] = useState<ConnectorGeometry | null>(null);
 
-  // The figure itself, inside the button that opens the panel: the connector starts from its box.
+  // The figure itself, inside the summary that opens the panel: the connector starts from its box.
   const figureRef = useRef<HTMLSpanElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // The <details> that IS the drawer: opening it is what the browser does on a click, with or
+  // without us, and closing it is what the cross, the backdrop and Escape ask for.
+  const drawerRef = useRef<HTMLDetailsElement>(null);
   // This fold's own element, so it can tell whether it is the first fold on the page pointing at
   // its journal entry. See the hash effect below (review finding F-B12-20).
   const foldRef = useRef<HTMLSpanElement>(null);
@@ -281,12 +291,12 @@ export function AmountExplainedMotion({
     }
 
     for (const row of operandRows) row.classList.remove("operand-lit");
-    setRevealStep(0);
+    // Step 1 is already on screen when the drawer opens: the panel used to reserve its full height
+    // and stay blank for over a second (round 1, MEDIUM), which read as a broken panel. Step 2 is
+    // the arithmetic in integer cents, operand by operand. Step 3 is the rounding rule. Step 4 is
+    // the result line, which counts up to the figure and points at the entry that proves it.
+    setRevealStep(1);
     setTickerText(null);
-    // Step 1, the words. Step 2, the arithmetic in integer cents, operand by operand. Step 3, the
-    // rounding rule. Step 4, the result line, which then counts up to the figure and points at the
-    // journal entry that proves it.
-    later(() => setRevealStep(1), STEP_INTERVAL_MS);
     later(() => {
       setRevealStep(2);
       operandRows.forEach((row, rank) => {
@@ -296,19 +306,19 @@ export function AmountExplainedMotion({
           if (subtotal !== null) setTickerText(subtotal);
         }, rank * OPERAND_INTERVAL_MS);
       });
-    }, STEP_INTERVAL_MS * 2);
-    later(() => setRevealStep(3), STEP_INTERVAL_MS * 3);
+    }, STEP_INTERVAL_MS);
+    later(() => setRevealStep(3), STEP_INTERVAL_MS * 2);
     later(() => {
       setRevealStep(4);
       if (resultCell) countUpResultCell(resultCell);
       later(pointAtLedgerIfAlreadyVisible, COUNT_UP_MS);
-    }, STEP_INTERVAL_MS * 4 + operandRows.length * OPERAND_INTERVAL_MS);
+    }, STEP_INTERVAL_MS * 3 + operandRows.length * OPERAND_INTERVAL_MS);
   }
 
   function closeReveal() {
     stopEverything();
     setConnector(null);
-    setRevealStep(0);
+    setRevealStep(1);
     const panel = panelRef.current;
     if (!panel) return;
     for (const row of panel.querySelectorAll<HTMLElement>("tr[data-formula-line]")) {
@@ -320,20 +330,37 @@ export function AmountExplainedMotion({
     if (resultCell?.dataset.finalAmount) resultCell.textContent = resultCell.dataset.finalAmount;
   }
 
-  // THE BROWSER OWNS THE PANEL. It opens and closes the popover; this component only watches it,
-  // so the reveal runs when a reader opens the explanation, whichever way they opened it (a
-  // click, the keyboard, or Escape and a click outside to close it).
+  // THE BROWSER OWNS THE PANEL. The drawer is a native <details>, so a click on the figure opens
+  // it whether or not any of this ran, and the reveal below is what we add on top: it starts when
+  // the browser says the details opened, and it is torn down when the details closes.
+  function closeDrawer() {
+    if (drawerRef.current) drawerRef.current.open = false;
+  }
+
+  function onDrawerToggle(event: React.SyntheticEvent<HTMLDetailsElement>) {
+    const isOpen = event.currentTarget.open;
+    setOpen(isOpen);
+    if (!isOpen) {
+      closeReveal();
+      return;
+    }
+    // One explanation at a time: a second drawer over the first would stack two panels on the
+    // same edge of the screen.
+    for (const other of document.querySelectorAll<HTMLDetailsElement>("details.amount-explained-drawer[open]")) {
+      if (other !== drawerRef.current) other.open = false;
+    }
+    runReveal();
+  }
+
+  // Escape closes it, the way it closes the inspector's drawer.
   useEffect(() => {
-    const popover = panelRef.current?.closest("[popover]");
-    if (!(popover instanceof HTMLElement)) return;
-    const onToggle = () => {
-      if (popover.matches(":popover-open")) runReveal();
-      else closeReveal();
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeDrawer();
     };
-    popover.addEventListener("toggle", onToggle);
-    return () => popover.removeEventListener("toggle", onToggle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
 
   return (
     <span
@@ -344,55 +371,72 @@ export function AmountExplainedMotion({
       // for a figure.
       data-trace-entry={traceEntryElementId}
     >
-      <PopoverButton id={popoverId} className="amount-explained-figure" label={`${label}: explain this amount`}>
-        <span
-          ref={figureRef}
-          // The final text, in the HTML whether the browser runs anything or not. The count-up ends
-          // on it and the reviewer can read it in the page source.
-          data-final-amount={finalText}
-        >
-          {finalText}
-        </span>
-      </PopoverButton>
-      <PopoverPanel id={popoverId} className="pop-explain">
-        <div
-          ref={panelRef}
-          className="amount-explain-panel"
-          // Absent until hydration, and absent for a reader with no JavaScript: the CSS that hides
-          // a line before its turn only applies inside a panel carrying this attribute.
-          data-reveal={enhanced ? revealStep : undefined}
-        >
-          <div className="reveal-step reveal-step-1">{inWords}</div>
-          <div className="reveal-step reveal-step-2">{formula}</div>
-          {enhanced && hasTicker ? (
-            <p className="amount-explain-ticker reveal-step reveal-step-2" aria-hidden="true">
-              {/* At rest it reads the figure, because the last subtotal IS the figure. While the
-                  reveal is running it stays blank until the first line lights up, so it never
-                  shows a total for lines nobody has seen yet. */}
-              <span>Running total</span> <b>{tickerText ?? (revealStep === 0 ? finalText : "\u00a0")}</b>
-            </p>
-          ) : null}
-          <div className="reveal-step reveal-step-3">{rounding}</div>
-          <div className="reveal-step reveal-step-4">
-            {evidence}
-            {traceEntryElementId ? (
-              <p className="trace-to-ledger">
-                <a
-                  href={`#${traceEntryElementId}`}
-                  onClick={(event) => {
-                    // The browser would jump. We open any fold the entry is hidden in, scroll and
-                    // light it up. With JavaScript off the same link still jumps to the entry.
-                    event.preventDefault();
-                    traceToLedger();
-                  }}
-                >
-                  Trace to the ledger
-                </a>
-              </p>
-            ) : null}
+      <details ref={drawerRef} className="amount-explained-drawer" onToggle={onDrawerToggle}>
+        <summary className="amount-explained-figure" aria-label={`${label}: explain this amount`}>
+          <span
+            ref={figureRef}
+            // The final text, in the HTML whether the browser runs anything or not. The count-up
+            // ends on it and the reviewer can read it in the page source.
+            data-final-amount={finalText}
+          >
+            {finalText}
+          </span>
+        </summary>
+        {/* The three ways out of the drawer, the same three as the inspector's: this backdrop,
+            the cross beside the title, and Escape. Decorative: the cross is the labelled control,
+            this one only catches the click outside. */}
+        <span className="drawer-backdrop pd-drawer-backdrop" aria-hidden="true" onClick={closeDrawer} />
+        <aside className="drawer" aria-label={label}>
+          <div className="drawer-head">
+            <div>
+              <div className="drawer-kind">Explain this amount</div>
+              <h2>{label}</h2>
+            </div>
+            <button type="button" className="drawer-close pd-drawer-close" aria-label="Close" onClick={closeDrawer}>
+              <X size={16} aria-hidden="true" />
+            </button>
           </div>
-        </div>
-      </PopoverPanel>
+          <div className="drawer-body">
+            <div
+              ref={panelRef}
+              className="amount-explain-panel"
+              // Absent until hydration, and absent for a reader with no JavaScript: the CSS that hides
+              // a line before its turn only applies inside a panel carrying this attribute.
+              data-reveal={enhanced ? revealStep : undefined}
+            >
+              <div className="reveal-step reveal-step-1">{inWords}</div>
+              <div className="reveal-step reveal-step-2">{formula}</div>
+              {enhanced && hasTicker ? (
+                <p className="amount-explain-ticker reveal-step reveal-step-2" aria-hidden="true">
+                  {/* It rests on the last subtotal, which IS the figure. While the reveal is running
+                      it stays blank until the first line lights up, so it never shows a total for
+                      lines nobody has seen yet. */}
+                  <span>Running total</span> <b>{tickerText ?? "\u00a0"}</b>
+                </p>
+              ) : null}
+              <div className="reveal-step reveal-step-3">{rounding}</div>
+              <div className="reveal-step reveal-step-4">
+                {evidence}
+                {traceEntryElementId ? (
+                  <p className="trace-to-ledger">
+                    <a
+                      href={`#${traceEntryElementId}`}
+                      onClick={(event) => {
+                        // The browser would jump. We open any fold the entry is hidden in, scroll and
+                        // light it up. With JavaScript off the same link still jumps to the entry.
+                        event.preventDefault();
+                        traceToLedger();
+                      }}
+                    >
+                      Trace to the ledger
+                    </a>
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </aside>
+      </details>
       {connector ? createPortal(<ConnectorLine geometry={connector} />, document.body) : null}
     </span>
   );

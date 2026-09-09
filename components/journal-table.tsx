@@ -1,3 +1,4 @@
+import { EntryLinesTable } from "@/components/ui/table";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 
 // The journal of one thing (a policy, a claim, a correction), read straight from the entries
@@ -90,45 +91,25 @@ function EntryBlock({ entry, panelKey }: { entry: JournalEntryForTable; panelKey
         </span>
         {entry.reversesEntryId ? <span className="entry-when">reverses {entry.reversesEntryId.slice(0, 8)}</span> : null}
       </div>
-      {/* The lines scroll sideways inside their own block instead of being cut off by it (review
-          finding F-UA-04). At 375 px the block was 277 px around a 640 px table under
-          `overflow: hidden`, so every DEBIT and CREDIT amount was unreachable on a phone with no
-          scroller to reach it. Same pattern as `.table-scroll` on the other wide tables. */}
-      {/* Focusable, because a region that scrolls has to be reachable from the keyboard as well
+      {/* The lines of the entry, through the shared table of the interface system
+          (components/ui/table.tsx, EntryLinesTable): Account, Debit, Credit, credits indented
+          under the account they answer, and bounded to 720 px so that at 1920 px an account name
+          and its amount are still read together (cycle 2, decision 10; round 1 measured 1415 px
+          between the two). The header travels with the lines it labels (F-LU-02), and the box
+          scrolls sideways inside the block rather than being cut off by it (F-UA-04).
+          Focusable, because a region that scrolls has to be reachable from the keyboard as well
           as by a finger. F-LU-03: it carries role="group" with its name, because a named element
           with no role names nothing; a landmark is not used on purpose, since eight entry blocks
           would otherwise put eight landmarks on one page. */}
       <div className="entry-lines-scroll" role="group" tabIndex={0} aria-label={`${entry.entryType} lines`}>
-      <table className="entry-lines">
-        <colgroup>
-          <col />
-          <col className="amount-column" />
-          <col className="amount-column" />
-        </colgroup>
-        {/* F-LU-02: the three columns are named inside the table, so the header scrolls with the
-            lines it labels and is still there at 375 px, where the decorative header that used to
-            sit above the blocks was hidden and the amounts were left unlabelled. */}
-        <thead>
-          <tr>
-            <th scope="col">Account</th>
-            <th scope="col" className="amount">
-              Debit
-            </th>
-            <th scope="col" className="amount">
-              Credit
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {entry.lines.map((line, index) => (
-            <tr key={`${entry.entryId}-${line.accountId}-${index}`}>
-              <td className={line.debitCents > 0 ? "account" : "account credit-side"}>{line.accountName}</td>
-              <td className="amount debit">{line.debitCents > 0 ? formatCentsAsUsd(line.debitCents) : ""}</td>
-              <td className="amount credit">{line.creditCents > 0 ? formatCentsAsUsd(line.creditCents) : ""}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        <EntryLinesTable
+          lines={entry.lines.map((line) => ({
+            account: line.accountName,
+            debit: line.debitCents > 0 ? formatCentsAsUsd(line.debitCents) : "",
+            credit: line.creditCents > 0 ? formatCentsAsUsd(line.creditCents) : "",
+            isCredit: line.creditCents > 0,
+          }))}
+        />
       </div>
     </div>
   );
