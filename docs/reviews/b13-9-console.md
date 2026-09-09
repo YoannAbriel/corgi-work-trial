@@ -698,3 +698,71 @@ Candidate walkthrough status: **NOT REVIEWED WITH YOANN**.
 |---|---|---|---|---|
 | F-B13-50 | MEDIUM | The F-B13-23 fix ties the unknown-outcome family to the feed cursor: on the default 60-minute window the two accepted-and-unconfirmed operations on the trial database are invisible and the panel reads "nothing is unresolved"; the errors panel's disclosure still states the unscoped rule while the sibling panel states the scoped one | Give the in-flight reader its own fixed floor (7 days) instead of the feed cursor, keeping the CTE time-bounded; at minimum carry the same window note on the errors panel | OPEN, fix before the debrief |
 | F-B13-51 | LOW | The errors panel caps at 60 problems with no note, unlike the feed which prints one, and the heading chip renders the capped number as the count: exactly "60 to look at" at three different windows | Print the cap note and render "60+" when the cap is reached | OPEN |
+
+---
+
+## R.7 Confirmation measurement of the F-B13-50 and F-B13-51 fixes
+
+**Revision `e117a61`** (the merge of the builder's **a19539b**), confirmed by production
+`/api/health` reporting `e117a61f67320fdc9021377c03c4a334dd9cab9d` before every measurement below.
+Signed in as `ops@example.com`. Three files changed: `lib/console/read.ts`,
+`app/ops/console/page.tsx`, `scripts/check-console.ts`.
+
+**F-B13-50: FIXED.** `acceptedAndUnconfirmedOperations` now takes **no cursor at all** and carries
+its own `UNRESOLVED_OPERATIONS_FLOOR_DAYS = 7`, which is the correction asked for: the CTE stays
+time-bounded, so the whole F-B13-23 performance fix is preserved, and the list no longer moves with
+the feed window. Measured on the trial database, unknown-outcome rows in the errors panel:
+
+| Window | at d786644 | at e117a61 |
+|---|---|---|
+| default, 60 minutes | 0 | **2** |
+| `?since=60m` | 0 | **2** |
+| `?since=1h` | 0 | **2** |
+| `?since=24h` | 2 | 1, see below |
+| `?since=7d` | 2 | 1, see below |
+
+The two unconfirmed operations are now on the **default cockpit view**, where before they were
+invisible, and the errors chip reads "2 to look at" instead of "nothing failing". The "Being
+checked" list is empty and its chip reads 0 at every window, which is correct and not a
+regression: both operations are past the 15-minute threshold, so by the rule they belong in the
+errors panel as unknown outcomes, not in "being checked". Both sentences asked for are on the
+screen and were read out of the rendered HTML: the "Being checked" note says "This list **ignores
+the window above**: it is read over a fixed floor of 7 days, so an operation the provider accepted
+and never confirmed stays on this page whatever window the feed is showing", and the errors
+disclosure says "Every line here is inside the window above **except the unknown outcomes**: those
+are read over a fixed floor of 7 days, whatever window the feed is showing, because an operation
+nobody has confirmed must stay visible until a human resolves it."
+
+**One residual, recorded as an observation rather than a new finding.** At `?since=24h`, `7d` and
+`3650d` the errors panel shows **1** of the two, not 2. The reader is window-independent, as the
+narrow windows prove; what drops the second row is the 60-row cap of F-B13-51, applied after the
+five families are merged and sorted newest first. Unknown outcomes are old by definition, so on a
+wide window they lose their place to newer failures. This is honest on the screen rather than
+silent: the cap sentence is printed and it says "narrow the window to see the rest", which is
+exactly what brings both rows back. Worth knowing before the debrief; not worth a fix at this
+point in the schedule.
+
+**F-B13-51: FIXED.** `MOST_PROBLEM_ROWS = 60` is now named and used by both the panel and the chip.
+Measured: at `?since=24h`, `?since=7d` and `?since=3650d` the chip reads **"60 or more to look at"**
+and the panel prints **"Showing 60 rows, which is the hard limit of this panel. There are probably
+more: narrow the window to see the rest."** At the default window and at `?since=60m` and `1h` the
+panel is below its cap, so the chip reads the true count ("2 to look at") and no cap sentence is
+printed, which is the correct behaviour on both sides of the threshold. The trial database has more
+than 60 problem rows on a wide window, so this was verified live and not only by reading.
+
+**check:console: 50 PASS, 0 FAIL**, "all checks passed", on `corgi_test`. The one new assertion
+over the 49 of the previous cycle is the proof of F-B13-50 without a browser: it takes a cursor for
+which the feed returns none of the fixture's rows, asserts that, and then asserts that the in-flight
+reader still lists the same stuck operation over its own seven-day floor. That is the right shape of
+test, because it proves the independence rather than the value. **Disclosure: the script ran twice**,
+not once, through a mistake in a single command that piped a second run to count its lines. Both
+runs reported all checks passed with the same 50; no failure was attributed to contention, and
+nothing was retried after a failure.
+
+**Verdict of the confirmation: PASS.** Both findings are fixed at the deployed revision, the fixes
+are the ones the review asked for rather than the cheap wording-only versions, and neither
+reintroduces the unbounded query that F-B13-23 removed. The console record is closed for this
+cycle with no open finding of my own; the AF-06 reading-map recommendation of section 8 remains the
+only outstanding item, and it is a recommendation, not a defect.
+
+Candidate walkthrough status: **NOT REVIEWED WITH YOANN**.
