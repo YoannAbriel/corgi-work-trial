@@ -39,3 +39,13 @@ Read in full: CLAUDE.md, AUTOMATIC-FAILS.md, READABLE-CODE.md, AGENTS.md, WORKFL
 - Not yet run on this branch: `npm run build` (a dev server was running in the worktree), `npm test`, the check scripts, production.
 
 Walkthrough status: NOT REVIEWED WITH YOANN.
+
+## State at handover (2026-09-09, 17:25 Europe/Zurich)
+
+- Five builders (workflow `corgi-ui-build`, branches `worktree-wf_83c67ac7-e4a-1` to `-5`) merged into `ui-system` with `--no-ff`, then the shared fixes they asked for (commit 2af6ebe), then the independent review record and six LOW cleanups (43dded9), then `main` at 782d29d merged in without conflict (3f4fac8).
+- Independent code review (REVIEWER.md contract, opus reviewer, docs/reviews/ui-system.md): **PASS at 2af6ebe**, no HIGH, no MEDIUM, eight LOW (F-UIS-01 to 08); F-UIS-03 to 08 fixed in 43dded9, F-UIS-01 (an untested-path helper in lib/ledger/read.ts) and F-UIS-02 (a bare catch on the ledger page) left open as LOW.
+- Checks on 3f4fac8 (merged with main): `npm run typecheck` exit 0; `npm run build` compiled; `npm test` 495 pass, 0 fail, 1 skipped; the reviewer ran `check:inbox-counts` (all passed) and gitleaks over the branch (no leaks) at 2af6ebe.
+- Findings closed on this branch: F-YA-09 (toasts and working buttons), F-YA-11 (statement re-run wording), F-LU-01 to F-LU-05; F-YA-05 and AF-02 labels kept and widened (approvals, inbox, claims lists, broker and customer homes now carry the mode chips).
+- Adversarial screenshot review loop (workflow `corgi-ui-break-loop`, four desktop widths, hostile URLs, fixers in place): NOT RUN, the six reviewers hit the session limit at 16:55 (resets 18:00 Europe/Zurich). To be run after the merge, against production or the local server, as a fix cycle.
+- Not verified on this branch: any POST (every builder and the reviewer stayed GET only); the toasts and the working state of the buttons were seen only on GET redirects and by code; Firefox and Safari (anchor positioning falls back to a centred popover there by design).
+- The coordinator's pending touches under app/ (per-row "Explain this break" form and two reconciliation sections, two new inbox sections, the $500 running-total sentence on the correction pages) were not on main at 782d29d; the rebuilt pages keep room for them (RowMenu on a break row, the inbox is generic over lib/inbox/sections.ts, the correction preview cards).
