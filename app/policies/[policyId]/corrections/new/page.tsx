@@ -5,6 +5,8 @@ import { currentUser } from "@/lib/auth/current-user";
 import { isUuid } from "@/lib/http/path-ids";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { CorrectionRefused, planEndorsementDateCorrection } from "@/lib/policy/correct-endorsement-date";
+import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
+import { policyDetail } from "@/lib/policy/read";
 import { FormulaLinesTable } from "../../formula-lines";
 
 // The impact preview of a backdated correction, and the point of this slice: the operator sees
@@ -36,13 +38,21 @@ export default async function CorrectEndorsementDatePage({
     notFound();
   }
   const endorsedEventId = (query.endorsedEventId ?? "").trim();
+  const correctedEffectiveAt = (query.correctedEffectiveAt ?? "").trim();
+
+  // Opened from the "Correct" link with nothing typed yet: show the form, exactly as the endorse
+  // and the cancel previews do (review finding F-RC-06). Without it the entry point of a
+  // backdated correction was a heading and a red refusal with nothing to fill in.
+  if (!correctedEffectiveAt) {
+    return <CorrectionForm policyId={policyId} user={user} />;
+  }
 
   let plan;
   try {
     plan = await planEndorsementDateCorrection({
       policyId,
       correctedEventId: endorsedEventId,
-      correctedEffectiveAt: (query.correctedEffectiveAt ?? "").trim(),
+      correctedEffectiveAt,
       reason: query.reason ?? "",
       actor: { userId: user.id, role: user.role },
     });
@@ -177,6 +187,107 @@ export default async function CorrectEndorsementDatePage({
               ? ` and give back ${formatCentsAsUsd(-money.differenceTotalCents)}`
               : ""}
         </button>
+      </form>
+    </PortalShell>
+  );
+}
+
+// The form that opens the preview. Staff operations only, on a policy that has an endorsement in
+// force; the server checks every rule again at the preview and at the confirmation, whatever this
+// page shows.
+async function CorrectionForm({
+  policyId,
+  user,
+}: {
+  policyId: string;
+  user: NonNullable<Awaited<ReturnType<typeof currentUser>>>;
+}) {
+  // Correcting the record is an operations job, never the broker's or the customer's. It is the
+  // rule the preview enforces (lib/policy/correct-endorsement-date.ts), said here in the same
+  // words so anybody else is sent back to the policy with it instead of reading it on a form
+  // they are not allowed to submit.
+  if (user.role !== "staff_ops") {
+    redirect(
+      `/policies/${policyId}?error=${encodeURIComponent("only staff operations can correct the effective date of an endorsement")}`,
+    );
+  }
+  const [policy, schedule] = await Promise.all([policyDetail(policyId), endorsementScheduleOfPolicy(policyId)]);
+  if (!policy) {
+    notFound();
+  }
+  const trail = [
+    { label: "Policies", href: "/ops/policies" },
+    { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
+    { label: "Correct" },
+  ];
+
+  if (schedule.length === 0) {
+    return (
+      <PortalShell user={user} active="policies" trail={trail}>
+        <h1>Correct an endorsement date on policy {policy.policyNumber}</h1>
+        <p className="note">
+          This policy has no endorsement in force, so there is no effective date to correct. A correction puts right an
+          endorsement that was entered with the wrong date.
+        </p>
+        <Link href={`/policies/${policyId}`} className="button-link secondary">
+          Back to the policy
+        </Link>
+      </PortalShell>
+    );
+  }
+
+  // The endorsement recorded most recently. The server lets that one be corrected and no other:
+  // anything entered after it was priced against it. It is the default selection here; the older
+  // ones stay selectable so the refusal comes from the preview, in its own words, rather than
+  // from a second copy of the rule on this screen.
+  const mostRecentlyRecorded = schedule.reduce((latest, row) => (row.recordedAt > latest.recordedAt ? row : latest));
+
+  return (
+    <PortalShell user={user} active="policies" trail={trail}>
+      <h1>Correct an endorsement date on policy {policy.policyNumber}</h1>
+      <p className="lead">
+        Pick the endorsement that was keyed with the wrong effective date and the date it should have carried, inside the
+        term ({policy.effectiveAt} to {policy.termEnd}). The next screen shows the exact money the correction moves, line
+        by line, before anything is recorded. Nothing is ever deleted: what was booked is reversed and the endorsement is
+        re-booked on the corrected date.
+      </p>
+      <form method="get" action={`/policies/${policyId}/corrections/new`} className="card">
+        <label htmlFor="endorsedEventId">Endorsement to correct</label>
+        <select id="endorsedEventId" name="endorsedEventId" defaultValue={mostRecentlyRecorded.endorsedEventId}>
+          {schedule.map((row) => (
+            <option key={row.endorsedEventId} value={row.endorsedEventId}>
+              {`Effective ${row.effectiveAt}, recorded ${row.recordedAt.toISOString().slice(0, 10)}: ${row.description || "endorsement"}`}
+            </option>
+          ))}
+        </select>
+        <p className="note">
+          Only the endorsement recorded most recently can be corrected, and it is the one selected. Any endorsement
+          entered after it was priced against it, so that one has to be put right first; the preview refuses the others
+          and says so.
+        </p>
+        <label htmlFor="correctedEffectiveAt">Effective date it should have carried</label>
+        <input
+          id="correctedEffectiveAt"
+          name="correctedEffectiveAt"
+          type="date"
+          required
+          defaultValue={mostRecentlyRecorded.effectiveAt}
+          min={policy.effectiveAt}
+          max={policy.termEnd}
+        />
+        <label htmlFor="reason">Why (written on the correction and on every entry)</label>
+        <input
+          id="reason"
+          name="reason"
+          required
+          minLength={10}
+          maxLength={300}
+          placeholder="the broker's email asked for June 9, the endorsement was keyed as July 9"
+        />
+        <button type="submit">Preview the correction</button>
+        <Link href={`/policies/${policyId}`} className="button-link secondary">
+          Back to the policy
+        </Link>
       </form>
     </PortalShell>
   );
