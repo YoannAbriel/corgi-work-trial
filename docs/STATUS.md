@@ -566,6 +566,11 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T21:17:00+00:00 | Switcher hotfix merged (switch-fix fe6b9d1, merge ff88934): account name wrapping on every signed-in screen, F-LT-05 disclosed
+
+- The late-slices reviewer of batch 2 found a regression on 4f10705: the sidebar account name wraps into the role line at 1024 and 1440 (F-LT-04, MED). Hotfix: CSS only plus two wording changes on the switch route (F-LT-06, F-LT-07). Coordinator checks: no dash, typecheck clean, 537 tests (536 pass, 1 skipped). Pushed in the next window the co-pilot gives (LIVE-10 in progress on 4f10705).
+- F-LT-05 (MED, disclosure): the switch lets any demo session become the approver in one click; the README now says that the maker-checker control on the demo rests on the closed list of six accounts and that the ledger-side proof is unaffected. Hardening (refuse a switch into staff_approver from a non-staff session, or an environment flag) is a week-two line for Yoann's plan.
+
 ## 2026-09-09T21:11:00+00:00 | Switcher deployed: /api/health reports 4f10705
 
 - Health at 4f10705 at 21:11Z. Anonymous checks: POST /api/session/switch signed out answers 303 to /login with no Set-Cookie, GET answers 405. The co-pilot re-reads the LIVE-10 before-state on this revision and gives Yoann the go.
