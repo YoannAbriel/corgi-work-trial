@@ -86,10 +86,13 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
   // "changed" is an answer about them (review finding F-B9-09).
   const formatChanged =
     run.previousCanonicalVersion !== null && run.previousCanonicalVersion !== run.canonicalVersion;
-  // Slice B12-2: a fold under a total is only offered on a run written in the current format.
-  // On a v1 run the stored columns meant something else, and explaining a figure with the wrong
-  // meaning would be worse than not explaining it.
-  const explainable = run.canonicalVersion >= CANONICAL_STATEMENT_VERSION;
+  // Slice B12-2: a fold under a total is only offered on a run written in EXACTLY the format the
+  // explainer knows. On a v1 run the stored columns meant something else, and explaining a figure
+  // with the wrong meaning would be worse than not explaining it. The comparison is an equality
+  // and not ">=" (review finding F-B12-06): a future v3 that redefined a column would otherwise be
+  // explained with v2 semantics, which is the same mistake in the other direction, and the rule
+  // behind F-B9-09 is that a column never changes meaning.
+  const explainable = run.canonicalVersion === CANONICAL_STATEMENT_VERSION;
   const totalsForExplanation = {
     lines,
     commissionEarnedCents: run.commissionEarnedCents,

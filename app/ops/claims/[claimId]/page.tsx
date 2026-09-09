@@ -143,11 +143,18 @@ export default async function ClaimPage({
                         explanation={{
                           ...explainClaimIncurred({
                             ...claim.position,
-                            evidence: evidenceFromJournal(entries, "claims_payable"),
+                            // The entries that MOVE the paid figure, not every entry on the
+                            // account (review finding F-B12-07): once a payment has settled, the
+                            // claims payable lines net to zero, which read as a contradiction
+                            // under a paid figure that stands.
+                            evidence: evidenceFromJournal(entries, "claims_payable", [
+                              "claim_payment_sent",
+                              "claim_reserve_restored",
+                            ]),
                           }),
                           resultKey: "paid",
                           evidenceLabel:
-                            "Every entry that moved claims payable: a payment sent, its settlement on the rail, and any return.",
+                            "The entries that move this figure, and they add up to it: a payment sent credits claims payable and adds to paid, and the reserve restored after a bank return debits it and takes the money back. A settlement is the rail confirming a payment already counted as paid, so it moves nothing here.",
                         }}
                       />
                     ),

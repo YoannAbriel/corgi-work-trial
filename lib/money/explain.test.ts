@@ -4,6 +4,7 @@ import { computeEndorsement, endorsementFormulaLines, type EndorsementInput } fr
 import {
   accountSumCents,
   cancellationFormulaLines,
+  evidenceFromJournal,
   explainAccountSum,
   explainCancellationFigure,
   explainClaimIncurred,
@@ -132,6 +133,18 @@ test("every cancellation fold ends on the figure it sits under", () => {
   const earned = lines.find((line) => line.key === "earned_premium")?.cents ?? 0;
   const unearned = lines.find((line) => line.key === "unearned_premium")?.cents ?? 0;
   assert.equal(earned + unearned, figures.writtenPremiumCents);
+
+  // Review finding F-B12-03: the earned line must NOT print a single ratio over the whole term.
+  // On a policy endorsed mid-term the endorsement segment earns over its own window, and the
+  // cancellation event does not store the segments, so the fold prints the rule and says so.
+  const earnedLine = lines.find((line) => line.key === "earned_premium");
+  assert.equal(
+    earnedLine?.formula,
+    "sum over each written segment of floor(its written premium x its own elapsed days / its own window)",
+  );
+  assert.doesNotMatch(earnedLine?.formula ?? "", /100 \/ 365/);
+  assert.match(explainCancellationFigure(figures, "earned_premium").note ?? "", /its own window/);
+  assert.match(explainCancellationFigure(figures, "unearned_premium").note ?? "", /its own window/);
 });
 
 // ---------------------------------------------------------------------------
@@ -201,6 +214,77 @@ test("an account with no line yet explains a zero instead of pretending there is
   assert.equal(explanation.evidence?.length, 0);
 });
 
+// Review finding F-B12-02: a fold lists the lines its own rule sums, and no others.
+test("a debit sum lists only debits, and a credit sum only credits", () => {
+  const collected = explainAccountSum({
+    entries: JOURNAL,
+    accountId: "cash_stripe",
+    rule: "debits",
+    totalLabel: "Collected",
+  });
+  // The refund credit of 89172 is on the same account and is NOT a row of this fold.
+  assert.equal(collected.lines.length, 2); // one debit line plus the total
+  assert.equal(collected.lines[0].formula, "Dr cash_stripe 125320");
+  assert.equal(collected.evidence?.length, 1);
+
+  const refunded = explainAccountSum({
+    entries: JOURNAL,
+    accountId: "cash_stripe",
+    rule: "credits",
+    totalLabel: "Refunded",
+  });
+  assert.equal(refunded.lines.length, 2);
+  assert.equal(refunded.lines[0].formula, "Cr cash_stripe 89172");
+});
+
+test("a policy that has only ever been refunded can say it collected nothing", () => {
+  const refundOnly = [JOURNAL[1]];
+  const collected = explainAccountSum({
+    entries: refundOnly,
+    accountId: "cash_stripe",
+    rule: "debits",
+    totalLabel: "Collected",
+  });
+  assertExplains(collected, 0);
+  assert.equal(collected.lines.length, 1);
+  assert.equal(collected.lines[0].formula, "no debit on this account yet");
+});
+
+// Review finding F-B12-07: the evidence under a figure lists the entries that MOVE it.
+test("the paid evidence keeps the entries that move paid, and they add up to it", () => {
+  const claimJournal: JournalEntryForExplanation[] = [
+    {
+      entryType: "claim_payment_sent",
+      effectiveAt: "2026-09-01",
+      recordedAt: new Date("2026-09-01T09:00:00.000Z"),
+      lines: [
+        { accountId: "claim_reserve", accountName: "claim_reserve", debitCents: 120000, creditCents: 0 },
+        { accountId: "claims_payable", accountName: "claims_payable", debitCents: 0, creditCents: 120000 },
+      ],
+    },
+    {
+      entryType: "claim_payment_settled",
+      effectiveAt: "2026-09-03",
+      recordedAt: new Date("2026-09-03T09:00:00.000Z"),
+      lines: [
+        { accountId: "claims_payable", accountName: "claims_payable", debitCents: 120000, creditCents: 0 },
+        { accountId: "cash_claims_rail", accountName: "cash_claims_rail", debitCents: 0, creditCents: 120000 },
+      ],
+    },
+  ];
+  // Every line on the account nets to zero once the payment has settled: that is the row the
+  // reader had to be talked out of.
+  assert.equal(accountSumCents(claimJournal, "claims_payable", "credits_minus_debits"), 0);
+  // The entries that move the paid figure add up to it.
+  const moving = evidenceFromJournal(claimJournal, "claims_payable", [
+    "claim_payment_sent",
+    "claim_reserve_restored",
+  ]);
+  assert.equal(moving.length, 1);
+  assert.equal(moving[0].entryType, "claim_payment_sent");
+  assert.equal(moving[0].detail, "Cr claims_payable 120000");
+});
+
 // ---------------------------------------------------------------------------
 // A broker statement total
 // ---------------------------------------------------------------------------
@@ -252,6 +336,53 @@ test("each statement total ends on the figure the run stored", () => {
   // The screen prints the clawback as a negative movement, which is what the fold ends on.
   assertExplains(explainStatementTotal({ ...totals, key: "clawback" }), -13068);
   assertExplains(explainStatementTotal({ ...totals, key: "net_due" }), 4932);
+});
+
+// Review finding F-B12-05: a negative contribution is written as a subtraction.
+test("a sum of signed cents reads as a person would write it", () => {
+  const reversed: JournalEntryForExplanation[] = [
+    ...JOURNAL,
+    {
+      entryType: "reversal_of_premium_collected",
+      effectiveAt: "2026-09-08",
+      recordedAt: new Date("2026-09-08T12:00:00.000Z"),
+      lines: [
+        { accountId: "cash_stripe", accountName: "cash_stripe", debitCents: 0, creditCents: 125320 },
+        { accountId: "premium_receivable", accountName: "premium_receivable", debitCents: 125320, creditCents: 0 },
+      ],
+    },
+  ];
+  const balance = explainAccountSum({
+    entries: reversed,
+    accountId: "cash_stripe",
+    rule: "credits_minus_debits",
+    totalLabel: "Cash balance",
+  });
+  const total = balance.lines[balance.lines.length - 1];
+  assert.equal(total.formula, "-125320 + 89172 + 125320");
+  assert.equal(total.cents, 89172);
+
+  // An empty month prints a zero clawback line, never "-0".
+  const netDue = explainStatementTotal({
+    lines: [],
+    key: "net_due",
+    commissionEarnedCents: 0,
+    clawbackCents: 0,
+    adjustmentCents: 0,
+    netDueCents: 0,
+  });
+  assert.equal(netDue.lines.find((line) => line.key === "clawback")?.formula, "0");
+  assert.equal(netDue.lines.find((line) => line.key === "net_due")?.formula, "0 + 0 + 0");
+
+  const withClawback = explainStatementTotal({
+    lines: [],
+    key: "net_due",
+    commissionEarnedCents: 18000,
+    clawbackCents: 13068,
+    adjustmentCents: 0,
+    netDueCents: 4932,
+  });
+  assert.equal(withClawback.lines.find((line) => line.key === "net_due")?.formula, "18000 - 13068 + 0");
 });
 
 test("the commission fold names the rounding rule the ledger posted with", () => {
