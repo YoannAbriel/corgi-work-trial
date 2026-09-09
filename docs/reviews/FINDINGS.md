@@ -653,3 +653,13 @@ Fourteen rules checked by one small agent each against a fetched official source
 | F-SWITCH-03 | LOW | The diff also adds 87 lines to app/styles/system.css, not named in the handoff; all selectors are new | State the second stylesheet in the slice handoff | OPEN, wording |
 | F-SWITCH-04 | LOW | lists.css adds more than min-width: 0 (also flex: 1 1 auto and display: block); the 375 px measurement was not reproduced by the reviewer | Re-measure /ops at 375 px in a browser on the deployed revision | OPEN, for the batch-2 reviewer |
 | F-SWITCH-05 | LOW | secureFlag() is copied from the login route rather than imported; two copies of one security flag can drift | Export it once from lib/auth/session.ts | OPEN |
+
+## Interface late slices, switcher on production (late-slices review of batch 2, relayed by the interface session at 21:17Z)
+
+| ID | Severity | Finding | Required action | Status |
+|---|---|---|---|---|
+| F-LT-04 | MED | Regression on production 4f10705: the sidebar account name wraps to two lines and collides with the role line at 1024 and 1440 on every signed-in screen (the menu chevrons took the width) | Name column min-width 0, name truncated with an ellipsis; measured at 1440 and 1024, name height 20 px | FIXED in switch-fix fe6b9d1, merged ff88934, deployed as a hotfix |
+| F-LT-05 | MED | Disclosure, not code: the switch lets any demo session become staff_approver with one click; the ledger proof is unaffected (user ids on rows, migration 0008 trigger untouched) but the maker-checker control on the demo rests on the closed list alone | Say so in the README limitations and the maker-checker evidence; optional week-two hardening: refuse a switch into staff_approver from a non-staff session, or an environment flag | DISCLOSED in README (this commit); hardening is a week-two line |
+| F-LT-06 | LOW | The activity message of a switch names emails, which the log redacts to three characters, so "bro****" could not tell the three brokers apart; ActivitySubjectKind has no user value so subject_id stays null | Target user id added to the message | FIXED in fe6b9d1; a user subject kind is a week-two line |
+| F-LT-07 | LOW | The switch route used one refusal sentence for a missing row and an agent principal, in the redirect and the audit row | Two sentences | FIXED in fe6b9d1 |
+| F-LT-12 | LOW | The account menu is a hard-coded list of six emails | Fine on the seeded database; by design (decision 54) | CLOSED, by design |

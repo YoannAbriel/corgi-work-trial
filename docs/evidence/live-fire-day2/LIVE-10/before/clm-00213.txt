@@ -1,0 +1,151 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+[a /ops/claims/634f03fd-85b9-40b8-aea0-c130b74e1694?view=overview] Overview
+[a /ops/claims/634f03fd-85b9-40b8-aea0-c130b74e1694?view=payments] Payments
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+[a /ops/claims] Claims
+Claim CLM-00213
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Claim CLM-00213CGP-01707open
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] The policy
+[a /ops/claims/634f03fd-85b9-40b8-aea0-c130b74e1694?view=overview#claim-actions] Reserve or pay Claims
+Paid
+$0.00
+Explain this amount
+Paid on this claim
+Folded from this claim's events every time the page is rendered, never stored. A payment counts as paid the moment it is sent on the rail (Yoann's rule of 2026-09-08); a return puts it back into the reserve.
+|
+| Amount | How it was computed (integer cents) | Result
+| Paid: every payment sent on the rail, minus anything the bank returned | 0 | $0.00
+| Of which the rail has confirmed as settled (a fact about the rail, not a third term) | 0 | $0.00
+| Reserve still outstanding: the latest reserve set, less every payment sent out of it | 200000 | $2,000.00
+| Incurred = paid + reserve | 0 + 200000 | $2,000.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+$0.00 settled by the rail
+Reserve
+$2,000.00
+Explain this amount
+Reserve still outstanding on this claim
+Folded from this claim's events every time the page is rendered, never stored. A payment counts as paid the moment it is sent on the rail (Yoann's rule of 2026-09-08); a return puts it back into the reserve.
+|
+| Amount | How it was computed (integer cents) | Result
+| Paid: every payment sent on the rail, minus anything the bank returned | 0 | $0.00
+| Of which the rail has confirmed as settled (a fact about the rail, not a third term) | 0 | $0.00
+| Reserve still outstanding: the latest reserve set, less every payment sent out of it | 200000 | $2,000.00
+| Incurred = paid + reserve | 0 + 200000 | $2,000.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Every entry that moved the reserve: the reserve set, each adjustment, and each payment taken out of it. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| claim_reserve_set | 2026-09-09 | 2026-09-09 16:18:31 | Cr Open case reserves (estimates) 200000
+[a #journal-entry-claim-6e5dd61d-20ff-4afb-abc3-5cb21c38934f] Trace to the ledger$2,000.00 left after what is asked for
+Incurred
+$2,000.00
+Explain this amount
+Incurred: what this claim has cost so far
+Folded from this claim's events every time the page is rendered, never stored. A payment counts as paid the moment it is sent on the rail (Yoann's rule of 2026-09-08); a return puts it back into the reserve.
+|
+| Amount | How it was computed (integer cents) | Result
+| Paid: every payment sent on the rail, minus anything the bank returned | 0 | $0.00
+| Of which the rail has confirmed as settled (a fact about the rail, not a third term) | 0 | $0.00
+| Reserve still outstanding: the latest reserve set, less every payment sent out of it | 200000 | $2,000.00
+| Incurred = paid + reserve | 0 + 200000 | $2,000.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+The incurred loss expense entries. Their balance is the same figure: the ledger tells the same story in double entry. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| claim_reserve_set | 2026-09-09 | 2026-09-09 16:18:31 | Dr Claims expense recognised when a reserve is set 200000
+[a #journal-entry-claim-6e5dd61d-20ff-4afb-abc3-5cb21c38934f] Trace to the ledgerpaid plus reserve
+Per-occurrence left$2,000,000.00of $2,000,000.00, on this claim
+Against the per-occurrence limit$2,000,000.00
+Incurred$2,000.00
+Paid$0.00
+Asked fornothing asked
+Against the aggregate limit$4,000,000.00
+Committed$0.00
+Left$4,000,000.00
+The loss
+Claimant
+Bay Area Fabrication LLC
+Loss on
+2026-09-09
+Reported
+2026-09-09
+Policy
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707
+Claimant bank account
+No bank account recorded yet. A payment cannot be requested without a verified one.
+LOCAL SIMULATOR: a simulated ownership check, not a live bank integration.
+|
+| Decision | From | To | Booked | Recorded | By
+| reserve set | $0.00 | $2,000.00 | $2,000.00 | 5 h | Sam Patel, operations
+Booked what the change posted to the ledger, or nothing when it posts no entryReserve what the claim is still expected to cost, set by a person
+Reserve, pay, close
+Bank account (LOCAL SIMULATOR)
+[input action=add-bank-account]
+Claimant's account holder name
+[input accountHolderName=Bay Area Fabrication LLC]
+Routing number (nine digits)
+Account number
+Check and record
+[input action=set-reserve]
+Adjust the reserve to (USD)
+[input reserveAmount=]
+Type an amount in US dollars, for example 1,200.00
+Why (optional)
+Set reserve
+[input action=request-payment]
+Pay the claimant (USD)
+[input paymentAmount=]
+Type an amount in US dollars, for example 1,200.00
+Request payment
+$2,000.00 of reserve is available, and anything above $1,000.00 on this claim waits for a second person.
+About this screen
+Incurred = paid + reserve
+The figures are derived from this claim's events every time the page is rendered, never stored. The journal is the same story in double entry; if the two ever disagree, the page shows both rather than reconciling them for the reader.
+Limits and approval
+A payment is refused unless it clears the reserve available, the per-occurrence limit and the aggregate limit, and any payment above $1,000.00, counting what was already paid or asked for on this claim, needs a second person in the
+[a /ops/approvals] money-out approvals queue.
+The simulated rail
+Paid counts a payment from the moment it is sent on the rail; the simulator settles it after 2 days or when a person presses settle, and a return puts the money back. A real rail would send those events itself.
+Every rule is checked again
+The server checks the role, the reserve available, both limits and the approval when a form is submitted, whatever this screen showed. A refusal comes back as a sentence at the top.
+The bank check is a simulator
+LOCAL SIMULATOR: a simulated ownership check, not a live bank integration. It says verified when the account holder name matches the claimant and the routing number is one this simulator can reach (110000000 or 110000005), and failed otherwise. Only the last four digits and a token are stored.Corgi · Policy administration

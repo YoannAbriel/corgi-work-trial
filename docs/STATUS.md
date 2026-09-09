@@ -566,6 +566,21 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T21:37:00+00:00 | Hotfix deployed: /api/health reports ff88934
+
+- The sidebar account name truncates again on every signed-in screen. Production ff88934; main and origin at 3318a70 plus this entry. Next deploys: interface batch 2 (migration 0026) and the New broker route (migration 0027), each after its review; then the co-pilot's single re-read of 54 figures on the final SHA.
+
+## 2026-09-09T21:36:00+00:00 | LIVE-10 done by Yoann on production (4f10705), evidence merged (2205ac9); hotfix ff88934 pushed
+
+- **Claim payout path on CGP-01707** (cancelled policy, loss 2026-09-09 during cover): CLM-00214 opened, reserve $3,000.00 at 21:13:53Z then $2,500.00 at 21:17:27Z (two rows); bank account verified on the labelled simulator (routing 110000000); request A $1,200.00 and B $500.00 waiting for approval, C $2,000.00 refused by the reserve ceiling sentence; ops saw "your own request" on its own row; approver Alex approved A (21:22:38Z), B (21:23:43Z) and a later D $300.00 (21:29:53Z); A, B and D sent on the simulated rail; A force-settled through the simulator control then returned (account_closed) at 21:30:45Z, claim_payment_returned posted; final position paid $800.00, reserve $1,700.00, incurred $2,500.00, limits untouched. Every figure agrees with the read-only prediction.
+- **Honest gap, stated in the handoff**: the approver's reject was not driven tonight (Yoann approved A, B and D and declined a fifth request: "c'est bon, ça y est"); a rejection by Alex exists from day 1 on CLM-00212 (2026-09-08). Not readable before the freeze: the automatic settlement of B and D by the daily job on 2026-09-11. Two interface items sent to the interface session (bank account form only in the row menu; the Approval column naming the requester instead of the decider).
+- The switcher hotfix (ff88934) was pushed alone at 21:36Z right after "LIVE-10 committed"; /api/health watched.
+
+## 2026-09-09T21:17:00+00:00 | Switcher hotfix merged (switch-fix fe6b9d1, merge ff88934): account name wrapping on every signed-in screen, F-LT-05 disclosed
+
+- The late-slices reviewer of batch 2 found a regression on 4f10705: the sidebar account name wraps into the role line at 1024 and 1440 (F-LT-04, MED). Hotfix: CSS only plus two wording changes on the switch route (F-LT-06, F-LT-07). Coordinator checks: no dash, typecheck clean, 537 tests (536 pass, 1 skipped). Pushed in the next window the co-pilot gives (LIVE-10 in progress on 4f10705).
+- F-LT-05 (MED, disclosure): the switch lets any demo session become the approver in one click; the README now says that the maker-checker control on the demo rests on the closed list of six accounts and that the ledger-side proof is unaffected. Hardening (refuse a switch into staff_approver from a non-staff session, or an environment flag) is a week-two line for Yoann's plan.
+
 ## 2026-09-09T21:11:00+00:00 | Switcher deployed: /api/health reports 4f10705
 
 - Health at 4f10705 at 21:11Z. Anonymous checks: POST /api/session/switch signed out answers 303 to /login with no Set-Cookie, GET answers 405. The co-pilot re-reads the LIVE-10 before-state on this revision and gives Yoann the go.

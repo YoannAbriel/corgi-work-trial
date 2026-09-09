@@ -1,0 +1,278 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/approvals?view=waiting] Waiting
+[a /ops/approvals?view=decided] Decided
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+Approvals
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Money-out approvals Approvals
+WaitingMoney out above the threshold needs a second person to approve it, never the person who asked. The database refuses a decision by the requester and by anybody who is not a staff approver.0no money moves until decided
+Amount waiting$0.00sum of the requests waiting
+Agent raisedA request an agent raised waits for a human approver whatever the amount. An agent can never decide one.1asked through the MCP endpoint
+|
+| | Amount | Asked by | Destination | Subject | Decision
+|
+| $300.00claim payment | Sam Patel, operations9 min | LOCAL SIMULATOR ...6789 |
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CLM-00214 | approvedAlex Kim, approver, 2026-09-09
+|
+What was approved, exactly
+kind=claim_payment
+subject=claim:65fca884-2960-40f3-ae0f-0a10fabbfa0c
+amount_cents=30000
+destination=simulated_bank_account:sim_ba_acf099c0d5bf30a04b6d0cefd2d816ec
+Where the money would go
+LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+sha256 of that text
+8416ce4157bf180114646f5636e0b0b6b7cd3425f1fd857fd3f078120df2b991
+Approval request id
+61dfb899-0e76-4dfe-96fa-c57c6b482e08
+Asked at
+2026-09-09 21:26:02 UTC
+Decided at
+2026-09-09 21:29:53 UTC by Alex Kim, approver
+|
+| $500.00claim payment | Sam Patel, operations12 min | LOCAL SIMULATOR ...6789 |
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CLM-00214 | approvedAlex Kim, approver, 2026-09-09
+|
+What was approved, exactly
+kind=claim_payment
+subject=claim:65fca884-2960-40f3-ae0f-0a10fabbfa0c
+amount_cents=50000
+destination=simulated_bank_account:sim_ba_acf099c0d5bf30a04b6d0cefd2d816ec
+Where the money would go
+LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+sha256 of that text
+653bc842bab838ebdb1b921fc4a03e3336308baa685d7af6baf7f8fb1f0685f6
+Approval request id
+4e092ab2-030a-4a0a-8f2a-0f8b57914061
+Asked at
+2026-09-09 21:23:12 UTC
+Decided at
+2026-09-09 21:23:43 UTC by Alex Kim, approver
+|
+| $1,200.00claim payment | Sam Patel, operations14 min | LOCAL SIMULATOR ...6789 |
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c] CLM-00214 | approvedAlex Kim, approver, 2026-09-09
+|
+What was approved, exactly
+kind=claim_payment
+subject=claim:65fca884-2960-40f3-ae0f-0a10fabbfa0c
+amount_cents=120000
+destination=simulated_bank_account:sim_ba_acf099c0d5bf30a04b6d0cefd2d816ec
+Where the money would go
+LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+sha256 of that text
+aa34ff624e75cdb8a39b834b60be8e3e2792ba538aa771c01d2410ee25a1a1b9
+Approval request id
+7562fcd1-af1c-4869-aee0-f3776123ad08
+Asked at
+2026-09-09 21:20:35 UTC
+Decided at
+2026-09-09 21:22:38 UTC by Alex Kim, approver
+|
+| $832.85refund | Dana Ruiz, broker1 h | Stripe ...M9VlU |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | approvedAlex Kim, approver, 2026-09-09
+|
+What was approved, exactly
+kind=refund
+subject=policy:3c3697b7-33f8-45a4-beaf-5a1892fc9483
+amount_cents=83285
+destination=stripe_payment_intent:pi_3UDUCUK6R3v50tIy06eM9VlU
+Where the money would go
+Stripe payment pi_3UDUCUK6R3v50tIy06eM9VlU (card refund to the customer)
+sha256 of that text
+114aab53d1374852af45f071c1cae31f88c1ff5add5ef82bb3c63bae9d5744ce
+Approval request id
+17c3f400-2f7a-4347-b7b1-63406daee467
+Asked at
+2026-09-09 20:32:36 UTC
+Decided at
+2026-09-09 20:34:29 UTC by Alex Kim, approver
+|
+| $287.69refund | Dana Ruiz, broker1 h | Stripe ...CYQsU |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | approvedAlex Kim, approver, 2026-09-09
+|
+What was approved, exactly
+kind=refund
+subject=policy:3c3697b7-33f8-45a4-beaf-5a1892fc9483
+amount_cents=28769
+destination=stripe_payment_intent:pi_3UDrw9K6R3v50tIy1XjCYQsU
+Where the money would go
+Stripe payment pi_3UDrw9K6R3v50tIy1XjCYQsU (card refund to the customer)
+sha256 of that text
+6ae6abf8bfbf4093d881d974245f58e0c7d372bb4a2eb39f3a41ad5288eb9fd9
+Approval request id
+03467eb3-d122-40df-b6b5-79e82d7af234
+Asked at
+2026-09-09 20:32:36 UTC
+Decided at
+2026-09-09 20:34:28 UTC by Alex Kim, approver
+|
+| $1,127.24refund | Dana Ruiz, broker1 h | Stripe ...JdCCi |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | approvedAlex Kim, approver, 2026-09-09
+|
+What was approved, exactly
+kind=refund
+subject=policy:3c3697b7-33f8-45a4-beaf-5a1892fc9483
+amount_cents=112724
+destination=stripe_payment_intent:pi_3UDf5YK6R3v50tIy1GkJdCCi
+Where the money would go
+Stripe payment pi_3UDf5YK6R3v50tIy1GkJdCCi (card refund to the customer)
+sha256 of that text
+27cdd47713158e3e47f07cf75dcf7a303d0a5d0cf89f873c5e5b92f112dda81f
+Approval request id
+f6a6df72-c289-4a5c-906e-e218b7dc6005
+Asked at
+2026-09-09 20:32:36 UTC
+Decided at
+2026-09-09 20:34:30 UTC by Alex Kim, approver
+|
+| $53.84refund | Dana Ruiz, broker1 h | Stripe ...Wqtve |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | approvedAlex Kim, approver, 2026-09-09
+|
+What was approved, exactly
+kind=refund
+subject=policy:3c3697b7-33f8-45a4-beaf-5a1892fc9483
+amount_cents=5384
+destination=stripe_payment_intent:pi_3UDrW1K6R3v50tIy1GPWqtve
+Where the money would go
+Stripe payment pi_3UDrW1K6R3v50tIy1GPWqtve (card refund to the customer)
+sha256 of that text
+591e9082d7450fac1cb7657d97aa1721ce407a7063b18c10483813ade9f590fc
+Approval request id
+3566dd35-cc1b-4ac6-84f9-053b326899c1
+Asked at
+2026-09-09 20:32:36 UTC
+Decided at
+2026-09-09 20:34:32 UTC by Alex Kim, approver
+|
+| $1,200.00claim payment | Sam Patel, operations26 hagent raised | LOCAL SIMULATOR ...6789 |
+[a /ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a] CLM-00212 | rejectedAlex Kim, approver, 2026-09-08
+|
+What was approved, exactly
+kind=claim_payment
+subject=claim:2f78c23c-17fc-4746-85dd-77f64d6db45a
+amount_cents=120000
+destination=simulated_bank_account:sim_ba_acf099c0d5bf30a04b6d0cefd2d816ec
+Where the money would go
+LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+sha256 of that text
+d8e5b1b77ed7f56ef599a0cd78552b5210ef10a7a59f3ed067d01d0acd1b7fae
+Approval request id
+8148a717-5ad2-4e0e-9486-ff6ffeec05fd
+Asked at
+2026-09-08 19:13:53 UTC
+Raised through
+MCP API key cmk_e96f88a4 (agent)
+Decided at
+2026-09-08 19:15:20 UTC by Alex Kim, approver
+Reason
+B12-1 rehearsal: agent-raised request rejected on purpose
+|
+| $2,081.09refund | Sam Patel, operations27 h | Stripe ...GOcBN |
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15] CGP-01274 | approvedAlex Kim, approver, 2026-09-08
+|
+What was approved, exactly
+kind=refund
+subject=policy:104d2966-be96-4c36-9956-caf0762f8b15
+amount_cents=208109
+destination=stripe_payment_intent:pi_3UDN8aK6R3v50tIy0bsGOcBN
+Where the money would go
+Stripe payment pi_3UDN8aK6R3v50tIy0bsGOcBN (card refund to the customer)
+sha256 of that text
+04cf55bd8856a905045bfc86db859655f8e26ee0e28e3a3f1bc35b5f06faf81b
+Approval request id
+70faaf94-46a6-481d-8488-7f638e2f1756
+Asked at
+2026-09-08 18:22:10 UTC
+Decided at
+2026-09-08 18:25:28 UTC by Alex Kim, approver
+|
+| $10.00claim payment | Sam Patel, operations30 h | LOCAL SIMULATOR ...6789 |
+[a /ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a] CLM-00212 | rejectedAlex Kim, approver, 2026-09-08
+|
+What was approved, exactly
+kind=claim_payment
+subject=claim:2f78c23c-17fc-4746-85dd-77f64d6db45a
+amount_cents=1000
+destination=simulated_bank_account:sim_ba_acf099c0d5bf30a04b6d0cefd2d816ec
+Where the money would go
+LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+sha256 of that text
+58aa6d3cb0975e039fa13cf127c2aed47818dc158af23400a9a7fbae7ba90d82
+Approval request id
+b6519f0c-7d96-4e80-b30a-0d51498dcd18
+Asked at
+2026-09-08 15:41:35 UTC
+Decided at
+2026-09-08 15:41:56 UTC by Alex Kim, approver
+Reason
+Independent re-review probe: raised only to prove the per-claim threshold; not needed
+|
+| $1,200.00claim payment | Sam Patel, operations31 h | LOCAL SIMULATOR ...6789 |
+[a /ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a] CLM-00212 | approvedAlex Kim, approver, 2026-09-08
+|
+What was approved, exactly
+kind=claim_payment
+subject=claim:2f78c23c-17fc-4746-85dd-77f64d6db45a
+amount_cents=120000
+destination=simulated_bank_account:sim_ba_acf099c0d5bf30a04b6d0cefd2d816ec
+Where the money would go
+LOCAL SIMULATOR bank account ...6789 held by Bay Area Fabrication LLC
+sha256 of that text
+d8e5b1b77ed7f56ef599a0cd78552b5210ef10a7a59f3ed067d01d0acd1b7fae
+Approval request id
+29d3bdfa-0c23-4643-8e20-a9e615b6731c
+Asked at
+2026-09-08 14:55:06 UTC
+Decided at
+2026-09-08 14:55:38 UTC by Alex Kim, approver
+Reason
+Independent review probe: within the reserve and the policy limits
+About this screen
+The threshold
+Anything above $1,000.00 leaving this system, a claim payment or a cancellation refund, waits here until a staff approver who is not the person who asked says yes. The threshold is an assumption of this build, decided on 2026-09-08 and recorded in the decision log. It is not a regulatory figure.
+It is cumulative
+A payment below the threshold still waits here when it takes the claim’s money out above the line, and a refund below it waits when it takes the policy’s refunds above the line (lib/approvals/threshold.ts), so a payout cannot be split into sub-threshold pieces to skip the approver. That is why a small request can be in the list with no agent behind it.
+Agent raised
+The other sub-threshold case is a request an agent raised through the MCP endpoint, which waits for a human approver whatever the amount (rule 21 of the decision log). The person named in the row holds that key; an agent principal can never approve a money-out.
+What you approve
+Open a row to read it. What you approve is the exact text shown there, and its sha256 is stored with the request: at execution time the intent is rebuilt from the state of the world at that moment and the payment is refused if it differs by one character, so an approval can never authorise a different amount, claim or destination account.
+Why a decision can be refused
+Three reasons stop a decision, and the database enforces all three, not the screen. Not an approver: only a staff approver can decide, including against an automated agent. Your own request: maker-checker needs a second person, so the database refuses a decision whose author is the requester. Decided: somebody has already answered it, and a different amount, claim or destination account needs a new request.Corgi · Policy administration
