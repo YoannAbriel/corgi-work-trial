@@ -340,6 +340,14 @@ button.pd-drawer-close {
   box-shadow: 0 2px 0 #e1e1e1;
 }
 
+/* --- The second line of a tile's note ---------------------------------------------------------
+   The "Latest terms on record" tile says the premium the record carries, and, under it, the one
+   that is quoted and not paid for yet. Two facts, two lines, one tile: the second is a block so
+   it never runs on from the first. */
+.stat-note-line {
+  display: block;
+}
+
 /* --- A correction: what the money is doing, then the button, then the detail ------------------
    The state and the button used to be the LAST thing in this card, under the formula and the
    four journal entries, so a broker owed $53.84 had to scroll past all of it to find out
