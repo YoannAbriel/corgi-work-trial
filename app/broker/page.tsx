@@ -81,9 +81,17 @@ function statusesOnScreen(rows: { status: PolicyStatus }[]): PolicyStatus[] {
 // date of the endorsement that wrote them: lib/policy/current.ts folds
 // `latestEndorsementEffectiveAt` and refreshPolicyCurrent never writes it to the table. The
 // amount is what this row can state honestly; the policy's own page names the date beside it.
-type TotalRow = { terms: TermsInForce | null; latestTotalChargeCents: number | null };
+type TotalRow = { status: PolicyStatus; terms: TermsInForce | null; latestTotalChargeCents: number | null };
 
 function laterTerms(row: TotalRow): string | null {
+  // A CLOSED POLICY HAS NOTHING LATER TO SHOW. Cover has stopped or never started, so terms
+  // written for a later date can no longer take effect and naming them would promise cover that
+  // will not happen (Yoann's rule, 2026-09-09). ACCEPTED EDGE CASE: a cancellation recorded now
+  // but effective in the future, with an endorsement effective before it, really does take effect
+  // and is hidden here. Telling the two apart needs the cancellation's effective date, which
+  // these lists do not read (cancellationOfPolicy, lib/policy/read.ts); week two, "cancellation
+  // effective date on the lists".
+  if (row.status === "cancelled" || row.status === "voided") return null;
   // The fold has no answer for that date, so the figure above IS the policy record's own and
   // there is nothing later to compare it with.
   if (row.terms === null || row.terms.onDate === null) return null;
