@@ -1361,6 +1361,18 @@ div.note {
   font-weight: 500;
   color: var(--ink);
 }
+/* The stored sentence of one entry, between its header and its lines: what the posting did, for
+   a reader who does not read a debit column. */
+.entry-description {
+  margin: 0;
+  padding: 8px 12px 2px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  /* The block hides its overflow to keep its rounded corners, and a stored sentence can carry a
+     sixty-character provider reference: it wraps rather than being cut off at 375 px. */
+  overflow-wrap: anywhere;
+}
 .entry-tag {
   display: inline-block;
   white-space: nowrap;

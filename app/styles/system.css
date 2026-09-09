@@ -1935,6 +1935,13 @@ table.entry-lines > thead > tr > th.amount {
   color: var(--ink);
   font-weight: 500;
 }
+/* The journal's own legend is not under a table's border: it sits under a list of blocks, so it
+   keeps the type and the colour and drops the rule above it. */
+.journal-legend {
+  border-top: 0;
+  padding: 8px 2px 0;
+  background: transparent;
+}
 .legend .badge {
   margin: 0 4px 0 0;
 }

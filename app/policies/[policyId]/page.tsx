@@ -1188,6 +1188,11 @@ export default async function PolicyPage({
           </section>
 
           <About>
+            <h4>Reading an entry</h4>
+            <p>
+              Credit: where the money comes from. Debit: where it goes. Every entry takes as much as it brings. The
+              sentence under each entry&apos;s header is the one the posting stored when it was written.
+            </p>
             <h4>Where a figure comes from</h4>
             <p>
               Each sum above is the addition of the journal lines of this policy; open one to see the lines it added and
