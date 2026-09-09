@@ -59,10 +59,28 @@ h2.console-heading {
 /* The feed table (components/console-parts.tsx, EventTable). A Stripe Checkout Session id is
    sixty characters. In a narrow Object column the browser broke it into a tower of three-letter
    fragments and made the row twenty lines tall, which is the shape review finding UI-030 named.
-   The token stays on one line; the table's own box scrolls sideways when it has to, and the page
-   never does. */
-.console-event-table .ref {
+
+   Keeping the token on one line fixed the tower and created a second defect: an unbounded nowrap
+   box sets the column's MIN-content, so the Object column claimed 519 px, the What column was
+   crushed to 59 px and printed one letter per line, and the page grew past 20,000 px (measured
+   2026-09-09 at 1024, 1280, and at 1440 and 1920 with the inspector open). The token now stays on
+   one line AND is capped, so it can no longer size the column; what it hides is one hover away in
+   the `title` and printed in full in the row's fold. */
+.console-event-table tr.dt-row td:last-child .ref {
+  display: inline-block;
+  vertical-align: bottom;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The fold is the place that shows the id in full, so the rule above must not reach it: nowrap
+   there drew the sixty characters straight over the neighbouring "Who" label and 75 px past the
+   table's right edge (measured 2026-09-09 at 1440). In the fold the id wraps. */
+.console-event-table tr.dt-expansion .ref {
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 /* The problems table. Its Reason is the one sentence the console cannot move into a fold: it is
