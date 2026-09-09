@@ -8,7 +8,7 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 import type { PolicyDetail, CheckoutOperationView, RefundOperationView } from "@/lib/policy/read";
 import type { EndorsementView } from "@/lib/policy/endorsement-read";
 import type { CorrectionView } from "@/lib/policy/correction-read";
-import { openCollectionOf } from "./correction-sections";
+import { openCollectionOf, withoutTrailingStop } from "./correction-sections";
 
 // The Billing view of a policy: what is owed, what was paid, what is being refunded.
 //
@@ -332,7 +332,7 @@ export function WhatWasPaid({
                       <span className="dt-sub">
                         Reversed by a correction on{" "}
                         {row.reversed.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC:{" "}
-                        {row.reversed.reason}. Nothing was collected and nothing stands.
+                        {withoutTrailingStop(row.reversed.reason)}. Nothing was collected and nothing stands.
                       </span>
                     </>
                   ) : null}

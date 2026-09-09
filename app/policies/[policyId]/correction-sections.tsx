@@ -131,6 +131,14 @@ export function LatestTermsStat({
 // broker and staff together and told operations they were the ones who pay.
 export type PolicyAudience = "customer" | "owning-broker" | "staff";
 
+// F-BL-13: a reason an operator typed usually ends with a full stop of its own, and every
+// sentence that quotes it added another ("...per review finding F-B2-01 and Yoann's decision.."
+// on the void banner). One place decides, so the three sentences that quote a reason stop
+// disagreeing about it. Only trailing stops go; the operator's words are otherwise untouched.
+export function withoutTrailingStop(text: string): string {
+  return text.trim().replace(/\.+$/, "");
+}
+
 // The id the band's "Pay the delta" link lands on: the Pay row of the Billing view. Named beside
 // COLLECT_ANCHOR below so the anchors of the policy's views are declared together.
 export const PAY_DELTA_ANCHOR = "pay-delta";
@@ -441,8 +449,12 @@ export const COLLECT_ANCHOR = "collect";
 
 // F-EV2-05: one anchor per correction. The broker's inbox lists one row per open difference and
 // every row used to point at the same `#collect`, which was the first one, so the second row sent
-// the reader to the wrong correction. The card that holds the rows keeps the bare `collect` id,
-// so a link written before this still lands on the right card.
+// the reader to the wrong correction.
+//
+// F-BL-12: the bare `collect` id is NOT dropped, and it is not on a row: the "What needs paying
+// now" card of the Billing view carries it (app/policies/[policyId]/page.tsx), which is where a
+// link written before this change should land. That claim was in this comment before anything
+// rendered the id; it is true now.
 export function collectAnchorFor(rebookEventId: string) {
   return `${COLLECT_ANCHOR}-${rebookEventId}`;
 }

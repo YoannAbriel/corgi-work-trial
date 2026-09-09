@@ -38,6 +38,7 @@ import {
   pendingEndorsementState,
   PolicyDocuments,
   PolicyTimeline,
+  withoutTrailingStop,
 } from "./correction-sections";
 
 // The customer's own view of their policy, and the change requests that go with it (slice B13-6,
@@ -526,7 +527,7 @@ export async function CustomerPolicyView({
             <div className="notices">
               <div className="error" role="alert">
                 <Emphasis>
-                  {`This policy was voided by a correction on ${voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC: ${voidCorrection.reason}. Nothing was collected on it and it cannot be paid; a replacement needs a new policy.`}
+                  {`This policy was voided by a correction on ${voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC: ${withoutTrailingStop(voidCorrection.reason)}. Nothing was collected on it and it cannot be paid; a replacement needs a new policy.`}
                 </Emphasis>
               </div>
             </div>
@@ -548,8 +549,8 @@ export async function CustomerPolicyView({
             <h4>What each list means</h4>
             <p>
               What is owed is what has not been collected yet. What was paid is every payment that reached us, with the
-              reference the payment provider gave it. What is being refunded is money on its way back to you, with what
-              it is waiting for.
+              reference the payment provider gave it, and a payment a correction reversed is struck through. What is
+              being refunded is money on its way back to you, with what it is waiting for.
             </p>
           </About>
         </>
