@@ -1,5 +1,11 @@
+import "@/app/styles/policy-detail.css";
 import { PortalShell } from "@/components/portal-shell";
 import { SandboxReferences } from "@/components/disclosures";
+import { Chip } from "@/components/detail-layout";
+import { About } from "@/components/ui/about";
+import { Stat, Stats } from "@/components/ui/stat";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { DataTable, FactGrid, Num } from "@/components/ui/table";
 import { notFound, redirect } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
@@ -53,13 +59,21 @@ export default async function CancelPolicyPage({
       // A refusal is part of the preview: the broker sees why, on the page, and can change the
       // date. Nothing was written, so there is nothing to undo.
       return (
-        <PortalShell active="policies" user={user} trail={[
-          ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
-          { label: "Policy", href: `/policies/${policyId}` },
-          { label: "Cancellation preview" },
-        ]}>
-              <h1>Cancellation preview</h1>
-          <p className="error" role="alert">{error.message}</p>
+        <PortalShell
+          active="policies"
+          user={user}
+          trail={[
+            ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+            { label: "Policy", href: `/policies/${policyId}` },
+            { label: "Cancellation preview" },
+          ]}
+          band={{ title: "Cancellation preview", meta: <Chip tone="warn">refused</Chip> }}
+        >
+          <div className="notices">
+            <p className="error" role="alert">
+              {error.message}
+            </p>
+          </div>
         </PortalShell>
       );
     }
@@ -69,168 +83,194 @@ export default async function CancelPolicyPage({
   const { breakdown, terms } = plan;
 
   return (
-    <PortalShell active="policies" user={user} trail={[
-          ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
-      { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
-      { label: "Cancellation preview" },
-    ]}>
+    <PortalShell
+      active="policies"
+      user={user}
+      trail={[
+        ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+        { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
+        { label: "Cancellation preview" },
+      ]}
+      band={{
+        title: "Cancellation preview",
+        suffix: `Policy ${plan.policyNumber}`,
+        meta: (
+          <>
+            <Chip tone="warn">nothing recorded yet</Chip>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            <Chip tone="neutral">cover stops {plan.effectiveAt}</Chip>
+          </>
+        ),
+      }}
+    >
+      <Stats>
+        <Stat
+          label="Refunded"
+          tone="accent"
+          value={formatCentsAsUsd(breakdown.totalRefundCents)}
+          note="unearned premium and its tax"
+        />
+        <Stat
+          label="Earned, kept"
+          value={formatCentsAsUsd(breakdown.earnedPremiumCents)}
+          note={`${breakdown.earnedDays} of ${breakdown.termDays} days covered`}
+        />
+        <Stat
+          label="Commission clawback"
+          value={formatCentsAsUsd(breakdown.commissionClawbackCents)}
+          note={`${(plan.commissionRateBps / 100).toFixed(2)}% of the refunded premium`}
+        />
+      </Stats>
 
-      <h1>Cancel policy {plan.policyNumber}</h1>
-      <p className="lead">
-        Nothing has happened yet. These are the amounts as of <strong>{plan.effectiveAt}</strong>, the day cover would
-        stop. Pro-rata calculation on the actual days of the term.
-      </p>
+      <div className="layout-2">
+        <div className="stack">
+          <section className="card">
+            <h2>What the customer gets back</h2>
+            <dl className="pd-facts">
+              <div>
+                <dt>
+                  Written premium
+                  {breakdown.writtenPremiumCents !== terms.annualPremiumCents
+                    ? `, the ${formatCentsAsUsd(plan.writtenPremiumSegments[0].writtenPremiumCents)} of the issuance plus every endorsement delta`
+                    : ""}
+                </dt>
+                <dd>{formatCentsAsUsd(breakdown.writtenPremiumCents)}</dd>
+              </div>
+              <div>
+                <dt>
+                  Earned, {breakdown.earnedDays} of {breakdown.termDays} days covered
+                </dt>
+                <dd>{formatCentsAsUsd(breakdown.earnedPremiumCents)}</dd>
+              </div>
+              <div>
+                <dt>Unearned premium, refunded</dt>
+                <dd>{formatCentsAsUsd(breakdown.unearnedPremiumCents)}</dd>
+              </div>
+              <div>
+                <dt>
+                  {terms.stateCode} premium tax on it ({(terms.taxRateBps / 100).toFixed(2)}%)
+                </dt>
+                <dd>{formatCentsAsUsd(breakdown.refundedTaxCents)}</dd>
+              </div>
+              <div>
+                <dt>Policy fee, earned at issuance</dt>
+                <dd>{formatCentsAsUsd(breakdown.refundedFeeCents)}</dd>
+              </div>
+              <div>
+                <dt>Total refunded</dt>
+                <dd>{formatCentsAsUsd(breakdown.totalRefundCents)}</dd>
+              </div>
+            </dl>
+            {breakdown.taxRefundWasCappedAtCharged ? (
+              <p className="pd-note">
+                The tax refund is capped at the {formatCentsAsUsd(plan.taxChargedCents)} of premium tax this policy still
+                holds: rounding up the refund would otherwise give back a cent that was never collected.
+              </p>
+            ) : null}
+          </section>
 
-      <h2>What the customer gets back</h2>
-      <div className="table-scroll" role="region" aria-label="Customer refund" tabIndex={0}>
-        <table className="amounts">
-        <tbody>
-          <tr>
-            <th>
-              Premium written on this policy
-              {breakdown.writtenPremiumCents !== terms.annualPremiumCents
-                ? `, the ${formatCentsAsUsd(plan.writtenPremiumSegments[0].writtenPremiumCents)} of the issuance plus every endorsement delta`
-                : ""}
-            </th>
-            <td className="amount">{formatCentsAsUsd(breakdown.writtenPremiumCents)}</td>
-          </tr>
-          <tr>
-            <th>
-              Premium earned, {breakdown.earnedDays} of {breakdown.termDays} days covered
-            </th>
-            <td className="amount">{formatCentsAsUsd(breakdown.earnedPremiumCents)}</td>
-          </tr>
-          <tr>
-            <th>Unearned premium, refunded</th>
-            <td className="amount">{formatCentsAsUsd(breakdown.unearnedPremiumCents)}</td>
-          </tr>
-          <tr>
-            <th>
-              {terms.stateCode} premium tax on the refunded premium ({(terms.taxRateBps / 100).toFixed(2)}%)
-            </th>
-            <td className="amount">{formatCentsAsUsd(breakdown.refundedTaxCents)}</td>
-          </tr>
-          <tr>
-            <th>Policy fee, fully earned at issuance and never refunded</th>
-            <td className="amount">{formatCentsAsUsd(breakdown.refundedFeeCents)}</td>
-          </tr>
-          <tr className="total">
-            <th>Total refunded to the customer</th>
-            <td className="amount">{formatCentsAsUsd(breakdown.totalRefundCents)}</td>
-          </tr>
-        </tbody>
-      </table>
-        </div>
-      {breakdown.taxRefundWasCappedAtCharged ? (
-        <p className="note">
-          The tax refund is capped at the {formatCentsAsUsd(plan.taxChargedCents)} of premium tax this policy still
-          holds: rounding up the refund would otherwise give back a cent that was never collected.
-        </p>
-      ) : null}
+          {/* Slice B7: an open claim is the live-fire question, so the answer is on the screen the
+              operator is looking at when they take the decision, with the claim's own figures. */}
+          {plan.openClaims.explanation ? (
+            <section className="card">
+              <h2>This policy has an open claim</h2>
+              <FactGrid
+                items={[
+                  { label: "Reserve still held, untouched", value: formatCentsAsUsd(plan.openClaims.reserveCents) },
+                  { label: "Already paid on it, untouched", value: formatCentsAsUsd(plan.openClaims.paidCents) },
+                ]}
+              />
+              <p className="pd-note">{plan.openClaims.explanation}</p>
+            </section>
+          ) : null}
 
-      {/* Slice B7: an open claim is the live-fire question, so the answer is on the screen the
-          operator is looking at when they take the decision, with the claim's own figures. */}
-      {plan.openClaims.explanation ? (
-        <>
-          <h2>This policy has an open claim</h2>
-          <p className="note">{plan.openClaims.explanation}</p>
-          <div className="table-scroll" role="region" aria-label="Open claim position" tabIndex={0}>
-        <table className="amounts">
+          <DataTable ariaLabel="Refund allocation">
+            <thead>
+              <tr>
+                <th>Stripe payment refunded</th>
+                <th className="num">Premium</th>
+                <th className="num">Tax</th>
+                <th className="num">Refund</th>
+              </tr>
+            </thead>
             <tbody>
-              <tr>
-                <th>Reserve still held on the open claim, untouched by this cancellation</th>
-                <td className="amount">{formatCentsAsUsd(plan.openClaims.reserveCents)}</td>
-              </tr>
-              <tr>
-                <th>Already paid on it, untouched too</th>
-                <td className="amount">{formatCentsAsUsd(plan.openClaims.paidCents)}</td>
-              </tr>
+              {plan.slices.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="dt-empty">
+                    <p className="note">Nothing is owed back on this date, so no refund will be sent to Stripe.</p>
+                  </td>
+                </tr>
+              ) : (
+                plan.slices.map((slice) => (
+                  <tr key={slice.paymentIntentId} className="dt-row">
+                    <td>
+                      the payment that collected it
+                      <SandboxReferences references={[{ label: "Stripe PaymentIntent", value: slice.paymentIntentId }]} />
+                    </td>
+                    <Num>{formatCentsAsUsd(slice.refundedPremiumCents)}</Num>
+                    <Num>{formatCentsAsUsd(slice.refundedTaxCents)}</Num>
+                    <Num>{formatCentsAsUsd(slice.amountCents)}</Num>
+                  </tr>
+                ))
+              )}
             </tbody>
-          </table>
-        </div>
-        </>
-      ) : null}
-
-      <h2>What the broker gives back</h2>
-      <div className="table-scroll" role="region" aria-label="Commission clawback" tabIndex={0}>
-        <table className="amounts">
-        <tbody>
-          <tr>
-            <th>
-              Commission clawback, {(plan.commissionRateBps / 100).toFixed(2)}% of the refunded premium, rounded down
-            </th>
-            <td className="amount">{formatCentsAsUsd(breakdown.commissionClawbackCents)}</td>
-          </tr>
-        </tbody>
-      </table>
+          </DataTable>
         </div>
 
-      <h2>How the money goes back</h2>
-      {plan.slices.length === 0 ? (
-        <p className="note">Nothing is owed back on this date, so no refund will be sent to Stripe.</p>
-      ) : (
-        <div className="table-scroll" role="region" aria-label="Refund allocation" tabIndex={0}>
-        <table>
-          <thead>
-            <tr>
-              <th>Stripe payment refunded</th>
-              <th className="amount">Premium</th>
-              <th className="amount">Tax</th>
-              <th className="amount">Refund</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plan.slices.map((slice) => (
-              <tr key={slice.paymentIntentId}>
-                <td>
-                  the payment that collected it
-                  <SandboxReferences
-                    references={[{ label: "Stripe PaymentIntent", value: slice.paymentIntentId }]}
-                  />
-                </td>
-                <td className="amount">{formatCentsAsUsd(slice.refundedPremiumCents)}</td>
-                <td className="amount">{formatCentsAsUsd(slice.refundedTaxCents)}</td>
-                <td className="amount">{formatCentsAsUsd(slice.amountCents)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
-      )}
+        <section className="card pd-form-card">
+          <h2>Confirm</h2>
+          <p className="pd-note">
+            {breakdown.totalRefundCents === 0
+              ? "Confirming records the cancellation and its journal entries. No refund is due on this date."
+              : plan.refundNeedsApproval
+                ? "Confirming records the cancellation, its journal entries and the refund request. The refund waits for approval before it is sent."
+                : "Confirming records the cancellation, its journal entries and the refund request, then asks Stripe for the money. The refund is complete only after the provider confirms it."}
+          </p>
+          {/* Slice B7: maker-checker. Above the threshold the cancellation still happens, and so do
+              its journal entries; what waits is the money leaving. */}
+          {plan.refundNeedsApproval ? (
+            <p className="pd-note">
+              <strong>
+                This refund is above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it requires approval.
+              </strong>{" "}
+              Confirming cancels the policy and records what the customer is owed, but nothing is sent to Stripe until a
+              staff approver who is not you approves it in the money-out queue. The threshold is an assumption of this
+              build, not a regulatory figure.
+            </p>
+          ) : null}
+          <form method="post" action={`/api/policies/${policyId}/cancel`} className="card">
+            <input type="hidden" name="effectiveAt" value={plan.effectiveAt} />
+            {/* Short-rate is representable but not computed by this build: the method is stored on
+                the cancellation event and any other value is refused by the server. */}
+            <input type="hidden" name="calculationMethod" value={plan.calculationMethod} />
+            {/* The policy as it stood when these figures were computed. The server refuses the
+                confirmation if the policy changed in the meantime. */}
+            <input type="hidden" name="policyVersion" value={plan.policyVersion} />
+            <SubmitButton className="danger">
+              Cancel the policy as of {plan.effectiveAt}
+              {breakdown.totalRefundCents > 0 ? ` and request a ${formatCentsAsUsd(breakdown.totalRefundCents)} refund` : ""}
+            </SubmitButton>
+          </form>
+        </section>
+      </div>
 
-      <h2>Confirm</h2>
-      <p className="note">
-        {breakdown.totalRefundCents === 0
-          ? "Confirming records the cancellation and its journal entries. No refund is due on this date."
-          : plan.refundNeedsApproval
-            ? "Confirming records the cancellation, its journal entries and the refund request. The refund waits for approval before it is sent."
-            : "Confirming records the cancellation, its journal entries and the refund request, then asks Stripe for the money. The refund is complete only after the provider confirms it."}
-      </p>
-      {/* Slice B7: maker-checker. Above the threshold the cancellation still happens, and so do
-          its journal entries; what waits is the money leaving. */}
-      {plan.refundNeedsApproval ? (
-        <p className="note">
-          <strong>
-            This refund is above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it requires approval.
-          </strong>{" "}
-          Confirming cancels the policy and records what the customer is owed, but nothing is sent to Stripe until a
-          staff approver who is not you approves it in the money-out queue. The threshold is an assumption of this
-          build, not a regulatory figure.
+      <About>
+        <h4>Nothing has happened yet</h4>
+        <p>
+          These are the amounts as of {plan.effectiveAt}, the day cover would stop. Pro-rata calculation on the actual
+          days of the term; this page writes nothing.
         </p>
-      ) : null}
-      <form method="post" action={`/api/policies/${policyId}/cancel`} className="card">
-        <input type="hidden" name="effectiveAt" value={plan.effectiveAt} />
-        {/* Short-rate is representable but not computed by this build: the method is stored on
-            the cancellation event and any other value is refused by the server. */}
-        <input type="hidden" name="calculationMethod" value={plan.calculationMethod} />
-        {/* The policy as it stood when these figures were computed. The server refuses the
-            confirmation if the policy changed in the meantime. */}
-        <input type="hidden" name="policyVersion" value={plan.policyVersion} />
-        <button type="submit">
-          Cancel the policy as of {plan.effectiveAt}
-          {breakdown.totalRefundCents > 0 ? ` and request a ${formatCentsAsUsd(breakdown.totalRefundCents)} refund` : ""}
-        </button>
-      </form>
+        <h4>Segment by segment</h4>
+        <p>
+          The issuance premium earns over the whole term and each endorsement earns its prorated amount from its own
+          effective date, so the refund is computed on each piece of written premium separately.
+        </p>
+        <h4>An open claim is untouched</h4>
+        <p>
+          Cancelling never touches an open claim or its reserve: the loss happened while the policy was in force. The
+          refund covers unearned premium only, and the clawback follows the refunded premium alone.
+        </p>
+      </About>
     </PortalShell>
   );
 }
@@ -256,40 +296,80 @@ async function CancellationForm({
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <PortalShell active="policies" user={user} trail={[
-      ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
-      { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
-      { label: "Cancel" },
-    ]}>
-      <h1>Cancel policy {policy.policyNumber}</h1>
-      <p className="lead">
-        Pick the day cover stops. The next screen shows exactly what would be refunded and clawed back before anything
-        is written. A past date is allowed: an insurer often learns late that cover stopped, and the money is always
-        computed from the day cover really stopped.
-        {schedule.length > 0
-          ? " This policy has been endorsed, so the refund is computed segment by segment: the issuance premium earns over the whole term and each endorsement earns its prorated amount from its own effective date."
-          : ""}
-      </p>
-      <form method="get" action={`/policies/${policy.policyId}/cancel`} className="card">
-        <label htmlFor="effectiveAt">Cancellation effective date</label>
-        <input
-          id="effectiveAt"
-          name="effectiveAt"
-          type="date"
-          required
-          defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}
-          min={policy.effectiveAt}
-          max={policy.termEnd}
-        />
-        <label htmlFor="calculationMethod">Calculation method</label>
-        {/* Short-rate cancellation is representable, not computed: the method is stored on
-            the event and the short_rate_penalty_income account exists, but this build only
-            calculates pro-rata and the server refuses any other value. */}
-        <select id="calculationMethod" name="calculationMethod" defaultValue="pro_rata">
-          <option value="pro_rata">Pro-rata</option>
-        </select>
-        <button type="submit">Preview the cancellation</button>
-      </form>
+    <PortalShell
+      active="policies"
+      user={user}
+      trail={[
+        ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+        { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
+        { label: "Cancel" },
+      ]}
+      band={{
+        title: "Cancel the policy",
+        suffix: `Policy ${policy.policyNumber}`,
+        meta: (
+          <>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            <Chip tone="neutral">
+              term {policy.effectiveAt} to {policy.termEnd}
+            </Chip>
+          </>
+        ),
+      }}
+    >
+      <div className="layout-2">
+        <section className="card pd-form-card">
+          <h2>The day cover stops</h2>
+          <form method="get" action={`/policies/${policy.policyId}/cancel`} className="card">
+            <label htmlFor="effectiveAt">Cancellation effective date</label>
+            <input
+              id="effectiveAt"
+              name="effectiveAt"
+              type="date"
+              required
+              defaultValue={today > policy.effectiveAt ? (today < policy.termEnd ? today : policy.termEnd) : policy.effectiveAt}
+              min={policy.effectiveAt}
+              max={policy.termEnd}
+            />
+            <label htmlFor="calculationMethod">Calculation method</label>
+            {/* Short-rate cancellation is representable, not computed: the method is stored on
+                the event and the short_rate_penalty_income account exists, but this build only
+                calculates pro-rata and the server refuses any other value. */}
+            <select id="calculationMethod" name="calculationMethod" defaultValue="pro_rata">
+              <option value="pro_rata">Pro-rata</option>
+            </select>
+            <button type="submit">Preview the cancellation</button>
+          </form>
+        </section>
+
+        <section className="card">
+          {/* The figures on the record, endorsements included whatever their effective date. The
+              preview prices the refund segment by segment from the events themselves. */}
+          <h2>On the policy record</h2>
+          <FactGrid
+            items={[
+              { label: "Customer", value: policy.customerName },
+              { label: "Annual premium", value: formatCentsAsUsd(policy.annualPremiumCents) },
+              { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
+              { label: "Endorsements", value: schedule.length === 0 ? "none" : String(schedule.length) },
+            ]}
+          />
+          <p className="pd-note">
+            A past date is allowed: an insurer often learns late that cover stopped, and the money is always computed
+            from the day cover really stopped.
+          </p>
+        </section>
+      </div>
+
+      <About>
+        <h4>What the next screen shows</h4>
+        <p>Exactly what would be refunded and clawed back, before anything is written.</p>
+        <h4>Endorsed policies</h4>
+        <p>
+          The refund is computed segment by segment: the issuance premium earns over the whole term and each endorsement
+          earns its prorated amount from its own effective date.
+        </p>
+      </About>
     </PortalShell>
   );
 }

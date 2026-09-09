@@ -1,5 +1,11 @@
+import "@/app/styles/policy-detail.css";
 import { PortalShell } from "@/components/portal-shell";
-import Link from "next/link";
+import { Chip } from "@/components/detail-layout";
+import { About } from "@/components/ui/about";
+import { EmptyState } from "@/components/ui/empty";
+import { Stat, Stats } from "@/components/ui/stat";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { FactGrid } from "@/components/ui/table";
 import { notFound, redirect } from "next/navigation";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
@@ -47,64 +53,98 @@ export default async function ApproveCorrectionPage({
     notFound();
   }
 
+  const trail = [{ label: "Your policies", href: "/customer" }, { label: "Correction approval" }];
+
   if (correction.collection.paidOn) {
     return (
-      <PortalShell user={user} active="policies" trail={[{ label: "Correction approval" }]}>
-        <h1>Nothing to approve</h1>
-        <p className="note">This difference was already paid on {correction.collection.paidOn}.</p>
+      <PortalShell
+        user={user}
+        active="policies"
+        trail={trail}
+        band={{ title: "Nothing to approve", suffix: `Policy ${policy.policy_number}`, meta: <Chip tone="ok">paid</Chip> }}
+      >
+        <EmptyState illustration="all-clear">This difference was already paid on {correction.collection.paidOn}.</EmptyState>
       </PortalShell>
     );
   }
 
   return (
-    <PortalShell user={user} active="policies" trail={[{ label: "Correction approval" }]}>
+    <PortalShell
+      user={user}
+      active="policies"
+      trail={trail}
+      band={{
+        title: "A correction to approve",
+        suffix: `Policy ${policy.policy_number}`,
+        meta: (
+          <>
+            <Chip tone={correction.collection.customerApprovedAt ? "ok" : "warn"}>
+              {correction.collection.customerApprovedAt ? "approved" : "waiting for you"}
+            </Chip>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            <Chip tone="neutral">effective {correction.correctedEffectiveAt}</Chip>
+          </>
+        ),
+      }}
+    >
+      <Stats>
+        <Stat label="Charged then" value={formatCentsAsUsd(correction.money.before.deltaTotalCents)} note={`for ${correction.money.before.daysRemaining} days`} />
+        <Stat label="Correct amount" value={formatCentsAsUsd(correction.money.after.deltaTotalCents)} note={`for ${correction.money.after.daysRemaining} days`} />
+        <Stat label="To pay" tone="accent" value={formatCentsAsUsd(correction.collection.amountCents)} note="the difference between the two" />
+      </Stats>
 
-      <h1>Policy {policy.policy_number}: a correction to approve</h1>
-      <p className="lead">
-        A change to your policy was recorded with the wrong start date. It was put right: it now takes effect on{" "}
-        <strong>{correction.correctedEffectiveAt}</strong> instead of {correction.wrongEffectiveAt}, which is{" "}
-        {correction.money.after.daysRemaining} days of cover instead of {correction.money.before.daysRemaining}.
-      </p>
-      <p className="note">Reason recorded by our operations team: {correction.reason}.</p>
+      <div className="layout-2">
+        <div className="stack">
+          <section className="card">
+            <h2>What was put right</h2>
+            <FactGrid
+              items={[
+                { label: "Start date recorded", value: correction.wrongEffectiveAt },
+                { label: "Start date corrected to", value: correction.correctedEffectiveAt },
+                { label: "Days of cover", value: `${correction.money.after.daysRemaining} instead of ${correction.money.before.daysRemaining}` },
+                { label: "Reason recorded by our operations team", value: correction.reason },
+              ]}
+            />
+          </section>
 
-      <h2>What it costs</h2>
-      <div className="table-scroll" role="region" aria-label="What the correction costs" tabIndex={0}>
-<table className="amounts">
-        <tbody>
-          <tr>
-            <th>Charged when the change was recorded</th>
-            <td className="amount">{formatCentsAsUsd(correction.money.before.deltaTotalCents)}</td>
-          </tr>
-          <tr>
-            <th>Correct amount for the corrected start date</th>
-            <td className="amount">{formatCentsAsUsd(correction.money.after.deltaTotalCents)}</td>
-          </tr>
-          <tr className="total">
-            <th>Difference to pay</th>
-            <td className="amount">{formatCentsAsUsd(correction.collection.amountCents)}</td>
-          </tr>
-        </tbody>
-      </table>
-</div>
+          <section className="card">
+            <h2>Every figure, and how it was computed</h2>
+            <FormulaLinesTable lines={correction.lines} />
+          </section>
+        </div>
 
-      <h2>Every figure, and how it was computed</h2>
-      <FormulaLinesTable lines={correction.lines} />
+        <section className="card pd-form-card">
+          <h2>Your approval</h2>
+          <p className="pd-note">
+            Why it is needed: {correction.approvalSentences.customer ?? "the difference is above the approval threshold"}
+            . Approving records your acceptance; your broker then opens the Stripe payment page. Nothing is charged by
+            this button.
+          </p>
+          {correction.collection.customerApprovedAt ? (
+            <p className="badge badge-ok">
+              Already approved on {correction.collection.customerApprovedAt.toISOString().replace("T", " ").slice(0, 19)} UTC
+            </p>
+          ) : (
+            <form method="post" action={`/api/policies/${policyId}/corrections/${rebookEventId}/approve`} className="card">
+              <SubmitButton className="orange">Approve paying {formatCentsAsUsd(correction.collection.amountCents)}</SubmitButton>
+            </form>
+          )}
+        </section>
+      </div>
 
-      <p className="note">
-        Why your approval is needed: {correction.approvalSentences.customer ?? "the difference is above the approval threshold"}.
-        Approving records your acceptance; your broker then opens the Stripe payment page. Nothing is charged by this
-        button.
-      </p>
-
-      {correction.collection.customerApprovedAt ? (
-        <p className="badge badge-ok">
-          Already approved on {correction.collection.customerApprovedAt.toISOString().replace("T", " ").slice(0, 19)} UTC
+      <About>
+        <h4>Why you are asked</h4>
+        <p>
+          A change to your policy was recorded with the wrong start date. It was put right, and the corrected date covers
+          more days, so the amount is higher than the one charged at the time. Above the approval threshold you decide
+          before anything is collected.
         </p>
-      ) : (
-        <form method="post" action={`/api/policies/${policyId}/corrections/${rebookEventId}/approve`} className="card">
-          <button type="submit">Approve paying {formatCentsAsUsd(correction.collection.amountCents)}</button>
-        </form>
-      )}
+        <h4>Nothing was deleted</h4>
+        <p>
+          The original figures stay on your policy record with the corrected ones beside them; the timeline on your
+          policy page shows both, with the date each was written.
+        </p>
+      </About>
     </PortalShell>
   );
 }

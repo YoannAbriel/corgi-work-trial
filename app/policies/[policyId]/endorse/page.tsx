@@ -1,4 +1,10 @@
+import "@/app/styles/policy-detail.css";
 import { PortalShell } from "@/components/portal-shell";
+import { Chip } from "@/components/detail-layout";
+import { About } from "@/components/ui/about";
+import { Stat, Stats } from "@/components/ui/stat";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { FactGrid } from "@/components/ui/table";
 import { redirect, notFound } from "next/navigation";
 import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
 import { currentUser } from "@/lib/auth/current-user";
@@ -21,6 +27,10 @@ import { isUuid } from "@/lib/http/path-ids";
 //   - nothing is written by this page: no event, no operation, no journal entry;
 //   - the quote hash is carried in a hidden field, so if the policy changes between this screen
 //     and the confirmation, the confirmation is refused instead of executing stale figures.
+//
+// Layout (interface system of 2026-09-09): the band names the policy, the figures are on the
+// left and the decision is the card on the right. Every field name and every action is the one
+// the routes already read.
 export default async function EndorsePolicyPage({
   params,
   searchParams,
@@ -80,96 +90,132 @@ export default async function EndorsePolicyPage({
         : "No money moves";
 
   return (
-    <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: "Policy", href: `/policies/${policyId}` }, { label: "Endorsement preview" }]}>
+    <PortalShell
+      user={user}
+      active="policies"
+      trail={[
+        ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+        { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
+        { label: "Endorsement preview" },
+      ]}
+      band={{
+        title: "Endorsement preview",
+        suffix: `Policy ${plan.policyNumber}`,
+        meta: (
+          <>
+            <Chip tone="warn">nothing recorded yet</Chip>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            <Chip tone="neutral">effective {figures.effectiveAt}</Chip>
+          </>
+        ),
+      }}
+    >
+      <Stats>
+        <Stat label="Annual premium" value={formatCentsAsUsd(figures.newAnnualPremiumCents)} note={`from ${formatCentsAsUsd(figures.oldAnnualPremiumCents)}`} />
+        <Stat
+          label={figures.direction === "refund" ? "Given back" : "To collect"}
+          tone="accent"
+          value={formatCentsAsUsd(Math.abs(figures.deltaTotalCents))}
+          note={`${figures.daysRemaining} of ${figures.termDays} days remain`}
+        />
+        <Stat label="Effective" value={figures.effectiveAt} note="the money is priced from this date" />
+      </Stats>
 
-      <h1>Endorse policy {plan.policyNumber}</h1>
-      <p className="lead">
-        Nothing has happened yet. These are the amounts as of <strong>{figures.effectiveAt}</strong>, the day the change
-        takes effect: {figures.daysRemaining} of {figures.termDays} days of the term remain from that date.
-      </p>
+      <div className="layout-2">
+        <div className="stack">
+          <section className="card">
+            <h2>What changes</h2>
+            <FactGrid
+              items={[
+                {
+                  label: "Annual premium",
+                  value: `${formatCentsAsUsd(figures.oldAnnualPremiumCents)} to ${formatCentsAsUsd(figures.newAnnualPremiumCents)}`,
+                },
+                { label: "Limits", value: plan.newLimitLabel },
+                ...(plan.reason ? [{ label: "Reason", value: plan.reason }] : []),
+              ]}
+            />
+          </section>
 
-      <h2>What changes</h2>
-      <div className="table-scroll" role="region" aria-label="What changes" tabIndex={0}>
-<table className="amounts">
-        <tbody>
-          <tr>
-            <th>Annual premium</th>
-            <td className="amount">
-              {formatCentsAsUsd(figures.oldAnnualPremiumCents)} to {formatCentsAsUsd(figures.newAnnualPremiumCents)}
-            </td>
-          </tr>
-          {/* Same as the correction preview (UI-024): a limit label and a reason are sentences,
-              and the nowrap of the amount class turned this table into one very long line with a
-              44 px label column beside it. */}
-          <tr>
-            <th>Limits</th>
-            <td>{plan.newLimitLabel}</td>
-          </tr>
-          {plan.reason ? (
-            <tr>
-              <th>Reason</th>
-              <td>{plan.reason}</td>
-            </tr>
-          ) : null}
-        </tbody>
-      </table>
-</div>
+          <section className="card">
+            <h2>Impact, line by line</h2>
+            <p className="pd-note">{direction}. Each line shows the integer-cent formula that produced it.</p>
+            <FormulaLinesTable lines={plan.lines} />
+            {figures.taxRefundWasCappedAtCharged ? (
+              <p className="pd-note">
+                The tax refund is capped at the premium tax still held on this policy: rounding it up would otherwise
+                give back a cent that was never collected.
+              </p>
+            ) : null}
+          </section>
+        </div>
 
-      <h2>Impact, line by line</h2>
-      <p className="note">{direction}. Each line shows the integer-cent formula that produced it.</p>
-      <FormulaLinesTable lines={plan.lines} />
-      {figures.taxRefundWasCappedAtCharged ? (
-        <p className="note">
-          The tax refund is capped at the premium tax still held on this policy: rounding it up would otherwise give
-          back a cent that was never collected.
+        <section className="card pd-form-card">
+          <h2>Confirm</h2>
+          {figures.direction === "charge" ? (
+            <p className="pd-note">
+              The request is recorded as a policy event carrying these figures and their hash.{" "}
+              {/* The verdict is never printed without the running total behind it: this policy's
+                  additional premium over the term, before tax, applied endorsements and open
+                  requests together (decision 24). The sentence used to say the policy "has" that
+                  premium "since issuance"; both words were wrong (review finding F-INT-23). The
+                  figure is scoped to the CURRENT TERM, and it INCLUDES the quote on this page,
+                  which nobody has requested yet, so it is what the policy WOULD carry. */}
+              {figures.customerApprovalRequired
+                ? `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: the customer approves before the delta can be paid.`
+                : `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, at or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: no approval is needed and the delta can be paid straight away.`}{" "}
+              The endorsement takes effect only when Stripe confirms the delta was paid; until then the policy terms are
+              unchanged.
+            </p>
+          ) : figures.direction === "refund" ? (
+            <p className="pd-note">
+              The endorsement is applied in one transaction with the refund request and its journal entries.{" "}
+              {plan.refundNeedsApproval
+                ? `This refund is above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it waits in the approval queue: a second person, never you, has to approve it before anything is sent to Stripe.`
+                : `At or below ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} no second approver is needed, so Stripe is asked to refund the original payment straight away.`}{" "}
+              The refund counts as completed only when Stripe&apos;s webhook says the money left.
+            </p>
+          ) : (
+            <p className="pd-note">The endorsement is applied at once: no money moves and no journal entry is posted.</p>
+          )}
+
+          <form method="post" action={`/api/policies/${policyId}/endorsements`} className="card">
+            <input type="hidden" name="effectiveAt" value={figures.effectiveAt} />
+            <input type="hidden" name="newAnnualPremiumCents" value={String(figures.newAnnualPremiumCents)} />
+            <input type="hidden" name="newPerOccurrenceLimitCents" value={String(plan.newPerOccurrenceLimitCents)} />
+            <input type="hidden" name="newAggregateLimitCents" value={String(plan.newAggregateLimitCents)} />
+            <input type="hidden" name="reason" value={plan.reason ?? ""} />
+            {/* The quote as it was computed. The server recomputes it under a lock and refuses the
+                confirmation if the policy changed in between. */}
+            <input type="hidden" name="quoteHash" value={figures.quoteHash} />
+            <SubmitButton>
+              {figures.direction === "charge"
+                ? `Request the endorsement (${formatCentsAsUsd(figures.deltaTotalCents)} to collect)`
+                : figures.direction === "refund"
+                  ? `Apply the endorsement and refund ${formatCentsAsUsd(-figures.deltaTotalCents)}`
+                  : "Apply the endorsement"}
+            </SubmitButton>
+          </form>
+        </section>
+      </div>
+
+      <About>
+        <h4>Nothing has happened yet</h4>
+        <p>
+          These are the amounts as of {figures.effectiveAt}, the day the change takes effect: {figures.daysRemaining} of{" "}
+          {figures.termDays} days of the term remain from that date. This page writes nothing.
         </p>
-      ) : null}
-
-      <h2>What happens on confirm</h2>
-      {figures.direction === "charge" ? (
-        <p className="note">
-          The request is recorded as a policy event carrying these figures and their hash.{" "}
-          {/* The verdict is never printed without the running total behind it: this policy's
-              additional premium over the term, before tax, applied endorsements and open
-              requests together (decision 24). The sentence used to say the policy "has" that
-              premium "since issuance"; both words were wrong (review finding F-INT-23). The
-              figure is scoped to the CURRENT TERM, and it INCLUDES the quote on this page, which
-              nobody has requested yet, so it is what the policy WOULD carry. */}
-          {figures.customerApprovalRequired
-            ? `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: the customer approves before the delta can be paid.`
-            : `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, at or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: no approval is needed and the delta can be paid straight away.`}{" "}
-          The endorsement takes effect only when Stripe confirms the delta was paid; until then the policy terms are
-          unchanged.
+        <h4>Priced from the effective date</h4>
+        <p>
+          A backdated endorsement charges more days, never the day it was typed. The premium difference is prorated over
+          the days remaining and the state premium tax is charged on that amount, rounded in the customer&apos;s favour.
         </p>
-      ) : figures.direction === "refund" ? (
-        <p className="note">
-          The endorsement is applied in one transaction with the refund request and its journal entries.{" "}
-          {plan.refundNeedsApproval
-            ? `This refund is above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it waits in the approval queue: a second person, never you, has to approve it before anything is sent to Stripe.`
-            : `At or below ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} no second approver is needed, so Stripe is asked to refund the original payment straight away.`}{" "}
-          The refund counts as completed only when Stripe&apos;s webhook says the money left.
+        <h4>Why a confirmation can still be refused</h4>
+        <p>
+          The quote hash is carried with the confirmation. If the policy changes between this screen and the button, the
+          server refuses rather than executing figures that are no longer true.
         </p>
-      ) : (
-        <p className="note">The endorsement is applied at once: no money moves and no journal entry is posted.</p>
-      )}
-
-      <form method="post" action={`/api/policies/${policyId}/endorsements`} className="card">
-        <input type="hidden" name="effectiveAt" value={figures.effectiveAt} />
-        <input type="hidden" name="newAnnualPremiumCents" value={String(figures.newAnnualPremiumCents)} />
-        <input type="hidden" name="newPerOccurrenceLimitCents" value={String(plan.newPerOccurrenceLimitCents)} />
-        <input type="hidden" name="newAggregateLimitCents" value={String(plan.newAggregateLimitCents)} />
-        <input type="hidden" name="reason" value={plan.reason ?? ""} />
-        {/* The quote as it was computed. The server recomputes it under a lock and refuses the
-            confirmation if the policy changed in between. */}
-        <input type="hidden" name="quoteHash" value={figures.quoteHash} />
-        <button type="submit">
-          {figures.direction === "charge"
-            ? `Request the endorsement (${formatCentsAsUsd(figures.deltaTotalCents)} to collect)`
-            : figures.direction === "refund"
-              ? `Apply the endorsement and refund ${formatCentsAsUsd(-figures.deltaTotalCents)}`
-              : "Apply the endorsement"}
-        </button>
-      </form>
+      </About>
     </PortalShell>
   );
 }
@@ -236,60 +282,112 @@ async function EndorsementForm({
       : defaultEffectiveAt;
 
   return (
-    <PortalShell user={user} active="policies" trail={[...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]), { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` }, { label: "Endorse" }]}>
-      <h1>Endorse policy {policy.policyNumber}</h1>
+    <PortalShell
+      user={user}
+      active="policies"
+      trail={[
+        ...(user.role === "broker" ? [] : [{ label: "Policies", href: "/ops/policies" }]),
+        { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
+        { label: "Endorse" },
+      ]}
+      band={{
+        title: "Endorse",
+        suffix: `Policy ${policy.policyNumber}`,
+        meta: (
+          <>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            <Chip tone="neutral">
+              term {policy.effectiveAt} to {policy.termEnd}
+            </Chip>
+          </>
+        ),
+      }}
+    >
       {refusal ? (
-        <p className="error" role="alert">
-          {refusal}. Nothing was recorded: change the fields below and ask for the preview again.
-        </p>
+        <div className="notices">
+          <p className="error" role="alert">
+            {refusal}. Nothing was recorded: change the fields below and ask for the preview again.
+          </p>
+        </div>
       ) : null}
-      <p className="lead">
-        Change the annual premium or the limits from a date inside the term ({policy.effectiveAt} to {policy.termEnd}).
-        The next screen shows the exact money it moves, line by line, before anything is recorded. The money is always
-        priced from the effective date: a backdated endorsement charges more days, never the day it was typed.
-      </p>
-      {latestEndorsementEffectiveAt && latestEndorsementEffectiveAt > policy.effectiveAt ? (
-        <p className="note">
-          This policy is already endorsed with effect from {latestEndorsementEffectiveAt}, so a new change cannot take
-          effect before that date; correcting the earlier one is the way to move it.
+
+      <div className="layout-2">
+        <section className="card pd-form-card">
+          <h2>The change</h2>
+          <form method="get" action={`/policies/${policy.policyId}/endorse`} className="card">
+            <label htmlFor="newAnnualPremium">New annual premium (USD)</label>
+            <MoneyAmountInput
+              id="newAnnualPremium"
+              name="newAnnualPremium"
+              required
+              defaultValue={submitted?.newAnnualPremium ?? (policy.annualPremiumCents / 100).toFixed(2)}
+            />
+            <label htmlFor="newPerOccurrenceLimit">New per-occurrence limit (USD)</label>
+            <MoneyAmountInput
+              id="newPerOccurrenceLimit"
+              name="newPerOccurrenceLimit"
+              required
+              defaultValue={submitted?.newPerOccurrenceLimit ?? (policy.perOccurrenceLimitCents / 100).toFixed(2)}
+            />
+            <label htmlFor="newAggregateLimit">New aggregate limit (USD)</label>
+            <MoneyAmountInput
+              id="newAggregateLimit"
+              name="newAggregateLimit"
+              required
+              defaultValue={submitted?.newAggregateLimit ?? (policy.aggregateLimitCents / 100).toFixed(2)}
+            />
+            <label htmlFor="endorsementEffectiveAt">Effective date</label>
+            <input
+              id="endorsementEffectiveAt"
+              name="effectiveAt"
+              type="date"
+              required
+              defaultValue={effectiveAtToShow}
+              min={earliestEffectiveAt}
+              max={policy.termEnd}
+            />
+            <label htmlFor="reason">Reason (optional)</label>
+            <input id="reason" name="reason" maxLength={200} defaultValue={submitted?.reason ?? ""} />
+            <button type="submit">Preview the endorsement</button>
+          </form>
+        </section>
+
+        <section className="card">
+          {/* NOT "in force today" (finding F-YA-07): these are the latest terms on the policy
+              record, and a future-dated endorsement is already in them. The fields beside start
+              from the same figures, as they always have. */}
+          <h2>On the policy record</h2>
+          <FactGrid
+            items={[
+              { label: "Annual premium", value: formatCentsAsUsd(policy.annualPremiumCents) },
+              { label: "Per-occurrence limit", value: formatCentsAsUsd(policy.perOccurrenceLimitCents) },
+              { label: "Aggregate limit", value: formatCentsAsUsd(policy.aggregateLimitCents) },
+              { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
+              { label: "Customer", value: policy.customerName },
+            ]}
+          />
+          <p className="pd-note">
+            The latest terms written on the record, which the fields start from. What is in force on a given date is on
+            the policy page.
+          </p>
+          {latestEndorsementEffectiveAt && latestEndorsementEffectiveAt > policy.effectiveAt ? (
+            <p className="pd-note">
+              This policy is already endorsed with effect from {latestEndorsementEffectiveAt}, so a new change cannot
+              take effect before that date; correcting the earlier one is the way to move it.
+            </p>
+          ) : null}
+        </section>
+      </div>
+
+      <About>
+        <h4>What the next screen shows</h4>
+        <p>
+          The exact money the change moves, line by line, before anything is recorded. Nothing is written until you
+          confirm there.
         </p>
-      ) : null}
-      <form method="get" action={`/policies/${policy.policyId}/endorse`} className="card">
-        <label htmlFor="newAnnualPremium">New annual premium (USD)</label>
-        <MoneyAmountInput
-          id="newAnnualPremium"
-          name="newAnnualPremium"
-          required
-          defaultValue={submitted?.newAnnualPremium ?? (policy.annualPremiumCents / 100).toFixed(2)}
-        />
-        <label htmlFor="newPerOccurrenceLimit">New per-occurrence limit (USD)</label>
-        <MoneyAmountInput
-          id="newPerOccurrenceLimit"
-          name="newPerOccurrenceLimit"
-          required
-          defaultValue={submitted?.newPerOccurrenceLimit ?? (policy.perOccurrenceLimitCents / 100).toFixed(2)}
-        />
-        <label htmlFor="newAggregateLimit">New aggregate limit (USD)</label>
-        <MoneyAmountInput
-          id="newAggregateLimit"
-          name="newAggregateLimit"
-          required
-          defaultValue={submitted?.newAggregateLimit ?? (policy.aggregateLimitCents / 100).toFixed(2)}
-        />
-        <label htmlFor="endorsementEffectiveAt">Effective date</label>
-        <input
-          id="endorsementEffectiveAt"
-          name="effectiveAt"
-          type="date"
-          required
-          defaultValue={effectiveAtToShow}
-          min={earliestEffectiveAt}
-          max={policy.termEnd}
-        />
-        <label htmlFor="reason">Reason (optional)</label>
-        <input id="reason" name="reason" maxLength={200} defaultValue={submitted?.reason ?? ""} />
-        <button type="submit">Preview the endorsement</button>
-      </form>
+        <h4>The money is priced from the effective date</h4>
+        <p>A backdated endorsement charges more days, never the day it was typed. Any date inside the term is allowed.</p>
+      </About>
     </PortalShell>
   );
 }
