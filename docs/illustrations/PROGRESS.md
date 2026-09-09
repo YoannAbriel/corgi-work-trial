@@ -53,4 +53,4 @@ The final audit reports: 150 planned, 150 cataloged, 150 files, 150 accepted cur
 
 The independent feature review initially found a damaged alpha mask on `067-corgi-search` and an imprecise description of the review record. Both findings were corrected in `52149d2d90fd43c01f7af3e5cb39cf1f25a0984f`. The append-only re-review in `docs/reviews/illustration-library.md` records **PASS** for that exact revision with no unresolved material issue in the asset-library scope.
 
-The subsequent 3× panorama export requires an independent re-review before this new revision is marked complete. The preceding PASS remains evidence for the unchanged 130 cutouts and the original panorama compositions.
+The subsequent 3× panorama export received an independent **PASS** at `e4ee798b89abee15a3fa26d54694781930ae7658`. The reviewer verified all 20 dimensions, source/output provenance, pixel-exact Lanczos reproduction, visual QA sheets, catalog integrity and byte-for-byte preservation of the other 130 assets. No unresolved material issue remains in the asset-library scope.
