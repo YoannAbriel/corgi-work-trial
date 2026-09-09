@@ -487,15 +487,20 @@
   flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  /* 12 px, not 16: the three gaps of this row were the last few pixels the breadcrumb needed to
+     print "Overview > Policies > Policy CGP-01707" whole at 1440 px (2026-09-09). */
+  gap: 12px;
   padding: 0 var(--content-x);
   background: white;
   border-bottom: 1px solid var(--line);
 }
+/* The breadcrumb takes the room the top bar has left, and gives it back last: the search field
+   beside it shrinks first (see .topbar-search). */
 .page-navigation {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 button.sidebar-toggle {
@@ -535,6 +540,11 @@ button.sidebar-toggle:hover {
   gap: 6px;
   min-width: 0;
 }
+/* The last item is the screen the reader is on, so it is the one item worth the room: it keeps
+   its width and the items before it are the ones that get an ellipsis. */
+.breadcrumb li:last-child {
+  flex-shrink: 0;
+}
 .breadcrumb a {
   color: var(--ink-2);
   text-decoration: none;
@@ -543,14 +553,22 @@ button.sidebar-toggle:hover {
   color: var(--ink);
   text-decoration: underline;
 }
+/* `display: block`, not `inline-flex`: text-overflow has no effect on a flex container, so the
+   trail used to be cut mid-word with no ellipsis ("Overview > Policie: > Policy CGP-0170" at
+   1440 px, 2026-09-09). The line-height replaces the min-height the flex box gave it. */
 .breadcrumb a,
 .breadcrumb span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
+  display: block;
+  line-height: 28px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The current screen is allowed to be long: a policy number is what the reader came for. */
+.breadcrumb li:last-child a,
+.breadcrumb li:last-child span {
+  max-width: 320px;
 }
 .breadcrumb svg {
   flex-shrink: 0;
@@ -561,8 +579,11 @@ button.sidebar-toggle:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 0 1 260px;
-  min-width: 0;
+  /* 220 px, and a shrink factor of 8 against the breadcrumb's 1: the field gives up its room
+     first and the trail keeps its words. It stops at 150 px, which still shows the whole "Find a
+     reference" placeholder, so it never becomes a box nobody can read (2026-09-09). */
+  flex: 0 8 220px;
+  min-width: 150px;
   margin: 0;
   padding: 0 10px;
   height: 28px;
@@ -2469,11 +2490,30 @@ button.secondary.is-working::after {
     margin-left: 0;
     max-width: 100%;
   }
-  .breadcrumb {
-    display: none;
-  }
+  /* The breadcrumb used to be hidden here, which is how a reader lost the only thing telling
+     them where they were on a 1024 px screen. It stays, and its items ellipsise (2026-09-09). */
   .topbar-search {
-    flex: 0 1 200px;
+    flex: 0 8 200px;
+  }
+  /* At 1280 px a three-level trail, a usable search field and the AF-02 mode line stop fitting
+     on one row: measured on a policy page, the first two trail items were squeezed to nothing.
+     Rather than cut one of the three, the mode line takes a row of its own, the same mechanism
+     as under 800 px, and the trail gets the whole first row. The bar is one row taller here, so
+     --top-h is redefined with it: the sticky band and the drawer both offset from that token
+     and follow it, measured at 62 px (2026-09-09). */
+  :root {
+    --top-h: 62px;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    row-gap: 2px;
+  }
+  .topbar-modes {
+    flex: 1 1 100%;
+    order: 3;
+    margin-right: 0;
   }
   .layout-2 {
     grid-template-columns: minmax(0, 1fr) 300px;
