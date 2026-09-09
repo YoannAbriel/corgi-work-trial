@@ -459,8 +459,10 @@ export default async function PolicyPage({
                             </td>
                             <td className="amount">
                               {/* Slice B12-2: the fold reuses the endorsement's OWN formula lines,
-                                  the ones stored on the event and posted to the journal, and points
-                                  at their total line. Nothing is recomputed for display. */}
+                                  rebuilt from the figures stored on the event by the same function
+                                  that priced it (endorsementFormulaLines), and points at their
+                                  total line. No money is recomputed: the total line IS
+                                  figures.deltaTotalCents, the amount posted to the journal. */}
                               <AmountExplained
                                 amountCents={row.figures.deltaTotalCents}
                                 size="inline"

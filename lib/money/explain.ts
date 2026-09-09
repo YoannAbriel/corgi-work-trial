@@ -8,7 +8,9 @@ import { commissionCents, stateTaxCents } from "./premium";
 // same pure functions and the same stored figures the page already shows, so the fold under a
 // figure cannot say something the figure does not. Where a screen already has formula lines
 // (endorsement, correction: lib/money/endorsement.ts and lib/money/correction.ts) those lines are
-// reused as they are; where it does not, the lines are built here from the stored figures.
+// reused: they are rebuilt at read time from the figures stored on the event, by the same function
+// that priced it, and the line the fold points at IS the stored figure. Where a screen has no such
+// lines, they are built here from the stored figures.
 //
 // Every function below is pure: no database, no clock, no provider. The screens format the cents;
 // nothing is computed in the browser.
