@@ -13,6 +13,11 @@
 // WHERE IT RUNS: the disposable database corgi_test, like the other checks, because that is where
 // the seeded and replayed data lives.
 //
+// WHAT IT NEEDS: the full local environment of `.env.local`, like the other check scripts, and not
+// only the two database URLs it reads by name. It imports the application's own readers, and their
+// import graph reaches lib/stripe.ts, which refuses to load without STRIPE_SECRET_KEY even though
+// nothing here ever calls Stripe (review finding F-B13-19).
+//
 // Run with: npm run check:inbox-counts
 
 // This file is a module of its own (its application imports are dynamic, after the connection
