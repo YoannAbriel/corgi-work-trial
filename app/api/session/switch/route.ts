@@ -2,7 +2,7 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { isDemoAccountEmail } from "@/lib/auth/demo-accounts";
 import { SESSION_COOKIE_NAME, SESSION_LIFETIME_SECONDS, sessionSecret, signSessionCookie } from "@/lib/auth/session";
-import { withActivity } from "@/lib/observability/log";
+import { withActivity, type Activity } from "@/lib/observability/log";
 
 // POST /api/session/switch, called by the account menu at the bottom of the sidebar.
 //
@@ -15,7 +15,7 @@ import { withActivity } from "@/lib/observability/log";
 // role for itself. The activity log keeps the row like any sign in (rule "sign in").
 export const POST = withActivity({ route: "/api/session/switch", rule: "sign in" }, handlePost);
 
-async function handlePost(request: Request) {
+async function handlePost(request: Request, _context: unknown, activity: Activity) {
   const user = await currentUser();
   if (!user) {
     return redirectTo("/login?error=Please+sign+in+first");
@@ -32,6 +32,11 @@ async function handlePost(request: Request) {
   if (!target || target.role === "agent") {
     return redirectTo(`${home}?error=${encodeURIComponent("that demo account does not exist on this database")}`);
   }
+
+  // The activity row names both sides of the switch, old role to new role, so the console and the
+  // walkthrough can show who became whom. The maker-checker proof is unaffected: it is about user
+  // ids on the rows, not about which browser held the session.
+  activity.message = `demo switch: ${user.role} (${user.email}) to ${target.role} (${email})`;
 
   const expiresAtEpochSeconds = Math.floor(Date.now() / 1000) + SESSION_LIFETIME_SECONDS;
   const cookie = signSessionCookie(target.id, expiresAtEpochSeconds, sessionSecret());
