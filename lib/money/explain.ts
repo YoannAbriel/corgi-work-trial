@@ -458,12 +458,18 @@ export function explainAccountSum(input: {
 // The journal entries that touched one account, as the evidence under a figure that was NOT
 // computed from them (the terms in force, for instance): they are what proves the figure was
 // really booked, not how it was calculated.
+// `entryTypes`, when given, keeps only those kinds of entry. It is how a fold can list the lines
+// that move ITS figure rather than every line on an account: the entries a claim posts on
+// claims_payable net to zero once a payment has settled, which under a paid figure of $1,200 left
+// the reader to work out why (review finding F-B12-07).
 export function evidenceFromJournal(
   entries: JournalEntryForExplanation[],
   accountId: string,
+  entryTypes?: string[],
 ): ExplanationEvidence[] {
   const evidence: ExplanationEvidence[] = [];
   for (const entry of entries) {
+    if (entryTypes && !entryTypes.includes(entry.entryType)) continue;
     for (const line of entry.lines) {
       if (line.accountId !== accountId) continue;
       const side = line.debitCents > 0 ? "Dr" : "Cr";

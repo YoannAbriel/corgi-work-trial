@@ -4,6 +4,7 @@ import { computeEndorsement, endorsementFormulaLines, type EndorsementInput } fr
 import {
   accountSumCents,
   cancellationFormulaLines,
+  evidenceFromJournal,
   explainAccountSum,
   explainCancellationFigure,
   explainClaimIncurred,
@@ -247,6 +248,41 @@ test("a policy that has only ever been refunded can say it collected nothing", (
   assertExplains(collected, 0);
   assert.equal(collected.lines.length, 1);
   assert.equal(collected.lines[0].formula, "no debit on this account yet");
+});
+
+// Review finding F-B12-07: the evidence under a figure lists the entries that MOVE it.
+test("the paid evidence keeps the entries that move paid, and they add up to it", () => {
+  const claimJournal: JournalEntryForExplanation[] = [
+    {
+      entryType: "claim_payment_sent",
+      effectiveAt: "2026-09-01",
+      recordedAt: new Date("2026-09-01T09:00:00.000Z"),
+      lines: [
+        { accountId: "claim_reserve", accountName: "claim_reserve", debitCents: 120000, creditCents: 0 },
+        { accountId: "claims_payable", accountName: "claims_payable", debitCents: 0, creditCents: 120000 },
+      ],
+    },
+    {
+      entryType: "claim_payment_settled",
+      effectiveAt: "2026-09-03",
+      recordedAt: new Date("2026-09-03T09:00:00.000Z"),
+      lines: [
+        { accountId: "claims_payable", accountName: "claims_payable", debitCents: 120000, creditCents: 0 },
+        { accountId: "cash_claims_rail", accountName: "cash_claims_rail", debitCents: 0, creditCents: 120000 },
+      ],
+    },
+  ];
+  // Every line on the account nets to zero once the payment has settled: that is the row the
+  // reader had to be talked out of.
+  assert.equal(accountSumCents(claimJournal, "claims_payable", "credits_minus_debits"), 0);
+  // The entries that move the paid figure add up to it.
+  const moving = evidenceFromJournal(claimJournal, "claims_payable", [
+    "claim_payment_sent",
+    "claim_reserve_restored",
+  ]);
+  assert.equal(moving.length, 1);
+  assert.equal(moving[0].entryType, "claim_payment_sent");
+  assert.equal(moving[0].detail, "Cr claims_payable 120000");
 });
 
 // ---------------------------------------------------------------------------
