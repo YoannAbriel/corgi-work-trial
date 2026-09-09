@@ -1,5 +1,6 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
@@ -28,6 +29,7 @@ import { firstValue, pickView, toastsFromQuery, withParams, type Query } from "@
 import { AGENCY_BILL_SENTENCE_FOR_CUSTOMER, BillingSummary, billingRows } from "./billing-sections";
 import {
   LatestTermsStat,
+  pendingEndorsementNotice,
   pendingEndorsementState,
   PolicyDocuments,
   PolicyTimeline,
@@ -119,10 +121,26 @@ export async function CustomerPolicyView({
       : []),
   ];
 
+  // LIVE-9: what the change waiting on this policy is waiting for, in the customer's own terms,
+  // at the top of their page instead of only inside a row of the event list at the bottom.
+  const pendingNotice = liveEndorsement
+    ? pendingEndorsementNotice({
+        standingState: liveEndorsement.standing.state,
+        approvedAt: liveEndorsement.standing.approvedAt,
+        requestedAt: liveEndorsement.request.recordedAt,
+        audience: "customer",
+      })
+    : null;
+
   const notices = [
     refusal ? (
       <p key="error" className="error" role="alert">
         {refusal}
+      </p>
+    ) : null,
+    pendingNotice ? (
+      <p key="pendingEndorsement" className="note" role="status">
+        <Emphasis>{pendingNotice}</Emphasis>
       </p>
     ) : null,
     sent ? (
