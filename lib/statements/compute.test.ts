@@ -216,7 +216,8 @@ test("the hash does not depend on the order the database returned the rows in", 
 test("the hash is a sha256 of a text a human can read", () => {
   const statement = computeStatement({ brokerId: BROKER_ID, statementMonth: "2028-03", entries: [marchCollection, marchCommission] });
   assert.match(statement.contentHash, /^[0-9a-f]{64}$/);
-  assert.match(statement.canonicalText, /^corgi\.broker-statement\.v2\n/);
+  // The header names the current format (3 since decision 22, 2026-09-09).
+  assert.match(statement.canonicalText, /^corgi\.broker-statement\.v3\n/);
   assert.match(statement.canonicalText, /\ntotals\|125320\|120000\|18000\|0\|0\|18000\n$/);
 });
 

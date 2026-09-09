@@ -1,4 +1,5 @@
 import postgres from "postgres";
+import { CANONICAL_STATEMENT_VERSION } from "@/lib/statements/compute";
 
 // Proves, against a real database and through the production functions, the four properties slice
 // B9 rests on:
@@ -511,7 +512,7 @@ async function main() {
   const newFormat = await statementRun(runtime, newFormatOfThatMonth.runId);
   report(
     "the next revision of that month is written in the current format and is flagged as a format change",
-    newFormat?.run.canonicalVersion === 2 &&
+    newFormat?.run.canonicalVersion === CANONICAL_STATEMENT_VERSION &&
       newFormat.run.previousCanonicalVersion === 1 &&
       newFormat.run.identicalToPrevious === false &&
       newFormat.run.supersedesRunId === olderFormatRunId,
@@ -839,8 +840,8 @@ async function main() {
   report(
     "the list screens read the same two formats side by side",
     runsOfBrokerA.some((run) => run.canonicalVersion === 1) &&
-      runsOfBrokerA.some((run) => run.canonicalVersion === 2 && run.previousCanonicalVersion === 1),
-    `${runsOfBrokerA.filter((run) => run.canonicalVersion === 1).length} in the older format, ${runsOfBrokerA.filter((run) => run.canonicalVersion === 2).length} in the current one`,
+      runsOfBrokerA.some((run) => run.canonicalVersion === CANONICAL_STATEMENT_VERSION && run.previousCanonicalVersion === 1),
+    `${runsOfBrokerA.filter((run) => run.canonicalVersion === 1).length} in the older format, ${runsOfBrokerA.filter((run) => run.canonicalVersion === CANONICAL_STATEMENT_VERSION).length} in the current one`,
   );
   const runsOfEveryBroker = await listStatementRuns(runtime, { limit: 200 });
   report(
