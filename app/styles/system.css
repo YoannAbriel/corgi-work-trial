@@ -2592,6 +2592,23 @@ button.secondary.is-working::after {
   }
   .topbar {
     position: static;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    row-gap: 4px;
+  }
+  /* The AF-02 words stay exact and visible; on a narrow screen they take a row of their own and
+     wrap, instead of pushing the bar past the viewport. */
+  .topbar-modes {
+    flex: 1 1 100%;
+    order: 3;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    margin-right: 0;
+  }
+  .topbar-search {
+    flex: 1 1 160px;
   }
   .drawer {
     top: 0;
