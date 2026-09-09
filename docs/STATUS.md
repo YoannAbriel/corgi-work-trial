@@ -389,6 +389,11 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - The screens reviewer re-measured the fix on production after a real click on "Explain this amount": scrollWidth 375 against innerWidth 375 on the policy detail and on the statement run at 375 px (731 before), the fold panel 249 px wide instead of 668, and 0 overflow on the 14 states at 1280 px with 722 amount cells still right-aligned. Slice verdict PASS (docs/reviews/b13-screens.md, confirmation section; both the overflowing and the fixed frames kept as evidence). Four LOW stay open on the B13 backlog.
 
+## 2026-09-09T09:33:00+00:00 | Illustration weight fix merged (5fa3d49), production re-measurement requested
+
+- The builder moved the decorative illustrations to next/image with static file imports (intrinsic width and height from the bytes, which closes F-IL-05 without shipping the 444 KB catalog to the browser), per-variant sizes, no eager or priority anywhere, the dead class removed; seven files, nothing under lib/, db/ or app/api/. Local measurement with the reviewer's method: the home from 500.6 KiB to 2.8 KiB, /broker from 743.6 KiB to 7.7 KiB, /customer from 691.2 KiB to 7.6 KiB, /login at 375 px from 141.6 KiB to nothing, the 404 from 39.7 KiB to 2.6 KiB, 0 preload links on every route, 21 of 21 layout readings without overflow. Typecheck, 456 tests and the production build clean. The builder reports one incident: a stray checkout reverted its tree mid-session and it rewrote the same edits before measuring again.
+- Merged with --no-ff, pushed as code alone, deployed and confirmed by /api/health at 09:34Z; the illustrations reviewer re-measures on production (Vercel image optimisation) at 5fa3d49.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
