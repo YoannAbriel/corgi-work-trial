@@ -19,11 +19,13 @@ import { LATEST_REPORT_OF_EACH_BREAK } from "./read";
 //
 // A NOTE EXPLAINS ONE REPORT OF THE BREAK, and that is review finding F-BREAKSBOARD-01. The note
 // records the classification and the two amounts of the latest report at the moment it was
-// written (migration 0024). A break key survives a classification change on purpose, because it
+// written (migration 0025). A break key survives a classification change on purpose, because it
 // is the money; so a note keyed on nothing else used to silence a break for ever, including on
 // the day a run reported it as something worse. Now a later run that describes the break
-// differently matches no note: the break is work again, in the count, in the inbox, in the MCP
-// tool and in the window the daily job widens, with its notes still on file and shown beside it.
+// differently matches no note: the break is work again, in the count, in the inbox and in the MCP
+// tool, with its notes still on file and shown beside it. The daily job's window never stopped
+// covering it, and that is deliberate: it is the run inside that window that reports the break
+// differently in the first place (lib/reconciliation/read.ts, oldestOpenBreakRecordDate).
 //
 // A CORRECTION IS A NEW NOTE. The table is append-only, so a note is never edited: writing a
 // second one leaves both on file and the screen shows the latest, saying how many there are.

@@ -188,10 +188,10 @@ export const IT_IS_A_PROBE_FROM_A_CHECK_RUN = `latest_report.classification = 'p
 // job's window on the day it became a `provider_only` with a real difference.
 //
 // So the note carries the description it was written against: the classification and the two
-// amounts of the latest report at that moment (migration 0024). It explains that report and no
+// amounts of the latest report at that moment (migration 0025). It explains that report and no
 // other. `is not distinct from` rather than `=` because either amount is legitimately null.
 //
-// A note written before migration 0024 has no recorded classification, so it matches nothing and
+// A note written before migration 0025 has no recorded classification, so it matches nothing and
 // its break is work again: we cannot know what it was about, and writing a new note is one click.
 export const THE_NOTE_EXPLAINS_THE_LATEST_REPORT = `
   note.explained_classification = latest_report.classification
@@ -214,10 +214,13 @@ export const SOMEBODY_HAS_EXPLAINED_IT = `
   )
 `;
 
-// WHAT "OPEN" MEANS FOR THE COUNT, THE INBOX, THE MCP TOOL AND THE DAILY JOB: still reported by
-// the latest complete run that looked, not re-examined since by a run that covered it, not a
-// probe, and not explained by anybody. Declared once, for the reason the two fragments above are:
-// the badge, the list it points at and the window the job widens must ask the same question.
+// WHAT "OPEN" MEANS FOR THE COUNT, THE INBOX, THE MCP TOOL AND THE BOARD: still reported by the
+// latest complete run that looked, not re-examined since by a run that covered it, not a probe,
+// and not explained by anybody. Declared once, for the reason the two fragments above are: the
+// badge, the list it points at, the 360 page and the MCP tool must ask the same question.
+//
+// THE DAILY JOB DELIBERATELY ASKS A WIDER QUESTION, and it is not the same question at all
+// (oldestOpenBreakRecordDate below, review finding F-BREAKSBOARD-07).
 export const IT_IS_A_BREAK_TO_ACT_ON = `
   not ${A_LATER_RUN_RE_EXAMINED_IT}
   and not ${IT_IS_A_PROBE_FROM_A_CHECK_RUN}
@@ -373,18 +376,37 @@ export async function resolvedBreaks(database: postgres.Sql, limit: number): Pro
   });
 }
 
-// The oldest record date among the open breaks of EVERY source, or null when nothing is open. The
-// daily job asks this so its one window reaches back far enough to re-examine what is still open
-// instead of leaving it unlooked at for ever (finding F-B10-01). One window for both sources,
-// because the job runs them on the same window and the older of the two is what decides.
+// The oldest record date among the breaks STILL BEING REPORTED, of every source, or null when
+// none is. The daily job asks this so its one window reaches back far enough to re-examine what
+// is still open instead of leaving it unlooked at for ever (finding F-B10-01). One window for
+// both sources, because the job runs them on the same window and the older of the two decides.
+//
+// WHY THIS QUESTION IS WIDER THAN IT_IS_A_BREAK_TO_ACT_ON, and it is review finding
+// F-BREAKSBOARD-07. The two readers ask two different things:
+//
+//   the count, the badge, the inbox, the MCP tool and the board ask "what is on the operator's
+//   desk today", so a probe and an explained break are correctly out of it;
+//
+//   the daily job asks "how far back must one run look", and the answer must include them,
+//   because looking is exactly how an explained break stops being explained. A note explains one
+//   report of a break (THE_NOTE_EXPLAINS_THE_LATEST_REPORT); the note stops matching only when a
+//   LATER RUN reports the break differently, and no later run can report it at all once the
+//   record falls outside the window. Narrowing this question froze every explained break older
+//   than the seven-day default: the note went on matching for ever because nothing ever looked
+//   again. A probe is included for the same mechanical reason, at no cost: it is money we planted
+//   and re-comparing it changes nothing, while leaving it out would let the window snap shut on
+//   the day the only rows left are probes and explained breaks.
+//
+// So the rule here is `not A_LATER_RUN_RE_EXAMINED_IT` alone, which is exactly the rule the
+// `open_report` CTE of resolvedBreaks already uses, and for the reason written there: a probe and
+// an explained break are money that is still exactly where it was.
 export async function oldestOpenBreakRecordDate(database: postgres.Sql): Promise<Date | null> {
-  // One aggregate, not every open row read back to take a minimum of it (finding F-B10-07). The
-  // rule is the shared one, so this date and the open list can never disagree.
+  // One aggregate, not every open row read back to take a minimum of it (finding F-B10-07).
   const [row] = await database<{ oldest: Date | null }[]>`
     with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
     select min(record_at) as oldest
       from latest_report
-     where ${database.unsafe(IT_IS_A_BREAK_TO_ACT_ON)}
+     where not ${database.unsafe(A_LATER_RUN_RE_EXAMINED_IT)}
   `;
   return row.oldest ?? null;
 }
@@ -416,7 +438,7 @@ export type SupersededExplanation = {
   note: string;
   explainedByName: string;
   recordedAt: Date;
-  explainedClassification: string | null; // null on a note written before migration 0024
+  explainedClassification: string | null; // null on a note written before migration 0025
 };
 
 export type OpenBreakRow = ReconciliationBreakRow & { supersededExplanation: SupersededExplanation | null };
