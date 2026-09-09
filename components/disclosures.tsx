@@ -63,11 +63,17 @@ export function RowActions({
 // about the money.
 export function SandboxReferences({
   references,
+  inline = false,
 }: {
   references: { label: string; value: string | null }[];
+  // Inside a table cell the panel is a fold that opens IN the cell and wraps its identifiers,
+  // instead of a 220 px box that widens the table and is then cut off by the horizontal scroll
+  // container the table lives in (UI-021: the open panel ran 151 px past the visible right edge).
+  // The style is in app/styles/policy-detail.css, next to the schedule that asks for it.
+  inline?: boolean;
 }) {
   return (
-    <details className="sandbox-reference">
+    <details className={inline ? "sandbox-reference inline-fold" : "sandbox-reference"}>
       <summary aria-label="Sandbox references">
         <Info size={13} aria-hidden="true" />
       </summary>

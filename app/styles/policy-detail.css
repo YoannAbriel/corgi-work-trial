@@ -1,0 +1,58 @@
+/* The rules that belong to the policy screens alone (UI cycle B: UI-019, UI-021).
+   app/globals.css keeps the shared building blocks; anything that only the endorsement schedule
+   and its provider references need lives here, imported by app/policies/[policyId]/page.tsx. */
+
+/* --- UI-019: the endorsement schedule reads across ---------------------------------------
+   The schedule used the browser's automatic table layout inside a horizontal scroll container.
+   Every amount column is nowrap, so the only column that could give way was the one that says
+   WHAT CHANGED: it collapsed to 97 px and broke "Annual premium $1,200.00 to $1,800.00" into
+   fragments. The widths below are fixed shares of the table, so the change column keeps the
+   room it needs and the amounts keep theirs; under 620 px the container scrolls sideways rather
+   than squeezing anything, exactly as it did before. */
+table.endorsement-schedule {
+  table-layout: fixed;
+  min-width: 620px;
+}
+table.endorsement-schedule th:nth-child(1) {
+  width: 15%;
+}
+/* The change column takes what is left: it is the sentence a reader is here for. */
+table.endorsement-schedule th:nth-child(3) {
+  width: 20%;
+}
+table.endorsement-schedule th:nth-child(4) {
+  width: 16%;
+}
+table.endorsement-schedule th:nth-child(5) {
+  width: 17%;
+}
+/* The recording time, under the business date it belongs to: two clocks, one column. */
+.schedule-recorded {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-2);
+  line-height: 1.35;
+}
+/* The split of a delta into premium and tax sits under the amount and wraps, rather than
+   holding the whole column open on one nowrap line. */
+td.amount .schedule-split {
+  display: block;
+  margin-top: 2px;
+  white-space: normal;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* --- UI-021: provider references that open where they are --------------------------------
+   The default popover is a 220 px box next to the little "i". Inside a table cell that box
+   widens the table, and the horizontal scroll container then cuts it off, so the title and the
+   Stripe reference could not be read in their open position. As an inline fold the panel takes
+   the width of its own cell and wraps its identifiers, so nothing is ever clipped. */
+details.sandbox-reference.inline-fold {
+  display: block;
+  margin-left: 0;
+}
+details.sandbox-reference.inline-fold > div {
+  min-width: 0;
+}
