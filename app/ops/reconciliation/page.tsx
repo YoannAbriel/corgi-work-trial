@@ -13,7 +13,17 @@ import {
   nonZeroClearingBalances,
   type ClearingBalanceRow,
 } from "@/lib/reconciliation/clearing-balances";
-import { openBreaks, recentRuns, resolvedBreaks, type ReconciliationBreakRow, type ReconciliationRunRow } from "@/lib/reconciliation/read";
+import { NOTE_MAXIMUM_CHARACTERS, NOTE_MINIMUM_CHARACTERS } from "@/lib/reconciliation/break-notes";
+import {
+  explainedBreaksPage,
+  openBreaksPage,
+  probesPage,
+  recentRuns,
+  resolvedBreaks,
+  type ExplainedBreakRow,
+  type ReconciliationBreakRow,
+  type ReconciliationRunRow,
+} from "@/lib/reconciliation/read";
 import { STRIPE_STALE_AFTER_HOURS } from "@/lib/reconciliation/stripe-source";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/reconciliation/window";
 
@@ -28,6 +38,12 @@ import { DEFAULT_WINDOW_DAYS } from "@/lib/reconciliation/window";
 
 const HOW_MANY_RUNS_SHOWN = 12;
 const HOW_MANY_RESOLVED_SHOWN = 20;
+// The three break lists are read a page at a time and say so when the page is not the whole list
+// (review finding F-LS-01). The probe list is the one that grows on its own: every run of
+// scripts/check-reconciliation.ts plants one more.
+const HOW_MANY_BREAKS_SHOWN = 50;
+const HOW_MANY_PROBES_SHOWN = 50;
+const HOW_MANY_EXPLAINED_SHOWN = 50;
 
 const SOURCE_LABEL: Record<string, string> = {
   stripe: "Stripe (LIVE SANDBOX)",
@@ -41,13 +57,14 @@ const CLASSIFICATION_MEANING: Record<string, string> = {
   provider_only: "the provider moved money the ledger has no cash entry for",
   amount_mismatch: "both sides moved money on the same operation, for different amounts",
   stale: "money out promised long ago and still not confirmed either way",
+  probe: "a payment one of our own check runs planted at the provider; no ledger entry is expected for it",
   matched: "both sides agree",
 };
 
 export default async function ReconciliationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ran?: string }>;
+  searchParams: Promise<{ error?: string; ran?: string; explained?: string }>;
 }) {
   const user = await currentUser();
   if (!user) {
@@ -57,10 +74,16 @@ export default async function ReconciliationPage({
     redirect("/broker");
   }
 
-  // The four reads and the query string, together: the page renders once, with everything.
-  const [runs, breaks, resolved, clearingBalances, query] = await Promise.all([
+  // The six reads and the query string, together: the page renders once, with everything.
+  //
+  // The three break lists are disjoint by construction (lib/reconciliation/read.ts): a break to
+  // act on carries no note and is not a probe, a probe carries no note, and an explained break is
+  // any break carrying one. So a record appears on this page exactly once.
+  const [runs, breaks, probes, explained, resolved, clearingBalances, query] = await Promise.all([
     recentRuns(sql, HOW_MANY_RUNS_SHOWN),
-    openBreaks(sql),
+    openBreaksPage(sql, HOW_MANY_BREAKS_SHOWN),
+    probesPage(sql, HOW_MANY_PROBES_SHOWN),
+    explainedBreaksPage(sql, HOW_MANY_EXPLAINED_SHOWN),
     resolvedBreaks(sql, HOW_MANY_RESOLVED_SHOWN),
     nonZeroClearingBalances(sql),
     searchParams,
@@ -77,6 +100,13 @@ export default async function ReconciliationPage({
   const notices = [
     query.error ? <p key="error" className="error" role="alert">{query.error}</p> : null,
     query.ran ? <p key="ran" className="note">Run finished: {query.ran}</p> : null,
+    query.explained ? (
+      <p key="explained" className="note">
+        Break {query.explained} is explained. It is no longer counted as a break to act on and it has left the
+        operations inbox. Nothing was repaired: it is listed below with your note, and every later run compares it
+        again exactly as before.
+      </p>
+    ) : null,
     // A failed latest run is called out above everything else: it found nothing because it
     // could not look, and reading its zero as "clean" is the exact mistake the brief forbids.
     ...sourcesWhoseLatestRunFailed.map((run) => (
@@ -98,7 +128,12 @@ export default async function ReconciliationPage({
                 live and what is simulated is the first thing a reader has to know (AF-02). */}
             <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone="neutral">claim payout rail: LOCAL SIMULATOR</Chip>
-            <Chip tone={breaks.length > 0 ? "warn" : "ok"}>{breaks.length === 0 ? "no open break" : `${breaks.length} open ${breaks.length === 1 ? "break" : "breaks"}`}</Chip>
+            <Chip tone={breaks.totalOpen > 0 ? "warn" : "ok"}>
+              {breaks.totalOpen === 0
+                ? "no break to act on"
+                : `${breaks.totalOpen} ${breaks.totalOpen === 1 ? "break" : "breaks"} to act on`}
+            </Chip>
+            {probes.totalProbes > 0 ? <Chip tone="neutral">{probes.totalProbes} probes from check runs</Chip> : null}
             {sourcesWhoseLatestRunFailed.length > 0 ? <Chip tone="warn">latest run failed</Chip> : null}
           </>
         }
@@ -118,26 +153,89 @@ export default async function ReconciliationPage({
       <DetailGrid
         main={
           <>
-            <Panel title="Open breaks">
+            <Panel title="Open breaks to act on">
               {runs.length === 0 ? (
                 <Empty illustration="all-clear">No reconciliation has ever run. Press &ldquo;Reconcile both sources now&rdquo;.</Empty>
-              ) : breaks.length === 0 ? (
+              ) : breaks.rows.length === 0 ? (
                 <Empty illustration="all-clear">
-                  No open break. The latest completed run of each source compared{" "}
+                  No break to act on. The latest completed run of each source compared{" "}
                   {latestComplete.map((run) => `${run.providerRecordCount} provider records for ${run.source}`).join(" and ")}{" "}
                   and found every one of them in the ledger.
                 </Empty>
               ) : (
-                <BreakTable rows={breaks} now={now} label="Open breaks" ageColumn="Open for" />
+                <>
+                  <BreakTable rows={breaks.rows} now={now} label="Open breaks" ageColumn="Open for" explain />
+                  {/* The cap is said, never hidden: the read is bounded and the number it did not
+                      draw is the number that matters (review findings F-B10-07 and F-LS-01). */}
+                  {breaks.capped ? (
+                    <p className="note">
+                      Showing the {breaks.rows.length} oldest of {breaks.totalOpen} breaks to act on. The rest are on
+                      file and counted; nothing was dropped.
+                    </p>
+                  ) : null}
+                </>
               )}
-              <Disclosure title="What counts as open">
+              <Disclosure title="What counts as a break to act on">
                 <p>
-                  Everything a completed run reported as anything but matched and that no later run has explained. A
-                  break leaves this list only when a later completed run of the same source, <strong>whose window
-                  covers the date of the record</strong>, no longer reports it: a break nobody has looked at again stays
-                  here, however old it gets. The age is counted from the first run that ever reported it as a break.
-                  Staleness thresholds are assumptions of this build: {STRIPE_STALE_AFTER_HOURS} hours at Stripe,{" "}
-                  {CLAIMS_RAIL_STALE_AFTER_HOURS} hours on the simulated rail.
+                  Everything a completed run reported as anything but matched, that no later run has explained,{" "}
+                  <strong>that is not a probe from one of our own check runs and that nobody has written a note
+                  on</strong>. A break leaves this list when a later completed run of the same source, <strong>whose
+                  window covers the date of the record</strong>, no longer reports it: a break nobody has looked at
+                  again stays here, however old it gets. The age is counted from the first run that ever reported it as
+                  a break. Staleness thresholds are assumptions of this build: {STRIPE_STALE_AFTER_HOURS} hours at
+                  Stripe, {CLAIMS_RAIL_STALE_AFTER_HOURS} hours on the simulated rail. This is the number the sidebar
+                  badge and the operations inbox show.
+                </p>
+              </Disclosure>
+            </Panel>
+
+            <Panel title="Probe payments from check runs">
+              {probes.rows.length === 0 ? (
+                <Empty>No probe payment is being reported.</Empty>
+              ) : (
+                <>
+                  <BreakTable rows={probes.rows} now={now} label="Probe payments" ageColumn="Reported for" explain />
+                  {probes.capped ? (
+                    <p className="note">
+                      Showing the {probes.rows.length} oldest of {probes.totalProbes} probe payments. The rest are on
+                      file and counted; nothing was dropped.
+                    </p>
+                  ) : null}
+                </>
+              )}
+              <p className="note">
+                These are payments <strong>this project&apos;s own check script creates</strong>. Every run of{" "}
+                <code>npm run check:reconciliation</code> puts one real PaymentIntent of $42.42 into the Stripe sandbox
+                with a test card and no operation id, to prove that money at the provider with nothing behind it in our
+                books is found by the comparison. No ledger entry will ever explain them, by construction, so they are
+                reported for ever and they are <strong>not breaks to act on</strong>. They are not hidden either: they
+                are listed here, counted here, and a real provider-only break would appear in the panel above and not in
+                this one.
+              </p>
+            </Panel>
+
+            <Panel title="Explained breaks">
+              {explained.rows.length === 0 ? (
+                <Empty>Nobody has written a note on a break yet.</Empty>
+              ) : (
+                <>
+                  <ExplainedTable rows={explained.rows} now={now} />
+                  {explained.capped ? (
+                    <p className="note">
+                      Showing {explained.rows.length} of {explained.totalExplained} explained breaks, most recently
+                      explained first. The rest are on file and counted; nothing was dropped.
+                    </p>
+                  ) : null}
+                </>
+              )}
+              <Disclosure title="What a note does, and what it does not do">
+                <p>
+                  A note says that a staff operations user looked at this break and knows what it is. It{" "}
+                  <strong>repairs nothing</strong>: no money moves, no journal entry is posted, and no reconciliation
+                  row is edited or deleted. The break is still compared by every later run and it stays listed here with
+                  the note, its author and its date. The only thing that changes is that it stops being counted as a
+                  break to act on and leaves the operations inbox. Notes are append-only: a correction is a second note,
+                  and the latest one is shown.
                 </p>
               </Disclosure>
             </Panel>
@@ -249,10 +347,12 @@ export default async function ReconciliationPage({
                 <p>
                   There is deliberately no button that could. A break is repaired by doing the real thing (replaying a
                   webhook, running the settlement job, opening a correction), and the next run stops reporting it. That
-                  is why resolved breaks are still listed: they were never deleted, they simply stopped being found.
+                  is why resolved breaks are still listed: they were never deleted, they simply stopped being found.{" "}
+                  <strong>Explaining a break is not repairing it either</strong>: the note says a human knows what this
+                  break is, the money is exactly where it was, and the comparison keeps reporting it.
                 </p>
               </Disclosure>
-              <Disclosure title="The five classifications">
+              <Disclosure title="The six classifications">
                 <ul>
                   {Object.entries(CLASSIFICATION_MEANING).map(([name, meaning]) => (
                     <li key={name}>
@@ -271,6 +371,9 @@ export default async function ReconciliationPage({
 }
 
 function RunRow({ run }: { run: ReconciliationRunRow }) {
+  // Breaks to act on and probes are counted separately, never added up: a run of this build finds
+  // one more probe every time the check script has been run, and reading "28 breaks" when they are
+  // 28 planted payments is the confusion review finding F-YA-10 recorded.
   const breaks = run.counts.local_only + run.counts.provider_only + run.counts.amount_mismatch + run.counts.stale;
   return (
     <tr>
@@ -301,9 +404,10 @@ function RunRow({ run }: { run: ReconciliationRunRow }) {
           <span className="note">FAILED, no comparison was made: {run.fetchError}</span>
         ) : (
           <>
-            {breaks === 0 ? "no break" : breaks === 1 ? "1 break" : `${breaks} breaks`} ({run.counts.matched} matched,{" "}
-            {run.counts.local_only} local only, {run.counts.provider_only} provider only, {run.counts.amount_mismatch}{" "}
-            amount mismatch, {run.counts.stale} stale)
+            {run.counts.probe > 0 ? `${run.counts.probe} ${run.counts.probe === 1 ? "probe" : "probes"}, ` : ""}
+            {breaks === 0 ? "no break to act on" : breaks === 1 ? "1 break to act on" : `${breaks} breaks to act on`} (
+            {run.counts.matched} matched, {run.counts.local_only} local only, {run.counts.provider_only} provider only,{" "}
+            {run.counts.amount_mismatch} amount mismatch, {run.counts.stale} stale, {run.counts.probe} probe)
             {run.note ? (
               <>
                 <br />
@@ -337,7 +441,21 @@ function ClearingRow({ balance, now }: { balance: ClearingBalanceRow; now: Date 
 // `label` names the scrolling region, exactly as `ageColumn` names the last column: this table is
 // rendered twice, for the open breaks and for the resolved ones, and a name generated from a
 // counter had both of them announced as "Reconciliation table 3" (review finding F-B13-33).
-function BreakTable({ rows, now, label, ageColumn }: { rows: ReconciliationBreakRow[]; now: Date; label: string; ageColumn: string }) {
+function BreakTable({
+  rows,
+  now,
+  label,
+  ageColumn,
+  explain = false,
+}: {
+  rows: ReconciliationBreakRow[];
+  now: Date;
+  label: string;
+  ageColumn: string;
+  // Adds the last column, the note form. Off on the resolved table: a break that stopped being
+  // reported has nothing left to explain.
+  explain?: boolean;
+}) {
   return (
     <div className="table-scroll" role="region" aria-label={label} tabIndex={0}>
 <table className="ledger ops-table">
@@ -352,6 +470,7 @@ function BreakTable({ rows, now, label, ageColumn }: { rows: ReconciliationBreak
           <th className="col-when">First seen (UTC)</th>
           <th className="col-age">{ageColumn}</th>
           <th className="col-text">What it means</th>
+          {explain ? <th className="col-text">Explain this break</th> : null}
         </tr>
       </thead>
       <tbody>
@@ -385,11 +504,98 @@ function BreakTable({ rows, now, label, ageColumn }: { rows: ReconciliationBreak
             <td className="col-when">{utc(row.firstSeenAt)}</td>
             <td className="col-age">{describeAge(row.firstSeenAt, now)}</td>
             <td className="col-text">{row.note}</td>
+            {explain ? (
+              <td className="col-text">
+                <ExplainForm breakKey={row.breakKey} />
+              </td>
+            ) : null}
           </tr>
         ))}
       </tbody>
     </table>
 </div>
+  );
+}
+
+// The note form of one row. Staff operations only, server-side: the route reads the session and
+// refuses everybody else (lib/reconciliation/break-notes.ts). It is shown to every reader of this
+// page because hiding it would not be the control, and a staff approver pressing it gets the
+// refusal sentence rather than a silent failure.
+//
+// The break key goes in the path and is encoded here: it carries a `|` and a `:`.
+function ExplainForm({ breakKey }: { breakKey: string }) {
+  return (
+    <form method="post" action={`/api/reconciliation/breaks/${encodeURIComponent(breakKey)}/explain`} className="inline-form">
+      <label htmlFor={`note-${breakKey}`} className="note">
+        What is this break? ({NOTE_MINIMUM_CHARACTERS} to {NOTE_MAXIMUM_CHARACTERS} characters)
+      </label>
+      <textarea
+        id={`note-${breakKey}`}
+        name="note"
+        rows={2}
+        minLength={NOTE_MINIMUM_CHARACTERS}
+        maxLength={NOTE_MAXIMUM_CHARACTERS}
+        required
+      />
+      <button type="submit" className="secondary">Explain this break</button>
+    </form>
+  );
+}
+
+// The explained breaks: the same row, plus the note that took it out of the list to act on.
+function ExplainedTable({ rows, now }: { rows: ExplainedBreakRow[]; now: Date }) {
+  return (
+    <div className="table-scroll" role="region" aria-label="Explained breaks" tabIndex={0}>
+      <table className="ledger ops-table">
+        <thead>
+          <tr>
+            <th className="col-ref">Reference</th>
+            <th className="col-label">Source</th>
+            <th className="col-text">Classification</th>
+            <th className="amount">Difference</th>
+            <th className="col-age">Open for</th>
+            <th className="col-text">What an operator says it is</th>
+            <th className="col-name">Explained by</th>
+            <th className="col-when">Explained (UTC)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={`${row.breakKey}-${row.explanation.recordedAt.toISOString()}`} id={`break-${row.breakKey}`}>
+              <td className="col-ref">
+                <code>{row.providerRef ?? "no provider reference"}</code>
+                <SandboxReferences
+                  references={[
+                    { label: "Provider reference", value: row.providerRef },
+                    { label: "Ledger operation id", value: row.ledgerRef },
+                    { label: "Break key", value: row.breakKey },
+                  ]}
+                />
+              </td>
+              <td className="col-label">{SOURCE_LABEL[row.source] ?? row.source}</td>
+              <td className="col-text">
+                <Chip tone="neutral">{row.classification.replace(/_/g, " ")}</Chip>
+              </td>
+              <td className="amount">{money(row.differenceCents)}</td>
+              <td className="col-age">{describeAge(row.firstSeenAt, now)}</td>
+              <td className="col-text">
+                {row.explanation.note}
+                {row.explanation.noteCount > 1 ? (
+                  <>
+                    <br />
+                    <span className="note">
+                      latest of {row.explanation.noteCount} notes on this break; the earlier ones are on file
+                    </span>
+                  </>
+                ) : null}
+              </td>
+              <td className="col-name">{row.explanation.explainedByName}</td>
+              <td className="col-when">{utc(row.explanation.recordedAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
