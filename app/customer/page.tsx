@@ -234,9 +234,22 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
                       Approve {formatCentsAsUsd(correction.collection!.amountCents)}
                     </Link>
                   ))}{" "}
-                  <a href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}>Declarations</a>
-                  {" "}
-                  <a href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}>Schedule</a>
+                  {/* Both routes serve the PDF inline, so they open beside this list instead
+                      of replacing it. */}
+                  <a
+                    href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    Declarations
+                  </a>{" "}
+                  <a
+                    href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    Schedule
+                  </a>
                 </td>
                 <Chevron />
               </Row>

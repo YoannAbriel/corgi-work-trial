@@ -194,7 +194,14 @@ function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
           {
             label: "Document",
             value: (
-              <Link href={`/api/statements/${run.runId}/pdf`} prefetch={false}>
+              <Link
+                href={`/api/statements/${run.runId}/pdf`}
+                prefetch={false}
+                // The route serves the PDF inline, so following it in this tab replaces the
+                // page the broker was reading. A generated document opens beside it instead.
+                target="_blank"
+                rel="noopener"
+              >
                 Download the PDF
               </Link>
             ),

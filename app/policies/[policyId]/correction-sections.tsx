@@ -142,7 +142,14 @@ function DocumentRow({
   termStart: string;
 }) {
   return (
-    <form method="get" action={`/api/policies/${policyId}/documents/${endpoint}`} className="pd-doc-row">
+    // The PDF is reached through this GET form, so the new tab is asked for on the form
+    // rather than on a link: same action, same method, same field name.
+    <form
+      method="get"
+      action={`/api/policies/${policyId}/documents/${endpoint}`}
+      className="pd-doc-row"
+      target="_blank"
+    >
       <input
         id={fieldId}
         name="asOf"
@@ -554,9 +561,22 @@ export async function PolicyAsOf({
 
           <p className="pd-note">
             The same date as a PDF:{" "}
-            <Link href={`/api/policies/${policyId}/documents/declarations?asOf=${result.asOf}`}>declarations</Link>
+            <Link
+              href={`/api/policies/${policyId}/documents/declarations?asOf=${result.asOf}`}
+              target="_blank"
+              rel="noopener"
+            >
+              declarations
+            </Link>
             {" / "}
-            <Link href={`/api/policies/${policyId}/documents/endorsement-schedule?asOf=${result.asOf}`}>schedule</Link>.
+            <Link
+              href={`/api/policies/${policyId}/documents/endorsement-schedule?asOf=${result.asOf}`}
+              target="_blank"
+              rel="noopener"
+            >
+              schedule
+            </Link>
+            .
           </p>
         </section>
       )}

@@ -188,6 +188,9 @@ export default async function StatementPage({
               prefetch={false}
               className="button-link"
               title="Download this statement as a PDF"
+              // Inline PDF in a new tab: this page keeps its place while the document opens.
+              target="_blank"
+              rel="noopener"
             >
               <Download size={15} aria-hidden="true" />
               PDF
