@@ -271,7 +271,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
               { term: "Total", meaning: "annual premium plus state tax and the flat fee, in force today or on the first day of the term" },
               // Named only when a row below prints it: a legend is a reading of THIS screen.
               ...(shown.some((policy) => laterTerms(policy) !== null)
-                ? [{ term: "on the latest terms", meaning: "a change is already written on the policy and takes effect after that date; the figure above it is the one in force now" }]
+                ? [{ term: "on the latest terms", meaning: "a change is already written on the policy and takes effect later; the figure above it is the one in force now" }]
                 : []),
               // Only the statuses the rows below print, in the order they appear.
               ...statusesOnScreen(shown).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),

@@ -35,6 +35,24 @@ const STATUS_MEANING: Record<string, string> = {
   voided: "a correction reversed the issuance; this policy never took effect",
 };
 
+// THE TWO CLAUSES A REQUESTED CHANGE CAN END ON, and what each says to the customer.
+//
+// A request the customer has already approved needs nothing but the payment. One still waiting
+// for their yes needs BOTH, and a row that promised the change on the money alone was telling the
+// customer their decision had already been taken (review finding F-LT-03). These are the two
+// sentences the policy's own page prints, in LatestTermsStat
+// (app/policies/[policyId]/correction-sections.tsx), so the list and the policy agree.
+//
+// The legend reads these same two strings, so it can never define a clause no row shows
+// (review finding F-LT-09).
+const ONCE_PAID = "once the delta is paid";
+const IF_APPROVED_AND_PAID = "if it is approved and the delta is paid";
+
+const REQUESTED_CONDITION_MEANING: Record<string, string> = {
+  [ONCE_PAID]: "the premium from the day beside it, as soon as your broker collects the delta of the change you approved",
+  [IF_APPROVED_AND_PAID]: "the premium from the day beside it, if you approve the change that was asked for and its delta is then collected",
+};
+
 // The statuses on the screen, once each, in the order the rows use them.
 function statusesOnScreen(rows: { status: string }[]): string[] {
   const seen: string[] = [];
@@ -162,9 +180,9 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
               ...(rows.some((policy) => writtenLaterPremium(policy) !== null)
                 ? [{ term: "on the latest terms", meaning: "a change is already written on your policy and takes effect later; the figure above it is the one in force today" }]
                 : []),
-              ...(rows.some((policy) => requestedPremium(policy) !== null)
-                ? [{ term: "from a date", meaning: "the premium from that day, once your broker collects the delta of the change that was asked for" }]
-                : []),
+              // The clause itself is the term, so a reader finds in the legend the words that are
+              // in the cell above it (F-LT-09).
+              ...conditionsOnScreen(rows).map((condition) => ({ term: condition, meaning: REQUESTED_CONDITION_MEANING[condition] })),
               ...statusesOnScreen(rows).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),
               { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
             ]}
@@ -300,8 +318,9 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
 //     so that line names the amount and not the day;
 //   - the change REQUESTED and not in force comes from liveEndorsementRequest
 //     (lib/policy/endorsement-requests.ts), which carries the whole quote: it returns only the
-//     request that is neither applied nor superseded, so this is exactly the one whose delta has
-//     still to be paid, and the line names both the amount and the day.
+//     request that is neither applied nor superseded, so this is exactly the one that is not in
+//     force yet. The line names the amount, the day, and what still has to happen before it
+//     takes effect: the customer's own yes counts when the request is still waiting for it.
 type PremiumRow = {
   terms: Pick<TermsInForce, "onDate" | "annualPremiumCents">;
   latestAnnualPremiumCents: number;
@@ -316,9 +335,27 @@ function writtenLaterPremium(row: PremiumRow): string | null {
   return `${formatCentsAsUsd(row.latestAnnualPremiumCents)} on the latest terms`;
 }
 
-function requestedPremium(row: PremiumRow): string | null {
+// What still has to happen before the requested change takes effect. `approved` is the standing
+// where the only thing left is the money; `awaiting_approval` needs the customer's yes first.
+function requestedCondition(row: PremiumRow): string | null {
   if (!row.live) return null;
-  return `${formatCentsAsUsd(row.live.request.figures.newAnnualPremiumCents)} from ${row.live.request.figures.effectiveAt} once the delta is paid`;
+  return row.live.standing.state === "approved" ? ONCE_PAID : IF_APPROVED_AND_PAID;
+}
+
+function requestedPremium(row: PremiumRow): string | null {
+  const condition = requestedCondition(row);
+  if (!row.live || condition === null) return null;
+  return `${formatCentsAsUsd(row.live.request.figures.newAnnualPremiumCents)} from ${row.live.request.figures.effectiveAt} ${condition}`;
+}
+
+// The clauses the rows below actually end on, once each, in the order they appear.
+function conditionsOnScreen(rows: PremiumRow[]): string[] {
+  const seen: string[] = [];
+  for (const row of rows) {
+    const condition = requestedCondition(row);
+    if (condition !== null && !seen.includes(condition)) seen.push(condition);
+  }
+  return seen;
 }
 
 // Everything the cell says under its figure, or nothing at all: an empty `sub` would draw an
