@@ -666,7 +666,23 @@ export default async function ClaimPage({
                               <Chip tone={approval.decision === "approved" ? "ok" : approval.decision ? "warn" : "neutral"}>
                                 {approval.decision ?? "waiting"}
                               </Chip>
-                              <span className="dt-sub">{approval.requestedByName}</span>
+                              {/* Under a DECIDED chip, the name is the person who decided, never the
+                                  person who asked. This cell used to print the requester under
+                                  "approved", which read as operations approving its own request and
+                                  is exactly what the maker-checker rule forbids (Yoann, LIVE-10,
+                                  2026-09-09). The requester is still named, in "Requested by" and in
+                                  the Approval line of the expansion.
+
+                                  While it is still WAITING there is no decider to name, so the line
+                                  says who asked and that somebody else has to decide. */}
+                              {approval.decision ? (
+                                <span className="dt-sub">by {approval.decidedByName ?? "unknown"}</span>
+                              ) : (
+                                <>
+                                  <span className="dt-sub">asked by {approval.requestedByName}</span>
+                                  <span className="dt-sub">a second person decides first</span>
+                                </>
+                              )}
                             </>
                           )}
                         </td>
