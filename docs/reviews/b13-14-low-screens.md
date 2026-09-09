@@ -322,3 +322,7 @@ The coordinator owns that file. These are the lines to append:
 | F-LU-07 | LOW | Counter-named regions are gone repo-wide, but one page still carries fourteen regions named "Amount calculation details" and nine named "Journal entries behind this amount" (CGP-01274) | Carry the amount's label into the name, as BreakTable now carries `label` | DISCLOSED |
 | F-LU-08 | LOW | The refund banner's rewritten branch says "N is waiting for an approver"; it reads "2 is waiting" on two refunds, a shape shared with the four sibling branches | `plural()` already exists in lib/inbox/tasks.ts | OPEN (cosmetic) |
 | F-B13-31 | LOW | Re-scope to "refusals above the Suspense boundary": no loading.tsx is the right design, confirmed against the Next.js documentation and 9 x 307 measured on production; the layout.tsx note records it in code only | Re-scope, and put one line in the handoff (docs/STATUS.md or README) so the disclosure is where a reviewer reads | RE-SCOPE and DISCLOSE |
+
+## Coordinator note, 2026-09-09T18:55Z: the one failing item was closed in a later record
+
+The FAIL above rested on F-LU-01 (the console 360 timeline printing an earlier decline beside the succeeded chip). It was closed by the interface rework: docs/reviews/ui-system.md (PASS at 2af6ebe) lists F-LU-01 to F-LU-05 as CLOSED with their measurements, and docs/reviews/ui-cycle-2.md (PASS at c408cb3) re-measured F-LU-04 and F-LU-05 on production. No line above was edited.
