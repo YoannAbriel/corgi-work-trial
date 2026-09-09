@@ -568,7 +568,7 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 ## 2026-09-09T20:22:00+00:00 | Interface batch 1 deployed: /api/health reports d002f77
 
-- Pushed alone at 20:21Z, health at d002f77 at 20:24Z. Anonymous checks after the deploy: /ops/ledger and the old /ops/console/ledger answer 307 to the session read, POST /api/mcp without a key answers 401, the sandbox sentence is on /login. Docs pushed after the code, per the Vercel rule. The co-pilot starts LIVE-7 on d002f77.
+- Pushed alone at 20:21Z, health at d002f77 at 20:22Z. Anonymous checks after the deploy: /ops/ledger and the old /ops/console/ledger answer 307 to the session read, POST /api/mcp without a key answers 401, the sandbox sentence is on /login. Docs pushed after the code, per the Vercel rule. The co-pilot starts LIVE-7 on d002f77.
 
 ## 2026-09-09T20:21:00+00:00 | LIVE-9 done by Yoann on production (92379e2), evidence merged (73f528c); interface batch 1 pushed (d002f77), deployment in progress
 
