@@ -27,8 +27,11 @@ export type RevealedSignIn = {
   password: string;
 };
 
-// The value is "<email>|<password>". A vertical bar cannot appear in an email address and is not
-// in the password alphabet (lib/auth/password.ts), so the first bar is always the separator.
+// The value is "<email>|<password>". The first bar is the separator because this build REFUSES an
+// email carrying one (isEmailSafeForRevealCookie below, called by readNewBrokerForm before any
+// row is written) and the password alphabet holds no bar (lib/auth/password.ts). The bar is legal
+// in an address, which is exactly what review finding F-NEWBROKER-06 was about: the invariant is
+// enforced here, it is not a property of email addresses.
 export function revealCookieValue(signIn: RevealedSignIn): string {
   return `${signIn.email}|${signIn.password}`;
 }
@@ -73,9 +76,9 @@ export function readRevealCookieValue(raw: string | undefined): RevealedSignIn |
 // The Set-Cookie header that hands the details to the browser.
 //
 // The value is written as it is, with no escaping: both halves of it are already known to hold
-// only characters a cookie value may hold. The email was checked by isCookieSafeValue above,
-// through readNewBrokerForm, before the broker was created; the password comes from the
-// letters-and-digits alphabet of lib/auth/password.ts.
+// only characters a cookie value may hold, and no separator. The email was checked by
+// isEmailSafeForRevealCookie above, through readNewBrokerForm, before the broker was created; the
+// password comes from the letters-and-digits alphabet of lib/auth/password.ts.
 //
 // Secure only in production: the flag would stop the cookie from being set at all on the plain
 // HTTP of local development, and the deployment is HTTPS. This is the same rule as the session

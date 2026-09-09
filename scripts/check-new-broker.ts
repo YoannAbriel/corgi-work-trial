@@ -188,12 +188,15 @@ async function main() {
     (await countBrokersNamed(BROKER_NAME)) === 0,
     `${await countBrokersNamed(BROKER_NAME)} brokers named "${BROKER_NAME}"`,
   );
-  // The hostile addresses again, from the other side: no sign-in account was created for any of them
-  // of them. This is the line that says the refusal happened before the INSERT and not after it,
+  // The hostile addresses again, from the other side: no sign-in account was created for any of
+  // them. This is the line that says the refusal happened before the INSERT and not after it,
   // which is the whole point: an account created with a broken cookie could never be repaired,
   // because nothing anywhere holds the password it was supposed to show.
-  const hostileAccounts = (await countUsersWithEmail(SEMICOLON_EMAIL)) + (await countUsersWithEmail(COMMA_EMAIL));
-  report("no sign-in account exists for either hostile address", hostileAccounts === 0, `${hostileAccounts} accounts`);
+  const hostileAccounts =
+    (await countUsersWithEmail(SEMICOLON_EMAIL)) +
+    (await countUsersWithEmail(COMMA_EMAIL)) +
+    (await countUsersWithEmail(SEPARATOR_EMAIL));
+  report("no sign-in account exists for any hostile address", hostileAccounts === 0, `${hostileAccounts} accounts`);
 
   // ---------------------------------------------------------------------------
   // 4. The creation itself
