@@ -1,7 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "@/db/client";
+import { ApprovalRefused } from "@/lib/approvals/approvals";
 import { currentUser } from "@/lib/auth/current-user";
+import { ClaimRefused } from "@/lib/claims/claims";
 import { isUuid } from "@/lib/http/path-ids";
+import { JobNotAuthorised } from "@/lib/jobs/authorize";
+import { KeyRefused } from "@/lib/mcp/keys";
+import { ToolRefused } from "@/lib/mcp/tools/tool";
+import { EndorsementNotComputable } from "@/lib/money/endorsement";
+import { RefundCannotBeAllocated } from "@/lib/money/refund-allocation";
+import { ChangeRequestRefused } from "@/lib/policy/change-requests";
+import { PolicyDraftRefused } from "@/lib/policy/issue";
+import { BankAccountRejected } from "@/lib/rails/bank-verification-simulator";
+import { WindowRefused } from "@/lib/reconciliation/window";
 import { redact, sanitisedSentence } from "./redact";
 
 // withActivity: the one wrapper every route handler of this application is wrapped in.
@@ -56,6 +67,10 @@ export type Activity = {
   subjectId: string | null;
   rule: string | null;
   message: string | null;
+  // The outcome when the handler knows it better than the classifier below can. The MCP endpoint
+  // is the case this exists for: the protocol answers a REFUSED tool call with HTTP 200 and an
+  // isError result, so the status code says "ok" about a call that was told no.
+  outcome: ActivityOutcome | null;
 };
 
 export type ActivityDescriptor = {
@@ -77,49 +92,40 @@ export type ActivityDescriptor = {
   actor?: "session" | "anonymous" | "cron" | "stripe" | "declared";
 };
 
-// The refusal classes of this application, by the name of the rule each one enforces.
+// The refusal classes this file recognises, each with the name of the rule it enforces.
 //
-// WHY BY NAME AND NOT BY `instanceof`. An instanceof test would mean importing twenty business
-// modules into a file that every route imports, which would pull the Stripe SDK, the PDF
-// renderer and the statement engine into every serverless function. The name of the class is
-// enough to name the rule, and it costs nothing.
+// WHY `instanceof` AND NOT THE CLASS NAME. Reading `thrown.constructor.name` would have needed
+// no imports at all, and it does not work: the production server bundle mangles class names
+// (`class a extends Error` in .next/server/chunks after `npm run build`), so the test would pass
+// in development and in the check scripts and silently fail on the deployed application, which
+// is the worst possible behaviour for a diagnostic. `instanceof` compares prototypes and is
+// unaffected by the renaming.
 //
-// It matters less than it looks, because almost no refusal ever reaches this map: every screen
-// of this application CATCHES its own refusal and answers with a redirect carrying ?error=,
-// which is classified below by the response and not by the throw. This map is the safety net for
-// the ones that escape, and for the MCP endpoint, which throws them on purpose.
-const RULE_OF_REFUSAL: Record<string, string> = {
-  ApprovalRefused: "maker-checker",
-  ClaimRefused: "claim rules",
-  KeyRefused: "MCP key",
-  ToolRefused: "MCP tool scope",
-  JobNotAuthorised: "cron secret",
-  WindowRefused: "reconciliation window",
-  CheckoutRefused: "payment eligibility",
-  EndorsementCheckoutRefused: "endorsement payment gate",
-  CorrectionCheckoutRefused: "correction payment gate",
-  RefundSendRefused: "refund gate",
-  RefundReissueRefused: "refund reissue gate",
-  StatementRunRefused: "statement run",
-  BrokerKybRefused: "broker verification",
-  ChangeRequestRefused: "change request",
-  CorrectionRefused: "correction",
-  CancellationRefused: "cancellation",
-  EndorsementRefused: "endorsement",
-  PolicyDraftRefused: "policy draft",
-  BankAccountRejected: "bank account check",
-  EndorsementNotComputable: "endorsement pricing",
-  RefundCannotBeAllocated: "refund allocation",
-};
+// WHY THIS LIST AND NOT ALL TWENTY-TWO. Every route file of the application imports this module,
+// so anything imported here is bundled into every serverless function, /api/health included.
+// The refusals below cost nothing to import: their modules pull the database client, the money
+// helpers and nothing else. The ones deliberately left out (CheckoutRefused, RefundSendRefused,
+// EndorsementRefused, CancellationRefused, CorrectionRefused and the payment gates) live in
+// modules that import the Stripe SDK, and every one of them is CAUGHT by its own handler and
+// answered as a redirect carrying ?error=, which the response branch below already classifies as
+// a refusal. Their loss is the rule name on a row that would say "refused" either way.
+const RULE_OF_REFUSAL: { refusal: abstract new (...args: never[]) => Error; rule: string }[] = [
+  { refusal: ApprovalRefused, rule: "maker-checker" },
+  { refusal: ClaimRefused, rule: "claim rules" },
+  { refusal: KeyRefused, rule: "MCP key" },
+  { refusal: ToolRefused, rule: "MCP tool scope" },
+  { refusal: JobNotAuthorised, rule: "cron secret" },
+  { refusal: WindowRefused, rule: "reconciliation window" },
+  { refusal: PolicyDraftRefused, rule: "policy draft" },
+  { refusal: ChangeRequestRefused, rule: "change request" },
+  { refusal: BankAccountRejected, rule: "bank account check" },
+  { refusal: RefundCannotBeAllocated, rule: "refund allocation" },
+  { refusal: EndorsementNotComputable, rule: "endorsement pricing" },
+];
 
-// A refusal is one of the classes above, or anything the application named "...Refused" or
-// "...Rejected". A class this map does not know is still a refusal, with no rule name: saying
-// "refused, rule unknown" is honest, calling it an application error is not.
 function refusalRuleOf(thrown: unknown): string | null {
   if (!(thrown instanceof Error)) return null;
-  const className = thrown.constructor?.name ?? "";
-  if (RULE_OF_REFUSAL[className]) return RULE_OF_REFUSAL[className];
-  return /(Refused|Rejected|NotAuthorised)$/.test(className) ? className : null;
+  return RULE_OF_REFUSAL.find((known) => thrown instanceof known.refusal)?.rule ?? null;
 }
 
 // A caller may bring its own correlation id (a proxy, a reviewer's curl, a load test), which is
@@ -148,6 +154,7 @@ export function withActivity<C>(
       subjectId: null,
       rule: null,
       message: null,
+      outcome: null,
     };
     await attachSubject(activity, descriptor, context);
 
@@ -186,7 +193,7 @@ export function withActivity<C>(
       message: activity.message ?? verdict.message,
       method: request.method,
       durationMs,
-      outcome: verdict.outcome,
+      outcome: activity.outcome ?? verdict.outcome,
       statusCode: verdict.statusCode,
     });
 
@@ -272,7 +279,7 @@ async function pathParameters<C>(context: C): Promise<Record<string, string | st
 // Writing it down
 // ---------------------------------------------------------------------------
 
-export type ActivityRecord = Activity & {
+export type ActivityRecord = Omit<Activity, "outcome"> & {
   method: string;
   durationMs: number;
   outcome: ActivityOutcome;

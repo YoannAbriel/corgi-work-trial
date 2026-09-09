@@ -1,13 +1,16 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { openClaim, todayUtc, ClaimRefused } from "@/lib/claims/claims";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/claims: staff operations open a claim on a policy.
 //
 // Every check is on the server: who is signed in, whether the policy was ever bound, and
 // whether the loss falls inside the period the policy actually covered (which is shorter than
 // the term when the policy was cancelled). Calling this URL directly changes nothing.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/claims", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();
   const { policyId } = await context.params;
   if (!user) {

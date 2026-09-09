@@ -2,6 +2,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { assertJobIsAuthorised, jobResponse, JobNotAuthorised } from "@/lib/jobs/authorize";
 import { breakCount, runAllSources, type ReconciliationRunSummary } from "@/lib/reconciliation/run";
 import { defaultWindow, parseWindow, WindowRefused, type ReconciliationWindow } from "@/lib/reconciliation/window";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/jobs/reconcile
 //
@@ -17,7 +18,9 @@ import { defaultWindow, parseWindow, WindowRefused, type ReconciliationWindow } 
 // Nothing here can move money: the job reads the provider, reads the ledger and appends to its
 // own two tables. The reason it is authorised at all is that it is not free (it calls Stripe) and
 // that its runs are records of what we knew, which nobody unauthenticated should be able to write.
-export async function POST(request: Request) {
+export const POST = withActivity({ route: "/api/jobs/reconcile", actor: "cron" }, handlePost);
+
+async function handlePost(request: Request) {
   const user = await currentUser();
   const staffUser = user && (user.role === "staff_ops" || user.role === "staff_approver") ? user : null;
 

@@ -27,6 +27,7 @@ import {
 } from "@/lib/payments/refunds";
 import { replyForRefusedLease, type WebhookProcessingStatus } from "@/lib/payments/webhook-inbox";
 import { stripe, stripeWebhookSigningSecrets } from "@/lib/stripe";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/webhooks/stripe
 //
@@ -52,7 +53,9 @@ import { stripe, stripeWebhookSigningSecrets } from "@/lib/stripe";
 // which account to go and read again. Adding a thin-event route would add a secret and a
 // surface without changing a single decision.
 
-export async function POST(request: Request) {
+export const POST = withActivity({ route: "/api/webhooks/stripe", actor: "stripe" }, handlePost);
+
+async function handlePost(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("stripe-signature");
   if (!signature) {
