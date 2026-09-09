@@ -10,7 +10,7 @@ import { policiesOfBroker } from "@/lib/policy/read";
 
 // The broker's own policies. A broker only ever sees the policies of the broker their user
 // account is attached to: the list is queried by broker_id, never by an id from the URL.
-export default async function BrokerPage() {
+export default async function BrokerPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const user = await currentUser();
   if (!user) {
     redirect("/login");
@@ -36,11 +36,12 @@ export default async function BrokerPage() {
     );
   }
 
-  const [policies, kyb, tasks] = await Promise.all([
+  const [policies, kyb, tasks, query] = await Promise.all([
     policiesOfBroker(user.brokerId),
     brokerKybState(user.brokerId),
     // What is waiting on this broker's policies, read once for the sidebar count and the block.
     workspaceTasks(user),
+    searchParams,
   ]);
 
   return (
@@ -64,6 +65,12 @@ export default async function BrokerPage() {
         }
       />
 
+      {/* A refused action elsewhere sends the broker back here with its sentence (F-B13-08). */}
+      {query.error ? (
+        <div className="notices">
+          <p className="error" role="alert">{query.error}</p>
+        </div>
+      ) : null}
       {kyb.status === "approved" ? null : (
         <div className="notices">
           <p className="note">{kyb.explanation}</p>
