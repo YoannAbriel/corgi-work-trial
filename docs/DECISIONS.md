@@ -233,3 +233,15 @@ Relayed at 19:54Z by the live-fire co-pilot session, Yoann's words at about 19:5
 
 43. A Billing view on the policy page, presentation only: the existing collect and pay forms regrouped, with the sentence "the broker collects on the customer's behalf, the card is the customer's". Interface session.
 44. Direct bill: the policy's customer may pay a due amount (an endorsement delta, a correction difference) from their own policy page, through the SAME hosted Checkout session the broker's Collect opens: one operation, one idempotency key, never a second session. The broker keeps the Collect button (agency bill of the 06:35Z decision is amended, not reversed). The checkout routes accept the policy's customer as actor in addition to the owning broker and staff_ops, with the same customer-approval gate of decision 24 (a distinct step from the payment) and the same expired-session rule. A backend slice with an independent review, built after LIVE-7 and never during a live-fire step.
+
+## 2026-09-09T20:18:00+00:00 | Explicit user decisions (Yoann with the interface session, evening of 2026-09-09) | Interface batch 1: sidebar, inbox, bands, statements, brand
+
+Decided by Yoann in his interface session and sent to the coordinator with the reviewed batch (docs/reviews/ui-evening-1.md, PASS at c120944).
+
+45. Sidebar: Ledger, Search and Infrastructure are their own sidebar entries (Work, Work, System); submenus are flat indented links with a chevron on the open entry, no details folds; the ledger route is /ops/ledger and /ops/console/ledger answers 307 keeping the query.
+46. Every route or `view` change scrolls the window to the top (client component in PortalFrame under Suspense); the drawer, filter chips and hash anchors keep their position; no loading.tsx.
+47. Inbox: empty sections are hidden in the All view; every section keeps a chip with its count including 0; a chip at 0 opens the section as an illustrated empty state with its anchor.
+48. Band: one line, title 28 px (24 under 1280, 22 under 800), no chip row (the `meta` prop is gone), at most one inline status chip on record screens; the signed-in person's name and role appear only at the bottom of the sidebar.
+49. Statement lists sort by run age only, newest first; /broker/statements shows a Produced column.
+50. Band vignettes are cropped copies under public/illustrations/band produced by scripts/crop-illustrations.mjs; library originals stay for the large sizes.
+51. Brand: generated PDFs open in a new tab; the Corgi wordmark (compiled in as lib/documents/brand-wordmark.ts, no runtime file read) and #ff5c00 on rules and bars only (text stays ink for contrast) in both PDF renderers; the issuer line and sandbox chip are unchanged; the sidebar mark and favicon are the Corgi mark; sources under brand/, derived files by scripts/brand-assets.mjs. The statement hash covers the canonical text, so the wordmark changes no revision.
