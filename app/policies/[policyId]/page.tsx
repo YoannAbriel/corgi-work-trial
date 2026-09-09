@@ -57,6 +57,7 @@ import {
 } from "@/lib/ui/views";
 import {
   COLLECT_ANCHOR,
+  CorrectionCollectRows,
   correctionHref,
   correctionViews,
   firstOpenCollection,
@@ -69,6 +70,11 @@ import {
   POLICY_VIEWS,
   POLICY_VIEW_LABEL,
 } from "./correction-sections";
+import {
+  AGENCY_BILL_SENTENCE_FOR_STAFF,
+  BillingSummary,
+  billingRows,
+} from "./billing-sections";
 import { CustomerChangeRequestsPanel, CustomerPolicyView } from "./customer-view";
 import { FormulaLinesTable } from "./formula-lines";
 
@@ -207,7 +213,12 @@ export default async function PolicyPage({
   // the last thing in a block sitting far down the Money view, so the band names the amount and
   // links straight to it.
   const collectable = firstOpenCollection(corrections, canPayTheDifference);
-  const collectHref = `${path}?view=money#${COLLECT_ANCHOR}`;
+  // Every button that takes money lives on the Billing view (decision 43), so the band, the
+  // Money view and the Endorsements view all point at the same place.
+  const billingHref = `${path}?view=billing`;
+  const collectHref = `${billingHref}#${COLLECT_ANCHOR}`;
+  // What is owed, what was paid and what is coming back, built from the rows already read above.
+  const billingLists = billingRows({ policy, payment: operation, endorsements, corrections, refunds });
   const liveEndorsement = endorsements.find(
     (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
   );
@@ -682,6 +693,7 @@ export default async function PolicyPage({
             <EndorsementInProgress
               endorsement={liveEndorsement}
               policyId={policy.policyId}
+              billingHref={billingHref}
               isOwningBroker={isOwningBroker}
               isStaffOperations={user.role === "staff_ops"}
               now={now}
@@ -1228,12 +1240,7 @@ export default async function PolicyPage({
           ) : null}
 
           {/* Slice B8: backdated corrections, both clocks, and what they did to the money. */}
-          <CorrectionsExplained
-            corrections={corrections}
-            policyId={policy.policyId}
-            canPay={canPayTheDifference}
-            now={now}
-          />
+          <CorrectionsExplained corrections={corrections} billingHref={billingHref} now={now} />
 
           <section className="card">
             <h2>Journal entries</h2>
@@ -1266,6 +1273,90 @@ export default async function PolicyPage({
             <p>
               A refund counts as completed only when Stripe&apos;s webhook confirms the money left. A failed refund
               reverses nothing: the customer is still owed the money.
+            </p>
+          </About>
+        </>
+      ) : null}
+
+      {/* THE BILLING VIEW (decision 43, Yoann live at 19:50Z: "on dit que le broker collecte,
+          mais c'est lui qui paye ?"). Every button that takes money used to sit somewhere in the
+          broker's own space with nothing saying whose card pays. They are all here now, under one
+          sentence that says it, followed by the three questions anyone asks about the money of a
+          policy: what is owed, what was paid, what is coming back. Nothing new is read: the rows
+          are the ones the Money view and the Endorsements view already had. */}
+      {view === "billing" ? (
+        <>
+          {/* The sentence FIRST, above the buttons rather than under them: it is the answer to
+              the question Yoann asked while looking at one ("on dit que le broker collecte, mais
+              c'est lui qui paye ?"), and an answer printed under the button answers nobody. */}
+          <p className="pd-lead">{AGENCY_BILL_SENTENCE_FOR_STAFF}</p>
+
+          {/* Only drawn when something is actually waiting: an approved endorsement whose delta
+              has not been collected, or a correction difference still open. */}
+          {(liveEndorsement && liveEndorsement.standing.state === "approved") || collectable ? (
+            <section className="card">
+              <h2>What needs paying now</h2>
+              {liveEndorsement && liveEndorsement.standing.state === "approved" && isOwningBroker &&
+              !liveEndorsement.collection?.applicationRefusedReason ? (
+                // The endorsement delta, moved here from the Endorsements card. Same route, same
+                // method, same hidden `quoteHash`: only the screen it is drawn on changed.
+                <div className="pd-collect">
+                  <p className="badge badge-warn">
+                    {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)} of endorsement delta to collect,
+                    effective {liveEndorsement.request.figures.effectiveAt}
+                  </p>
+                  <form
+                    method="post"
+                    action={`/api/policies/${policy.policyId}/endorsements/${liveEndorsement.request.eventId}/checkout`}
+                    className="inline-form"
+                  >
+                    <input type="hidden" name="quoteHash" value={liveEndorsement.request.figures.quoteHash} />
+                    <SubmitButton>
+                      {liveEndorsement.collection &&
+                      !liveEndorsement.collection.isDead &&
+                      liveEndorsement.collection.latestStatus !== "succeeded" &&
+                      liveEndorsement.collection.checkoutUrl
+                        ? "Continue the delta payment at Stripe"
+                        : `Pay the delta (${formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)}) with Stripe (test mode)`}
+                    </SubmitButton>
+                  </form>
+                </div>
+              ) : null}
+              {liveEndorsement && liveEndorsement.standing.state === "approved" && !isOwningBroker ? (
+                <p className="pd-note">
+                  The owning broker collects the endorsement delta of{" "}
+                  {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)} from this view.
+                </p>
+              ) : null}
+              <CorrectionCollectRows
+                corrections={corrections}
+                policyId={policy.policyId}
+                canPay={canPayTheDifference}
+              />
+            </section>
+          ) : null}
+
+          <BillingSummary
+            rows={billingLists}
+            now={now}
+            // Staff can follow a reference into the whole trail behind it; a broker reads the
+            // same string without the console behind it, exactly as on the Money view.
+            inspectHrefFor={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
+            inspected={inspected}
+          />
+
+          <About>
+            <h4>Agency bill</h4>
+            <p>
+              The broker is the one who opens the Stripe page and answers for the money, and the card entered on it is
+              the customer&apos;s. Nothing on this screen charges anybody: a button opens the hosted Stripe page, and
+              the policy only moves when Stripe&apos;s webhook confirms what happened.
+            </p>
+            <h4>Where these figures come from</h4>
+            <p>
+              What is owed is read from the policy&apos;s own status, from the endorsements that are approved and not
+              yet collected, and from the corrections whose difference is still open. What was paid and what is being
+              refunded are the money operations themselves. Every amount here is also in the journal on the Money view.
             </p>
           </About>
         </>
@@ -1507,12 +1598,15 @@ function refundTone(refund: RefundOperationView): "ok" | "warn" | "neutral" {
 function EndorsementInProgress({
   endorsement,
   policyId,
+  billingHref,
   isOwningBroker,
   isStaffOperations,
   now,
 }: {
   endorsement: EndorsementView;
   policyId: string;
+  // Where the Pay button lives now (decision 43).
+  billingHref: string;
   isOwningBroker: boolean;
   isStaffOperations: boolean;
   now: Date;
@@ -1583,18 +1677,13 @@ function EndorsementInProgress({
         </>
       ) : null}
 
-      {standing.state === "approved" && isOwningBroker && !collection?.applicationRefusedReason ? (
-        <form method="post" action={`/api/policies/${policyId}/endorsements/${request.eventId}/checkout`} className="inline-form">
-          <input type="hidden" name="quoteHash" value={figures.quoteHash} />
-          <SubmitButton>
-            {paymentInFlight
-              ? "Continue the delta payment at Stripe"
-              : `Pay the delta (${formatCentsAsUsd(figures.deltaTotalCents)}) with Stripe (test mode)`}
-          </SubmitButton>
-        </form>
-      ) : null}
-      {standing.state === "approved" && !isOwningBroker ? (
-        <p className="pd-note">The owning broker pays the delta from this page.</p>
+      {/* The Pay button moved to the Billing view (decision 43): every button that takes money is
+          in one place, under the sentence saying whose card pays. This card keeps the quote. */}
+      {standing.state === "approved" && !collection?.applicationRefusedReason ? (
+        <p className="pd-note">
+          <Link href={billingHref}>Pay and collect on the Billing view</Link>
+          {isOwningBroker ? "" : ". The owning broker pays the delta."}
+        </p>
       ) : null}
     </section>
   );

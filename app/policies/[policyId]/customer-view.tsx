@@ -20,11 +20,12 @@ import {
   REPLY_MAXIMUM_CHARACTERS,
   type ChangeRequestView,
 } from "@/lib/policy/change-requests";
-import { policyAsItStoodOn } from "@/lib/policy/correction-read";
-import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
-import type { PolicyDetail } from "@/lib/policy/read";
+import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
+import { endorsementScheduleOfPolicy, endorsementsOfPolicy } from "@/lib/policy/endorsement-read";
+import { checkoutOperationOfPolicy, refundOperationsOfPolicy, type PolicyDetail } from "@/lib/policy/read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { firstValue, pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
+import { AGENCY_BILL_SENTENCE_FOR_CUSTOMER, BillingSummary, billingRows } from "./billing-sections";
 import { PolicyDocuments, PolicyTimeline } from "./correction-sections";
 
 // The customer's own view of their policy, and the change requests that go with it (slice B13-6,
@@ -44,7 +45,14 @@ import { PolicyDocuments, PolicyTimeline } from "./correction-sections";
 // are before rendering a single line of it (app/policies/[policyId]/page.tsx), and every route
 // they can reach checks it again.
 
-const VIEWS = ["overview", "documents"] as const;
+// `billing` is decision 43: the customer reads the same three money questions their broker reads,
+// with no button. Their side of it is read-only until decision 44 gives them one.
+const VIEWS = ["overview", "billing", "documents"] as const;
+const VIEW_LABEL: Record<(typeof VIEWS)[number], string> = {
+  overview: "Overview",
+  billing: "Billing",
+  documents: "Documents",
+};
 
 export async function CustomerPolicyView({
   user,
@@ -63,10 +71,16 @@ export async function CustomerPolicyView({
   // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
   const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
 
-  const [query, schedule, requests, termsToday] = await Promise.all([
+  const [query, schedule, requests, payment, endorsements, corrections, refunds, termsToday] = await Promise.all([
     searchParams,
     endorsementScheduleOfPolicy(policy.policyId),
     changeRequestsOfPolicy(policy.policyId),
+    // The money rows of the Billing view (decision 43). The SAME four readers the staff page
+    // uses, so the customer and their broker read one set of figures, not two.
+    checkoutOperationOfPolicy(policy.policyId),
+    endorsementsOfPolicy(policy.policyId),
+    correctionsOfPolicy(policy.policyId),
+    refundOperationsOfPolicy(policy.policyId),
     // THE TERMS IN FORCE ON THIS DATE, not the latest terms on the policy record (review finding
     // F-INT-02). policy_current applies every event whatever its effective date, so this page was
     // printing a future endorsement's premium, tax and LIMITS as the cover in force today, to the
@@ -116,7 +130,7 @@ export async function CustomerPolicyView({
       viewsSubtitle={policy.policyNumber}
       views={VIEWS.map((one) => ({
         key: one,
-        label: one === "overview" ? "Overview" : "Documents",
+        label: VIEW_LABEL[one],
         href: withParams(path, query, { view: one }),
         current: one === view,
       }))}
@@ -387,6 +401,42 @@ export async function CustomerPolicyView({
             <p>
               A change made in the middle of the term is priced over the days that remain from its effective date to the
               end of the year, plus the state premium tax on that amount, rounded in your favour.
+            </p>
+          </About>
+        </>
+      ) : null}
+
+      {/* THE CUSTOMER'S BILLING VIEW (decision 43): the same three questions their broker reads,
+          about the same rows, with no button. The sentence is the one fact this whole view exists
+          for: their broker is the one who opens the Stripe page, and the card on it is theirs. */}
+      {view === "billing" ? (
+        <>
+          {/*
+            DECISION 44, NOT BUILT YET: the customer's own Pay button goes here, above everything
+            else, so a customer who wants to settle a difference themselves does not have to wait
+            for their broker. It needs a route of its own (the broker's checkout route is posted
+            by the broker and answers for the broker's eligibility), which is the coordinator's
+            backend slice. This is deliberately a comment and no markup: an empty box promising a
+            button nobody can press is worse than nothing.
+          */}
+          <BillingSummary
+            rows={billingRows({ policy, payment, endorsements, corrections, refunds })}
+            now={now}
+            lead={AGENCY_BILL_SENTENCE_FOR_CUSTOMER}
+            // No inspector for a customer: the console behind a reference is not theirs to read.
+          />
+
+          <About>
+            <h4>Who takes the money</h4>
+            <p>
+              Your broker opens the payment page and answers for the policy; the card entered on it is yours. Nothing
+              on this screen charges you: your policy only moves once the payment is confirmed.
+            </p>
+            <h4>What each list means</h4>
+            <p>
+              What is owed is what has not been collected yet. What was paid is every payment that reached us, with the
+              reference the payment provider gave it. What is being refunded is money on its way back to you, with what
+              it is waiting for.
             </p>
           </About>
         </>
