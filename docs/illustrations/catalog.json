@@ -5890,8 +5890,8 @@
     "name": "Meadow Path",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "a winding path through soft green meadows toward a stone cottage and distant rounded hills. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927281,
     "steps": 8,
@@ -5903,8 +5903,8 @@
       "reason": "The winding meadow path, cottage and layered hills form a polished panoramic landscape; the tiny rear-view corgi is integrated with soft brushwork and has no cartoon outline or text."
     },
     "file": "public/illustrations/library/131-meadow-path.webp",
-    "sha256": "5b71d6bb309d618715747545171814d9b41e03418b39c6a7549e1f1472de3659",
-    "bytes": 118456,
+    "sha256": "4f86cb33833081d9b5800799e5625f5ce51c1ef6dd071b9b24c78352b110fe76",
+    "bytes": 471938,
     "generation": {
       "attempt": 1,
       "seed": 1027281,
@@ -5921,15 +5921,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "e004dd86-cc38-48ca-9d80-6251a60dadf1",
+      "sourceGenerationSha256": "cc209127e3bc5e4b151637ec3b5a59cbea55c6aca5f05bf31ce040623e81d159",
+      "sparkOutputPngSha256": "9b5fddb62aa523468a0af036ed396ba943646533df4617bbe3ef2d7b577dc774"
+    }
   },
   {
     "id": "132-orchard-morning",
     "name": "Orchard Morning",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "an apple orchard in gentle morning mist with wooden baskets beneath one tree. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927282,
     "steps": 8,
@@ -5941,8 +5951,8 @@
       "reason": "The misty orchard, fruit tree and wooden baskets form a polished morning landscape; the tiny rear-view corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/132-orchard-morning.webp",
-    "sha256": "e763fcd54bc34f6e8aee592277e5d871273ab7be2cf4b4486f4d9503c11d8baa",
-    "bytes": 166846,
+    "sha256": "5f48f34a29eecbd9a44397b938082283cd91d0d9e5016b23e19ae328a7f8ca39",
+    "bytes": 640594,
     "generation": {
       "attempt": 1,
       "seed": 1027282,
@@ -5959,15 +5969,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "956f418f-3047-420c-936f-bde080bcaf04",
+      "sourceGenerationSha256": "80911cfaf8f00b675dacec76bb0358e1ccd10b4bedb1dc815ada6c5b6330f0c4",
+      "sparkOutputPngSha256": "d8ba5f18aec6a349f026f40ec7b00587dee1eb6d2f313db02b625e0365fb5bcd"
+    }
   },
   {
     "id": "133-coastal-lighthouse",
     "name": "Coastal Lighthouse",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "a white lighthouse on a grassy headland above a calm blue sea. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927283,
     "steps": 8,
@@ -5979,8 +5999,8 @@
       "reason": "The white lighthouse, grassy headland and calm sea form a clear panoramic coastal scene; the tiny rear-view corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/133-coastal-lighthouse.webp",
-    "sha256": "9e1d1b31fe7f3252d9f33df2f0f6ede74df8b07bb36227fcc5eccd8642198399",
-    "bytes": 122946,
+    "sha256": "04685ce6ac8fb5a1f4807b7e9c4e220d7a176c3fdaf3da1486b0a5a8b79eecd3",
+    "bytes": 493078,
     "generation": {
       "attempt": 1,
       "seed": 1027283,
@@ -5997,15 +6017,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "a5002430-e9a1-4e24-9425-2a406fa54eec",
+      "sourceGenerationSha256": "01e2b2c4a4d1e45b4b4f3dca608b1521c08b6e649d5e7902f1279ecb901ed543",
+      "sparkOutputPngSha256": "c707f006e781865bc7a2c64b03f79a97d79264b13eb78f647c95ddf5c07fe14e"
+    }
   },
   {
     "id": "134-village-square",
     "name": "Village Square",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "a quiet village square with terracotta roofs, one fountain and leafy trees. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927284,
     "steps": 8,
@@ -6017,8 +6047,8 @@
       "reason": "The quiet terracotta-roofed square, central fountain and leafy trees form a polished village scene; the tiny rear-view corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/134-village-square.webp",
-    "sha256": "cd8ab320ef7b6c357eeb4924ac8fc630f75617fb1c4fb2d8b66e228224960a5f",
-    "bytes": 161740,
+    "sha256": "10322b0722c790cc2927807a5b7fe01013a5d28d17422385acbb2de3621de8e5",
+    "bytes": 628838,
     "generation": {
       "attempt": 1,
       "seed": 1027284,
@@ -6035,15 +6065,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "4a37e018-5942-4d73-8bb3-191bc615f040",
+      "sourceGenerationSha256": "f6c8fc8a2980c33e7b94f24b80992d3b785627a28b24e698a9dc58e8a494fdc0",
+      "sparkOutputPngSha256": "38032f5ed6474d01f681f2c0fe9d38cfefd105c80ac3f4f8077aae6e775f6428"
+    }
   },
   {
     "id": "135-river-bridge",
     "name": "River Bridge",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "an arched stone bridge across a calm river with willow trees and golden reeds. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927285,
     "steps": 8,
@@ -6055,8 +6095,8 @@
       "reason": "The arched stone bridge, reflective river, willows and golden reeds form a clear pastoral panorama; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/135-river-bridge.webp",
-    "sha256": "3f6bba37d9952ff626cebaa982b01864f2f4d4b789bfe088232cb81118f6f8e1",
-    "bytes": 143870,
+    "sha256": "849ad7661510a02ff14b3bf399a914580792d8efcc2669d68ba0cd2e7ee9595d",
+    "bytes": 539228,
     "generation": {
       "attempt": 1,
       "seed": 1027285,
@@ -6073,15 +6113,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "04c5abb2-241a-4387-ae86-ba90923e9552",
+      "sourceGenerationSha256": "6c742a5a30f8fb06c03cfad8ec2b3fd0f900263259419d149841583ee040b490",
+      "sparkOutputPngSha256": "8b854530062061132f283d2e19c16d6bc0d716787507240209bf873290ed86aa"
+    }
   },
   {
     "id": "136-rolling-wheat",
     "name": "Rolling Wheat",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "rolling wheat fields with a little windmill and a narrow footpath. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927286,
     "steps": 8,
@@ -6093,8 +6143,8 @@
       "reason": "The rolling wheat fields, narrow path and distant windmill form a polished panoramic scene; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/136-rolling-wheat.webp",
-    "sha256": "daac5c68c3d48a66ffe19de0c63777e94db4a04d9c54e3ead3b740468d581092",
-    "bytes": 148090,
+    "sha256": "2dc761fe1e963cdf29453e22a3b0c7e8bd10a781120ee863f7dd27126127f5fd",
+    "bytes": 578934,
     "generation": {
       "attempt": 1,
       "seed": 1027286,
@@ -6111,15 +6161,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "cb11a443-fc13-458d-a076-0c5e13deeeb4",
+      "sourceGenerationSha256": "a55aaf428921874a6a8d285510c1ca4bd2bddd471867de4ba36d9bd742ceb070",
+      "sparkOutputPngSha256": "f5ce167e488ef8e42e892d745de6f41c82e8c94903b0561b366c5a336a6594af"
+    }
   },
   {
     "id": "137-forest-clearing",
     "name": "Forest Clearing",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "a peaceful sunlit woodland clearing with ferns, moss and an old wooden bench. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927287,
     "steps": 8,
@@ -6131,8 +6191,8 @@
       "reason": "The sunlit woodland edge, abundant ferns, mossy ground and old bench form a polished clearing; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/137-forest-clearing.webp",
-    "sha256": "eef36108ea97afc57c126c8399f07ee0985f262e13021f06669ae8afa3c45f83",
-    "bytes": 192270,
+    "sha256": "124616974655a1f2e8cb366a4176ed0f9a37ab8725c819de6f7d71be8ccf115b",
+    "bytes": 669938,
     "generation": {
       "attempt": 1,
       "seed": 1027287,
@@ -6149,15 +6209,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "a9a03dbe-720d-4a22-a9b9-ddde5af5455e",
+      "sourceGenerationSha256": "a9721aad7f360acebe84f4f2b24335aec368aba8a80f4272240c5efdc1cb97e0",
+      "sparkOutputPngSha256": "30cf4853d42f427ffa710e4ca5c5eb4de58ba6cdc3405b81555a118a46d08e7e"
+    }
   },
   {
     "id": "138-hilltop-cottage",
     "name": "Hilltop Cottage",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "a tiny cottage on a green hill with a winding garden path and soft cloud shapes. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927288,
     "steps": 8,
@@ -6169,8 +6239,8 @@
       "reason": "The small hilltop cottage, winding garden path and broad cloud-filled sky form a polished landscape; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/138-hilltop-cottage.webp",
-    "sha256": "a728aabdcc57a22376551be38f6bf02b94641d59e7cc75932ebb477e070ecc11",
-    "bytes": 140840,
+    "sha256": "5b9e7a050bd154725b05e1662b4b6dc6932496c9a9a88b6bea7b90b3a4948fda",
+    "bytes": 568174,
     "generation": {
       "attempt": 1,
       "seed": 1027288,
@@ -6187,15 +6257,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "d6f1a9ae-2f41-4e64-b221-83eba6e5654e",
+      "sourceGenerationSha256": "90b1f3dbf0f298c60a133b1f60ac590c45d54ced20f3cf56e0fd2f705d7c9306",
+      "sparkOutputPngSha256": "90a81430ea7e2aaad0636de26f9a10b1c6419fc7e84badb808699c083abb7ec4"
+    }
   },
   {
     "id": "139-harbor-dawn",
     "name": "Harbor Dawn",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "a sheltered harbor with two little sailboats and pale golden dawn light. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927289,
     "steps": 8,
@@ -6207,8 +6287,8 @@
       "reason": "The sheltered sailboat harbor and pale golden dawn form a calm polished panorama; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/139-harbor-dawn.webp",
-    "sha256": "844e17322418ef7f160cbf7797c9f817743b087e7bf296bc386654409d4d4c57",
-    "bytes": 119268,
+    "sha256": "2b4239e294f8008468d9b8b1f97fe0dca8bc89c1666f68138001886cefb34766",
+    "bytes": 486536,
     "generation": {
       "attempt": 1,
       "seed": 1027289,
@@ -6225,15 +6305,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "8ff564b5-76fc-4271-9f80-73ca2e33845d",
+      "sourceGenerationSha256": "9754e2393cc21627d7833950603378a4db3bfea3fe090cb27526ba629f247931",
+      "sparkOutputPngSha256": "b19b1e4eece4bf5b82a6582801385dd08dab08d8e680974fd5167182c420251b"
+    }
   },
   {
     "id": "140-lavender-garden",
     "name": "Lavender Garden",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "rows of muted lavender beside a cream stone farmhouse and cypress trees. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927290,
     "steps": 8,
@@ -6245,8 +6335,8 @@
       "reason": "The muted lavender rows, cream farmhouse and cypress trees form a polished garden landscape; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/140-lavender-garden.webp",
-    "sha256": "38b225aa0d4baacde17ab7a8c48e24f47183b264bce0514ea1cae1d7a3da23f1",
-    "bytes": 138838,
+    "sha256": "b9c6ce45f0b1af2208f2b062a214fc4be18645d4b2c96a9d2e224a43af22990d",
+    "bytes": 569640,
     "generation": {
       "attempt": 1,
       "seed": 1027290,
@@ -6263,15 +6353,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "7e1de195-d2ad-486b-9d7a-4d70fee11af7",
+      "sourceGenerationSha256": "d26d74b7a47532b1ba91cb9c6383d1ab80a3ce43dab27d6deb781f24103c5da1",
+      "sparkOutputPngSha256": "d4409c5277410e88aa999c1dab654e98fc1837110cfc4e46d3a35f13eb675570"
+    }
   },
   {
     "id": "141-autumn-valley",
     "name": "Autumn Valley",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "an autumn valley with ochre trees, a small stream and distant blue hills. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927291,
     "steps": 8,
@@ -6283,8 +6383,8 @@
       "reason": "The ochre trees, winding stream and distant blue hills form a polished autumn valley; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/141-autumn-valley.webp",
-    "sha256": "7c6f02e9afe43a6a4e9d6a64e26d4b553999de9365c9aee6c9042ceef2a63e39",
-    "bytes": 152862,
+    "sha256": "4a903f8c93e72793ccb157cedb0759226d0c7bebad70bcbf60c9c8d37cff6a2b",
+    "bytes": 553900,
     "generation": {
       "attempt": 1,
       "seed": 1027291,
@@ -6301,15 +6401,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "ea195232-ca73-4a83-a2aa-fda57ae6bc82",
+      "sourceGenerationSha256": "7fd56bf08664e74baf46597740a9f556878c49a2c5005d842594bc88599d4733",
+      "sparkOutputPngSha256": "2dfcbd39945c02fe4379f15d6a32e30eb7d80cf27508b6b5d2f82bd43e9833f1"
+    }
   },
   {
     "id": "142-winter-cabin",
     "name": "Winter Cabin",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "a cozy small cabin in fresh snow among dark green firs under a pale warm sky. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927292,
     "steps": 8,
@@ -6321,8 +6431,8 @@
       "reason": "The snow-covered cabin, dark firs and pale warm sky form a clear winter landscape; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/142-winter-cabin.webp",
-    "sha256": "60aec26db87a3281a5d28ef42929b8ebc88c7fa038649e5d7547e6b52360e8e3",
-    "bytes": 150036,
+    "sha256": "e3ffb882b95599ba10a54fbf7e9f4c26bd804d4c555b3a001e34bd5016baa670",
+    "bytes": 585084,
     "generation": {
       "attempt": 1,
       "seed": 1027292,
@@ -6339,15 +6449,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "c61f0283-de61-4c8d-936d-99b655345db2",
+      "sourceGenerationSha256": "9d93e109fd72b8dfa1461e29dc7cdc5dca6284b32f122cc3fca8d6dc4ada0247",
+      "sparkOutputPngSha256": "90b708e3879a7affdfd43168ccb1ca5fc74b03d3a9ac8bea53aca4b8ed31ab25"
+    }
   },
   {
     "id": "143-spring-terrace",
     "name": "Spring Terrace",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "a garden terrace with terracotta pots, fresh leaves and distant rolling hills. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927293,
     "steps": 8,
@@ -6359,8 +6479,8 @@
       "reason": "The terracotta pots, fresh leaves and distant rolling hills form a clear spring terrace; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/143-spring-terrace.webp",
-    "sha256": "08d0f960497e3c555558ae2c247994baaf312d7d4124d78e5bed0c0fee248824",
-    "bytes": 134640,
+    "sha256": "ed0d4312e40537a5d0a74f9d4dcca65bf16677d3f3da76e6e2ed60e952af313e",
+    "bytes": 532996,
     "generation": {
       "attempt": 1,
       "seed": 1027293,
@@ -6377,15 +6497,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "6d08b09c-66f1-4346-ba16-ec5438550c57",
+      "sourceGenerationSha256": "1c8a09d193ae399f2b57c31f0dc036bc9411b553066ea96a8ad850ff5acf6739",
+      "sparkOutputPngSha256": "14126938c4e2650cafa7457b42819782410c8346fde3a097c4665aaa82ae9f0f"
+    }
   },
   {
     "id": "144-summer-picnic",
     "name": "Summer Picnic",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "a folded cream picnic cloth beside an orchard path and a simple wicker basket. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927294,
     "steps": 8,
@@ -6397,8 +6527,8 @@
       "reason": "The folded cream cloth, wicker basket and orchard path form a clear summer picnic scene; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/144-summer-picnic.webp",
-    "sha256": "ff263da2b8ceeb7732e8ee1e24b2d559a381048989ffff52fea4a3552e19b129",
-    "bytes": 163068,
+    "sha256": "d0a85325f84f7b03deea5f1b9d3d43da5e34e25d5a77b44bbe69ee939996bc53",
+    "bytes": 617572,
     "generation": {
       "attempt": 1,
       "seed": 1027294,
@@ -6415,15 +6545,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "12e44919-92a9-4fe9-8a6c-82ba26353c48",
+      "sourceGenerationSha256": "e02b4ec6dc334f2ff1a4f3bb229452efc5a232fdc50d2e2d3bd2f4526b0573d9",
+      "sparkOutputPngSha256": "3e9bd4d96ac07382f46fb9a9a3da75c7749ce25d1199cc1ad707ebd266a83d2a"
+    }
   },
   {
     "id": "145-mountain-lake",
     "name": "Mountain Lake",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "a calm alpine lake reflecting softly painted mountains and sparse pine trees. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927295,
     "steps": 8,
@@ -6435,8 +6575,8 @@
       "reason": "The calm reflective lake, softly painted mountains and sparse pines form a polished alpine panorama; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/145-mountain-lake.webp",
-    "sha256": "36d9f723cfcac166c337cfebdc5a1dc9ffa03b8a98c37d65589216b24305db99",
-    "bytes": 139696,
+    "sha256": "9001ef5a981a2dc05312a7ebbd6d0f68b4b7e4524388b808316efbfc60aa43da",
+    "bytes": 546364,
     "generation": {
       "attempt": 1,
       "seed": 1027295,
@@ -6453,15 +6593,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "9c8ec3df-5b56-42f9-93ea-03ee576e95b7",
+      "sourceGenerationSha256": "66a8d6b497f48a32cfce04e16bf71c99bd54b185c88d9711ada3912034fc631a",
+      "sparkOutputPngSha256": "d4324000fd93ef7998c4b0f3fb95218323c39a2a68ec141e0d8e197cf3c5ed50"
+    }
   },
   {
     "id": "146-garden-gate",
     "name": "Garden Gate",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "an open small wooden garden gate with flowering climbing vines and a path beyond. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927296,
     "steps": 8,
@@ -6473,8 +6623,8 @@
       "reason": "The open wooden gate, flowering vines and path beyond form a clear welcoming garden scene; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/146-garden-gate.webp",
-    "sha256": "0d409e38e9db090a9bcb2666c3a639e37941cb60e8058d8533e28a0c7c846ce4",
-    "bytes": 180972,
+    "sha256": "3392ff37e959b366841abad44c64d7a89ca228c043d374f4b7538c06653880cf",
+    "bytes": 694478,
     "generation": {
       "attempt": 1,
       "seed": 1027296,
@@ -6491,15 +6641,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "ceca7328-b95c-49c0-9d38-dc324c9e331c",
+      "sourceGenerationSha256": "e911dc143565bda80c12f4260d0d9c3bd8eae0b0f199cc320651ecc9523ae33a",
+      "sparkOutputPngSha256": "3bddee311f608684d05f54021174f9a9902d6025125d1be4768551a8a1ab3e5c"
+    }
   },
   {
     "id": "147-countryside-train",
     "name": "Countryside Train",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "a tiny distant cream and green train crossing a low stone viaduct in open countryside. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927297,
     "steps": 8,
@@ -6511,8 +6671,8 @@
       "reason": "The cream-and-green train, low stone viaduct and open fields form a clear countryside panorama; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/147-countryside-train.webp",
-    "sha256": "7397b92949061919be4c4295efb100cfe4797b7c97229df2b696d81280506978",
-    "bytes": 122016,
+    "sha256": "4e41754e6de9f59cc1ee5eb2e32c0339e8a4909db88cb3a601d615a4f66831e5",
+    "bytes": 488166,
     "generation": {
       "attempt": 1,
       "seed": 1027297,
@@ -6529,15 +6689,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "42b696f9-10ee-4dfd-aac8-5a8ef7447694",
+      "sourceGenerationSha256": "ac363cf07a7ee33d81f09418dc8e4f19b32d3d7db8b5e80f9d387eb9bba63ed5",
+      "sparkOutputPngSha256": "82d66e4ad7f66b218105906c8d322c105fa5205ae2810e0d24d666fb036f78e4"
+    }
   },
   {
     "id": "148-island-retreat",
     "name": "Island Retreat",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "a tiny wooded island with a cottage in a calm lake and a soft clouded sky. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927298,
     "steps": 8,
@@ -6549,8 +6719,8 @@
       "reason": "The wooded island, small cottage, calm reflective lake and clouded sky form a polished retreat; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/148-island-retreat.webp",
-    "sha256": "7f741e9046d98b71b1ebdaa6e583c1c8abcc41bc367b81dd415fb895000ebb08",
-    "bytes": 159590,
+    "sha256": "5a14cd06d3d144c88649d16c0c943bfcf06db00c60c2aa53d469eacc55c19cbb",
+    "bytes": 612796,
     "generation": {
       "attempt": 1,
       "seed": 1027298,
@@ -6567,15 +6737,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "e0d7a414-bb8a-42cb-90d9-84577e68e31b",
+      "sourceGenerationSha256": "3ea2bb100f8b1eefc08608d62cdf34669dd41fc1076d9da37443e816c8885443",
+      "sparkOutputPngSha256": "ce8cf75a880bba4dbe79dd8e69ae6c4d134cac9552faf6253d1bd339021fff21"
+    }
   },
   {
     "id": "149-moonlit-hills",
     "name": "Moonlit Hills",
     "family": "panorama",
     "usage": "banner",
-    "width": 1344,
-    "height": 576,
+    "width": 4032,
+    "height": 1728,
     "prompt": "quiet blue-green rolling hills beneath a small warm moon, cozy cottage windows softly lit. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927299,
     "steps": 8,
@@ -6587,8 +6767,8 @@
       "reason": "The muted blue-green hills, small warm moon and softly lit cottage windows create a calm evening scene; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/149-moonlit-hills.webp",
-    "sha256": "7ded790265eef26e7b111813bd5a706da7c720f1ddd07dcc85ff91f328c2077f",
-    "bytes": 125156,
+    "sha256": "8095a03eff8f496f7864d56bac61d9af565b8a377e2225c0771f15bebaec534b",
+    "bytes": 496422,
     "generation": {
       "attempt": 1,
       "seed": 1027299,
@@ -6605,15 +6785,25 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1344,
+      "sourceHeight": 576,
+      "promptId": "1820efdd-5513-41b1-a61b-2e67e509e654",
+      "sourceGenerationSha256": "c066d308149023d28e795ab52596c3df6adeca42f5330836e16f5542b274d39c",
+      "sparkOutputPngSha256": "ee2910b822c3e347c362f64b98e68d9df658fde85c142fbf60f105b51c6e16b7"
+    }
   },
   {
     "id": "150-sunset-road",
     "name": "Sunset Road",
     "family": "panorama",
     "usage": "banner",
-    "width": 1152,
-    "height": 768,
+    "width": 3456,
+    "height": 2304,
     "prompt": "a welcoming country road curving toward warm sunset light behind low olive hills. A wide panoramic hand-painted pastoral landscape. Warm gentle natural light, muted olive greens, soft ochre fields, cream cloud shapes and atmospheric depth. Sophisticated painterly gouache and oil illustration, visible expressive brush strokes, timeless countryside, cozy premium editorial art. One tiny orange and white corgi seen from behind, naturally placed on a path or foreground patch. Low horizon and broad pale sky in the top third for UI breathing room. Complete wide composition without borders. No text, letters, logos, watermark, photorealism, 3D or neon colors. The tiny corgi is painted with the same soft brush strokes as the landscape, without any black cartoon outline.",
     "seed": 927300,
     "steps": 8,
@@ -6625,8 +6815,8 @@
       "reason": "The welcoming road curves clearly toward warm sunset light behind low olive hills; the tiny corgi is naturally integrated and the scene contains no text or logos."
     },
     "file": "public/illustrations/library/150-sunset-road.webp",
-    "sha256": "e57ce4df4e1a0e579def4ec7ba81028e1f2d99828cb6ef8723f98c814a2d9d88",
-    "bytes": 132274,
+    "sha256": "9589507a3d6072caec26dfe2ba3f3538b03b3b7e9d69470da888b73c791a2397",
+    "bytes": 529126,
     "generation": {
       "attempt": 1,
       "seed": 1027300,
@@ -6643,6 +6833,16 @@
         "type": "output"
       }
     },
-    "backgroundRemoval": null
+    "backgroundRemoval": null,
+    "upscale": {
+      "scale": 3,
+      "method": "lanczos",
+      "processor": "ComfyUI ImageScale on the user-owned DGX Spark",
+      "sourceWidth": 1152,
+      "sourceHeight": 768,
+      "promptId": "c5729012-be79-4be4-ba57-43add4a13fb2",
+      "sourceGenerationSha256": "17eb54068468a413762b2c55fbeacd01a7730844f16e84cb6500a552b8ee176d",
+      "sparkOutputPngSha256": "625ae2da0e42e6ca3415ed19b06c5749637c5dc0810a9fe4f7412804b373a590"
+    }
   }
 ]
