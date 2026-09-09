@@ -2,6 +2,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { isUniqueViolation } from "@/lib/ledger/post";
 import { approveEndorsement, EndorsementRefused } from "@/lib/policy/endorse";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/endorsements/{requestEventId}/approve
 //
@@ -9,7 +10,9 @@ import { badPathIdResponse } from "@/lib/http/path-ids";
 // customer saw; the server checks that it is the hash on file and that the quote is still the
 // live one, so a stale page or a forged field is refused. Only the policy's own customer, read
 // from the session, can approve; the broker, staff and any agent are refused.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/approve", rule: "endorsement", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
   const user = await currentUser();
   const { policyId, requestEventId } = await context.params;
   const malformedId = badPathIdResponse({ policy: policyId, request: requestEventId }); // a malformed id answers 400, not 500 (F-B7-07)

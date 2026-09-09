@@ -8,6 +8,7 @@ import {
 } from "@/lib/claims/payments";
 import { ApprovalRefused } from "@/lib/approvals/approvals";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/claims/{claimId}/payments/{operationId}: the three stages of one claim payment.
 //
@@ -19,7 +20,9 @@ import { badPathIdResponse } from "@/lib/http/path-ids";
 //           and the screen says so.
 //   return  a LOCAL SIMULATOR control: the receiving bank sends the money back. The cash comes
 //           home and the reserve is restored.
-export async function POST(
+export const POST = withActivity({ route: "/api/claims/[claimId]/payments/[operationId]", rule: "maker-checker", subject: "claim" }, handlePost);
+
+async function handlePost(
   request: Request,
   context: { params: Promise<{ claimId: string; operationId: string }> },
 ) {

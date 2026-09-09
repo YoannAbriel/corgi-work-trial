@@ -1,13 +1,17 @@
+import "@/app/styles/ops-tables.css";
 import Link from "next/link";
+import { ConsoleAutoRefresh } from "./auto-refresh";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
 import { AsideList, Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { EventTable, FailureLine, IntegrationModes, RecoveryCell, describeMinutes, formatSeconds, utc } from "@/components/console-parts";
+import { ActivityTable, EventTable, FailureLine, IntegrationModes, RecoveryCell, describeMinutes, formatSeconds, utc } from "@/components/console-parts";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import {
   CONSOLE_EVENT_KINDS,
+  MOST_ACTIVITY_ROWS,
   MOST_FEED_ROWS,
+  MOST_LATENCY_ROUTES,
   MOST_PROBLEM_ROWS,
   UNKNOWN_OUTCOME_AFTER_MINUTES,
   UNRESOLVED_OPERATIONS_FLOOR_DAYS,
@@ -15,9 +19,11 @@ import {
   acceptedAndUnconfirmedOperations,
   consoleFeed,
   isConsoleEventKind,
+  latencyByRoute,
   latencyTiles,
   operationsProblems,
   parseSince,
+  refusedAndFailedActivity,
   type ConsoleEventKind,
 } from "@/lib/console/read";
 import { attempt, valueOr } from "@/lib/console/safe-read";
@@ -29,12 +35,13 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 // system is doing right now, how long each step is taking, and everything that failed or is
 // still unresolved, with the recovery action that already exists next to each line.
 //
-// LIVE WITHOUT JAVASCRIPT. The page carries <meta http-equiv="refresh" content="10">, so the
-// browser reloads it every ten seconds by itself. There is no websocket, no polling script and
-// no paid service: a reload of a server-rendered page is the cheapest live view there is, and it
-// costs nothing on the Hobby plan. A "Refresh now" button (a plain GET form) is there for the
-// moment ten seconds is too long to wait. The refresh keeps the query string, so the filters and
-// the cursor survive it.
+// LIVE, AND ONLY WHILE IT IS ON SCREEN. A ten-second timer that lives in a small client
+// component (./auto-refresh.tsx) asks the SERVER to render this page again; nothing is computed
+// in the browser. The timer is cleared when the console is left, which is the correction of
+// UI-025: the <meta http-equiv="refresh"> this replaces kept counting after the user had
+// navigated away and brought them back to the console. A "Refresh now" button (a plain GET form)
+// is there for the moment ten seconds is too long to wait, and it keeps the query string, so the
+// filters survive it.
 //
 // READ ONLY. Nothing on this page writes. The only forms that post are the ones that already
 // exist elsewhere, re-rendered next to the problem they repair: the reconciliation "Run now" of
@@ -83,16 +90,22 @@ export default async function OperationsConsolePage({
   const inFlight = await attempt("the operations in flight", acceptedAndUnconfirmedOperations(sql));
   const { checking, unknownOutcome } = valueOr(inFlight, { checking: [], unknownOutcome: [] });
 
-  const [feed, tiles, problems] = await Promise.all([
+  const [feed, tiles, problems, refusedActions, routeLatency] = await Promise.all([
     attempt("the feed", consoleFeed(sql, { since, kinds: selectedKinds, limit: MOST_FEED_ROWS })),
     attempt("the latency tiles", latencyTiles(sql)),
     attempt("the errors and unknowns", operationsProblems(sql, { since, unknownOutcome })),
+    // Console v2 (migration 0021): what the application refused or failed to answer, and how
+    // long each route takes. Both read activity_log and nothing else.
+    attempt("the refused and failed actions", refusedAndFailedActivity(sql, { since, limit: MOST_ACTIVITY_ROWS })),
+    attempt("the latency by route", latencyByRoute(sql)),
   ]);
 
   const events = valueOr(feed, []);
   const problemRows = valueOr(problems, []);
+  const refusedRows = valueOr(refusedActions, []);
 
-  // The hidden inputs that make "Refresh now" and the meta refresh keep the current view.
+  // The hidden inputs that make "Refresh now" keep the current view. The ten-second timer keeps
+  // it too, for free: it re-renders this URL rather than navigating to a new one.
   const currentView = (
     <>
       <input type="hidden" name="since" value={query.since ?? ""} />
@@ -104,13 +117,12 @@ export default async function OperationsConsolePage({
 
   return (
     <PortalShell user={user} active="console" trail={[{ label: "Operations console" }]}>
-      {/* React hoists this into <head>: the browser reloads the page every ten seconds, with no
-          JavaScript of ours and nothing to pay for. */}
-      <meta httpEquiv="refresh" content="10" />
+      {/* The ten-second refresh, mounted with this page and cleared when it is left (UI-025). */}
+      <ConsoleAutoRefresh everySeconds={10} />
 
       <DetailHeading
         title="Operations console"
-        lead={`Everything the system did, how long it took and what is unresolved. Showing ${reading}. All times UTC. This page reloads itself every 10 seconds.`}
+        lead={`Everything the system did, how long it took and what is unresolved. Showing ${reading}. All times UTC. This page reads itself again from the server every 10 seconds while it is open.`}
         chips={
           <>
             <Chip tone={problemRows.length > 0 ? "warn" : "ok"}>
@@ -149,28 +161,28 @@ export default async function OperationsConsolePage({
       <Panel title={`How long things are taking, over the last ${LATENCY_WINDOW_HOURS} hours`}>
         <FailureLine attempted={tiles} />
         <div className="table-scroll" role="region" aria-label="Latency" tabIndex={0}>
-          <table>
+          <table className="ops-table">
             <thead>
               <tr>
-                <th>Step</th>
+                <th className="col-name">Step</th>
                 <th className="amount">p50</th>
                 <th className="amount">p95</th>
                 <th className="amount">max</th>
                 <th className="amount">Samples</th>
-                <th>What is measured</th>
+                <th className="col-text">What is measured</th>
               </tr>
             </thead>
             <tbody>
               {valueOr(tiles, []).map((tile) => (
                 <tr key={tile.name}>
-                  <td>
+                  <td className="col-name">
                     <strong>{tile.name}</strong>
                   </td>
                   <td className="amount">{formatSeconds(tile.p50Seconds)}</td>
                   <td className="amount">{formatSeconds(tile.p95Seconds)}</td>
                   <td className="amount">{formatSeconds(tile.maxSeconds)}</td>
                   <td className="amount">{tile.sampleCount}</td>
-                  <td>
+                  <td className="col-text">
                     <span className="note">{tile.measures}</span>
                   </td>
                 </tr>
@@ -189,9 +201,109 @@ export default async function OperationsConsolePage({
         </Disclosure>
       </Panel>
 
+      <Panel title={`Latency by route, over the last ${LATENCY_WINDOW_HOURS} hours`}>
+        <FailureLine attempted={routeLatency} />
+        {valueOr(routeLatency, []).length === 0 ? (
+          <Empty>
+            No request has been recorded in this window. Every route handler writes one row in{" "}
+            <code>activity_log</code> as it answers, so an empty table here means the application answered nothing
+            in the last {LATENCY_WINDOW_HOURS} hours.
+          </Empty>
+        ) : (
+          <div className="table-scroll" role="region" aria-label="Latency by route" tabIndex={0}>
+            <table className="ops-table">
+              <thead>
+                <tr>
+                  <th className="col-ref">Route</th>
+                  <th className="amount">p50</th>
+                  <th className="amount">p95</th>
+                  <th className="amount">max</th>
+                  <th className="amount">Requests</th>
+                  <th className="amount">Not ok</th>
+                </tr>
+              </thead>
+              <tbody>
+                {valueOr(routeLatency, []).map((route) => (
+                  <tr key={route.route}>
+                    <td className="col-ref">
+                      <code>{route.route}</code>
+                    </td>
+                    <td className="amount">{route.p50Ms === null ? "no sample" : `${Math.round(route.p50Ms)} ms`}</td>
+                    <td className="amount">{route.p95Ms === null ? "no sample" : `${Math.round(route.p95Ms)} ms`}</td>
+                    <td className="amount">{route.maxMs === null ? "no sample" : `${route.maxMs} ms`}</td>
+                    <td className="amount">{route.sampleCount}</td>
+                    <td className="amount">
+                      {route.notOkCount === 0 ? <span className="note">0</span> : <Chip tone="warn">{route.notOkCount}</Chip>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <Disclosure title="What this measures, and what it does not">
+          <p>
+            One row per <strong>route</strong>, sorted by p95 so the slowest is first. The figures are{" "}
+            <code>percentile_cont</code> computed by Postgres over <code>activity_log.duration_ms</code>, which is
+            the time this application spent inside the handler: it does not include the network, the browser, or the
+            cold start of a serverless function. The table above it measures something different, the time an{" "}
+            <strong>object</strong> took to move between two states, which includes the provider.
+          </p>
+          <p>
+            A route is the URL <strong>pattern</strong> and never a URL with an id in it, so one policy cannot become
+            its own row with one sample. Showing at most {MOST_LATENCY_ROUTES} routes.
+          </p>
+        </Disclosure>
+      </Panel>
+
+      {/* UI-026: the Recovery column of the errors table, which is the whole point of the panel,
+          fell outside the 736 px left-hand card of the two-column grid. The console stacks: the
+          tables take the full content width and the filters and reading notes move under them. */}
+      <div className="ops-stacked">
       <DetailGrid
         main={
           <>
+            <Panel title="Refused and failed actions">
+              <FailureLine attempted={refusedActions} />
+              {refusedRows.length === 0 ? (
+                <Empty>
+                  Nothing was refused and nothing failed in this window. A maker-checker refusal, a broker asking for
+                  something they do not own, an expired session, a job called without the cron secret and an
+                  unhandled failure would all be here.
+                </Empty>
+              ) : (
+                <ActivityTable rows={refusedRows} ariaLabel="Refused and failed actions" />
+              )}
+              {refusedRows.length >= MOST_ACTIVITY_ROWS ? (
+                <p className="note">
+                  Showing {MOST_ACTIVITY_ROWS} rows, which is the hard limit of this panel. Narrow the window to see
+                  the rest.
+                </p>
+              ) : null}
+              <Disclosure title="Where these rows come from">
+                <p>
+                  Every route handler, every job and the MCP endpoint are wrapped in one helper
+                  (<code>lib/observability/log.ts</code>) that writes one append-only row in <code>activity_log</code>{" "}
+                  and prints the same fields as one JSON line in the server log. A row is <strong>refused</strong>{" "}
+                  when a rule said no: the handler answered a 4xx, or redirected with an error message, which is how
+                  most screens here say no. It is <strong>error</strong> when something broke, and the HTTP status is
+                  the one the caller actually received.
+                </p>
+                <p>
+                  The <strong>Rule</strong> column is named by the route, which declares the gate it enforces. A
+                  request refused <em>before</em> that gate reads <code>sign in</code> when there was no session, and
+                  names no rule at all when the URL itself was malformed: this column is a record that can never be
+                  corrected, so it says nothing rather than guessing. The sentence next to it is always the real one.
+                </p>
+                <p>
+                  <strong>No payload is ever stored</strong>: the table has no column for one. The reason is a single
+                  sanitised sentence, with emails masked to their first three characters and any bearer token,
+                  password or <code>sk_</code> secret replaced before it is written. The correlation id on the right
+                  is the same id as on the JSON log line, and it is searchable.
+                </p>
+              </Disclosure>
+            </Panel>
+
             <Panel title="Errors, refusals and unknown outcomes">
               <FailureLine attempted={problems} />
               {problemRows.length === 0 ? (
@@ -202,24 +314,24 @@ export default async function OperationsConsolePage({
                 </Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Errors and unknowns" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>When (UTC)</th>
-                        <th>Age</th>
-                        <th>Family</th>
-                        <th>What</th>
-                        <th>Reason</th>
-                        <th>Reference</th>
-                        <th>Recovery</th>
+                        <th className="col-when">When (UTC)</th>
+                        <th className="col-age">Age</th>
+                        <th className="col-label">Family</th>
+                        <th className="col-text">What</th>
+                        <th className="col-text">Reason</th>
+                        <th className="col-ref">Reference</th>
+                        <th className="col-controls">Recovery</th>
                       </tr>
                     </thead>
                     <tbody>
                       {problemRows.map((problem, index) => (
                         <tr key={`${problem.family}-${problem.instant.toISOString()}-${index}`}>
-                          <td>{utc(problem.instant)}</td>
-                          <td>{describeMinutes(problem.ageMinutes)}</td>
-                          <td>
+                          <td className="col-when">{utc(problem.instant)}</td>
+                          <td className="col-age">{describeMinutes(problem.ageMinutes)}</td>
+                          <td className="col-label">
                             {problem.family.replace(/_/g, " ")}
                             {/* The rail, on the row (AF-02, recheck finding F-RC-08). */}
                             {problem.rail ? (
@@ -229,14 +341,14 @@ export default async function OperationsConsolePage({
                               </>
                             ) : null}
                           </td>
-                          <td>
+                          <td className="col-text">
                             <Chip tone="warn">{problem.title}</Chip>
                           </td>
-                          <td>{problem.detail}</td>
-                          <td>
+                          <td className="col-text">{problem.detail}</td>
+                          <td className="col-ref">
                             <code>{problem.reference ?? "none"}</code>
                           </td>
-                          <td>
+                          <td className="col-controls">
                             <RecoveryCell recovery={problem.recovery} />
                           </td>
                         </tr>
@@ -281,34 +393,34 @@ export default async function OperationsConsolePage({
                 <Empty>No operation is waiting for its provider.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Operations being checked" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>Accepted (UTC)</th>
-                        <th>Waiting</th>
-                        <th>Operation</th>
+                        <th className="col-when">Accepted (UTC)</th>
+                        <th className="col-label">Waiting</th>
+                        <th className="col-label">Operation</th>
                         <th className="amount">Amount</th>
-                        <th>Provider reference</th>
-                        <th>Object</th>
+                        <th className="col-ref">Provider reference</th>
+                        <th className="col-name">Object</th>
                       </tr>
                     </thead>
                     <tbody>
                       {checking.map((operation) => (
                         <tr key={operation.operationId}>
-                          <td>{utc(operation.acceptedAt)}</td>
-                          <td>
+                          <td className="col-when">{utc(operation.acceptedAt)}</td>
+                          <td className="col-label">
                             <Chip tone="neutral">checking, {operation.ageMinutes} min</Chip>
                           </td>
-                          <td>
+                          <td className="col-label">
                             {operation.kind}
                             <br />
                             <span className="note">{operation.rail}</span>
                           </td>
                           <td className="amount">{formatCentsAsUsd(operation.amountCents)}</td>
-                          <td>
+                          <td className="col-ref">
                             <code>{operation.providerRef ?? "none yet"}</code>
                           </td>
-                          <td>
+                          <td className="col-name">
                             {operation.claimId ? (
                               <Link href={`/ops/console/claim/${operation.claimId}`} prefetch={false}>
                                 {operation.claimNumber ?? "claim"}
@@ -397,17 +509,20 @@ export default async function OperationsConsolePage({
                   { label: "MCP calls", value: "mcp_calls, joined to mcp_api_keys for the public prefix" },
                   { label: "broker verification", value: "broker_kyb_events" },
                   { label: "change requests", value: "policy_change_requests" },
+                  { label: "refused and failed actions", value: "activity_log, one row per request (migration 0021)" },
+                  { label: "latency by route", value: "activity_log.duration_ms, grouped by route" },
                 ]}
               />
             </Panel>
 
             <Panel title="How to read this page">
-              <Disclosure title="Why it reloads instead of streaming">
+              <Disclosure title="Why it re-reads instead of streaming">
                 <p>
-                  A meta refresh every ten seconds, plus a button when ten seconds is too long. No websocket, no polling
-                  script, no paid service: the page is rendered on the server and a reload is the whole mechanism. It
-                  also means the console works with JavaScript switched off, which is the state a browser is in when a
-                  reviewer is looking hard at what a page really does.
+                  A ten-second timer that asks the server to render this page again, plus a button when ten seconds is
+                  too long. No websocket, no polling script, no paid service, and no figure computed in the browser:
+                  every number here is produced by the same server queries as the first render. The timer exists only
+                  while the console is open and is cleared when you leave it, so an automatic refresh can never pull
+                  you back to this screen from the page you went to.
                 </p>
               </Disclosure>
               <Disclosure title="What is never shown">
@@ -429,6 +544,7 @@ export default async function OperationsConsolePage({
           </>
         }
       />
+      </div>
     </PortalShell>
   );
 }

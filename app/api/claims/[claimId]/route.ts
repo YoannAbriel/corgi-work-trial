@@ -3,6 +3,7 @@ import { closeClaim, setClaimReserve, ClaimRefused } from "@/lib/claims/claims";
 import { addClaimantBankAccount, requestClaimPayment, sendClaimPayment } from "@/lib/claims/payments";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { parseUsdAmountToCents } from "@/lib/money/cents";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/claims/{claimId}: the four things staff operations can do to a claim.
 //
@@ -10,7 +11,9 @@ import { parseUsdAmountToCents } from "@/lib/money/cents";
 // same authorisation, the same refusal handling and the same redirect, and a reader can see all
 // four in one screen. The action never carries authority: `currentUser()` reads the signed
 // session cookie and the money functions check the role again themselves.
-export async function POST(request: Request, context: { params: Promise<{ claimId: string }> }) {
+export const POST = withActivity({ route: "/api/claims/[claimId]", rule: "claim rules", subject: "claim" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ claimId: string }> }) {
   const user = await currentUser();
   const { claimId } = await context.params;
   if (!user) {

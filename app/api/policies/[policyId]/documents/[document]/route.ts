@@ -5,6 +5,7 @@ import { foldPolicyEvents } from "@/lib/documents/policy-as-of";
 import { renderDeclarationsPdf, renderEndorsementSchedulePdf } from "@/lib/documents/render";
 import { isCalendarDate } from "@/lib/money/dates";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // GET /api/policies/{policyId}/documents/{declarations|endorsement-schedule}?asOf=YYYY-MM-DD
 //
@@ -13,7 +14,9 @@ import { badPathIdResponse } from "@/lib/http/path-ids";
 // skipped, and between two endorsements the declarations page shows the premium and limits in
 // force on that date (lib/documents/policy-as-of.ts). Who may read: the owning broker, the
 // policy's customer, and staff. The names printed come from the seeded synthetic parties.
-export async function GET(request: Request, context: { params: Promise<{ policyId: string; document: string }> }) {
+export const GET = withActivity({ route: "/api/policies/[policyId]/documents/[document]", rule: "ownership", subject: "policy" }, handleGet);
+
+async function handleGet(request: Request, context: { params: Promise<{ policyId: string; document: string }> }) {
   const user = await currentUser();
   if (!user) {
     return Response.json({ error: "sign in first" }, { status: 401 });

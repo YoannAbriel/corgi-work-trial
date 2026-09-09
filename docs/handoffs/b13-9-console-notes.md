@@ -156,3 +156,7 @@ database clock); each of the nine reference shapes resolves; a broker, a custome
 anonymous visitor are all sent away, and the MCP surface exposes no console tool; the 360 readers
 of one policy return that policy's rows and none of another policy's; and the role the console
 reads with holds `SELECT` on every table it reads and `UPDATE` or `DELETE` on none of them.
+
+## 2026-09-09T11:17Z note (coordinator)
+
+UI-025 of the desktop audit (docs/ui-audit-2026-09-09.json) replaced the meta refresh described above: since 2a3e5bf (merged a2068c1) the console refreshes through a client timer that calls router.refresh() every 10 seconds and is cleared when the page unmounts, so navigating away no longer brings the user back. The "Refresh now" button is unchanged and still works without JavaScript; the automatic refresh now needs JavaScript. Lines of this note and of docs/reviews/b13-9-console.md that describe the meta tag are historical.

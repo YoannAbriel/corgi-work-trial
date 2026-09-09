@@ -11,6 +11,7 @@ import { openBreaks } from "@/lib/reconciliation/read";
 import {
   brokerSections,
   customerSections,
+  sectionsWithWorkFirst,
   staffSections,
   type BrokerPolicyFacts,
   type ChangeRequestFacts,
@@ -27,9 +28,9 @@ export type { InboxItem, InboxSection } from "./sections";
 // The notification centre: everything waiting for the signed-in person, with the link that does
 // the work (app/inbox/page.tsx).
 //
-// components/what-needs-you.tsx answers "how many"; this file answers "which ones, and where do I
-// click". Both read the same readers the screens themselves read, so a number and its list can
-// never tell two different stories: the policy sections use `policiesOfBroker`,
+// lib/inbox/tasks.ts answers "how many"; this file answers "which ones, and where do I click".
+// Both read the same readers the screens themselves read, so a number and its list can never
+// tell two different stories: the policy sections use `policiesOfBroker`,
 // `liveEndorsementRequest` and `correctionsOfPolicy`, the staff sections use `approvalRequests`,
 // `policiesPaidButNotBound`, `endorsementsPaidButNotApplied`, `claimPayments` and `openBreaks`.
 // No business rule is restated in SQL here.
@@ -70,8 +71,11 @@ export async function workspaceInbox(
   user: Pick<SignedInUser, "role" | "brokerId" | "customerId">,
 ): Promise<WorkspaceInbox> {
   const inbox = await sectionsFor(user);
-  const totalWaiting = inbox.sections.reduce((total, section) => total + section.items.length, 0);
-  return { totalWaiting, ...inbox };
+  // What is waiting comes before the queues that are empty (UI-016). Only the order changes: the
+  // same sections, with the same anchors and the same items, are returned.
+  const sections = sectionsWithWorkFirst(inbox.sections);
+  const totalWaiting = sections.reduce((total, section) => total + section.items.length, 0);
+  return { totalWaiting, sections, unreadablePolicies: inbox.unreadablePolicies };
 }
 
 async function sectionsFor(

@@ -1,13 +1,16 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { ChangeRequestRefused, replyToChangeRequest, workspaceHomeOf } from "@/lib/policy/change-requests";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/change-requests/{requestId}/reply
 //
 // The owning broker (or staff operations) answers one change request: 'answered' or 'done', and
 // the words the customer reads. A request is answered once, and that is a unique constraint in
 // the database (migration 0019), not a check this route makes.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string; requestId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/change-requests/[requestId]/reply", rule: "change request", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string; requestId: string }> }) {
   const user = await currentUser();
   const { policyId, requestId } = await context.params;
   const malformedId = badPathIdResponse({ policy: policyId, request: requestId }); // 400, not 500 (F-B7-07)

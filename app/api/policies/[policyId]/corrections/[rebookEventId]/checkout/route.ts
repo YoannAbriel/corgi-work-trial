@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { CorrectionCheckoutRefused, startCorrectionCheckout } from "@/lib/payments/correction-collection";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/corrections/{rebookEventId}/checkout
 //
@@ -10,7 +11,9 @@ import { CorrectionCheckoutRefused, startCorrectionCheckout } from "@/lib/paymen
 // whether the policy is still in force, and whether the customer has approved a difference above
 // $500. The endorsement is already in force at the corrected date whether or not this is paid;
 // what is outstanding is the receivable, visible on the reconciliation screen.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string; rebookEventId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/corrections/[rebookEventId]/checkout", rule: "correction", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string; rebookEventId: string }> }) {
   const { policyId, rebookEventId } = await context.params;
   // A path id that is not a uuid is a malformed request, not a missing row (review finding
   // F-B8-03): 400 before anything reaches a query that would cast it and raise.

@@ -1546,6 +1546,11 @@ const POLICY_NUMBER_SHAPE = /^CGP-\d{1,10}$/i;
 const CLAIM_NUMBER_SHAPE = /^CLM-\d{1,10}$/i;
 const STRIPE_OBJECT_SHAPE = /^(pi|cs|re|acct)_[A-Za-z0-9_]{1,80}$/;
 const MCP_KEY_PREFIX_SHAPE = /^cmk_[0-9a-f]{8}$/;
+// A correlation id: whatever the wrapper generated (a uuid) or whatever a caller sent in its
+// x-request-id header, reduced to this character set before it was stored
+// (lib/observability/log.ts, correlationIdOf). Tested LAST, because a policy number and a uuid
+// also fit inside this shape and mean something more precise.
+const CORRELATION_ID_SHAPE = /^[A-Za-z0-9._:-]{8,200}$/;
 
 // What the text looks like, before the database is asked anything. Saying this on the screen is
 // how an operator understands "found nothing": the shape was recognised and no row matched, or
@@ -1567,6 +1572,7 @@ export function recogniseReference(raw: string): string {
   if (CLAIM_NUMBER_SHAPE.test(reference)) return "a claim number (CLM-)";
   if (EMAIL_SHAPE.test(reference)) return "an email address";
   if (UUID_SHAPE.test(reference)) return "an identifier of this application (uuid)";
+  if (CORRELATION_ID_SHAPE.test(reference)) return "the correlation id of a request";
   return "a shape this search does not recognise";
 }
 
@@ -1606,7 +1612,45 @@ export async function resolveReference(database: postgres.Sql, raw: string): Pro
   if (UUID_SHAPE.test(reference)) {
     return { ...empty, ...(await byUuid(database, reference)) };
   }
+  // Last, because everything above is a more precise answer for a text that fits both shapes.
+  if (CORRELATION_ID_SHAPE.test(reference)) {
+    return { ...empty, ...(await byCorrelationId(database, reference)) };
+  }
   return empty;
+}
+
+// A correlation id names REQUESTS, not an object: one row per request that carried it, plus the
+// object the newest of them was about, so an id read off a log line leads to the policy or the
+// claim it touched. Bounded by activityOfCorrelationId: a caller may send the same x-request-id
+// on every request it ever makes.
+async function byCorrelationId(
+  database: postgres.Sql,
+  correlationId: string,
+): Promise<Pick<ReferenceSearch, "matches" | "trail">> {
+  const requests = await activityOfCorrelationId(database, correlationId);
+  if (requests.length === 0) {
+    return { matches: [], trail: [] };
+  }
+  const matches: ReferenceMatch[] = requests.map((request) => ({
+    what: `request, ${request.outcome}`,
+    label: `${request.method} ${request.route}`,
+    consoleHref: request.consoleHref,
+    existingHref: null,
+    facts: [
+      { label: "When (UTC)", value: request.instant.toISOString() },
+      { label: "Answered", value: `${request.outcome}, HTTP ${request.statusCode}, in ${request.durationMs} ms` },
+      { label: "Rule", value: request.rule ?? "none named" },
+      { label: "Reason", value: request.message ?? "none recorded" },
+      { label: "Actor", value: `${request.actor} (${request.actorKind})`, sensitive: request.actorIsPerson },
+    ],
+  }));
+
+  const named = requests.find((request) => request.subjectKind !== null && request.subjectId !== null);
+  if (!named) {
+    return { matches, trail: [] };
+  }
+  const object = await matchFor(database, named.subjectKind as ConsoleSubjectKind, named.subjectId as string);
+  return { matches: [...matches, ...object.matches], trail: object.trail };
 }
 
 // pi_, cs_ and re_ all live in the same column: money_operation_events.provider_ref. One query
@@ -1870,7 +1914,11 @@ async function byUuid(database: postgres.Sql, reference: string): Promise<Pick<R
       trail: broker.trail,
     };
   }
-  return { matches: [], trail: [] };
+
+  // Last of all, and only when the uuid is nothing else: the wrapper generates a uuid as the
+  // correlation id of a request (lib/observability/log.ts), so a uuid nobody recognises may
+  // still name requests rather than an object.
+  return byCorrelationId(database, reference);
 }
 
 // The four object matches, each of them "the identity band plus the object's own trail". They
@@ -2351,10 +2399,16 @@ export type ConsoleJournalEntry = {
 // most whatever the number of entries: one for the entries, one for their lines.
 export async function journalEntriesOfSubject(
   database: postgres.Sql,
-  subject: Pick<ConsoleSubject, "policyIds" | "claimIds" | "brokerId">,
+  subject: Pick<ConsoleSubject, "kind" | "policyIds" | "claimIds" | "brokerId">,
   limit = 60,
 ): Promise<ConsoleJournalEntry[]> {
-  if (subject.policyIds.length === 0 && subject.claimIds.length === 0 && !subject.brokerId) return [];
+  // UI-028: the broker of the subject is NOT part of the subject's scope unless the subject IS
+  // that broker. A policy and a claim carry their broker's id, so asking for "this policy's ids
+  // OR this broker's id" returned every entry of every other policy the same broker sold, and
+  // the reference search presented them as the searched policy's own trail. On a broker 360 the
+  // broker clause is the point: its commission entries carry a broker id and no policy id.
+  const brokerScope = subject.kind === "broker" ? subject.brokerId : null;
+  if (subject.policyIds.length === 0 && subject.claimIds.length === 0 && !brokerScope) return [];
   const headers = await database<
     { id: string; entry_type: string; effective_at: string; recorded_at: Date; reverses_entry_id: string | null }[]
   >`
@@ -2364,7 +2418,7 @@ export async function journalEntriesOfSubject(
       from journal_entries entry
      where entry.policy_id = any(${subject.policyIds}::uuid[])
         or entry.claim_id  = any(${subject.claimIds}::uuid[])
-        or (${subject.brokerId ?? null}::uuid is not null and entry.broker_id = ${subject.brokerId ?? null}::uuid)
+        or (${brokerScope}::uuid is not null and entry.broker_id = ${brokerScope}::uuid)
      order by entry.recorded_at desc
      limit ${limit}
   `;
@@ -2814,7 +2868,7 @@ export async function claimsOfSubject(
 // trail that stopped at a cursor would not be a trail.
 export async function subjectTimeline(
   database: postgres.Sql,
-  subject: Pick<ConsoleSubject, "policyIds" | "claimIds" | "brokerId">,
+  subject: Pick<ConsoleSubject, "kind" | "policyIds" | "claimIds" | "brokerId">,
   limit = 120,
 ): Promise<ConsoleEvent[]> {
   const [operations, journal, policyRows, claimRows] = await Promise.all([
@@ -3022,3 +3076,194 @@ export async function kybEventsOfBroker(
   }));
 }
 
+
+// ---------------------------------------------------------------------------
+// 7. The activity log: what every request did (console v2, migration 0021)
+// ---------------------------------------------------------------------------
+
+// One row of activity_log, ready to render. The actor is split in two the way the feed splits
+// it: a PERSON is masked on screen, a non-person ('cron', 'stripe', 'anonymous') is printed as
+// it is, because masking "stripe" would be noise and not discretion.
+export type ConsoleActivity = {
+  activityId: string;
+  instant: Date;
+  correlationId: string;
+  route: string;
+  method: string;
+  actor: string;
+  actorIsPerson: boolean;
+  actorKind: string;
+  actorRole: string | null;
+  subjectKind: string | null;
+  subjectId: string | null;
+  consoleHref: string | null;
+  durationMs: number;
+  outcome: string;
+  rule: string | null;
+  message: string | null;
+  statusCode: number;
+};
+
+// The hard limits of the two panels. An operator who hits one is told so on the screen and
+// narrows the window, exactly like the feed and the problems panel.
+export const MOST_ACTIVITY_ROWS = 60;
+export const MOST_ACTIVITY_ROWS_ON_A_360_PAGE = 40;
+export const MOST_LATENCY_ROUTES = 40;
+
+type ActivityRow = {
+  id: string;
+  recorded_at: Date;
+  correlation_id: string;
+  route: string;
+  method: string;
+  actor_name: string | null;
+  actor_kind: string;
+  actor_role: string | null;
+  subject_kind: string | null;
+  subject_id: string | null;
+  duration_ms: number;
+  outcome: string;
+  rule: string | null;
+  message: string | null;
+  status_code: number;
+};
+
+function toConsoleActivity(row: ActivityRow): ConsoleActivity {
+  return {
+    activityId: row.id,
+    instant: row.recorded_at,
+    correlationId: row.correlation_id,
+    route: row.route,
+    method: row.method,
+    // The display name of the signed-in person, when there was one. Otherwise the kind of caller,
+    // which is the honest answer: nobody was signed in.
+    actor: row.actor_name ?? row.actor_kind,
+    actorIsPerson: row.actor_name !== null,
+    actorKind: row.actor_kind,
+    actorRole: row.actor_role,
+    subjectKind: row.subject_kind,
+    subjectId: row.subject_id,
+    consoleHref: row.subject_kind && row.subject_id ? `/ops/console/${row.subject_kind}/${row.subject_id}` : null,
+    durationMs: row.duration_ms,
+    outcome: row.outcome,
+    rule: row.rule,
+    message: row.message,
+    statusCode: row.status_code,
+  };
+}
+
+// The columns every read of this table selects. `message` is already one sanitised sentence when
+// it is written (lib/observability/redact.ts); it is cut again here for the same reason every
+// other detail on this screen is: a table cell is not a document.
+const ACTIVITY_COLUMNS = (database: postgres.Sql) => database`
+  activity.id, activity.recorded_at, activity.correlation_id, activity.route, activity.method,
+  person.display_name as actor_name, activity.actor_kind, activity.actor_role,
+  activity.subject_kind, activity.subject_id, activity.duration_ms, activity.outcome,
+  activity.rule, left(activity.message, ${SANITISED_DETAIL_LENGTH}) as message, activity.status_code
+`;
+
+// Everything the application refused or failed on, newest first, inside the window the operator
+// is reading. This is the panel decision 25 was written for: before it, a refusal left no trace
+// anywhere, so "the broker says the button does nothing" had no evidence behind it.
+export async function refusedAndFailedActivity(
+  database: postgres.Sql,
+  options: { since: Date; limit?: number },
+): Promise<ConsoleActivity[]> {
+  const rows = await database<ActivityRow[]>`
+    select ${ACTIVITY_COLUMNS(database)}
+      from activity_log activity
+      left join users person on person.id = activity.actor_user_id
+     where activity.outcome <> 'ok'
+       and activity.recorded_at > ${options.since}
+     order by activity.recorded_at desc
+     limit ${options.limit ?? MOST_ACTIVITY_ROWS}
+  `;
+  return rows.map(toConsoleActivity);
+}
+
+// Every request about one object: the policy, the claim, or the policies and claims of the
+// customer or broker this 360 page is about. Scoped by the id lists consoleSubject already read,
+// exactly like every other panel of that page, so no panel loops over rows issuing queries.
+export async function activityOfSubject(
+  database: postgres.Sql,
+  subject: ConsoleSubject,
+  limit = MOST_ACTIVITY_ROWS_ON_A_360_PAGE,
+): Promise<ConsoleActivity[]> {
+  const rows = await database<ActivityRow[]>`
+    select ${ACTIVITY_COLUMNS(database)}
+      from activity_log activity
+      left join users person on person.id = activity.actor_user_id
+     where (activity.subject_kind = 'policy' and activity.subject_id = any(${subject.policyIds}::text[]))
+        or (activity.subject_kind = 'claim'  and activity.subject_id = any(${subject.claimIds}::text[]))
+        or (activity.subject_kind = ${subject.kind} and activity.subject_id = ${subject.id})
+     order by activity.recorded_at desc
+     limit ${limit}
+  `;
+  return rows.map(toConsoleActivity);
+}
+
+// Every request that carried one correlation id. That is what the reference search resolves: an
+// operator reads an id off a Vercel log line, types it here, and gets the request it names.
+// Bounded like everything else: a caller may send the same x-request-id on a thousand requests.
+export async function activityOfCorrelationId(
+  database: postgres.Sql,
+  correlationId: string,
+  limit = MOST_ACTIVITY_ROWS_ON_A_360_PAGE,
+): Promise<ConsoleActivity[]> {
+  const rows = await database<ActivityRow[]>`
+    select ${ACTIVITY_COLUMNS(database)}
+      from activity_log activity
+      left join users person on person.id = activity.actor_user_id
+     where activity.correlation_id = ${correlationId}
+     order by activity.recorded_at desc
+     limit ${limit}
+  `;
+  return rows.map(toConsoleActivity);
+}
+
+// How long each route takes, measured by the application itself and computed by Postgres.
+//
+// THIS IS NOT THE SAME MEASUREMENT AS THE TILES ABOVE. A tile subtracts two instants that belong
+// to an OBJECT (a payment requested, then accepted), which says how long the world took. A row
+// here is duration_ms of one REQUEST, which says how long this application took to answer. Both
+// are useful and neither replaces the other, so they are two panels with two headings.
+export type RouteLatency = {
+  route: string;
+  sampleCount: number;
+  notOkCount: number;
+  p50Ms: number | null;
+  p95Ms: number | null;
+  maxMs: number | null;
+};
+
+export async function latencyByRoute(
+  database: postgres.Sql,
+  windowHours: number = LATENCY_WINDOW_HOURS,
+  limit = MOST_LATENCY_ROUTES,
+): Promise<RouteLatency[]> {
+  const rows = await database<
+    { route: string; sample_count: number; not_ok_count: number; p50: string | null; p95: string | null; maximum: number | null }[]
+  >`
+    select route,
+           count(*)::int                                              as sample_count,
+           count(*) filter (where outcome <> 'ok')::int                as not_ok_count,
+           percentile_cont(0.5)  within group (order by duration_ms)   as p50,
+           percentile_cont(0.95) within group (order by duration_ms)   as p95,
+           max(duration_ms)                                            as maximum
+      from activity_log
+     where recorded_at > now() - make_interval(hours => ${windowHours})
+     group by route
+     order by percentile_cont(0.95) within group (order by duration_ms) desc nulls last, route
+     limit ${limit}
+  `;
+  return rows.map((row) => ({
+    route: row.route,
+    sampleCount: row.sample_count,
+    notOkCount: row.not_ok_count,
+    // percentile_cont returns a numeric, which postgres.js hands back as a string so no precision
+    // is lost on the way. A duration is not money, so reading it as a number here is safe.
+    p50Ms: row.p50 === null ? null : Number(row.p50),
+    p95Ms: row.p95 === null ? null : Number(row.p95),
+    maxMs: row.maximum,
+  }));
+}

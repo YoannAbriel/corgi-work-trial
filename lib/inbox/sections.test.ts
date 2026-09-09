@@ -4,6 +4,7 @@ import {
   brokerSections,
   INBOX_ANCHORS,
   customerSections,
+  sectionsWithWorkFirst,
   staffSections,
   type BrokerPolicyFacts,
   type CustomerPolicyFacts,
@@ -186,6 +187,56 @@ test("a request raised by an agent says so, and only an approver is told they ca
   const operator = section(staffSections(facts, "staff_ops"), "approvals");
   assert.match(operator.title, /waiting for an approver/);
   assert.match(operator.items[0].what, /distinct staff approver/);
+});
+
+test("an open break is investigated on the break itself, not at the top of the list", () => {
+  // UI-017: the twenty-two links all pointed at /ops/reconciliation, so the operator landed on a
+  // different first record and had to find the same break again by hand.
+  const sections = staffSections(
+    staffFacts({
+      breaks: [
+        {
+          source: "stripe",
+          classification: "amount_mismatch",
+          breakKey: "stripe|pi_planted",
+          differenceCents: 1500,
+          firstSeenAt: REQUESTED_AT,
+        },
+      ],
+    }),
+    "staff_ops",
+  );
+  const breaks = section(sections, "reconciliation");
+  assert.equal(breaks.items[0].href, "/ops/reconciliation#break-stripe|pi_planted");
+});
+
+test("the sections holding work are shown before the empty ones, in their declared order", () => {
+  // UI-016: the operations inbox opened on empty panels while its own badge announced the work
+  // further down. The order each role declares is kept inside each of the two groups.
+  const declared = staffSections(
+    staffFacts({
+      claimPayments: [
+        { claimId: "c1", claimNumber: "CLM-1", amountCents: 30000, railStatus: "ready to send", requestedAt: REQUESTED_AT },
+      ],
+      breaks: [
+        {
+          source: "stripe",
+          classification: "provider_only",
+          breakKey: "stripe|pi_1",
+          differenceCents: null,
+          firstSeenAt: REQUESTED_AT,
+        },
+      ],
+    }),
+    "staff_ops",
+  );
+
+  assert.deepEqual(
+    sectionsWithWorkFirst(declared).map((one) => one.anchor),
+    ["claims", "reconciliation", "approvals", "policies", "endorsements"],
+  );
+  // Nothing is dropped and nothing is emptied: the same sections come back, reordered.
+  assert.equal(sectionsWithWorkFirst(declared).length, declared.length);
 });
 
 test("the five staff sections exist in order, empty or not", () => {

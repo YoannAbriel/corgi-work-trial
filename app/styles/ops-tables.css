@@ -1,0 +1,171 @@
+/* The operations tables at desktop width.
+   Repairs UI-006, UI-011, UI-013, UI-014, UI-026, UI-029 and UI-030 of the desktop audit of
+   2026-09-09. Presentation only: no figure, no link and no wording of a table changes here.
+
+   THE ONE CAUSE BEHIND ALL SEVEN. app/globals.css sets `overflow-wrap: anywhere` on every table
+   cell. That property does not only wrap long words, it also tells the browser that a column may
+   be as narrow as ONE CHARACTER when it computes the table's column widths. On a nine-column
+   table in a 736 px card the result is the audit's screenshots: "stripe_checkout" printed as
+   "stri / pe_ / che / cko / ut", four-line towers of two-letter fragments, and the columns a
+   reader actually scans together pushed outside the card.
+
+   THE REPAIR, IN THREE MOVES.
+     1. `overflow-wrap: break-word` instead: a word is broken only when it does not fit, so a
+        column is never narrower than its longest word.
+     2. A minimum width per column ROLE (a reference, a sentence, an amount, a control), written
+        on the cells themselves rather than on a column number, so it survives a reordered table.
+     3. Where the table genuinely needs more room than the left-hand card, the page stacks: the
+        detail grid becomes one column and its side panels move under the tables.
+
+   Imported by the pages and components that own those tables. It is a global stylesheet, so
+   every rule here is scoped by a class this file's own pages put on the element; nothing changes
+   on a screen that does not ask for it. */
+
+/* --------------------------------------------------------------------------
+   1. A page that gives its tables the full content width
+   -------------------------------------------------------------------------- */
+
+/* Wrapped around a <DetailGrid> whose main column cannot hold its widest table: the aside
+   (forms, reference lists, "how to read this page") moves under the tables instead of taking
+   340 px away from them. 736 px of table becomes 1104 px at a 1512 px window. */
+.ops-stacked .detail-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The one page whose side panel is the reason to be there: the statement generator belongs
+   above the list of runs it produces, not under thirty rows of it. */
+.ops-stacked.ops-aside-first .detail-aside {
+  order: -1;
+}
+
+/* A side panel that has become a full-width band keeps its forms, its lists and its notes at a
+   readable measure. A text field stretched across 1100 px is not more usable, only harder to
+   aim at, and a line of prose that long is harder to read than one of sixty characters. */
+.ops-stacked .detail-aside form.card,
+.ops-stacked .detail-aside .aside-list,
+.ops-stacked .detail-aside .note {
+  max-width: 560px;
+}
+
+/* --------------------------------------------------------------------------
+   2. The dense tables themselves
+   -------------------------------------------------------------------------- */
+
+table.ops-table th,
+table.ops-table td {
+  /* Tighter than the 14/16 of the general tables: ten columns cannot afford 32 px of padding
+     each. Still comfortably above the 8 px where rows stop reading as rows. */
+  padding: 9px 11px;
+  /* The correction described above. `word-break: normal` restates the default next to it,
+     because these two properties are read together and only one of them was ever wrong. */
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
+}
+
+/* A header of two or three words wraps rather than reserving its whole sentence on one line.
+   "Knowledge cutoff (UTC)" alone was holding 150 px of a 736 px table open. */
+table.ops-table thead th {
+  white-space: normal;
+}
+
+/* An amount keeps the right-aligned tabular column it already had; this only stops it being
+   squeezed under the width of the figures it has to print. */
+table.ops-table td.amount,
+table.ops-table th.amount {
+  min-width: 88px;
+}
+
+/* The figure itself stays on one line, but the sentence printed under it does not: "format v1:
+   premium not stored" was holding an 88 px money column open to 208 px, because app/globals.css
+   makes the whole amount cell unbreakable. */
+table.ops-table td.amount .note,
+table.ops-table td.amount .badge {
+  white-space: normal;
+}
+
+/* Same for a status chip. app/globals.css keeps every chip inside a scrolling table on one line,
+   which is right for "settled" and wrong for "format changed, not comparable by hash": one chip
+   was taking 276 px of a ten-column table. Wrapping a chip does not break its words. */
+table.ops-table .badge {
+  white-space: normal;
+}
+
+/* --------------------------------------------------------------------------
+   3. The column roles
+   --------------------------------------------------------------------------
+   Written on the <th> AND on the <td> of the column, never on a column number: a table whose
+   columns are reordered keeps its widths, and the width a column needs is visible in the JSX
+   next to the thing it measures. */
+
+/* A provider reference, a uuid, a break key: one long unbroken token. It is allowed to break
+   anywhere, because there is no word in it to protect, but the column is wide enough that a
+   Stripe id lands on two lines rather than six. */
+.col-ref {
+  min-width: 156px;
+}
+.col-ref code,
+.col-ref .note,
+.col-ref a {
+  overflow-wrap: anywhere;
+}
+/* The evidence fold of a reference cell (the small circle opening the sandbox references) sits
+   UNDER the reference instead of beside it: inline, it took 28 px off the last line and pushed a
+   36-character identifier onto a third line. */
+table.ops-table .col-ref details.sandbox-reference {
+  display: block;
+  margin: 4px 0 0;
+}
+
+/* A sentence: the explanation of a break, the reason of an error, the description of a
+   movement. This is the column the audit found reduced to a tower of fragments. */
+.col-text {
+  min-width: 168px;
+}
+
+/* The narrative column of a statement movement or a claim payment: a whole sentence, and on a
+   correction a sentence naming what was reversed. Wider than an ordinary explanation because
+   this is the column the audit found printed as a tower of two-word lines. */
+.col-line {
+  min-width: 280px;
+}
+
+/* A short label that must not be cut: "stripe_checkout", "LOCAL SIMULATOR", "provider only",
+   "Stripe (LIVE SANDBOX)". */
+.col-label {
+  min-width: 120px;
+}
+
+/* A UTC instant, printed as "2026-09-08 17:58:19": two lines at most, never two characters. */
+.col-when {
+  min-width: 104px;
+}
+
+/* An age, a duration, a count: "15 hours", "3.4 s", "22". */
+.col-age {
+  min-width: 74px;
+}
+
+/* A person, a broker, a policy number: one or two words that must stay readable. */
+.col-name {
+  min-width: 108px;
+}
+
+/* The controls of a row: a button, a form, the simulator fold. A control narrower than this
+   wraps its own label and stops looking like a button. */
+.col-controls {
+  min-width: 148px;
+}
+.col-controls .inline-form,
+.col-controls form.card {
+  margin: 0;
+}
+
+/* A link column ("Open", "everything about it"): the link wraps as a phrase, not letter by
+   letter, and the two links of a search result stay on their own lines. */
+.col-open {
+  min-width: 124px;
+}
+.col-open a {
+  overflow-wrap: break-word;
+}

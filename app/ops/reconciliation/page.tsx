@@ -1,3 +1,4 @@
+import "@/app/styles/ops-tables.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure, SandboxReferences } from "@/components/disclosures";
 import { Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
@@ -110,6 +111,10 @@ export default async function ReconciliationPage({
 
       {notices.length > 0 ? <div className="notices">{notices}</div> : null}
 
+      {/* UI-011: the break table has nine columns a reader scans together, which do not fit the
+          736 px left-hand card of the two-column grid. The page stacks: the tables take the full
+          content width and the run form and the reading notes move under them. */}
+      <div className="ops-stacked">
       <DetailGrid
         main={
           <>
@@ -142,16 +147,16 @@ export default async function ReconciliationPage({
                 <Empty>Nothing has run yet.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Reconciliation runs" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>Finished (UTC)</th>
-                        <th>Source</th>
-                        <th>Status</th>
-                        <th>Window (UTC)</th>
-                        <th>Compared</th>
-                        <th>Result</th>
-                        <th>Run by</th>
+                        <th className="col-when">Finished (UTC)</th>
+                        <th className="col-label">Source</th>
+                        <th className="col-age">Status</th>
+                        <th className="col-when">Window (UTC)</th>
+                        <th className="col-age">Compared</th>
+                        <th className="col-text">Result</th>
+                        <th className="col-name">Run by</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -172,14 +177,14 @@ export default async function ReconciliationPage({
                 </Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Clearing balances" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>Account</th>
-                        <th>Policy or claim</th>
+                        <th className="col-text">Account</th>
+                        <th className="col-name">Policy or claim</th>
                         <th className="amount">Still open</th>
-                        <th>Oldest entry (UTC)</th>
-                        <th>Open for</th>
+                        <th className="col-when">Oldest entry (UTC)</th>
+                        <th className="col-age">Open for</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -260,6 +265,7 @@ export default async function ReconciliationPage({
           </>
         }
       />
+      </div>
     </PortalShell>
   );
 }
@@ -268,17 +274,17 @@ function RunRow({ run }: { run: ReconciliationRunRow }) {
   const breaks = run.counts.local_only + run.counts.provider_only + run.counts.amount_mismatch + run.counts.stale;
   return (
     <tr>
-      <td>{utc(run.finishedAt)}</td>
-      <td>{SOURCE_LABEL[run.source] ?? run.source}</td>
-      <td>
+      <td className="col-when">{utc(run.finishedAt)}</td>
+      <td className="col-label">{SOURCE_LABEL[run.source] ?? run.source}</td>
+      <td className="col-age">
         <Chip tone={run.status === "complete" ? "ok" : "warn"}>{run.status}</Chip>
       </td>
-      <td>
+      <td className="col-when">
         {utc(run.windowFrom)}
         <br />
         {utc(run.windowTo)}
       </td>
-      <td>
+      <td className="col-age">
         {run.status === "failed" ? (
           <span className="note">nothing: the run never got its records</span>
         ) : (
@@ -289,7 +295,7 @@ function RunRow({ run }: { run: ReconciliationRunRow }) {
           </>
         )}
       </td>
-      <td>
+      <td className="col-text">
         {run.status === "failed" ? (
           /* Never "0 breaks": a failed run has no result at all, only a reason. */
           <span className="note">FAILED, no comparison was made: {run.fetchError}</span>
@@ -307,7 +313,7 @@ function RunRow({ run }: { run: ReconciliationRunRow }) {
           </>
         )}
       </td>
-      <td>{run.runByName ?? <span className="note">scheduled job</span>}</td>
+      <td className="col-name">{run.runByName ?? <span className="note">scheduled job</span>}</td>
     </tr>
   );
 }
@@ -315,15 +321,15 @@ function RunRow({ run }: { run: ReconciliationRunRow }) {
 function ClearingRow({ balance, now }: { balance: ClearingBalanceRow; now: Date }) {
   return (
     <tr>
-      <td>
+      <td className="col-text">
         {balance.accountName}
         <br />
         <span className="note">{CLEARING_ACCOUNT_MEANING[balance.accountId]}</span>
       </td>
-      <td>{balance.policyNumber ?? balance.claimNumber ?? <span className="note">no policy or claim on the entry</span>}</td>
+      <td className="col-name">{balance.policyNumber ?? balance.claimNumber ?? <span className="note">no policy or claim on the entry</span>}</td>
       <td className="amount">{formatCentsAsUsd(balance.openCents)}</td>
-      <td>{utc(balance.oldestEntryAt)}</td>
-      <td>{describeAge(balance.oldestEntryAt, now)}</td>
+      <td className="col-when">{utc(balance.oldestEntryAt)}</td>
+      <td className="col-age">{describeAge(balance.oldestEntryAt, now)}</td>
     </tr>
   );
 }
@@ -331,24 +337,27 @@ function ClearingRow({ balance, now }: { balance: ClearingBalanceRow; now: Date 
 function BreakTable({ rows, now, ageColumn }: { rows: ReconciliationBreakRow[]; now: Date; ageColumn: string }) {
   return (
     <div className="table-scroll" role="region" aria-label="Reconciliation table 3" tabIndex={0}>
-<table className="ledger">
+<table className="ledger ops-table">
       <thead>
         <tr>
-          <th>Reference</th>
-          <th>Source</th>
-          <th>Classification</th>
+          <th className="col-ref">Reference</th>
+          <th className="col-label">Source</th>
+          <th className="col-text">Classification</th>
           <th className="amount">Provider</th>
           <th className="amount">Ledger</th>
           <th className="amount">Difference</th>
-          <th>First seen (UTC)</th>
-          <th>{ageColumn}</th>
-          <th>What it means</th>
+          <th className="col-when">First seen (UTC)</th>
+          <th className="col-age">{ageColumn}</th>
+          <th className="col-text">What it means</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
-          <tr key={`${row.breakKey}-${row.lastReportedAt.toISOString()}`}>
-            <td>
+          /* The id another screen links one break by: the inbox sends an operator straight to
+             the row of the break it is telling them about. The break key is the identity the
+             runs file a break under, so the anchor survives a later run reporting it again. */
+          <tr key={`${row.breakKey}-${row.lastReportedAt.toISOString()}`} id={`break-${row.breakKey}`}>
+            <td className="col-ref">
               {/* The provider reference stays visible: it is the identity of the break and what an
                   operator types into the provider's own console. The internal operation uuid and
                   the key the runs file it under are evidence, so they go behind the affordance. */}
@@ -361,8 +370,8 @@ function BreakTable({ rows, now, ageColumn }: { rows: ReconciliationBreakRow[]; 
                 ]}
               />
             </td>
-            <td>{SOURCE_LABEL[row.source] ?? row.source}</td>
-            <td>
+            <td className="col-label">{SOURCE_LABEL[row.source] ?? row.source}</td>
+            <td className="col-text">
               <Chip tone="warn">{row.classification.replace(/_/g, " ")}</Chip>
               <br />
               <span className="note">{CLASSIFICATION_MEANING[row.classification]}</span>
@@ -370,9 +379,9 @@ function BreakTable({ rows, now, ageColumn }: { rows: ReconciliationBreakRow[]; 
             <td className="amount">{money(row.providerAmountCents)}</td>
             <td className="amount">{money(row.ledgerAmountCents)}</td>
             <td className="amount">{money(row.differenceCents)}</td>
-            <td>{utc(row.firstSeenAt)}</td>
-            <td>{describeAge(row.firstSeenAt, now)}</td>
-            <td>{row.note}</td>
+            <td className="col-when">{utc(row.firstSeenAt)}</td>
+            <td className="col-age">{describeAge(row.firstSeenAt, now)}</td>
+            <td className="col-text">{row.note}</td>
           </tr>
         ))}
       </tbody>

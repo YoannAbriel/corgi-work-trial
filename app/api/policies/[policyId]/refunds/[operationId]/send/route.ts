@@ -2,6 +2,7 @@ import { ApprovalRefused } from "@/lib/approvals/approvals";
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { sendRequestedRefund, RefundSendRefused } from "@/lib/payments/refunds";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/refunds/{operationId}/send
 //
@@ -14,7 +15,9 @@ import { sendRequestedRefund, RefundSendRefused } from "@/lib/payments/refunds";
 //
 // Restricted to staff operations: sending money is an operations decision. The approver's job is
 // to approve, and letting the checker also execute would blur the two roles.
-export async function POST(
+export const POST = withActivity({ route: "/api/policies/[policyId]/refunds/[operationId]/send", rule: "refund gate", subject: "policy" }, handlePost);
+
+async function handlePost(
   request: Request,
   context: { params: Promise<{ policyId: string; operationId: string }> },
 ) {

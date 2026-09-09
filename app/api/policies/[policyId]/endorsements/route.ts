@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { EndorsementRefused, requestEndorsement } from "@/lib/policy/endorse";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/endorsements, called by the Confirm button of the preview page.
 //
@@ -8,7 +9,9 @@ import { badPathIdResponse } from "@/lib/http/path-ids";
 // optional reason, and the quote hash the preview was computed with. Everything is recomputed
 // on the server under a lock, so calling this URL directly goes through the same gates as the
 // button.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements", rule: "endorsement", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();
   const { policyId } = await context.params;
   const malformedId = badPathIdResponse({ policy: policyId }); // a malformed id answers 400, not 500 (F-B7-07)

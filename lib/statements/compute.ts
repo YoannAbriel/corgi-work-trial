@@ -143,7 +143,8 @@ const REVERSAL_PREFIX = "reversal_of_";
 // version 1 does not (its premium column held the cash).
 export const CANONICAL_STATEMENT_VERSION = 3;
 export const FIRST_VERSION_WITH_PREMIUM_COLUMN = 2;
-export const STATEMENT_VERSIONS_WITH_KNOWN_TOTALS = [2, 3] as const;
+// F-PP-06: declared as a plain readonly list of numbers so its use site needs no cast.
+export const STATEMENT_VERSIONS_WITH_KNOWN_TOTALS: readonly number[] = [2, 3];
 
 // What the note says on a screen or a document rendered from a v1 row.
 export const STATEMENT_FORMAT_V1_NOTE =

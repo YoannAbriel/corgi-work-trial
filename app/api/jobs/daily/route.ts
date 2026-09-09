@@ -2,6 +2,7 @@ import { settleDueSimulatedPayouts } from "@/lib/claims/settle-due-payouts";
 import { assertJobIsAuthorised, jobResponse, JobNotAuthorised } from "@/lib/jobs/authorize";
 import { recoverStuckOperations, STUCK_AFTER_MINUTES } from "@/lib/payments/recover";
 import { runAllSources, windowCoveringOpenBreaks } from "@/lib/reconciliation/run";
+import { withActivity } from "@/lib/observability/log";
 
 // GET (and POST) /api/jobs/daily
 // Authorization: Bearer <CRON_SECRET>
@@ -30,11 +31,15 @@ import { runAllSources, windowCoveringOpenBreaks } from "@/lib/reconciliation/ru
 //
 // Each step is independent and safe to rerun; a step that throws stops the job and is reported,
 // because a reconciliation run made on a half-recovered ledger would be misleading.
-export async function GET(request: Request) {
+export const GET = withActivity({ route: "/api/jobs/daily", rule: "cron secret", actor: "cron" }, handleGet);
+
+async function handleGet(request: Request) {
   return runDailyJob(request);
 }
 
-export async function POST(request: Request) {
+export const POST = withActivity({ route: "/api/jobs/daily", rule: "cron secret", actor: "cron" }, handlePost);
+
+async function handlePost(request: Request) {
   return runDailyJob(request);
 }
 

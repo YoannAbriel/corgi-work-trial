@@ -5,6 +5,8 @@ import { PortalShell } from "@/components/portal-shell";
 import { currentUser } from "@/lib/auth/current-user";
 import { workspaceInbox, type InboxSection } from "@/lib/inbox/read";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+// UI-016: the gutter between the sections and the one-line shape of an empty one.
+import "@/app/styles/shell.css";
 
 // The notification centre: one screen listing everything waiting for the signed-in person, each
 // line with the link that does the work.
@@ -75,6 +77,11 @@ export default async function InboxPage() {
 
 // One section. The anchor is on the wrapper, so the count chip in the sidebar (/inbox#approvals)
 // lands on the section that holds exactly the items it counted.
+//
+// A section with nothing in it folds to a single line (UI-016): it keeps its anchor, its title
+// and its sentence, so the link still lands somewhere that answers "there is nothing here", but
+// it no longer costs a whole panel of the first screen. lib/inbox/read.ts has already put the
+// sections holding work first.
 function InboxPanel({
   section,
   showEmptyIllustration = false,
@@ -82,8 +89,16 @@ function InboxPanel({
   section: InboxSection;
   showEmptyIllustration?: boolean;
 }) {
+  if (section.items.length === 0 && !showEmptyIllustration) {
+    return (
+      <div className="inbox-block inbox-empty-line" id={section.anchor}>
+        <h2>{section.title}</h2>
+        <p className="note">{section.emptySentence}</p>
+      </div>
+    );
+  }
   return (
-    <div id={section.anchor}>
+    <div className="inbox-block" id={section.anchor}>
       <Panel
         title={
           <>

@@ -3,6 +3,7 @@ import { currentUser } from "@/lib/auth/current-user";
 import { renderStatementPdf } from "@/lib/statements/pdf";
 import { statementRun } from "@/lib/statements/read";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // GET /api/statements/{runId}/pdf: the statement as a PDF file.
 //
@@ -17,7 +18,9 @@ import { badPathIdResponse } from "@/lib/http/path-ids";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(request: Request, context: { params: Promise<{ runId: string }> }) {
+export const GET = withActivity({ route: "/api/statements/[runId]/pdf", rule: "ownership" }, handleGet);
+
+async function handleGet(request: Request, context: { params: Promise<{ runId: string }> }) {
   const user = await currentUser();
   if (!user) {
     return new Response("sign in first", { status: 401 });

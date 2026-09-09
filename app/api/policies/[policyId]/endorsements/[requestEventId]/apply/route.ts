@@ -1,6 +1,7 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { retryEndorsementApplication } from "@/lib/payments/endorsement-collection";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/endorsements/{requestEventId}/apply
 //
@@ -9,7 +10,9 @@ import { badPathIdResponse } from "@/lib/http/path-ids";
 // and nothing was journaled; this re-runs the same posting transaction a first delivery would
 // have run, once the broker is verified. Staff operations only, and the eligibility question is
 // asked again inside retryEndorsementApplication.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/apply", rule: "endorsement", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
   const user = await currentUser();
   const { policyId, requestEventId } = await context.params;
   const malformedId = badPathIdResponse({ policy: policyId, request: requestEventId }); // a malformed id answers 400, not 500 (F-B7-07)

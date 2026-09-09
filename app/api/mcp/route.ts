@@ -6,6 +6,8 @@ import {
   type CallLog,
 } from "@/lib/mcp/jsonrpc";
 import { principalForPresentedKey, recordMcpCall, type McpPrincipal } from "@/lib/mcp/keys";
+import { withActivity, type Activity } from "@/lib/observability/log";
+import { sanitisedSentence } from "@/lib/observability/redact";
 
 // POST /api/mcp: the MCP surface, streamable HTTP transport, JSON-RPC 2.0 over one POST.
 //
@@ -29,12 +31,22 @@ import { principalForPresentedKey, recordMcpCall, type McpPrincipal } from "@/li
 // Rate limiting is out of scope for this build and is stated as a limitation in the notes: an
 // authenticated caller can call as often as it likes, and every call is recorded.
 
-export async function POST(request: Request): Promise<Response> {
+// The activity row of this endpoint says more than "POST /api/mcp" (decision 25). The ROUTE
+// carries the JSON-RPC method and the tool, because every agent and every tool arrive on the
+// same URL and one latency figure over all of them would hide the slow one; the ACTOR KIND comes
+// from the principal_kind of the key, so an operator reads "agent" or "human" and not "whoever
+// held a token". The arguments are not read here and are stored nowhere but as a hash in
+// mcp_calls (migration 0018).
+export const POST = withActivity({ route: "/api/mcp", actor: "declared" }, handlePost);
+
+async function handlePost(request: Request, _context: unknown, activity: Activity): Promise<Response> {
   const startedAtMs = Date.now();
 
   const presentedKey = bearerToken(request);
   const principal = presentedKey ? await principalForPresentedKey(presentedKey) : null;
+  describeCaller(activity, principal);
   if (!principal || principal.revokedAt !== null) {
+    activity.rule = "MCP key";
     const recorded = await logCall({
       apiKeyId: principal?.keyId ?? null,
       log: { method: "unknown", tool: null, argumentsHash: null, outcome: "error", detail: null },
@@ -100,6 +112,13 @@ export async function POST(request: Request): Promise<Response> {
     database: sql,
     now: new Date(),
   });
+  // The activity row is told the verdict rather than left to read the status code, because this
+  // protocol answers a REFUSED tool call with HTTP 200 and an isError result: the caller was told
+  // no, and a row that read "ok" would hide exactly the thing the console exists to show.
+  activity.route = `/api/mcp ${handled.log.tool ?? handled.log.method}`;
+  activity.outcome = handled.log.outcome === "ok" ? "ok" : handled.log.outcome === "error" ? "error" : "refused";
+  activity.rule = handled.log.outcome === "refused" ? "MCP tool scope" : null;
+  activity.message = handled.log.detail;
   const recorded = await logCall({
     apiKeyId: principal.keyId,
     log: handled.log,
@@ -121,17 +140,31 @@ export async function POST(request: Request): Promise<Response> {
 // The transport also defines a GET (the server-to-client event stream) and a DELETE (ending a
 // session). This server pushes nothing and keeps no session, so both are refused with the reason
 // rather than left to 404 as if the endpoint did not exist.
-export async function GET(): Promise<Response> {
+export const GET = withActivity({ route: "/api/mcp", actor: "anonymous" }, handleGet);
+
+async function handleGet(): Promise<Response> {
   return methodNotAllowed("this MCP endpoint answers POST only: it opens no server-to-client stream");
 }
 
-export async function DELETE(): Promise<Response> {
+export const DELETE = withActivity({ route: "/api/mcp", actor: "anonymous" }, handleDelete);
+
+async function handleDelete(): Promise<Response> {
   return methodNotAllowed("this MCP endpoint keeps no session: the API key identifies every call on its own");
 }
 
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
+
+// Who made this call, for the activity row. An unknown or missing key leaves the row anonymous:
+// nothing from the presented value is stored, because it could be somebody's real secret typed
+// into the wrong terminal (the same rule mcp_calls follows in migration 0018).
+function describeCaller(activity: Activity, principal: McpPrincipal | null): void {
+  if (!principal) return;
+  activity.actorKind = principal.principalKind === "agent" ? "agent" : "human";
+  activity.actorUserId = principal.user.id;
+  activity.actorRole = principal.user.role;
+}
 
 function bearerToken(request: Request): string | null {
   const header = request.headers.get("authorization") ?? "";
@@ -188,7 +221,7 @@ async function logCall(input: {
         method: input.log.method,
         tool: input.log.tool,
         outcome: input.outcome,
-        reason: error instanceof Error ? error.message.slice(0, 200) : "unknown",
+        reason: sanitisedSentence(error),
       }),
     );
     return false;

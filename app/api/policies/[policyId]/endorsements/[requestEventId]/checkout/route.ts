@@ -2,12 +2,15 @@ import { currentUser } from "@/lib/auth/current-user";
 import { isUniqueViolation } from "@/lib/ledger/post";
 import { EndorsementCheckoutRefused, startEndorsementCheckout } from "@/lib/payments/endorsement-collection";
 import { badPathIdResponse } from "@/lib/http/path-ids";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/endorsements/{requestEventId}/checkout, the "Pay the delta"
 // button. Authorisation, eligibility, the customer's approval and the quote hash are all
 // checked inside startEndorsementCheckout: a direct call to this URL goes through exactly the
 // same gates as the button.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/checkout", rule: "endorsement", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
   const user = await currentUser();
   const { policyId, requestEventId } = await context.params;
   const malformedId = badPathIdResponse({ policy: policyId, request: requestEventId }); // a malformed id answers 400, not 500 (F-B7-07)

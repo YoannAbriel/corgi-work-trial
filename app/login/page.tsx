@@ -2,6 +2,9 @@ import { SignedOutFrame } from "@/components/signed-out-frame";
 import { DecorativeIllustration } from "@/components/decorative-illustration";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
+// UI-003: the width of the signed-out page is fixed there, so opening the demo-account help
+// cannot move the form sideways any more. The rule and its measurements are in that file.
+import "@/app/styles/shell.css";
 
 // The only page a signed-out visitor can use. The four demo accounts are created by
 // `npm run seed` and share one password, given to the panel with the deployed URL.

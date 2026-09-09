@@ -1,13 +1,16 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 import { cancelPolicy, CancellationRefused } from "@/lib/policy/cancel";
+import { withActivity } from "@/lib/observability/log";
 
 // POST /api/policies/{policyId}/cancel, called by the Confirm button of the preview page.
 //
 // The form carries three fields: the effective date, the calculation method (pro-rata) and the
 // policy version the preview was computed against. Everything is checked again on the server,
 // so calling this URL directly goes through exactly the same gates as the button.
-export async function POST(request: Request, context: { params: Promise<{ policyId: string }> }) {
+export const POST = withActivity({ route: "/api/policies/[policyId]/cancel", rule: "cancellation", subject: "policy" }, handlePost);
+
+async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();
   const { policyId } = await context.params;
   if (!user) {
