@@ -8,12 +8,18 @@ import { ChevronRight } from "lucide-react";
 // 2026-09-09: an explanation you can watch being built, from the figure down to the ledger line).
 //
 // THE RULE THIS FILE OBEYS, AND THE REASON IT IS THE ONLY CLIENT COMPONENT IN THE FEATURE:
-// the browser never computes money. Every string it shows was rendered on the server and arrives
-// either as a prop or in a data attribute; this file decides WHEN a string appears, never WHAT it
-// says. The count-up is the one place a number is read, and it reads only the digits of the
-// server-rendered text so it can draw the intermediate frames; the frame it stops on is that same
-// text, put back verbatim. lib/money/amount-explained-motion.test.ts asserts this against the
-// source of this file.
+// the browser never computes a money figure. Every figure it shows AT REST is a string the server
+// rendered, arriving either as a prop or in a data attribute, and this file decides WHEN such a
+// string appears, never WHAT it says.
+//
+// The count-up is the one exception and it is worth being exact about (review finding F-B12-13):
+// while it runs, THE BROWSER DOES DO ARITHMETIC. It reads the digits of the server-rendered text
+// as a number and multiplies it by a fraction of the animation to pick each intermediate frame, so
+// those frames are strings the browser composed. They are frames of a count, not amounts: no
+// figure this application states, stores, posts or totals is ever produced here, and the frame the
+// count stops on is the server's own text, put back verbatim.
+// lib/money/amount-explained-motion.test.ts asserts this against the source of this file: one
+// number, read from those digits, and nowhere else.
 //
 // WITH JAVASCRIPT OFF nothing here runs and nothing is hidden: the shell server-renders as a
 // native <details> with a plain <summary>, the panel carries no data-reveal attribute, and the CSS

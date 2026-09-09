@@ -26,8 +26,15 @@ fold and builds the proof in front of them:
 
 ## The rule the slice rests on, and how it is held
 
-**The browser never computes money.** Every string on the screen was rendered on the server; the
-client component decides WHEN a string appears, never WHAT it says.
+**The browser never computes a money figure.** Every figure on the screen at rest is a string the
+server rendered; the client component decides WHEN such a string appears, never WHAT it says.
+
+The count-up is the one exception, and the wording matters (review finding F-B12-13): **while the
+count runs, the browser does arithmetic.** It reads the digits of the server-rendered text as a
+number and multiplies it by a fraction of the animation to pick each intermediate frame, so those
+frames are strings the browser composed. They are frames of a count, not amounts: nothing this
+application states, stores, posts, totals or compares is produced there, and the frame the count
+stops on is the server's own text put back verbatim.
 
 | What moves | Where its text comes from |
 |---|---|
@@ -35,11 +42,12 @@ client component decides WHEN a string appears, never WHAT it says.
 | each formula line | `FormulaLinesTable`, server, `data-final-amount` per amount cell |
 | the running subtotals | `runningSubtotals(explanation)` in `lib/money/explain.ts`, server, one `data-subtotal` per row |
 | the result line, once landed | the same `data-final-amount` string, written back verbatim |
-| the count-up frames | the DIGITS of that string, and nothing else |
+| the count-up's intermediate frames | composed in the browser from the digits of that string, and nothing else; they are frames of a count, never a figure |
 
 The count-up is the one place a number is read at all: `Number(digits)` where `digits` is the digit
-characters of the server's own text, used to choose which digits to draw on the way there. The last
-frame is not a rebuilt string, it is `textFromServer` itself.
+characters of the server's own text, multiplied by the eased progress of the animation to choose
+which digits to draw on the way there. The last frame is not a rebuilt string, it is
+`textFromServer` itself.
 `lib/money/amount-explained-motion.test.ts` asserts this **against the source of the client
 component**: no `* 100`, no `/ 100`, no `parseInt`, no `parseFloat`, no import from `lib/money`, no
 identifier ending in `Cents`, exactly one `Number(` and it is `Number(digits)`.
