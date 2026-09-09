@@ -46,7 +46,7 @@ import type { McpTool } from "./tool";
 //   1057 rows in the table, 21 of them this actor's
 //   Limit -> Sort (recorded_at DESC, id DESC) -> Seq Scan on activity_log
 //     Rows Removed by Filter: 1036, Buffers: shared hit=45, Execution Time: 0.258 ms
-//   (a run an hour earlier, at 969 rows, gave the same plan at shared hit=41 and 0.216 ms)
+//   (an earlier run the same afternoon, at 969 rows, gave the same plan: shared hit=41, 0.216 ms)
 //
 // AND THE INDEX THAT EXISTS WOULD NOT HELP, which is the part worth writing down. Asked again
 // with enable_seqscan off, the planner switched to an Index Scan using activity_log_by_time with
