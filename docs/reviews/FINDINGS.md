@@ -643,3 +643,13 @@ Fourteen rules checked by one small agent each against a fetched official source
 | F-EV-06 | LOW | Pre-existing: /policies/<id>?view=endorsements draws its five column headers above the empty state, the shape app/inbox/page.tsx:163 calls "a table pretending to have content" | Hide the headers when the schedule is empty, as the inbox does | OPEN, not caused by ui-evening |
 | F-EV-07 | LOW | app/policies/[policyId]/correction-sections.tsx:147 the as-of document form takes target="_blank" without rel="noopener", where the five PDF anchors all carry both; same-origin destination, so inconsistency rather than exposure | Add rel="noopener" to the form | OPEN |
 | F-EV-08 | LOW | Pre-existing on d002f77: /ops at 375 px overflowed (the what-needs-you row, a grid item without min-width: 0, from batch 1), measured by the interface session on production | Fixed in lists.css, shipped with the switch-only merge | FIXED (switch-only, merge 8d567cc) |
+
+## Demo-account switch (docs/reviews/demo-switch-r1.md, PASS at 8d567cc, 21:10Z)
+
+| ID | Severity | Finding | Required action | Status |
+|---|---|---|---|---|
+| F-SWITCH-01 | MED | The switch route checked only that a session exists, never that the actor is a demo account: any valid cookie, including one of a broker created through POST /api/brokers with its own password, could buy staff_ops or staff_approver in one POST | Actor-side gate isDemoAccountEmail(user.email) before the target gate | FIXED at 4f10705 by the coordinator (a fourth gate, refusal logged as refused) |
+| F-SWITCH-02 | LOW | A JSON body makes request.formData() throw: 500 and outcome error instead of the claimed 303 refusal (same as the login route, pre-existing) | Catch it into the refusal path or correct the claim to "any non-listed email" | OPEN |
+| F-SWITCH-03 | LOW | The diff also adds 87 lines to app/styles/system.css, not named in the handoff; all selectors are new | State the second stylesheet in the slice handoff | OPEN, wording |
+| F-SWITCH-04 | LOW | lists.css adds more than min-width: 0 (also flex: 1 1 auto and display: block); the 375 px measurement was not reproduced by the reviewer | Re-measure /ops at 375 px in a browser on the deployed revision | OPEN, for the batch-2 reviewer |
+| F-SWITCH-05 | LOW | secureFlag() is copied from the login route rather than imported; two copies of one security flag can drift | Export it once from lib/auth/session.ts | OPEN |
