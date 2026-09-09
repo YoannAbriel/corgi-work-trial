@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Search as SearchIcon, Shapes, UserRound } from "lucide-react";
+import { Search as SearchIcon, UserRound } from "lucide-react";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import type { ToastNotice } from "@/lib/ui/views";
 import { workspaceTasks, type WorkspaceTask } from "@/lib/inbox/tasks";
@@ -130,7 +130,10 @@ export async function PortalShell({
         prefetch={false}
       >
         <span className="workspace-icon">
-          <Shapes size={20} strokeWidth={1.8} aria-hidden="true" />
+          {/* The Corgi mark, drawn as a CSS mask (app/styles/system.css) rather than as an
+              image: only the shape comes from the file and the colour comes from the sidebar,
+              so the mark follows the theme and stays crisp at this size. */}
+          <span className="workspace-mark" aria-hidden="true" />
         </span>
         <span>
           <strong>Corgi</strong>
