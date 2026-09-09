@@ -87,6 +87,9 @@ export type ConsoleEvent = {
   title: string;
   outcome: ConsoleOutcome;
   actor: string;
+  // True when `actor` is a person's name, read from users.display_name. It decides whether the
+  // screen masks it: masking "stripe" or "the ledger" is noise, masking a person is the rule.
+  actorIsPerson: boolean;
   detail: string;
   amountCents: number | null;
   policyId: string | null;
@@ -220,6 +223,7 @@ async function moneyEvents(database: postgres.Sql, since: Date): Promise<Console
     title: `${row.operation_kind} ${row.status}`,
     outcome: moneyOutcome(row.status),
     actor: row.actor ?? `${row.provider} or a scheduled job`,
+    actorIsPerson: row.actor !== null,
     detail: row.reason ?? "",
     amountCents: centsFromDatabase(row.amount_cents, "amount_cents"),
     policyId: row.policy_id,
@@ -276,6 +280,7 @@ async function webhookEvents(database: postgres.Sql, since: Date): Promise<Conso
     title: `${row.provider} ${row.event_type}`,
     outcome: webhookOutcome(row.status),
     actor: row.provider,
+    actorIsPerson: false,
     detail: describeWebhookProcessing(row.status, row.attempts, row.last_error),
     amountCents: null,
     policyId: null,
@@ -356,6 +361,7 @@ async function journalEvents(database: postgres.Sql, since: Date): Promise<Conso
     title: row.reverses_entry_id ? `${row.entry_type} (reversal)` : row.entry_type,
     outcome: row.reverses_entry_id ? "warn" : "neutral",
     actor: row.actor ?? "posted by the money path",
+    actorIsPerson: row.actor !== null,
     detail: row.description,
     amountCents: centsFromDatabase(row.total_debit_cents, "total_debit_cents"),
     policyId: row.policy_id,
@@ -406,6 +412,7 @@ async function policyEvents(database: postgres.Sql, since: Date): Promise<Consol
     title: row.event_type,
     outcome: row.event_type.startsWith("correction") || row.event_type === "cancelled" ? "warn" : "neutral",
     actor: row.actor ?? "no signed-in user recorded",
+    actorIsPerson: row.actor !== null,
     detail: [`effective ${row.effective_at}`, row.reason].filter(Boolean).join(" · "),
     amountCents: null,
     policyId: row.policy_id,
@@ -461,6 +468,7 @@ async function claimEvents(database: postgres.Sql, since: Date): Promise<Console
     title: row.event_type,
     outcome: row.event_type === "payment_returned" ? "warn" : row.event_type === "payment_settled" ? "ok" : "neutral",
     actor: row.actor ?? "a scheduled job",
+    actorIsPerson: row.actor !== null,
     detail: row.note ?? "",
     amountCents: row.amount_cents === null ? null : centsFromDatabase(row.amount_cents, "amount_cents"),
     policyId: row.policy_id,
@@ -551,6 +559,7 @@ async function approvalEvents(database: postgres.Sql, since: Date): Promise<Cons
     title,
     outcome,
     actor,
+    actorIsPerson: true,
     detail,
     amountCents: centsFromDatabase(amountCents, "amount_cents"),
     // subject_id names a claim or a policy depending on subject_kind; one column cannot
@@ -632,6 +641,7 @@ async function reconciliationEvents(database: postgres.Sql, since: Date): Promis
     title: `${row.source} reconciliation ${row.status}`,
     outcome: row.status === "failed" ? "failed" : row.breaks > 0 ? "warn" : "ok",
     actor: row.actor ?? "the daily scheduled job",
+    actorIsPerson: row.actor !== null,
     detail:
       row.status === "failed"
         ? `compared nothing: ${row.fetch_error}`
@@ -685,6 +695,7 @@ async function statementEvents(database: postgres.Sql, since: Date): Promise<Con
     title: `statement ${row.statement_month} revision ${row.revision}`,
     outcome: "neutral" as const,
     actor: row.actor ?? "a scheduled job",
+    actorIsPerson: row.actor !== null,
     detail: `${row.broker_name}${row.identical_to_previous ? " · identical to the previous revision" : ""}`,
     amountCents: centsFromDatabase(row.net_due_cents, "net_due_cents"),
     policyId: null,
@@ -740,6 +751,7 @@ async function mcpEvents(database: postgres.Sql, since: Date): Promise<ConsoleEv
     actor: row.key_prefix
       ? `${row.key_prefix} (${row.principal_kind ?? "unknown"}${row.holder ? `, ${row.holder}` : ""})`
       : "no key, or a key we do not know",
+    actorIsPerson: false,
     detail: [`${row.outcome} in ${row.duration_ms} ms`, row.detail].filter(Boolean).join(" · "),
     amountCents: null,
     policyId: null,
@@ -786,6 +798,7 @@ async function kybEvents(database: postgres.Sql, since: Date): Promise<ConsoleEv
     title: `broker verification ${row.status}`,
     outcome: row.status === "approved" ? "ok" : row.status === "failed" ? "failed" : "warn",
     actor: row.actor ?? row.provider,
+    actorIsPerson: row.actor !== null,
     detail: row.broker_name,
     amountCents: null,
     policyId: null,
@@ -839,6 +852,7 @@ async function changeRequestEvents(database: postgres.Sql, since: Date): Promise
     title: row.answered ? "change request, answered" : "change request, open",
     outcome: row.answered ? "ok" : "warn",
     actor: row.actor,
+    actorIsPerson: true,
     detail: `${row.lines.join(", ")} · ${row.comment}`,
     amountCents: null,
     policyId: row.policy_id,
@@ -1496,6 +1510,7 @@ async function webhookOnlyMatch(
       title: row.event_type,
       outcome: webhookOutcome(row.status),
       actor: "stripe",
+      actorIsPerson: false,
       detail: describeWebhookProcessing(row.status, row.attempts, row.last_error),
       amountCents: null,
       policyId: null,
@@ -1570,6 +1585,7 @@ async function byMcpKeyPrefix(
       title: call.tool ? `${call.method} ${call.tool}` : call.method,
       outcome: call.outcome === "ok" ? "ok" : call.outcome === "refused" ? "warn" : "failed",
       actor: reference,
+      actorIsPerson: false,
       detail: [`${call.outcome} in ${call.duration_ms} ms`, call.detail].filter(Boolean).join(" · "),
       amountCents: null,
       policyId: null,
@@ -2617,6 +2633,7 @@ export async function subjectTimeline(
     title: `${operation.kind} ${operation.latestStatus ?? "no event"}`,
     outcome: moneyOutcome(operation.latestStatus ?? ""),
     actor: operation.provider,
+    actorIsPerson: false,
     detail: operation.failureReason ?? "",
     amountCents: operation.amountCents,
     policyId: operation.policyId,
@@ -2635,6 +2652,7 @@ export async function subjectTimeline(
     title: entry.reversesEntryId ? `${entry.entryType} (reversal)` : entry.entryType,
     outcome: entry.reversesEntryId ? "warn" : "neutral",
     actor: "the ledger",
+    actorIsPerson: false,
     detail: `effective ${entry.effectiveAt}`,
     amountCents: entry.lines.reduce((total, line) => total + line.debitCents, 0),
     policyId: null,
@@ -2691,6 +2709,7 @@ export async function policyEventsOfPolicies(
     title: row.event_type,
     outcome: row.event_type.startsWith("correction") || row.event_type === "cancelled" ? ("warn" as const) : ("neutral" as const),
     actor: row.actor ?? "no signed-in user recorded",
+    actorIsPerson: row.actor !== null,
     detail: [`effective ${row.effective_at}`, row.reason].filter(Boolean).join(" · "),
     amountCents: null,
     policyId: row.policy_id,
@@ -2743,6 +2762,7 @@ export async function claimEventsOfClaims(
     outcome:
       row.event_type === "payment_returned" ? ("warn" as const) : row.event_type === "payment_settled" ? ("ok" as const) : ("neutral" as const),
     actor: row.actor ?? "a scheduled job",
+    actorIsPerson: row.actor !== null,
     detail: row.note ?? "",
     amountCents: row.amount_cents === null ? null : centsFromDatabase(row.amount_cents, "amount_cents"),
     policyId: row.policy_id,
@@ -2779,6 +2799,7 @@ export async function kybEventsOfBroker(
     title: `verification ${row.status}`,
     outcome: row.status === "approved" ? ("ok" as const) : row.status === "failed" ? ("failed" as const) : ("warn" as const),
     actor: row.actor ?? row.provider,
+    actorIsPerson: row.actor !== null,
     detail: row.broker_name,
     amountCents: null,
     policyId: null,

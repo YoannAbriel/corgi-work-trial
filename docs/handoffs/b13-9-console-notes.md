@@ -110,7 +110,10 @@ console only makes the operation visible.
   prefix. Every string taken from a payload is cut at 220 characters.
 - **Names and emails are masked** to their first three characters, revealed by a native
   `<details>`. This is a reading discipline for a screen left open on a desk, not a security
-  control: the console is already staff-only and the value is in the HTML.
+  control: the console is already staff-only and the value is in the HTML. An actor that is not a
+  person (`stripe`, `the ledger`, `the daily scheduled job`, a `cmk_` prefix) is printed as it is:
+  every feed row carries `actorIsPerson`, and masking a provider name would be noise, not
+  discretion.
 - **Bounded reads.** The feed asks each source for at most 60 rows and renders at most 200. Every
   360 panel is scoped by the policy and claim id lists that `consoleSubject` read once, so no
   panel loops over rows issuing queries.

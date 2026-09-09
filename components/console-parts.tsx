@@ -114,10 +114,10 @@ export function EventTable({ events, ariaLabel }: { events: ConsoleEvent[]; aria
               </td>
               <td className="amount">{event.amountCents === null ? "" : formatCentsAsUsd(event.amountCents)}</td>
               {/* A person's name is masked on the feed, like an email: the feed is a firehose,
-                  and a name in it is read by everybody who walks past the screen. */}
-              <td>
-                <Masked value={event.actor} what="actor" />
-              </td>
+                  and a name in it is read by everybody who walks past the screen. An actor that
+                  is not a person ("stripe", "the ledger", "the daily scheduled job", a key
+                  prefix) is printed as it is: masking it would be noise, not discretion. */}
+              <td>{event.actorIsPerson ? <Masked value={event.actor} what="actor" /> : event.actor}</td>
               <td>{event.detail}</td>
               <td>
                 {event.href ? (
