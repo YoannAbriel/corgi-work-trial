@@ -242,7 +242,7 @@ export function WhatNeedsYou({
       </h2>
       {tasks.length === 0 ? (
         <div className="needs-you-empty">
-          {showEmptyIllustration ? <DecorativeIllustration name="all-clear" variant="empty" /> : null}
+          {showEmptyIllustration ? <DecorativeIllustration name="all-clear" variant="empty" eager /> : null}
           <p className="note">
             Nothing is waiting for you right now. New work appears here, in your{" "}
             <Link href="/inbox">inbox</Link>, and as a number next to the screen it belongs to.
