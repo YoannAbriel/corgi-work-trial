@@ -26,12 +26,14 @@ export type JournalEntryForTable = {
   lines: { accountId: string; accountName: string; debitCents: number; creditCents: number }[];
 };
 
-// A short mark beside one entry's type, and whether that entry's amounts are struck through.
-// Only the corrections panel passes it: a correction posts two entries that undo something and
-// two that re-book it, and without a mark the reader has to match entry ids to see that the four
-// are two pairs and not four movements (Yoann, 2026-09-09). It only labels; the figures printed
-// are the ones the ledger stored, unchanged.
-export type EntryMark = { chip: ReactNode; struck?: boolean };
+// A short mark beside one entry's type. Only the corrections panel passes it: a correction posts
+// entries that undo something and entries that re-book it, and without a mark the reader has to
+// match entry ids to see that they are pairs and not separate movements (Yoann, 2026-09-09). It
+// only labels; the figures printed are the ones the ledger stored, unchanged.
+//
+// F-EV2-06 removed a `struck` flag that greyed out an entry's amounts: every entry in this table
+// is a posting that stands, so striking one said something false.
+export type EntryMark = { chip: ReactNode };
 
 export function JournalTable({
   entries,
@@ -120,12 +122,7 @@ function EntryBlock({
   const marked = mark ? mark(entry) : null;
   const recorded = entry.recordedAt.toISOString().replace("T", " ").slice(0, 19);
   return (
-    <div
-      // `entry-struck` only strikes the amounts through in CSS; the cents below are the stored
-      // ones, printed unchanged, and nothing is subtracted anywhere to draw them.
-      className={marked?.struck ? "entry-block entry-struck" : "entry-block"}
-      id={journalEntryElementId(panelKey, entry.entryId)}
-    >
+    <div className="entry-block" id={journalEntryElementId(panelKey, entry.entryId)}>
       <div className="entry-head">
         <span className={`entry-tag entry-${tone}`}>{entry.entryType}</span>
         {marked ? marked.chip : null}
