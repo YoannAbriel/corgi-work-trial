@@ -1,5 +1,6 @@
 import "@/app/styles/lists.css";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
@@ -7,19 +8,23 @@ import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Inspector } from "@/components/ui/inspector";
 import { Legend } from "@/components/ui/legend";
+import { RevealDone } from "@/components/ui/reveal-done";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { DataTable, Primary, Ref, Row } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import { currentUser } from "@/lib/auth/current-user";
 import { KYB_NOT_LIVE_LABEL } from "@/lib/broker/eligibility";
 import { brokersWithKybState } from "@/lib/broker/kyb";
+import { BROKER_PASSWORD_REVEAL_COOKIE, readRevealCookieValue } from "@/lib/broker/reveal-cookie";
 import { closeInspectorHref, firstValue, inspectedReference, inspectHref, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 
 // /ops/brokers: where the operations team sees whether a broker may bind, and why.
 //
-// Staff only, read from the append-only broker_kyb_events table. The one action on the page
-// re-reads the account at Stripe and appends a status row only if the answer changed, so
-// pressing it twice does not add a second row (POST /api/brokers/{id}/kyb/recheck).
+// Staff only, read from the append-only broker_kyb_events table. Two actions live here:
+//   - "Re-read" on a row asks Stripe again and appends a status row only if the answer changed,
+//     so pressing it twice does not add a second row (POST /api/brokers/{id}/kyb/recheck);
+//   - "New broker" (?view=new) creates a broker and its sign-in account (POST /api/brokers), and
+//     shows the account's one-time password once, on this screen.
 
 const PATH = "/ops/brokers";
 
@@ -58,7 +63,18 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
   const toasts = toastsFromQuery(query, {
     error: { tone: "error", title: "Refused" },
     rechecked: { tone: "ok", title: "Read again at Stripe" },
+    // The value of ?created= is the new broker's id; the toast says what happened rather than
+    // reprinting it, and the sign-in details are shown in their own block below.
+    created: { tone: "ok", title: "Broker created", text: "The broker and its sign-in account were created." },
   });
+
+  // The sign-in details of the broker POST /api/brokers has just created, read from the cookie
+  // that route set (lib/broker/reveal-cookie.ts). They exist for one page load and for at most
+  // two minutes; nothing else in the application holds them.
+  const justCreatedBrokerId = firstValue(query.created);
+  const revealedSignIn = justCreatedBrokerId
+    ? readRevealCookieValue((await cookies()).get(BROKER_PASSWORD_REVEAL_COOKIE)?.value)
+    : null;
 
   const inspected = inspectedReference(query.inspect);
 
@@ -103,9 +119,10 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
           are sub-labels on the row they belong to. A list of three rows does not need a
           dashboard above it. */}
 
-      {/* Creating a broker: the form the coordinator's route will answer (cycle 2, decision 21).
-          The button is disabled while POST /api/brokers does not exist on this branch, so the
-          card can never post into nothing; the field names are the ones the route expects. */}
+      {/* Creating a broker (cycle 2, decision 21; the route arrived with decision 52). A plain
+          HTML post to POST /api/brokers, which writes the broker and its sign-in account in one
+          transaction and sends the operator back here with ?created= and the one-time password
+          in a short-lived cookie. */}
       {view === "new" ? (
         <section className="card lists-section lists-form-card">
           <h2>New broker</h2>
@@ -119,14 +136,34 @@ export default async function OpsBrokersPage({ searchParams }: { searchParams: P
             <label htmlFor="commissionRateBps">Commission rate (basis points)</label>
             <input id="commissionRateBps" name="commissionRateBps" type="number" required min={0} max={10000} step={1} placeholder="1500" />
 
-            <button type="submit" className="orange" disabled>
-              Create the broker
-            </button>
+            <SubmitButton className="orange">Create the broker</SubmitButton>
             <p className="note">
-              Route pending: <code>POST /api/brokers</code> is not on this branch yet, so the button is disabled. A created
-              broker signs in and submits their business verification from <code>/broker/kyb</code>; you check it here.
+              The broker gets a sign-in account with a one-time password, shown to you once on this screen. They then submit
+              their business verification from <code>/broker/kyb</code>; you check it here.
             </p>
           </form>
+
+          {/* SHOWN ONCE. The password is not stored anywhere: the database holds only its scrypt
+              hash (migration 0027), and the cookie that carried it here is removed as soon as
+              this block appears. If it is lost, the only answer is to create the broker again,
+              which is what the second version of this block says. */}
+          {justCreatedBrokerId ? (
+            <div className="card lists-form-card">
+              <h3>Sign-in details, shown once</h3>
+              {revealedSignIn ? (
+                <>
+                  <p className="note">Give these to the broker. They will not be shown again.</p>
+                  <p className="lists-facts">Email</p>
+                  <code className="lists-snippet">{revealedSignIn.email}</code>
+                  <p className="lists-facts">One-time password</p>
+                  <code className="lists-snippet">{revealedSignIn.password}</code>
+                  <RevealDone />
+                </>
+              ) : (
+                <p className="note">The password was shown once and is gone; create the broker again if it was lost.</p>
+              )}
+            </div>
+          ) : null}
         </section>
       ) : null}
 

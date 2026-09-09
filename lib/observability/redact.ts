@@ -47,6 +47,13 @@ const TOKEN_REVEAL_COOKIE_SHAPE = new RegExp(`${TOKEN_REVEAL_COOKIE}=[^;\\s,"]*`
 // DEMO_PASSWORD is shared by every demo account, so one leaked line is every account.
 const PASSWORD_FIELD_SHAPE = /("?)(password|passwd|secret|token)\1(\s*[:=]\s*)("?)([^"\s,&}]+)\4/gi;
 
+// The one-time password of a broker just created, on its way from POST /api/brokers to the
+// screen that shows it once (lib/broker/reveal-cookie.ts). It travels in a cookie, and a cookie
+// travels in a header: any line that ever quoted a request's headers would otherwise carry a
+// working password in clear text. Matched by the cookie's own name, so the rule cannot drift
+// away from the cookie it protects.
+const BROKER_PASSWORD_REVEAL_COOKIE_SHAPE = /broker_password_reveal=[^;\s]+/gi;
+
 // The password inside a connection string: postgres://user:password@host/database. A postgres.js
 // error can carry one, and DATABASE_URL_APP is a credential.
 const CONNECTION_STRING_CREDENTIALS = /\/\/[^\s:/@]+:[^\s@/]+@/g;
@@ -69,6 +76,7 @@ export function redact(raw: string): string {
   const onOneLine = raw.replace(/\s+/g, " ").trim();
   const withoutCredentials = onOneLine
     .replace(CONNECTION_STRING_CREDENTIALS, "//****:****@")
+    .replace(BROKER_PASSWORD_REVEAL_COOKIE_SHAPE, "broker_password_reveal=****")
     .replace(BEARER_SHAPE, "Bearer ****")
     .replace(TOKEN_REVEAL_COOKIE_SHAPE, `${TOKEN_REVEAL_COOKIE}=****`)
     .replace(PRESENTED_TOKEN_SHAPE, "$1_****")
