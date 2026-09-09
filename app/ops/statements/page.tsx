@@ -1,3 +1,4 @@
+import "@/app/styles/ops-tables.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure, SandboxReferences } from "@/components/disclosures";
 import { Chip, DetailGrid, DetailHeading, Empty, Panel } from "@/components/detail-layout";
@@ -63,6 +64,10 @@ export default async function OpsStatementsPage({
 
       {notices.length > 0 ? <div className="notices">{notices}</div> : null}
 
+      {/* UI-013: ten columns, four of them money, cannot be read in the 736 px left-hand card of
+          the two-column grid. The page stacks and the generator moves ABOVE the list: it is the
+          form that produces the rows below it, so it reads better first than thirty rows down. */}
+      <div className="ops-stacked ops-aside-first">
       <DetailGrid
         main={
           <Panel title="Runs" className="list-panel">
@@ -113,6 +118,7 @@ export default async function OpsStatementsPage({
           </Panel>
         }
       />
+      </div>
       <IllustrationBanner
         name="plant-care"
         title={<>Records that <em>grow with the month.</em></>}
@@ -126,25 +132,25 @@ export default async function OpsStatementsPage({
 function RunTable({ runs }: { runs: StatementRunRow[] }) {
   return (
     <div className="table-scroll" role="region" aria-label="Statements table 1" tabIndex={0}>
-<table>
+<table className="ops-table">
       <thead>
         <tr>
-          <th>Month</th>
-          <th>Broker</th>
-          <th>Revision</th>
-          <th>Knowledge cutoff (UTC)</th>
+          <th className="col-name">Month</th>
+          <th className="col-name">Broker</th>
+          <th className="col-label">Revision</th>
+          <th className="col-when">Knowledge cutoff (UTC)</th>
           <th className="amount">Collected</th>
           <th className="amount">Commission</th>
           <th className="amount">Clawback</th>
           <th className="amount">Net due</th>
-          <th>Run by</th>
-          <th></th>
+          <th className="col-name">Run by</th>
+          <th className="col-open"></th>
         </tr>
       </thead>
       <tbody>
         {runs.map((run) => (
           <tr key={run.runId}>
-            <td>
+            <td className="col-name">
               <Link href={`/statements/${run.runId}`}>{run.statementMonth}</Link>
               {/* The run id and the content hash are the evidence a reviewer reproduces a
                   revision with; they are not what an operator reads down the column. */}
@@ -162,8 +168,8 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
                 </>
               ) : null}
             </td>
-            <td>{run.brokerName}</td>
-            <td>
+            <td className="col-name">{run.brokerName}</td>
+            <td className="col-label">
               {run.revision}
               {run.identicalToPrevious ? (
                 <>
@@ -186,15 +192,15 @@ function RunTable({ runs }: { runs: StatementRunRow[] }) {
                 </>
               ) : null}
             </td>
-            <td>{utc(run.knowledgeCutoff)}</td>
+            <td className="col-when">{utc(run.knowledgeCutoff)}</td>
             <td className="amount">
               <CollectedCell run={run} />
             </td>
             <td className="amount">{formatCentsAsUsd(run.commissionEarnedCents)}</td>
             <td className="amount">{formatCentsAsUsd(-run.clawbackCents)}</td>
             <td className="amount">{formatCentsAsUsd(run.netDueCents)}</td>
-            <td>{run.runByName ?? <span className="note">no signed-in user</span>}</td>
-            <td>
+            <td className="col-name">{run.runByName ?? <span className="note">no signed-in user</span>}</td>
+            <td className="col-open">
               <Link href={`/statements/${run.runId}`} className="button-link secondary small">Open</Link>
             </td>
           </tr>
