@@ -566,6 +566,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T21:38:00+00:00 | F-INSPECT-05 built and reviewed PASS, merged locally (66fb863); New broker route built, under review
+
+- Workflow of 22:48 local (two opus builders in worktrees, one adversarial reviewer each): `inspect_reference` answers one sentence when nothing matches (decision 53), test and check-mcp assertion updated, review PASS (`docs/reviews/backend-inspect-05-r1.md`); coordinator checks on the merged tree: typecheck clean, 541 tests (540 pass, 1 skipped). The New broker route (decision 52) is built at 6aa11e4 on new-broker-route (543 tests reported by the builder) and its reviewer is running; merge on PASS, guards proof on an ephemeral database with 0026 and 0027, then deploy in the batch-2 window.
+
 ## 2026-09-09T21:37:00+00:00 | Hotfix deployed: /api/health reports ff88934
 
 - The sidebar account name truncates again on every signed-in screen. Production ff88934; main and origin at 3318a70 plus this entry. Next deploys: interface batch 2 (migration 0026) and the New broker route (migration 0027), each after its review; then the co-pilot's single re-read of 54 figures on the final SHA.
