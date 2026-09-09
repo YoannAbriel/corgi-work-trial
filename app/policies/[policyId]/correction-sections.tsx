@@ -3,7 +3,13 @@ import { Disclosure } from "@/components/disclosures";
 import { Empty, Panel } from "@/components/detail-layout";
 import { JournalTable } from "@/components/journal-table";
 import { formatCentsAsUsd } from "@/lib/money/cents";
-import { correctionsOfPolicy, policyAsItStoodOn, policyAsOfSteps, policyTimeline } from "@/lib/policy/correction-read";
+import {
+  correctionsOfPolicy,
+  policyAsItStoodOn,
+  policyAsOfSteps,
+  policyTimeline,
+  type TimelineAudience,
+} from "@/lib/policy/correction-read";
 import { FormulaLinesTable } from "./formula-lines";
 
 // The three screens slice B8 adds to a policy: what a correction did, the whole history of the
@@ -158,8 +164,18 @@ export async function CorrectionsExplained({ policyId, canPay }: { policyId: str
 // The timeline: effective time and recorded time, side by side
 // ---------------------------------------------------------------------------
 
-export async function PolicyTimeline({ policyId }: { policyId: string }) {
-  const rows = await policyTimeline(policyId);
+// `audience` decides the words, never the rows (review finding F-B13-06). An operator reads the
+// reason a colleague typed into a correction; a customer reads the same events, the same two
+// dates and the same amounts, without the operator's free text and the internal references it
+// carries.
+export async function PolicyTimeline({
+  policyId,
+  audience = "operator",
+}: {
+  policyId: string;
+  audience?: TimelineAudience;
+}) {
+  const rows = await policyTimeline(policyId, undefined, audience);
   if (rows.length === 0) {
     return null;
   }
@@ -187,8 +203,15 @@ export async function PolicyTimeline({ policyId }: { policyId: string }) {
                   <>
                     <br />
                     <span className="note">
-                      Superseded by the {row.supersededByEventType} recorded later ({row.supersededByEventId.slice(0, 8)}
-                      ): the row stays in the table, the fold no longer applies it.
+                      {audience === "customer" ? (
+                        "Put right by a later correction: this line no longer counts, and the corrected one is below."
+                      ) : (
+                        <>
+                          Superseded by the {row.supersededByEventType} recorded later (
+                          {row.supersededByEventId.slice(0, 8)}): the row stays in the table, the fold no longer applies
+                          it.
+                        </>
+                      )}
                     </span>
                   </>
                 ) : null}

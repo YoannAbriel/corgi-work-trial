@@ -33,6 +33,7 @@ import {
   type JournalEntryView,
   type RefundOperationView,
 } from "@/lib/policy/read";
+import { policyAsItStoodOn } from "@/lib/policy/correction-read";
 import {
   CorrectEndorsementDateForm,
   CorrectionsExplained,
@@ -71,6 +72,8 @@ export default async function PolicyPage({
     // rebuilds the policy for.
     correction?: string;
     asOf?: string;
+    // Slice B13-6: the broker has just answered a customer's change request.
+    changeRequest?: string;
   }>;
 }) {
   const user = await currentUser();
@@ -99,7 +102,12 @@ export default async function PolicyPage({
     redirect(user.role === "customer" ? "/customer" : "/broker");
   }
 
-  const [kyb, operation, entries, cancellation, refunds, voidCorrection, endorsements, schedule, claims, query] =
+  const today = new Date().toISOString().slice(0, 10);
+  // A date field cannot start on a date it would refuse: on a policy whose term has not begun,
+  // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
+  const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
+
+  const [kyb, operation, entries, cancellation, refunds, voidCorrection, endorsements, schedule, claims, termsToday, query] =
     await Promise.all([
       brokerKybState(policy.brokerId),
       checkoutOperationOfPolicy(policyId),
@@ -112,6 +120,11 @@ export default async function PolicyPage({
       // Slice B7: the claims of this policy, each with the reserve and the incurred amount folded
       // from its own events.
       claimsWithPositions(sql, policyId),
+      // Finding F-YA-07: the terms panel asks the SAME fold the "as it stood on" panel below uses,
+      // for today. policy_current applies every event whatever its effective date, so on a policy
+      // carrying a future-dated endorsement it answers next month's premium under a heading that
+      // says "in force".
+      policyAsItStoodOn(policyId, documentDate),
       searchParams,
     ]);
 
@@ -134,10 +147,6 @@ export default async function PolicyPage({
   // confirmed, so hiding a button is a convenience, never the control.
   const canChange = (isOwningBroker || user.role === "staff_ops") && policy.status === "bound";
   const canOpenClaim = user.role === "staff_ops" && (policy.status === "bound" || policy.status === "cancelled");
-  const today = new Date().toISOString().slice(0, 10);
-  // A date field cannot start on a date it would refuse: on a policy whose term has not begun,
-  // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
-  const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
   const liveEndorsement = endorsements.find(
     (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
   );
@@ -148,6 +157,41 @@ export default async function PolicyPage({
   const openClaimReserveCents = openClaims.reduce((total, claim) => total + claim.position.reserveCents, 0);
   const ledger = ledgerSoFar(entries);
 
+  // WHAT THE POLICY IS TODAY, not what it will be (Yoann's finding F-YA-07). On CGP-01707 the
+  // panel printed the $2,400 annual premium and its $56.40 tax on 2026-09-09, although the
+  // endorsement that raises it is effective 2026-10-08 and only $54.08 of tax was ever booked.
+  // The figures now come from the same fold as the panel below, for today; policy_current is
+  // still what the rest of the page uses, because a future-dated change IS on the policy.
+  const inForceToday = "snapshot" in termsToday ? termsToday.snapshot : null;
+  const terms = inForceToday
+    ? {
+        onDate: inForceToday.asOf,
+        annualPremiumCents: inForceToday.annualPremiumCents,
+        taxRateBps: inForceToday.taxRateBasisPoints,
+        taxCents: inForceToday.taxCents,
+        feeCents: inForceToday.feeCents,
+        totalChargeCents: inForceToday.totalChargeCents,
+        limits: inForceToday.coverageLines.map((line) => ({ label: line.name, cents: line.limitCents })),
+      }
+    : {
+        // The fold has no answer (the policy is not issued on that date, or its issuance was
+        // reversed). The policy record is then the only thing there is to show, and the panel
+        // says so instead of claiming a date.
+        onDate: null,
+        annualPremiumCents: policy.annualPremiumCents,
+        taxRateBps: policy.taxRateBps,
+        taxCents: policy.taxCents,
+        feeCents: policy.feeCents,
+        totalChargeCents: policy.totalChargeCents,
+        limits: [
+          { label: "Per-occurrence limit", cents: policy.perOccurrenceLimitCents },
+          { label: "Aggregate limit", cents: policy.aggregateLimitCents },
+        ],
+      };
+  // Applied endorsements that have not taken effect yet: the gap between what the policy is today
+  // and what policy_current already carries. Named under the facts rather than folded into them.
+  const endorsementsNotYetInForce = schedule.filter((row) => row.effectiveAt > documentDate);
+
   const notices = [
     query.error ? <p key="error" className="error" role="alert">{query.error}</p> : null,
     query.payment === "returned" ? (
@@ -157,6 +201,12 @@ export default async function PolicyPage({
       </p>
     ) : null,
     query.payment === "cancelled" ? <p key="left" className="note" role="status">The payment page was left without paying.</p> : null,
+    query.changeRequest === "answered" ? (
+      <p key="changeRequest" className="note" role="status">
+        Your answer is on the customer&apos;s policy page, under the request it answers. It changed nothing on the
+        policy itself: a change goes through Endorse.
+      </p>
+    ) : null,
     query.cancelled ? <p key="cancelled" className="note" role="status">{cancellationRefundNotice(refunds)}</p> : null,
     query.reissued ? (
       <p key="reissued" className="note">
@@ -273,28 +323,32 @@ export default async function PolicyPage({
       <DetailGrid
         main={
           <>
-            <Panel title="Terms in force">
+            <Panel title={terms.onDate ? `Terms in force on ${terms.onDate}` : "Terms in force"}>
               <Facts
                 items={[
-                  { label: "Annual premium", value: formatCentsAsUsd(policy.annualPremiumCents) },
+                  { label: "Annual premium", value: formatCentsAsUsd(terms.annualPremiumCents) },
                   {
-                    label: `${policy.stateCode} premium tax (${(policy.taxRateBps / 100).toFixed(2)}%)`,
+                    label: `${policy.stateCode} premium tax (${(terms.taxRateBps / 100).toFixed(2)}%)`,
                     // Slice B12-2: the fold recomputes the tax with the same pure function the
                     // issuance used, so a stored figure that no longer matches its own premium
                     // and rate would be said out loud instead of explained away.
                     value: (
                       <AmountExplained
-                        amountCents={policy.taxCents}
-                        label={`${policy.stateCode} premium tax on the annual premium in force`}
+                        amountCents={terms.taxCents}
+                        label={
+                          terms.onDate
+                            ? `${policy.stateCode} premium tax on the annual premium in force on ${terms.onDate}`
+                            : `${policy.stateCode} premium tax on the annual premium`
+                        }
                         explanation={{
                           ...explainStateTax({
                             stateCode: policy.stateCode,
-                            annualPremiumCents: policy.annualPremiumCents,
-                            taxRateBps: policy.taxRateBps,
+                            annualPremiumCents: terms.annualPremiumCents,
+                            taxRateBps: terms.taxRateBps,
                             evidence: evidenceFromJournal(entries, "premium_tax_payable"),
                           }),
                           evidenceLabel:
-                            "The premium tax entries booked on this policy so far (issuance, and any endorsement or cancellation).",
+                            "The premium tax entries booked on this policy so far (issuance, and any endorsement or cancellation). They are what was charged over time; the figure above is the tax on the annual premium in force on this date.",
                         }}
                       />
                     ),
@@ -303,10 +357,10 @@ export default async function PolicyPage({
                     label: "Policy fee, once at issuance",
                     value: (
                       <AmountExplained
-                        amountCents={policy.feeCents}
+                        amountCents={terms.feeCents}
                         label="Flat policy fee"
                         explanation={explainPolicyFee({
-                          feeCents: policy.feeCents,
+                          feeCents: terms.feeCents,
                           evidence: evidenceFromJournal(entries, "fee_income"),
                         })}
                       />
@@ -316,23 +370,42 @@ export default async function PolicyPage({
                     label: "Full annual term at these terms",
                     value: (
                       <AmountExplained
-                        amountCents={policy.totalChargeCents}
-                        label="What a full annual term at the terms in force costs the customer"
+                        amountCents={terms.totalChargeCents}
+                        label={
+                          terms.onDate
+                            ? `What a full annual term at the terms in force on ${terms.onDate} costs the customer`
+                            : "What a full annual term at these terms costs the customer"
+                        }
                         explanation={explainTotalCharge({
                           stateCode: policy.stateCode,
-                          annualPremiumCents: policy.annualPremiumCents,
-                          taxCents: policy.taxCents,
-                          feeCents: policy.feeCents,
+                          annualPremiumCents: terms.annualPremiumCents,
+                          taxCents: terms.taxCents,
+                          feeCents: terms.feeCents,
                         })}
                       />
                     ),
                     emphasis: true,
                   },
-                  { label: "Per-occurrence limit", value: formatCentsAsUsd(policy.perOccurrenceLimitCents) },
-                  { label: "Aggregate limit", value: formatCentsAsUsd(policy.aggregateLimitCents) },
+                  ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
                   { label: "Broker commission rate", value: `${(policy.commissionRateBps / 100).toFixed(2)}%` },
                 ]}
               />
+              {terms.onDate === null ? (
+                <p className="note">
+                  The policy cannot be rebuilt on {documentDate}: {"error" in termsToday ? termsToday.error : "no answer"}.
+                  The figures above are the ones on the policy record, not a state of cover on a date.
+                </p>
+              ) : null}
+              {/* Finding F-YA-07: what the policy is today, and separately what it becomes. The
+                  figures come from the endorsement's own stored event; nothing is recomputed. */}
+              {endorsementsNotYetInForce.map((row) => (
+                <p key={`not-yet-${row.endorsedEventId}`} className="note">
+                  An endorsement effective {row.effectiveAt} brings the annual premium to{" "}
+                  {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}
+                  {row.newLimitLabel ? ` (${row.newLimitLabel})` : ""}. It is in the schedule below with the delta it
+                  collected; the figures above are the ones in force on {terms.onDate}.
+                </p>
+              ))}
             </Panel>
 
             {liveEndorsement ? (
@@ -394,8 +467,10 @@ export default async function PolicyPage({
                             </td>
                             <td className="amount">
                               {/* Slice B12-2: the fold reuses the endorsement's OWN formula lines,
-                                  the ones stored on the event and posted to the journal, and points
-                                  at their total line. Nothing is recomputed for display. */}
+                                  rebuilt from the figures stored on the event by the same function
+                                  that priced it (endorsementFormulaLines), and points at their
+                                  total line. No money is recomputed: the total line IS
+                                  figures.deltaTotalCents, the amount posted to the journal. */}
                               <AmountExplained
                                 amountCents={row.figures.deltaTotalCents}
                                 size="inline"

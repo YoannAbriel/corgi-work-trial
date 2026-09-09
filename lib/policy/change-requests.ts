@@ -22,7 +22,30 @@ type Queryable = postgres.Sql | postgres.TransactionSql;
 
 // A refusal a person can act on: wrong actor, empty comment, a request already answered. It
 // becomes a message on the page, never a 500.
-export class ChangeRequestRefused extends Error {}
+//
+// It carries WHERE THE PERSON CAN READ IT, because a refusal shown on a page the actor is not
+// allowed to open is a silent failure: the policy page redirects them away and the message goes
+// with the redirect (review finding F-B13-02). 'policy' is the normal case, a person who may
+// open the policy and got their form wrong; 'home' is the ownership refusal, where the only page
+// that will render the sentence is the actor's own workspace.
+export class ChangeRequestRefused extends Error {
+  readonly readableFrom: "policy" | "home";
+
+  constructor(message: string, readableFrom: "policy" | "home" = "policy") {
+    super(message);
+    this.readableFrom = readableFrom;
+  }
+}
+
+// The other half of `readableFrom`: the workspace home of each role, which is the page that will
+// certainly render a refusal for that person. Kept next to the error that asks for it rather than
+// duplicated in the two routes.
+export function workspaceHomeOf(role: UserRole): string {
+  if (role === "customer") return "/customer";
+  if (role === "broker") return "/broker";
+  if (role === "staff_ops" || role === "staff_approver") return "/ops";
+  return "/login"; // 'agent': no session exists, so this is unreachable rather than a real page
+}
 
 // The lines of the policy a request can be about. They are what the customer READS on the page,
 // not database columns: the broker decides what "the annual premium" means in the endorsement.
@@ -105,10 +128,10 @@ export async function createChangeRequest(
 ): Promise<{ requestId: string }> {
   const policy = await loadPolicyOwners(database, input.policyId);
   if (!policy) {
-    throw new ChangeRequestRefused("this policy does not exist");
+    throw new ChangeRequestRefused("this policy does not exist", "home");
   }
   if (input.actor.role !== "customer" || input.actor.customerId !== policy.customerId) {
-    throw new ChangeRequestRefused("only the customer of this policy can ask for a change on it");
+    throw new ChangeRequestRefused("only the customer of this policy can ask for a change on it", "home");
   }
 
   const lines = checkedLines(input.lines);
@@ -128,10 +151,24 @@ export async function createChangeRequest(
   return { requestId: row.id };
 }
 
-// At least one line, every line inside the closed list, each line once. The order is the order of
-// CHANGE_REQUEST_LINES, so two identical requests store identical arrays.
+// At least one line, every line inside the closed list, each line named once. The order is the
+// order of CHANGE_REQUEST_LINES, so two identical requests store identical arrays.
+//
+// A REPEAT IS REFUSED, NOT FOLDED AWAY. The form cannot produce one (a checkbox is ticked or it
+// is not), so a repeated value means a hand-made request, and answering it with a refusal says
+// more than silently storing a shortened array the sender never asked for.
+//
+// KNOWN GAP, deliberately not closed: the CHECK of migration 0019 is `cardinality between 1 and
+// 7` plus `lines <@ <the closed list>`, which a direct INSERT of ['other','other'] satisfies, and
+// both panels would then print the label twice (review finding F-B13-04, LOW). Uniqueness is an
+// application invariant here, not a database one. Migration 0019 is applied on the trial database
+// and is never rewritten, and a repeat is unreachable through every door the application opens,
+// so this stays as it is rather than becoming a migration on the last day.
 function checkedLines(fromForm: string[]): ChangeRequestLine[] {
   const ticked = new Set(fromForm);
+  if (ticked.size !== fromForm.length) {
+    throw new ChangeRequestRefused("a line can only be named once in a request");
+  }
   for (const line of ticked) {
     if (!(CHANGE_REQUEST_LINES as readonly string[]).includes(line)) {
       throw new ChangeRequestRefused("that is not a line of this policy");
@@ -170,13 +207,16 @@ export async function replyToChangeRequest(
        and change_request.policy_id = ${input.policyId}
   `;
   if (!request) {
-    throw new ChangeRequestRefused("this change request does not exist on this policy");
+    throw new ChangeRequestRefused("this change request does not exist on this policy", "home");
   }
 
   const isOwningBroker = input.actor.role === "broker" && input.actor.brokerId === request.broker_id;
   const isStaffOperations = input.actor.role === "staff_ops";
   if (!isOwningBroker && !isStaffOperations) {
-    throw new ChangeRequestRefused("only the broker who writes this policy, or staff operations, can answer a change request");
+    throw new ChangeRequestRefused(
+      "only the broker who writes this policy, or staff operations, can answer a change request",
+      "home",
+    );
   }
 
   if (input.outcome !== "answered" && input.outcome !== "done") {
@@ -261,14 +301,20 @@ export async function changeRequestsOfPolicy(policyId: string, database: Queryab
     comment: row.comment,
     requestedByName: row.requested_by_name,
     recordedAt: row.recorded_at,
+    // ANSWERED IS A ROW EXISTING, and the left join reports that with reply_id alone. Reading the
+    // truthiness of the other joined columns instead would have made an answered request render
+    // as open the day a replier had an empty display_name, while countOpenChangeRequests, which
+    // asks `not exists` in SQL, still said zero (review finding F-B13-03). The remaining columns
+    // are display values: they are not null when reply_id is not null, because the row they come
+    // from declares them `not null`.
     reply:
-      row.reply_id && row.outcome && row.reply_text && row.replied_by_name && row.reply_recorded_at
+      row.reply_id !== null
         ? {
             replyId: row.reply_id,
-            outcome: row.outcome,
-            text: row.reply_text,
-            repliedByName: row.replied_by_name,
-            recordedAt: row.reply_recorded_at,
+            outcome: row.outcome as ChangeRequestOutcome,
+            text: row.reply_text as string,
+            repliedByName: row.replied_by_name as string,
+            recordedAt: row.reply_recorded_at as Date,
           }
         : null,
   }));

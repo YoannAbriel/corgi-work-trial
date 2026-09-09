@@ -121,7 +121,7 @@ One line per finding from the independent reviews (design and implementation). F
 | F-UI-20 | LOW | The four primary actions on /ops/claims/[id] still served folded after 41be7fc | Claim page rebuild | FIXED 0a9821b (open forms in the side column) |
 | F-UI-21 | LOW | The opened document lookup sat third on the policy page, above the payment and the journal | Policy page rebuild | FIXED b9636c2 (documents moved to the side column) |
 | F-YA-06 | MEDIUM | Yoann, 19:36Z with a screenshot: the policy page was a document, eleven stacked sections in one column, a paragraph before each block, forms inline, 40% of the width empty ("le foutu vrac") | Identity band, actions as buttons, two columns, tables in panels, forms on their own pages, explanations folded | FIXED b9636c2 to e341f83: policy, claim, lists, verification, approvals, reconciliation, statements; rebuild review FAIL at e341f83 on F-UI-22 only (docs/reviews/ui-rebuild.md), fixed fea572c, re-review PASS 20:31Z |
-| F-YA-07 | MEDIUM | Coordinator, live step 6 on 2026-09-09: the "Terms in force" panel shows the terms after the latest applied endorsement ($2,400 from 2026-10-08) on 2026-09-09, a month before it takes effect; the label says "in force" | Show the terms as they stand today from the as-of fold, and the endorsement that will change them with its date | OPEN (after the B12-2 builder merges, the panel is its file) |
+| F-YA-07 | MEDIUM | Coordinator, live step 6 on 2026-09-09: the "Terms in force" panel shows the terms after the latest applied endorsement ($2,400 from 2026-10-08) on 2026-09-09, a month before it takes effect; the label says "in force" | Show the terms as they stand today from the as-of fold, and the endorsement that will change them with its date | FIXED 19baf15, re-review pending |
 | F-UI-22 | MEDIUM | The money mask reformatted on every keystroke, so a decimal comma typed one character at a time was swallowed: "1200,50" became 120,050 and $120,050.00 would have been booked (rebuild review at e341f83) | Format only on blur, and only a plain amount with no comma; anything else reaches the server untouched | FIXED fea572c, re-review PASS 20:31Z (69,904 strings swept, zero cases where the mask changes the server's answer) |
 | F-UI-23 | LOW | A second field-less reconcile form (the heading button) was added; not a bypass, the route requires staff or the cron bearer | Note in the form inventory | ACCEPTED |
 | F-UI-24 | LOW | The cancel form's date defaulted to today even past the term end, outside its own max (F-B8-09 class, pre-existing) | Clamp inside the term | FIXED fea572c |
@@ -140,3 +140,23 @@ One line per finding from the independent reviews (design and implementation). F
 | F-B11-06 | LOW | additionalProperties false is advertised but arguments are not validated against the schema | Validate | OPEN (B13-2) |
 | F-B11-07 | LOW | Keys never expire; not stated as a limitation | README limitation | OPEN (B13-2) |
 | F-B12-01 | LOW | get_policy_as_of without asOf on a policy whose term starts later refuses with a terse sentence (builder B12-1) | Name the first effective date in the refusal | OPEN (B13-2) |
+| F-B12-02 | MEDIUM | explainAccountSum lists every line on the account whatever the rule: "Collected at Stripe" shows a credit line against its debit sum (live on CGP-01274); the empty state can never appear | List only the lines the rule sums, each side named | FIXED 19baf15, re-review pending |
+| F-B12-03 | MEDIUM | The cancellation earned_premium fold prints a single-segment ratio; on an endorsed-then-cancelled policy it is not the arithmetic that produced the figure, and the cents comparison cannot catch it (not reachable on today's data) | Print the per-segment arithmetic or say the segments are not carried | FIXED 19baf15, re-review pending |
+| F-B12-04 | LOW | The "today" as-of step can fall before the term start on a future-dated policy (F-B8-07 class) | Clamp inside the term | FIXED 19baf15, re-review pending |
+| F-B12-05 | LOW | "34680 + -30499" double sign in a formula line | Print a subtraction | FIXED 19baf15, re-review pending |
+| F-B12-06 | LOW | canonicalVersion >= 2 would explain a future v3 with v2 semantics | Equality, refuse an unknown format | FIXED 19baf15, re-review pending |
+| F-B12-07 | LOW | The claim "Paid" evidence nets to zero under $1,200 | Show the lines that add to the paid figure | FIXED 19baf15, re-review pending |
+| F-B12-08 | LOW | The tax fold on CGP-01707 displays the F-YA-07 gap ($56.40 in force against $54.08 booked) | Resolved with F-YA-07 | FIXED 19baf15, re-review pending |
+| F-B12-09 | LOW | Handoff says the endorsement lines are stored on the event; they are rebuilt from the stored figures | Wording | FIXED 19baf15, re-review pending |
+
+## B13-6 customer change requests (docs/reviews/b13-6-change-requests.md, PASS at b40e803, 06:57Z)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-B13-01 | LOW | The reply route redirects with ?changeRequest=answered but the policy page prints no notice for it | Add the notice | FIXED 06999e3, re-review pending |
+| F-B13-02 | LOW | A customer refused on a foreign policy is redirected to that policy page, which redirects to /customer and drops the error: silent refusal | Redirect straight to /customer with the error | FIXED 06999e3, re-review pending |
+| F-B13-03 | LOW | "answered" decided from the truthiness of joined columns including display_name | Test reply_id is not null | FIXED 06999e3, re-review pending |
+| F-B13-04 | LOW | The lines CHECK allows a repeated line on a direct INSERT; the application dedupes | Refuse duplicates in the application; the database gap noted (no redefinition of 0019) | FIXED 06999e3, re-review pending |
+| F-B13-05 | LOW | openChangeRequestsOfPolicy exported and used by the check only | Accepted | ACCEPTED |
+| F-B13-06 | LOW | The customer's timeline reprints staff-written correction text verbatim (an internal payment-intent reference, a review finding id, the word "coordinator" on CGP-01061) | Customer-safe timeline summaries | FIXED 06999e3, re-review pending |
+| F-B13-07 | LOW | No bound on the number of requests a customer may send | Accepted for the trial, README limitation | ACCEPTED |
