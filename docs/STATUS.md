@@ -345,6 +345,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 - The console reviewer re-measured the deployed revision: the whole since-cursor boundary set renders 0 failed panels on 8 of 8, no details element nested in a link on any of the seven pages, the integration-mode line on all seven screens with 0 unlabelled money or webhook rows in the 7-day feed, infra wording quoted from the providers, check:console 49 of 49, hostile inputs 11 of 11 at HTTP 200, role probes unchanged, no secret, personal data behind folds, p50 between 0.30 s and 0.48 s. Verdict PASS. Record appended to docs/reviews/b13-9-console.md.
 - Two new findings: F-B13-50 (MEDIUM) the F-B13-23 bound tied the unknown-outcome reader to the feed window, so the default 60-minute view shows nothing unresolved while two such operations exist; F-B13-51 (LOW) the errors panel prints its cap as the count. Both sent to the console builder for a short fix cycle, with a measurement by the reviewer afterwards.
 
+## 2026-09-09T08:51:00+00:00 | Console follow-up merged (e117a61): unresolved operations keep a 7-day floor
+
+- F-B13-50 and F-B13-51 fixed by the console builder: the accepted-and-unconfirmed reader no longer takes the feed cursor and reads over a named 7-day floor (an unconfirmed operation stays visible until a human resolves it, whatever window the operator reads the feed in), the "Being checked" note and the errors disclosure say so, one assertion proves a stuck operation older than the window still appears; the errors panel prints its cap and the chip says "60 or more". Three files. check:console 50 of 50 (run twice by mistake, no contention), typecheck clean, 455 tests. Merged with --no-ff, pushed as code alone, deployed and confirmed by /api/health at 08:52Z; confirmation measurement by the console reviewer requested at e117a61.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
