@@ -1230,7 +1230,7 @@ rounds, which is how the adversarial rounds were designed to work; three need re
 | `backend-inspect-reference-r1.md` | FAIL at `0b9202d` | Superseded by **r2, PASS at `9b9902a`** |
 | `b13-13-ui-audit.md` | **FAIL for the cycle**, on F-UA-01 | F-UA-01 was closed by the LOW screens sweep at `3890300`, and `b13-14-low-screens.md` measures the two lists identical cell for cell at $1,253.20. **No re-review section was appended to `b13-13-ui-audit.md` itself**, so the record still reads FAIL |
 | `b13-14-low-screens.md` | **FAIL for the cycle**, on F-LU-01 | F-LU-01 was closed by the interface rework (`docs/STATUS.md` at 15:20:00Z, "Closed by the rework: F-YA-05, F-YA-09, F-YA-11, F-LU-01 to F-LU-05"), verified by `ui-system.md` PASS at `2af6ebe`. **No re-review section was appended to this record either** |
-| `backend-production-confirmation.md` | **FAIL at `100ef41`** on F-BP-01 | Expected and explained: the probe classification is stored **by a run**, and no reconciliation has run since the deploy. One "Reconcile both sources now" on production closes it. That click is Yoann's (LIVE-0, `YOA-645`); **the daily cron of the 10th falls after the freeze**, so if the click is not made, the board freezes counting probes as breaks |
+| `backend-production-confirmation.md` | **FAIL at `100ef41`** on F-BP-01 | Expected and explained: the probe classification is stored **by a run**, and no reconciliation has run since the deploy. One "Reconcile both sources now" on production closes it. Done by Yoann at 18:38:23Z (LIVE-0), register CLOSED at 57a0051. That click is Yoann's (LIVE-0, `YOA-645`); **the daily cron of the 10th falls after the freeze**, so if the click is not made, the board freezes counting probes as breaks |
 
 The two cycle FAILs are the honest kind of gap: the defect is fixed and independently measured, but
 it is measured in a *different* record. A reader following `b13-13-ui-audit.md` alone would stop at
@@ -1280,7 +1280,7 @@ because the table above is the state at `5cfbc26` and not a prediction.
 
 The full register is `docs/reviews/FINDINGS.md`. The ones that matter for the freeze:
 
-- **F-BP-01 (MED)**: **the evidence now shows this closed, and the register has not caught up.** Its
+- **F-BP-01 (MED)**: **the evidence shows this closed, and the register caught up at 57a0051 and ad44d32: CLOSED by Yoann's LIVE-0 click at 18:38:23Z, figures in `docs/handoffs/live-fire-day2.md` (3c67d45).** Its
   line still reads "EXPECTED, closes with one reconciliation run on production" and predicts the
   board will then read "0 to act on and the probes apart". The recaptured `recon-ops-board.png`, at
   `92379e2` and opened for this pack, shows a run has happened: the band reads **`4 breaks to act
