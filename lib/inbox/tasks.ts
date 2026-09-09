@@ -8,6 +8,7 @@ import { INBOX_ANCHORS, type InboxAnchor } from "./sections";
 import { countOpenBreaks } from "@/lib/reconciliation/read";
 import { correctionsOfPolicy } from "@/lib/policy/correction-read";
 import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
+import { statementsProducedByTheJob } from "@/lib/statements/read";
 
 // What is waiting for the signed-in person, counted on the server.
 //
@@ -29,7 +30,7 @@ import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
 // standing in for the very code it exists to compare.
 
 // Which sidebar entry carries the count. The strings are the section names of PortalShell.
-export type WorkspaceSection = "policies" | "claims" | "approvals" | "reconciliation";
+export type WorkspaceSection = "policies" | "claims" | "approvals" | "reconciliation" | "statements";
 
 export type WorkspaceTask = {
   // Where the count belongs in the SIDEBAR, which adds several kinds of work into one chip.
@@ -67,12 +68,16 @@ export async function workspaceTasks(
 }
 
 async function staffTasks(role: "staff_ops" | "staff_approver"): Promise<WorkspaceTask[]> {
-  const [approvals, breaks, claims, paidNotBound, paidNotApplied] = await Promise.all([
+  const [approvals, breaks, claims, paidNotBound, paidNotApplied, statements] = await Promise.all([
     countApprovalRequestsWaitingForDecision(sql),
     countOpenBreaks(sql),
     countClaimsWithPaymentsStillToMove(sql),
     role === "staff_ops" ? countPoliciesPaidButNotBound() : Promise.resolve(0),
     role === "staff_ops" ? countEndorsementsPaidButNotApplied() : Promise.resolve(0),
+    // The LENGTH of the list the inbox shows, read with the same function it reads: the inbox
+    // lists at most MOST_STATEMENTS_IN_THE_INBOX of them, so a count(*) here would announce a
+    // number the panel does not hold.
+    statementsProducedByTheJob(sql),
   ]);
   const isApprover = role === "staff_approver";
 
@@ -116,6 +121,13 @@ async function staffTasks(role: "staff_ops" | "staff_approver"): Promise<Workspa
       label: `${plural(breaks, "open break")} between a provider and the ledger`,
       detail: "Nobody has explained them yet. The age is counted from the run that first found them.",
     },
+    {
+      section: "statements",
+      anchor: INBOX_ANCHORS.statementsProducedThisMonth,
+      count: statements.length,
+      label: `${plural(statements.length, "statement")} produced this month`,
+      detail: "The monthly close published them on the first day of the month. Nothing to do: they are frozen documents.",
+    },
   ];
   return tasks.filter((task) => task.count > 0);
 }
@@ -128,6 +140,8 @@ async function brokerTasks(brokerId: string): Promise<WorkspaceTask[]> {
   // Slice B13-6: change requests the broker's customers have sent and nobody has answered yet.
   // Counted in one query over the broker's policies, not folded from the loop below.
   const changeRequests = await countOpenChangeRequests({ brokerId });
+  // The broker's own statements from the monthly close, the same list their inbox shows.
+  const statements = await statementsProducedByTheJob(sql, { brokerId });
   const policies = await sql<{ id: string; status: string }[]>`
     select policy.id, current_policy.status
       from policies policy
@@ -193,6 +207,13 @@ async function brokerTasks(brokerId: string): Promise<WorkspaceTask[]> {
       count: changeRequests,
       label: `${plural(changeRequests, "change request")} to answer`,
       detail: "A customer has asked for something on their policy. Answering it changes nothing on its own.",
+    },
+    {
+      section: "statements",
+      anchor: INBOX_ANCHORS.brokerStatementReady,
+      count: statements.length,
+      label: `${plural(statements.length, "statement")} ready for you`,
+      detail: "The monthly close produced it once the month was over. It is frozen; nothing is waiting for you.",
     },
   ];
   return tasks.filter((task) => task.count > 0);
