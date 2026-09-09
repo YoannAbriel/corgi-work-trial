@@ -1,3 +1,4 @@
+import "@/app/styles/ops-tables.css";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PortalShell } from "@/components/portal-shell";
@@ -86,7 +87,10 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
     notFound();
   }
 
-  const scope = { policyIds: subject.policyIds, claimIds: subject.claimIds, brokerId: subject.brokerId };
+  // The ids every panel below is scoped by. `kind` travels with them because the journal reader
+  // needs it: a broker's own commission entries belong to a broker 360 and to nothing else
+  // (UI-028, lib/console/read.ts).
+  const scope = { kind: subject.kind, policyIds: subject.policyIds, claimIds: subject.claimIds, brokerId: subject.brokerId };
 
   // The money operations are read first and alone, because two panels are built from the SAME
   // rows: the webhooks panel needs their provider references, and the breaks panel needs their
@@ -151,6 +155,11 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
 
       <IntegrationModes />
 
+      {/* UI-030: the money-operation table has eight columns, and in the 736 px left-hand card of
+          the two-column grid its Kind column printed "stripe_checkout" as five fragments while
+          the provider reference and the object fell outside the card. The 360 pages stack: the
+          tables take the full content width and the side panels move under them. */}
+      <div className="ops-stacked">
       <DetailGrid
         main={
           <>
@@ -160,24 +169,26 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                 <Empty>No money operation has ever been created for this object.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Money operations" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>Created (UTC)</th>
-                        <th>Kind</th>
+                        <th className="col-when">Created (UTC)</th>
+                        {/* "stripe_checkout" and "LOCAL SIMULATOR" are read as words, not as
+                            fragments: this column carries a minimum width (UI-030). */}
+                        <th className="col-label">Kind</th>
                         <th className="amount">Amount</th>
-                        <th>Last status</th>
-                        <th>Requested to accepted</th>
-                        <th>Accepted to succeeded</th>
-                        <th>Provider reference</th>
-                        <th>Object</th>
+                        <th className="col-text">Last status</th>
+                        <th className="col-age">Requested to accepted</th>
+                        <th className="col-age">Accepted to succeeded</th>
+                        <th className="col-ref">Provider reference</th>
+                        <th className="col-name">Object</th>
                       </tr>
                     </thead>
                     <tbody>
                       {operations.map((operation) => (
                         <tr key={operation.operationId}>
-                          <td>{utc(operation.createdAt)}</td>
-                          <td>
+                          <td className="col-when">{utc(operation.createdAt)}</td>
+                          <td className="col-label">
                             {operation.kind}
                             <br />
                             {/* The rail in full words, ON the row (AF-02, recheck finding
@@ -186,7 +197,7 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                             <span className="note">{integrationModeOf(operation.provider)}</span>
                           </td>
                           <td className="amount">{formatCentsAsUsd(operation.amountCents)}</td>
-                          <td>
+                          <td className="col-text">
                             <Chip
                               tone={
                                 operation.latestStatus === "succeeded"
@@ -205,12 +216,12 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                               </>
                             ) : null}
                           </td>
-                          <td>{formatSeconds(operation.requestedToAcceptedSeconds)}</td>
-                          <td>{formatSeconds(operation.acceptedToSucceededSeconds)}</td>
-                          <td>
+                          <td className="col-age">{formatSeconds(operation.requestedToAcceptedSeconds)}</td>
+                          <td className="col-age">{formatSeconds(operation.acceptedToSucceededSeconds)}</td>
+                          <td className="col-ref">
                             <code>{operation.providerRef ?? "none"}</code>
                           </td>
-                          <td>
+                          <td className="col-name">
                             {operation.claimId ? (
                               <Link href={`/ops/claims/${operation.claimId}`} prefetch={false}>
                                 {operation.claimNumber ?? "claim"}
@@ -250,30 +261,30 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                 </Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Webhooks" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>Received (UTC)</th>
-                        <th>Type</th>
-                        <th>Processing</th>
-                        <th>Attempts</th>
-                        <th>Last error</th>
-                        <th>Event id</th>
+                        <th className="col-when">Received (UTC)</th>
+                        <th className="col-label">Type</th>
+                        <th className="col-label">Processing</th>
+                        <th className="col-age">Attempts</th>
+                        <th className="col-text">Last error</th>
+                        <th className="col-ref">Event id</th>
                       </tr>
                     </thead>
                     <tbody>
                       {valueOr(webhooksRead, []).map((webhook) => (
                         <tr key={webhook.webhookEventId}>
-                          <td>{utc(webhook.receivedAt)}</td>
-                          <td>{webhook.eventType}</td>
-                          <td>
+                          <td className="col-when">{utc(webhook.receivedAt)}</td>
+                          <td className="col-label">{webhook.eventType}</td>
+                          <td className="col-label">
                             <Chip tone={webhook.status === "done" ? "ok" : webhook.status === "failed" ? "warn" : "neutral"}>
                               {webhook.status ?? "no processing row"}
                             </Chip>
                           </td>
-                          <td>{webhook.attempts ?? 0}</td>
-                          <td>{webhook.lastError ?? <span className="note">none</span>}</td>
-                          <td>
+                          <td className="col-age">{webhook.attempts ?? 0}</td>
+                          <td className="col-text">{webhook.lastError ?? <span className="note">none</span>}</td>
+                          <td className="col-ref">
                             <code>{webhook.providerEventId}</code>
                           </td>
                         </tr>
@@ -319,31 +330,31 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                   <Empty>No policy.</Empty>
                 ) : (
                   <div className="table-scroll" role="region" aria-label="Policies" tabIndex={0}>
-                    <table>
+                    <table className="ops-table">
                       <thead>
                         <tr>
-                          <th>Policy</th>
-                          <th>Status (cache)</th>
-                          <th>Term</th>
+                          <th className="col-name">Policy</th>
+                          <th className="col-label">Status (cache)</th>
+                          <th className="col-label">Term</th>
                           <th className="amount">Charged</th>
-                          <th>{subject.kind === "customer" ? "Broker" : "Customer"}</th>
-                          <th>Everything about it</th>
+                          <th className="col-name">{subject.kind === "customer" ? "Broker" : "Customer"}</th>
+                          <th className="col-open">Everything about it</th>
                         </tr>
                       </thead>
                       <tbody>
                         {valueOr(policiesRead, []).map((policy) => (
                           <tr key={policy.policyId}>
-                            <td>
+                            <td className="col-name">
                               <Link href={`/policies/${policy.policyId}`} prefetch={false}>
                                 {policy.policyNumber}
                               </Link>
                             </td>
-                            <td>{policy.status ?? <span className="note">not cached</span>}</td>
-                            <td>{policy.effectiveAt ? `${policy.effectiveAt} to ${policy.termEnd}` : <span className="note">not bound</span>}</td>
+                            <td className="col-label">{policy.status ?? <span className="note">not cached</span>}</td>
+                            <td className="col-label">{policy.effectiveAt ? `${policy.effectiveAt} to ${policy.termEnd}` : <span className="note">not bound</span>}</td>
                             <td className="amount">
                               {policy.totalChargeCents === null ? "" : formatCentsAsUsd(policy.totalChargeCents)}
                             </td>
-                            <td>
+                            <td className="col-name">
                               {subject.kind === "customer" ? (
                                 <Link href={`/ops/console/broker/${policy.brokerId}`} prefetch={false}>
                                   {policy.brokerName}
@@ -361,7 +372,7 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                                 </>
                               )}
                             </td>
-                            <td>
+                            <td className="col-open">
                               <Link href={`/ops/console/policy/${policy.policyId}`} prefetch={false}>
                                 open
                               </Link>
@@ -381,36 +392,36 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                 <Empty>No claim.</Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Claims" tabIndex={0}>
-                  <table>
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>Claim</th>
-                        <th>Policy</th>
-                        <th>Claimant</th>
-                        <th>Loss</th>
-                        <th>Events</th>
-                        <th>Everything about it</th>
+                        <th className="col-name">Claim</th>
+                        <th className="col-name">Policy</th>
+                        <th className="col-name">Claimant</th>
+                        <th className="col-age">Loss</th>
+                        <th className="col-age">Events</th>
+                        <th className="col-open">Everything about it</th>
                       </tr>
                     </thead>
                     <tbody>
                       {valueOr(claimsRead, []).map((claim) => (
                         <tr key={claim.claimId}>
-                          <td>
+                          <td className="col-name">
                             <Link href={`/ops/claims/${claim.claimId}`} prefetch={false}>
                               {claim.claimNumber}
                             </Link>
                           </td>
-                          <td>
+                          <td className="col-name">
                             <Link href={`/policies/${claim.policyId}`} prefetch={false}>
                               {claim.policyNumber}
                             </Link>
                           </td>
-                          <td>
+                          <td className="col-name">
                             <Masked value={claim.claimantName} what="claimant name" />
                           </td>
-                          <td>{claim.occurredAt}</td>
-                          <td>{claim.eventCount}</td>
-                          <td>
+                          <td className="col-age">{claim.occurredAt}</td>
+                          <td className="col-age">{claim.eventCount}</td>
+                          <td className="col-open">
                             <Link href={`/ops/console/claim/${claim.claimId}`} prefetch={false}>
                               open
                             </Link>
@@ -666,6 +677,7 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
           </>
         }
       />
+      </div>
     </PortalShell>
   );
 }

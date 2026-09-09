@@ -1,3 +1,4 @@
+import "@/app/styles/ops-tables.css";
 import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Disclosure } from "@/components/disclosures";
@@ -52,13 +53,19 @@ export default async function ConsoleSearchPage({
 
       <IntegrationModes />
 
+      {/* UI-029: the trail under the matches is the seven-column console feed, which does not fit
+          the 736 px left-hand card of the two-column grid. The page stacks: both tables take the
+          full content width and the search box and the prefix list move under them. */}
+      <div className="ops-stacked">
       <DetailGrid
         main={
           <>
             <Panel title="What it is">
               {found ? <FailureLine attempted={found} /> : null}
               {reference === "" ? (
-                <Empty>Type a reference on the right.</Empty>
+                // The search box is under the tables now that the page stacks (UI-029), so this
+                // sentence no longer says "on the right".
+                <Empty>Type a reference in the Search box.</Empty>
               ) : found && !found.ok ? (
                 // The failed read is answered BEFORE the empty answer, and that is review finding
                 // F-B13-26: a search that could not be run used to print "nothing matches"
@@ -71,21 +78,24 @@ export default async function ConsoleSearchPage({
                 </Empty>
               ) : result && result.matches.length > 0 ? (
                 <div className="table-scroll" role="region" aria-label="Search matches" tabIndex={0}>
-                  <table>
+                  {/* UI-029: "claim" used to be printed across two lines and the two Open links
+                      were shredded beside the large Facts cell. Each column now carries the
+                      minimum width its content needs (app/styles/ops-tables.css). */}
+                  <table className="ops-table">
                     <thead>
                       <tr>
-                        <th>Kind</th>
-                        <th>What</th>
-                        <th>Facts</th>
-                        <th>Open</th>
+                        <th className="col-label">Kind</th>
+                        <th className="col-text">What</th>
+                        <th className="col-text col-line">Facts</th>
+                        <th className="col-open">Open</th>
                       </tr>
                     </thead>
                     <tbody>
                       {result.matches.map((match, index) => (
                         <tr key={`${match.what}-${index}`}>
-                          <td>{match.what}</td>
-                          <td>{match.label}</td>
-                          <td>
+                          <td className="col-label">{match.what}</td>
+                          <td className="col-text">{match.label}</td>
+                          <td className="col-text col-line">
                             <dl className="aside-list">
                               {match.facts.map((fact) => (
                                 <div key={fact.label}>
@@ -95,7 +105,7 @@ export default async function ConsoleSearchPage({
                               ))}
                             </dl>
                           </td>
-                          <td>
+                          <td className="col-open">
                             {match.consoleHref ? (
                               <>
                                 <Link href={match.consoleHref} prefetch={false}>
@@ -190,6 +200,7 @@ export default async function ConsoleSearchPage({
           </>
         }
       />
+      </div>
     </PortalShell>
   );
 }

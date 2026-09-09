@@ -1,3 +1,4 @@
+import "@/app/styles/ops-tables.css";
 import Link from "next/link";
 import { Chip, Empty } from "@/components/detail-layout";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -112,24 +113,27 @@ export function EventTable({ events, ariaLabel }: { events: ConsoleEvent[]; aria
   }
   return (
     <div className="table-scroll" role="region" aria-label={ariaLabel} tabIndex={0}>
-      <table>
+      {/* UI-026 and UI-030: the seven columns of the feed are read together, so each one carries
+          the minimum width its content needs (app/styles/ops-tables.css). Before this, a uuid in
+          the Detail column collapsed the whole row into a tower of three-letter fragments. */}
+      <table className="ops-table">
         <thead>
           <tr>
-            <th>When (UTC)</th>
-            <th>Kind</th>
-            <th>What</th>
+            <th className="col-when">When (UTC)</th>
+            <th className="col-label">Kind</th>
+            <th className="col-text">What</th>
             <th className="amount">Amount</th>
-            <th>Who</th>
-            <th>Detail</th>
-            <th>Object</th>
+            <th className="col-name">Who</th>
+            <th className="col-ref">Detail</th>
+            <th className="col-ref">Object</th>
           </tr>
         </thead>
         <tbody>
           {events.map((event, index) => (
             <tr key={`${event.kind}-${event.instant.toISOString()}-${event.reference ?? index}`}>
-              <td>{utc(event.instant)}</td>
-              <td>{event.kind.replace(/_/g, " ")}</td>
-              <td>
+              <td className="col-when">{utc(event.instant)}</td>
+              <td className="col-label">{event.kind.replace(/_/g, " ")}</td>
+              <td className="col-text">
                 <Chip tone={OUTCOME_TONE[event.outcome]}>{event.title}</Chip>
                 {/* The rail, ON the row and not in a fold (AF-02, recheck finding F-RC-08).
                     A row that moved no money carries no rail and prints nothing here. */}
@@ -145,9 +149,9 @@ export function EventTable({ events, ariaLabel }: { events: ConsoleEvent[]; aria
                   and a name in it is read by everybody who walks past the screen. An actor that
                   is not a person ("stripe", "the ledger", "the daily scheduled job", a key
                   prefix) is printed as it is: masking it would be noise, not discretion. */}
-              <td>{event.actorIsPerson ? <Masked value={event.actor} what="actor" /> : event.actor}</td>
-              <td>{event.detail}</td>
-              <td>
+              <td className="col-name">{event.actorIsPerson ? <Masked value={event.actor} what="actor" /> : event.actor}</td>
+              <td className="col-ref">{event.detail}</td>
+              <td className="col-ref">
                 {event.href ? (
                   <Link href={event.href} prefetch={false}>
                     {event.policyNumber ?? event.claimNumber ?? event.reference ?? "open"}
@@ -215,30 +219,32 @@ export function RecoveryCell({ recovery }: { recovery: RecoveryAction }) {
 export function ActivityTable({ rows, ariaLabel }: { rows: ConsoleActivity[]; ariaLabel: string }) {
   return (
     <div className="table-scroll" role="region" aria-label={ariaLabel} tabIndex={0}>
-      <table>
+      {/* Nine columns read together, so each one carries the minimum width its content needs
+          (app/styles/ops-tables.css), like every other table of the console. */}
+      <table className="ops-table">
         <thead>
           <tr>
-            <th>When (UTC)</th>
-            <th>Route</th>
-            <th>Who</th>
-            <th>Answered</th>
-            <th>Rule</th>
-            <th>Reason</th>
+            <th className="col-when">When (UTC)</th>
+            <th className="col-ref">Route</th>
+            <th className="col-name">Who</th>
+            <th className="col-label">Answered</th>
+            <th className="col-name">Rule</th>
+            <th className="col-text">Reason</th>
             <th className="amount">Took</th>
-            <th>Object</th>
-            <th>Correlation id</th>
+            <th className="col-name">Object</th>
+            <th className="col-name">Correlation id</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.activityId}>
-              <td>{utc(row.instant)}</td>
-              <td>
+              <td className="col-when">{utc(row.instant)}</td>
+              <td className="col-ref">
                 <code>
                   {row.method} {row.route}
                 </code>
               </td>
-              <td>
+              <td className="col-name">
                 {row.actorIsPerson ? <Masked value={row.actor} what="actor" /> : row.actor}
                 {row.actorRole ? (
                   <>
@@ -247,14 +253,14 @@ export function ActivityTable({ rows, ariaLabel }: { rows: ConsoleActivity[]; ar
                   </>
                 ) : null}
               </td>
-              <td>
+              <td className="col-label">
                 <Chip tone={row.outcome === "ok" ? "ok" : "warn"}>{row.outcome}</Chip>{" "}
                 <span className="note">HTTP {row.statusCode}</span>
               </td>
-              <td>{row.rule ?? <span className="note">none named</span>}</td>
-              <td>{row.message ?? <span className="note">none recorded</span>}</td>
+              <td className="col-name">{row.rule ?? <span className="note">none named</span>}</td>
+              <td className="col-text">{row.message ?? <span className="note">none recorded</span>}</td>
               <td className="amount">{row.durationMs} ms</td>
-              <td>
+              <td className="col-name">
                 {row.consoleHref ? (
                   <Link href={row.consoleHref} prefetch={false}>
                     {row.subjectKind}
@@ -263,7 +269,7 @@ export function ActivityTable({ rows, ariaLabel }: { rows: ConsoleActivity[]; ar
                   <span className="note">no object</span>
                 )}
               </td>
-              <td>
+              <td className="col-name">
                 <Link href={`/ops/console/search?reference=${encodeURIComponent(row.correlationId)}`} prefetch={false}>
                   <code>{row.correlationId.slice(0, 8)}</code>
                 </Link>

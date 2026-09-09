@@ -1,3 +1,4 @@
+import "@/app/styles/ops-tables.css";
 import { PortalShell } from "@/components/portal-shell";
 import { AmountExplained } from "@/components/amount-explained";
 import { Disclosure, SandboxReferences } from "@/components/disclosures";
@@ -145,6 +146,10 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
         </div>
       )}
 
+      {/* UI-014: the movement notes are full sentences, and in the 736 px left-hand card of the
+          two-column grid they became narrow towers of two-word lines. The page stacks so the
+          Line column has room; the revision facts move under the movements. */}
+      <div className="ops-stacked">
       <DetailGrid
         main={
           <>
@@ -238,14 +243,15 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
                 </Empty>
               ) : (
                 <div className="table-scroll" role="region" aria-label="Statement movements" tabIndex={0}>
-                  <table className="ledger">
+                  <table className="ledger ops-table">
                     <thead>
                       <tr>
-                        <th>Effective</th>
-                        <th>Recorded (UTC)</th>
-                        <th>Line</th>
-                        <th>Policy</th>
-                        <th>Journal entry</th>
+                        <th className="col-age">Effective</th>
+                        <th className="col-when">Recorded (UTC)</th>
+                        {/* The narrative column of the audit: it needs room, not a tower. */}
+                        <th className="col-text col-line">Line</th>
+                        <th className="col-name">Policy</th>
+                        <th className="col-age">Journal entry</th>
                         <th className="amount">Amount</th>
                         <th className="amount">Premium in it</th>
                       </tr>
@@ -253,21 +259,21 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
                     <tbody>
                       {lines.map((line) => (
                         <tr key={line.journalEntryId}>
-                          <td>{calendarDate(line.effectiveAt)}</td>
-                          <td>{utc(line.entryRecordedAt)}</td>
-                          <td>
+                          <td className="col-age">{calendarDate(line.effectiveAt)}</td>
+                          <td className="col-when">{utc(line.entryRecordedAt)}</td>
+                          <td className="col-text col-line">
                             {KIND_LABEL[line.kind]}
                             <br />
                             <span className="note">{line.description}</span>
                           </td>
-                          <td>
+                          <td className="col-name">
                             {line.policyId && line.policyNumber ? (
                               <Link href={`/policies/${line.policyId}`}>{line.policyNumber}</Link>
                             ) : (
                               <span className="note">no policy</span>
                             )}
                           </td>
-                          <td>
+                          <td className="col-age">
                             <code>{line.journalEntryId.slice(0, 8)}</code>
                           </td>
                           <td className="amount">{formatCentsAsUsd(line.amountCents)}</td>
@@ -366,6 +372,7 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
           </>
         }
       />
+      </div>
     </PortalShell>
   );
 }
@@ -378,14 +385,14 @@ function Changes({ changes, previousRevision }: { changes: { appeared: RevisionC
         <Empty>The same journal entries, one for one. Nothing was added and nothing was taken away.</Empty>
       ) : (
         <div className="table-scroll" role="region" aria-label="Statements table 4" tabIndex={0}>
-<table className="ledger">
+<table className="ledger ops-table">
           <thead>
             <tr>
-              <th>Journal entry</th>
-              <th>Change</th>
-              <th>Line</th>
-              <th>Policy</th>
-              <th>Recorded (UTC)</th>
+              <th className="col-age">Journal entry</th>
+              <th className="col-text">Change</th>
+              <th className="col-text col-line">Line</th>
+              <th className="col-name">Policy</th>
+              <th className="col-when">Recorded (UTC)</th>
               <th className="amount">Amount</th>
             </tr>
           </thead>
@@ -411,17 +418,17 @@ function Changes({ changes, previousRevision }: { changes: { appeared: RevisionC
 function ChangeRow({ change, label }: { change: RevisionChange; label: string }) {
   return (
     <tr>
-      <td>
+      <td className="col-age">
         <code>{change.journalEntryId.slice(0, 8)}</code>
       </td>
-      <td>{label}</td>
-      <td>
+      <td className="col-text">{label}</td>
+      <td className="col-text col-line">
         {KIND_LABEL[change.kind]}
         <br />
         <span className="note">{change.description}</span>
       </td>
-      <td>{change.policyNumber ?? "-"}</td>
-      <td>{utc(change.entryRecordedAt)}</td>
+      <td className="col-name">{change.policyNumber ?? "-"}</td>
+      <td className="col-when">{utc(change.entryRecordedAt)}</td>
       <td className="amount">{formatCentsAsUsd(change.amountCents)}</td>
     </tr>
   );
