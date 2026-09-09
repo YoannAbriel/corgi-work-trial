@@ -39,6 +39,7 @@ import {
   PolicyAsOf,
   PolicyTimeline,
 } from "./correction-sections";
+import { CustomerChangeRequestsPanel, CustomerPolicyView } from "./customer-view";
 import { FormulaLinesTable } from "./formula-lines";
 
 // One policy: what it costs, where it stands, and every journal entry it produced.
@@ -84,10 +85,16 @@ export default async function PolicyPage({
     notFound();
   }
 
-  // Ownership, checked on the server for every visit: a broker sees their own policies, staff
-  // can read any policy, the customer has their own screens under /customer, nobody else gets in.
+  // Ownership, checked on the server for every visit: a broker sees their own policies, staff can
+  // read any policy, the policy's own customer gets the read-only view of slice B13-6, nobody
+  // else gets in.
   const isOwningBroker = user.role === "broker" && user.brokerId === policy.brokerId;
   const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
+  if (user.role === "customer" && user.customerId === policy.customerId) {
+    // A different page for a different reader: no journal, no ledger sums, no action but asking
+    // for a change (app/policies/[policyId]/customer-view.tsx). Nothing below this line runs.
+    return <CustomerPolicyView user={user} policy={policy} searchParams={searchParams} />;
+  }
   if (!isOwningBroker && !isStaff) {
     redirect(user.role === "customer" ? "/customer" : "/broker");
   }
@@ -336,6 +343,14 @@ export default async function PolicyPage({
                 isStaffOperations={user.role === "staff_ops"}
               />
             ) : null}
+
+            {/* Slice B13-6: what the customer has asked for on this policy, and the box to answer
+                one. A request moves no money and changes nothing; the change itself goes through
+                Endorse, above. */}
+            <CustomerChangeRequestsPanel
+              policyId={policy.policyId}
+              canReply={isOwningBroker || user.role === "staff_ops"}
+            />
 
             <Panel title="Endorsement schedule">
               {schedule.length === 0 ? (
