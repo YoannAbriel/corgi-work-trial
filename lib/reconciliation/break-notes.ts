@@ -1,6 +1,8 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import type { UserRole } from "@/lib/auth/current-user";
+import { centsFromDatabase } from "@/lib/money/cents";
+import { LATEST_REPORT_OF_EACH_BREAK } from "./read";
 
 // An operator says what a reconciliation break is (decision by Yoann, 2026-09-09).
 //
@@ -14,6 +16,14 @@ import type { UserRole } from "@/lib/auth/current-user";
 // stays on the screen, under "Explained breaks", with the note. The one thing that changes is
 // that it leaves the list of breaks TO ACT ON and the operations inbox
 // (lib/reconciliation/read.ts, IT_IS_A_BREAK_TO_ACT_ON), because a human has looked at it.
+//
+// A NOTE EXPLAINS ONE REPORT OF THE BREAK, and that is review finding F-BREAKSBOARD-01. The note
+// records the classification and the two amounts of the latest report at the moment it was
+// written (migration 0024). A break key survives a classification change on purpose, because it
+// is the money; so a note keyed on nothing else used to silence a break for ever, including on
+// the day a run reported it as something worse. Now a later run that describes the break
+// differently matches no note: the break is work again, in the count, in the inbox, in the MCP
+// tool and in the window the daily job widens, with its notes still on file and shown beside it.
 //
 // A CORRECTION IS A NEW NOTE. The table is append-only, so a note is never edited: writing a
 // second one leaves both on file and the screen shows the latest, saying how many there are.
@@ -59,20 +69,42 @@ export async function explainBreak(
   // The break key comes from a form, so it is checked against what the runs actually reported
   // rather than trusted. Without this, a note could be filed under a key nothing will ever show,
   // and it would sit in an append-only table for ever explaining nothing.
-  const [reported] = await database<{ break_key: string }[]>`
-    select break_key
-      from reconciliation_items
+  //
+  // The read is the LATEST REPORT of that break, the same one the board reads
+  // (lib/reconciliation/read.ts, LATEST_REPORT_OF_EACH_BREAK), because the note is written about
+  // that report: its classification and its two amounts go on the note, and a later run that
+  // describes the break differently no longer matches it.
+  const [latestReport] = await database<
+    { classification: string; provider_amount_cents: string | null; ledger_amount_cents: string | null }[]
+  >`
+    with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)})
+    select classification,
+           provider_amount_cents::text as provider_amount_cents,
+           ledger_amount_cents::text as ledger_amount_cents
+      from latest_report
      where break_key = ${input.breakKey}
-       and classification <> 'matched'
-     limit 1
   `;
-  if (!reported) {
+  if (!latestReport) {
     throw new BreakNoteRefused("no reconciliation run has ever reported this break");
   }
 
+  // Read back through the money reader rather than passed on as raw text: it is the one place
+  // that says what a cents column is allowed to contain, and the note stores real amounts.
+  const providerAmountCents =
+    latestReport.provider_amount_cents === null
+      ? null
+      : centsFromDatabase(latestReport.provider_amount_cents, "provider_amount_cents");
+  const ledgerAmountCents =
+    latestReport.ledger_amount_cents === null
+      ? null
+      : centsFromDatabase(latestReport.ledger_amount_cents, "ledger_amount_cents");
+
   const [row] = await database<{ id: string }[]>`
-    insert into reconciliation_break_notes (break_key, note, explained_by)
-    values (${input.breakKey}, ${note}, ${input.actor.userId})
+    insert into reconciliation_break_notes
+      (break_key, note, explained_by,
+       explained_classification, explained_provider_amount_cents, explained_ledger_amount_cents)
+    values (${input.breakKey}, ${note}, ${input.actor.userId},
+            ${latestReport.classification}, ${providerAmountCents}, ${ledgerAmountCents})
     returning id
   `;
   return { noteId: row.id };
