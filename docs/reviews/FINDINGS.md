@@ -327,7 +327,7 @@ One line per finding from the independent reviews (design and implementation). F
 
 | ID | Severity | Finding | Required correction | Status |
 |---|---|---|---|---|
-| F-OB-10 | LOW | A non-broker refused by a bare 303 to /broker with no ?error= is recorded ok, so the refused panel never shows it (app/api/policies/route.ts, app/api/brokers/kyb/route.ts) | Carry ?error= or declare the outcome on those two redirects | OPEN (B13 backlog) |
+| F-OB-10 | LOW | A non-broker refused by a bare 303 to /broker with no ?error= is recorded ok, so the refused panel never shows it (app/api/policies/route.ts, app/api/brokers/kyb/route.ts) | Carry ?error= or declare the outcome on those two redirects | FIXED (19:08 local, with the live audit of the posting forms by the interface session): the two wrong-role redirects of /api/policies and /api/brokers/kyb carry ?error= with the refusal sentence, so the home renders a notice and the activity log records a refusal |
 | F-OB-11 | LOW | The rules "webhook signature" and "ownership" on the statement PDF can never be recorded, those routes refuse with 400 and 404 | Declare the outcome on those refusals or drop the two rule names | OPEN (B13 backlog) |
 | F-OB-12 | INFO | The latency disclosure still says "inside the handler" | Wording | OPEN (B13 backlog) |
 
