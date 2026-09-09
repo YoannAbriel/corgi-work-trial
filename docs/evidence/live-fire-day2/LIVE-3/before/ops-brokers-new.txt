@@ -1,0 +1,59 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] MCP keys
+Sam Patel, operationsStaff operations
+Sign out
+[a /ops] Overview
+Brokers
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Brokers3 brokers
+[a /ops/brokers?view=new] New broker Brokers
+New broker
+Broker name
+Contact email
+Commission rate (basis points)
+Create the broker
+Route pending: POST /api/brokers is not on this branch yet, so the button is disabled. A created broker signs in and submits their business verification from /broker/kyb; you check it here.
+|
+| Broker | Commission | Verification | Since | Stripe account | Actions
+|
+[a /ops/console/broker/46db73c9-686e-41f0-a894-bb2bb072eb46] Harbor Point Insurance ServicesHarbor Point Insurance Services LLC, EIN ending 1111 | 15.00% | failedverification_failed_tax_id_match | 32 h |
+[a /ops/brokers?inspect=acct_1UDOfRK6R3FpfF2D&view=new] acct_1UDOfRK6R3FpfF2D |
+Re-read
+|
+[a /ops/console/broker/edae60d2-2192-4347-8083-945818e10ce8] Redwood Commercial BrokersRedwood Commercial Brokers LLC, EIN ending 0000 | 15.00% | approved | 33 h |
+[a /ops/brokers?inspect=acct_1UDNobK6R3ohMVag&view=new] acct_1UDNobK6R3ohMVag |
+Re-read
+|
+[a /ops/console/broker/2612b695-ffc2-4cc3-9d58-8b14564c4d2c] Sierra Crest Brokeragenever submitted | 15.00% | unknown | none | no connected account | nothing to read
+failed Stripe refused, with its own requirement codes on the rowapproved Stripe verified the company; the server allows bindingunknown no status was ever recorded; binding is refused
+About this screen
+Where the status comes from
+Stripe Connect business verification in test mode, which is not a dedicated KYB vendor. Every status is Stripe's own answer, appended when observed, never edited. A broker can bind a policy only while the status is approved.
+The placeholder
+A row written by the seed script is marked KYB: not yet live on the broker it belongs to. It exists so the issuance flow could be shown before Stripe was connected; it is not provider evidence.
+The settling window
+An approval recorded less than two minutes ago is held: the screen shows the recorded status beside the acted-on one. Stripe stops emitting account.updated once its identity check lands, often inside that window, so "Re-read from Stripe" is how a pending broker becomes approved.
+Re-reading
+A re-read appends a status row only when the status changed, and the row records which user asked for it. Pressing it twice adds nothing.Corgi · Policy administration

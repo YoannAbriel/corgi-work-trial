@@ -1,0 +1,42 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /broker] CorgiPolicy administration
+Broker workspace
+[a /inbox] Inbox
+[a /broker] Policies
+[a /broker/statements] Statements
+[a /broker/kyb] Business verification
+Marco Silva, brokerBroker
+Sign out
+[a /broker] Policies
+New policy
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+New policycommercial general liability, annual term Policies
+A draft can be created, but binding will be refused until the broker is approved. No verification on file for this broker. Binding is refused until one passes.
+[a /broker/kyb] Submit or check the business verification.
+KYB: not yet live: the status is a seeded placeholder.
+The quote
+Customer name
+Customer email
+State
+[option value=CA] CA
+Effective date (term start)
+Annual premium (USD)
+[input annualPremium=]
+Type an amount in US dollars, for example 1,200.00
+Per-occurrence limit (USD)
+[input perOccurrenceLimit=]
+Aggregate limit (USD)
+[input aggregateLimit=]
+Create draft
+About this screen
+What happens next
+The draft is priced by the server and written as one immutable quoted event. The customer pays through Stripe, in test mode. The policy binds when the payment is confirmed and the verification is approved.
+How it is priced
+The premium tax comes from the effective-dated rate on file for the state chosen above. The policy fee is a flat $25.00, an assumption of this build and not a filed fee.
+Where the arithmetic happens
+On the server, in integer cents, when the draft is created. This form sends what you typed and computes nothing; the policy page shows the total it was given and how it was reached.
+Binding
+A draft can be created whatever the verification says. Binding is refused until the broker is approved, and money that arrives meanwhile sits in the suspense account until staff operations decide.Corgi · Policy administration
