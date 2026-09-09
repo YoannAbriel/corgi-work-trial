@@ -321,3 +321,151 @@ policy) are recorded as open questions for Yoann, not as defects.
 | F-B13-05 | LOW | `openChangeRequestsOfPolicy` is exported and called only by the check script; the panel filters the list inline and the sidebar uses the SQL counter | Use it in the panel, or delete it | OPEN |
 | F-B13-06 | LOW | The customer's timeline reprints a staff-written correction reason verbatim, including an internal payment-intent reference, a review-finding id and the word "coordinator" (observed on CGP-01061) | Hide the reason text from the customer, or write correction reasons for a customer audience; Yoann's call | OPEN |
 | F-B13-07 | LOW | No bound on how many change requests a customer may send; each one permanently adds a unit to the broker's queue because no row can be deleted | Accept and keep it in the README limitations | OPEN (disclosed) |
+
+## 9. Re-review, 2026-09-09T07:20Z: the five fixes
+
+Sections 1 to 8 above are preserved as written; nothing in them is rewritten. This section
+records the independent recheck of the corrections the builder made to five of the seven
+findings.
+
+Fixes reviewed: `0d0b3ac` (F-B13-01), `2c6a5bf` (F-B13-02), `8bab55e` (F-B13-03), `9feb670`
+(F-B13-04), `e390af1` (F-B13-06), plus the builder's own notes commit `bd049ac`, all merged on
+`main` at **06999e3**. This reviewer's branch was fast-forwarded onto `origin/main` before
+reading them, so the review commit `bca7d66` is already an ancestor of the revision under
+recheck. F-B13-05 and F-B13-07 were not in the batch and remain open.
+
+**The deployed revision moved during the measurement window.** `/api/health` reported `06999e3`
+at 07:11Z and `19baf15` at 07:13Z, so every production measurement below was taken on
+**`19baf15`**, not on `06999e3`. `19baf15` is a descendant of `06999e3` and carries the B12
+explanation fixes. Two files in this scope differ between the two revisions and both were checked
+line by line: `lib/policy/correction-read.ts` (B12 extracted `policyAsOfSteps` into the pure
+module `lib/policy/as-of-steps.ts`; `TimelineAudience`, the `audience` parameter and the
+`summarise` branch are byte-for-byte the fix of `e390af1`) and `app/policies/[policyId]/page.tsx`
+(B12 work on other panels; the `changeRequest?: string` field and the notice added by `0d0b3ac`
+are both still there, at lines 75 and 162). The five fixes are therefore intact in what was
+measured.
+
+### Per finding
+
+**F-B13-01: RESOLVED.** `app/policies/[policyId]/page.tsx` gains `changeRequest?: string` in its
+`searchParams` type and one entry in its notices array; nothing else on the page is touched.
+Measured on production as the owning broker at the exact redirect target the reply route emits,
+`/policies/{CGP-01061}?changeRequest=answered`: the page prints "Your answer is on the customer's
+policy page, under the request it answers. It changed nothing on the policy itself: a change goes
+through Endorse." The same page without the parameter does not contain that sentence, so the
+notice is driven by the parameter and not by the page state. The notice was verified this way
+rather than by writing a second reply, because the one production request is already answered and
+this review creates nothing further; the URL fetched is character for character the one the route
+returns.
+
+**F-B13-02: RESOLVED for the path in the finding, and a new finding for the other two roles.**
+`ChangeRequestRefused` now carries `readableFrom: "policy" | "home"`, the ownership refusals are
+raised with `"home"`, and both routes send those to `workspaceHomeOf(user.role)`. Measured on
+production: `customer@example.com` POSTing a request on CGP-01274 is redirected to
+`/customer?error=only%20the%20customer%20of%20this%20policy…`, and `/customer` renders
+`<p class="error" role="alert">only the customer of this policy can ask for a change on it</p>`.
+The customer, which is the trigger and the consequence the finding described, now reads the
+refusal. But `workspaceHomeOf` also returns `/broker` and `/ops`, and neither page takes
+`searchParams` nor renders an error notice: measured on production, `broker2@example.com`'s
+refused reply lands on `/broker?error=…` with **no error notice on the page**, and
+`approver@example.com`'s lands on `/ops?error=…`, also with none. The silent failure has moved
+rather than disappeared for those two roles. Recorded as **F-B13-08**, LOW, below. Two new checks
+in the script assert the destination class itself (`home` for an ownership refusal, `policy` for
+a form refusal), which is the right thing to assert at that level and does not, on its own,
+prove the destination page prints anything.
+
+**F-B13-03: RESOLVED.** `changeRequestsOfPolicy` now decides on `row.reply_id !== null` and casts
+the display columns, with a comment saying why the left join reports the fact with `reply_id`
+alone. The new check inserts a `staff_ops` user whose `display_name` is the empty string, has it
+answer a request, and asserts the request reads as answered and leaves the open list: PASS
+("reply read, 0 still open on the policy"). That is exactly the case the finding described, and
+it could not have passed before the fix.
+
+**F-B13-04: RESOLVED as decided, with the gap stated instead of hidden.** `checkedLines` now
+refuses a repeat rather than folding it away through the `Set`, and the comment above it states
+the remaining database gap in full: the CHECK counts and contains, it does not forbid a repeat,
+so uniqueness is an application invariant here and not a database one. The builder deliberately
+did not rewrite migration 0019, which is correct: 0019 is applied on the trial database and a
+migration is never edited after it has run. Measured on production through the deployed route: a
+form carrying `lines=other` twice comes back
+`?error=a%20line%20can%20only%20be%20named%20once%20in%20a%20request`. The script's last check
+stores such a row on the disposable database on purpose and reports "known gap, stated: the
+database still accepts a repeated line on a direct INSERT". A check whose PASS is "nothing was
+refused" is unusual, and it is the honest shape here: it documents a limit rather than claiming a
+guarantee. One consequence a reader should know: the repeat check runs before the closed-list
+check, so `['broker_commission','broker_commission']` is answered "a line can only be named once"
+rather than "that is not a line of this policy". Cosmetic; both are refusals.
+
+**F-B13-06: RESOLVED.** `policyTimeline` and `PolicyTimeline` take a `TimelineAudience`, the
+customer view asks for `"customer"`, and `summarise` withholds the operator's `reason` from that
+audience while keeping the event, both dates and every amount; the "superseded by" sentence is
+also rewritten for the customer without the event id. Measured on production on CGP-01061, the
+policy the finding named. Customer page: `pi_local` **0**, `F-B2-01` **0**, `coordinator` **0**,
+`locally signed webhook` **0**, `Reversed by` **0**, `Superseded by` **0**; the correction reads
+"Correction: the event above was reversed and nothing re-books it, so it no longer counts" and
+the struck-through line reads "Put right by a later correction: this line no longer counts, and
+the corrected one is below." Staff approver page on the same policy, as a control: `pi_local`
+4, `F-B2-01` 4, `coordinator` 4, `Superseded by` 2. Both audiences show the same three events
+(quoted, issued, correction_reversal) with the same effective and recorded dates, so the audience
+changed the words and not the rows, which is what the fix claims. The script's own
+"both audiences see the same events and the same dates" check runs on a fixture policy carrying a
+single event, so its evidence value is thin; the production comparison above is the stronger one.
+
+**F-B13-05: OPEN.** Not in this batch. `openChangeRequestsOfPolicy` is still exported and still
+called only by the check script (it now has two callers there, both in the script).
+
+**F-B13-07: OPEN, disclosed.** Not in this batch, and no rate limit was added.
+
+### New finding
+
+**F-B13-08, LOW: an ownership refusal for a broker or a staff member is still silent.**
+Trigger: a broker who does not write the policy, or a staff approver, POSTs a reply on a change
+request; `workspaceHomeOf` sends the refusal to `/broker?error=…` or `/ops?error=…`
+(`lib/policy/change-requests.ts`, `workspaceHomeOf`). Consequence: `app/broker/page.tsx` and
+`app/ops/page.tsx` declare no `searchParams` and render no error notice, so the sentence is
+dropped exactly as the policy page used to drop it; only `/customer` prints it. Measured on
+production for both roles: the redirect carries the message, the page shows nothing. Required
+correction: give the two homes the same four-line `query.error` block `app/customer/page.tsx`
+has, or send those two roles' refusals to a page that prints one.
+
+### Checks executed for this re-review
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` on the merged tree | pass, no output |
+| `scripts/check-change-requests.ts` on `corgi_test`, run **once** | **43 checks, 43 PASS**, "all checks passed" (35 before, 8 added by the fixes) |
+| The five fix commits read in full, plus their effect on the merged tree | as described above |
+| `19baf15` versus `06999e3` on the two files of this scope | the fixes are intact; the difference is a pure-function extraction and B12 work on other panels |
+| Production, revision `19baf15`: the customer refusal, the broker notice, the customer and operator timelines on CGP-01061, the repeated line, the broker and staff refusal destinations | as tabulated above |
+| Rows on the trial database after the re-review | still exactly **1** change request and **1** reply, the two of section 4; `journal_entries`, `policy_events`, `money_operations`, `money_operation_events`, `approval_requests` and `claim_events` still **0** rows since 06:50Z |
+
+Not executed, and why: `check:money-guards` (instructed not to, both times); the unit suite (not
+re-run for this batch, since no fix touches a tested pure function; the previous run at b40e803
+was 426 tests, 425 pass, 1 skipped); a browser, still; a second production reply (nothing further
+was created, so the F-B13-01 notice was measured at the route's own redirect target rather than
+after a write).
+
+### New verdict
+
+**PASS** for slice B13-6 at `06999e3`, measured on the deployed descendant `19baf15`. Five of the
+seven findings are resolved and independently rechecked; F-B13-02 is resolved for the path it
+described and leaves the same shape open for two other roles, recorded as F-B13-08. Three LOW
+findings are open: F-B13-05, F-B13-07 and F-B13-08. None blocks the slice, and no new material
+issue appeared: no fix touches money, ownership still comes from the session on every path, both
+tables are unchanged and still append-only, and the production database still holds the two rows
+this review created and nothing else.
+
+**Candidate walkthrough status: NOT REVIEWED WITH YOANN.**
+
+### Register lines to update in `docs/reviews/FINDINGS.md`
+
+| ID | Sev | Finding (one line) | Fix | Status |
+|---|---|---|---|---|
+| F-B13-01 | LOW | (as recorded) | Notice added to the policy page's notices array and the field declared | FIXED 0d0b3ac, measured on the deployed page |
+| F-B13-02 | LOW | (as recorded) | `ChangeRequestRefused.readableFrom` and `workspaceHomeOf`; ownership refusals go to the actor's workspace | FIXED 2c6a5bf for the customer, measured; the broker and staff homes still print nothing, reopened as F-B13-08 |
+| F-B13-03 | LOW | (as recorded) | Decide on `reply_id !== null` | FIXED 8bab55e, proved by a reply from a nameless operator |
+| F-B13-04 | LOW | (as recorded) | The application refuses a repeat; the database gap is stated in the code and proved by the last check, migration 0019 not rewritten | FIXED 9feb670, measured on the deployed route |
+| F-B13-05 | LOW | (as recorded) | Use it in the panel, or delete it | OPEN |
+| F-B13-06 | LOW | (as recorded) | `TimelineAudience`: the customer reads the same events, dates and amounts without the operator's free text | FIXED e390af1, measured on CGP-01061 with the operator view as control |
+| F-B13-07 | LOW | (as recorded) | Accept and keep it in the README limitations | OPEN (disclosed) |
+| F-B13-08 | LOW | An ownership refusal for a broker or a staff member is sent to `/broker?error=` or `/ops?error=`, and neither page reads `searchParams` or renders an error, so the refusal is still silent for those two roles | Give the two homes the `query.error` block `/customer` has | OPEN |
