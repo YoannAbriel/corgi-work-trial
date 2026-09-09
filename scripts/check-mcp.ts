@@ -14,9 +14,10 @@ import postgres from "postgres";
 //      application AND by the database trigger;
 //   5. the reconciliation tool stores runs and posts no journal entry;
 //   6. explain_amount: the explanation of a figure is the one the policy page reads, key by key,
-//      a figure key that does not exist is refused by naming the closed list, a broker key
-//      cannot explain another broker's policy, and a customer key is refused the figures its own
-//      policy screen withholds while still reading the ones it prints;
+//      a figure key that does not exist is refused by naming the closed list, a broker key reads
+//      its own policy's lines and cannot explain another broker's policy, a staff key reads the
+//      journal entry ids behind a ledger sum, and a CUSTOMER KEY IS REFUSED THE TOOL ALTOGETHER,
+//      with the same sentence whatever figure or policy it names;
 //   7. list_my_activity: a key reads back the calls it just made, and none of another key's;
 //   8. every single call is written down in mcp_calls, including the ones that were refused;
 //   9. who may mint a key: a staff_approver session is refused by POST /api/mcp-keys, because
@@ -84,6 +85,12 @@ type JsonRpcAnswer = { status: number; body: Record<string, unknown> | null };
 // number of rows the endpoint appended to mcp_calls: one row per call, exactly.
 let postsSent = 0;
 
+// The same count, PER PRESENTED KEY. corgi_test is shared: another agent running its own check
+// against the same database appends its own rows to mcp_calls while this one runs, so a global
+// count of the table cannot say "one row per POST" about THIS run. Counting the rows of the keys
+// this run created, against the POSTs this run sent with them, is exact whoever else is working.
+const postsByPresentedKey = new Map<string, number>();
+
 // A value no date parser accepts, sent on purpose so the refusal and the audit row can be read
 // back: neither of them may repeat it (review finding F-B11-02).
 const MALFORMED_AS_OF = "not-a-date-but-a-long-string-a-caller-chose";
@@ -103,6 +110,9 @@ async function rpc(
   correlationId?: string,
 ): Promise<JsonRpcAnswer> {
   postsSent += 1;
+  if (key !== null) {
+    postsByPresentedKey.set(key, (postsByPresentedKey.get(key) ?? 0) + 1);
+  }
   const response = await fetch(`${baseUrl}/api/mcp`, {
     method: "POST",
     headers: {
@@ -390,6 +400,10 @@ async function main() {
   );
 
   postsSent += 1;
+  postsByPresentedKey.set(
+    staffKey.presentedKey,
+    (postsByPresentedKey.get(staffKey.presentedKey) ?? 0) + 1,
+  );
   const wrongVersion = await fetch(`${baseUrl}/api/mcp`, {
     method: "POST",
     headers: {
@@ -708,6 +722,22 @@ async function main() {
     wrongFigure.ok ? "it answered" : wrongFigure.refusal.slice(0, 110) + "...",
   );
 
+  // Review finding F-MCPTOOLS-07 of round 1: the enum is enforced by the transport
+  // (lib/mcp/tools/tool.ts) BEFORE the tool runs, so a misspelled key never reaches a policy row.
+  // The proof is that the same misspelling on a policy number that does not exist gives the enum
+  // sentence and not "no policy with that number is visible": the read never happened.
+  const wrongFigureOnAGhostPolicy = await callTool(staffKey.presentedKey, "explain_amount", {
+    policy: "CGP-00000",
+    figure: UNKNOWN_FIGURE_KEY,
+  });
+  report(
+    "AND IT IS REFUSED BEFORE ANY READ: the same unknown key on a policy that does not exist gives the enum sentence, not the policy one",
+    !wrongFigureOnAGhostPolicy.ok &&
+      /must be one of: premium_tax/.test(wrongFigureOnAGhostPolicy.refusal) &&
+      !/no policy with that number is visible/.test(wrongFigureOnAGhostPolicy.refusal),
+    wrongFigureOnAGhostPolicy.ok ? "it answered" : wrongFigureOnAGhostPolicy.refusal.slice(0, 90) + "...",
+  );
+
   const notCancelled = await callTool(staffKey.presentedKey, "explain_amount", {
     policy: policy.policyNumber,
     figure: "cancellation_total_refund",
@@ -730,34 +760,66 @@ async function main() {
     explainAnotherBroker.ok ? "it answered" : explainAnotherBroker.refusal,
   );
 
-  // Review finding F-MCPTOOLS-01: being allowed to see the policy is not being allowed to see
-  // every figure on it. The customer's own screen prints the terms in force and the endorsement
-  // schedule and withholds the journal, the ledger sums and the broker's commission, so the key
-  // that belongs to that customer has to be refused them here too.
-  const customerAsksForCommission = await callTool(customerKey.presentedKey, "explain_amount", {
-    policy: policy.policyNumber,
-    figure: "commission_payable",
-  });
+  // Review findings F-MCPTOOLS-01, F-MCPTOOLS-02 and F-MCPTOOLS-03. Round 2 gated the figure key
+  // a customer key could NAME and never what the answer CONTAINED, so the commission it refused
+  // by name came back inside the endorsement delta it allowed. The rule is now the whole tool: a
+  // customer key is refused, whatever figure it names, because its own policy screen prints no
+  // explanation fold at all. These four calls walk that line: two figures it used to be allowed,
+  // one it was already refused, and a policy that does not exist.
+  const customerRefusals: { what: string; refusal: string; answered: boolean }[] = [];
+  for (const [what, figure, askedPolicy] of [
+    ["the broker's commission", "commission_payable", policy.policyNumber],
+    ["the premium tax, which round 2 allowed it", "premium_tax", policy.policyNumber],
+    ["the endorsement delta, which round 2 allowed it and which carries the commission line", "endorsement_delta", policy.policyNumber],
+    ["a policy number that does not exist", "premium_tax", "CGP-00000"],
+  ] as const) {
+    const answer = await callTool(customerKey.presentedKey, "explain_amount", {
+      policy: askedPolicy,
+      figure,
+    });
+    customerRefusals.push({
+      what,
+      refusal: answer.ok ? "" : answer.refusal,
+      answered: answer.ok,
+    });
+  }
   report(
-    "A CUSTOMER KEY CANNOT READ THE BROKER'S COMMISSION on the policy that covers it, and the refusal names the rule",
-    !customerAsksForCommission.ok &&
-      /not on the policy screen this key's user reads/.test(customerAsksForCommission.refusal),
-    customerAsksForCommission.ok
-      ? `it answered ${cents(customerAsksForCommission.value.amount)} cents`
-      : customerAsksForCommission.refusal,
+    "A CUSTOMER KEY IS REFUSED explain_amount ALTOGETHER, and the refusal names the rule rather than the figure",
+    customerRefusals.every(
+      (attempt) =>
+        !attempt.answered &&
+        /reads no explanation on their own policy screen/.test(attempt.refusal) &&
+        /no explanation fold, no journal entries and no broker commission/.test(attempt.refusal),
+    ),
+    customerRefusals
+      .map((attempt) => `${attempt.what}: ${attempt.answered ? "IT ANSWERED" : "refused"}`)
+      .join(" | "),
+  );
+  report(
+    "the four refusals are the SAME sentence, so the tool cannot be used to learn which figures or policies exist",
+    new Set(customerRefusals.map((attempt) => attempt.refusal)).size === 1 &&
+      ["commission_payable", "premium_tax", "endorsement_delta", "CGP-00000"].every(
+        (secret) => !customerRefusals[0].refusal.includes(secret),
+      ),
+    `${new Set(customerRefusals.map((attempt) => attempt.refusal)).size} distinct sentence(s): "${customerRefusals[0].refusal.slice(0, 90)}..."`,
   );
 
-  const customerAsksForTax = await callTool(customerKey.presentedKey, "explain_amount", {
+  // The other side of the same rule, measured rather than assumed: what a customer key is refused
+  // is exactly what a BROKER key on its own policy still reads, commission line included. Two
+  // figures, one of them the one that leaked in round 2.
+  const brokerReadsEndorsement = await callTool(brokerKey.presentedKey, "explain_amount", {
     policy: policy.policyNumber,
-    figure: "premium_tax",
-    asOf: TERM_START,
+    figure: "endorsement_delta",
   });
   report(
-    "and the same key still reads the figures its own screen does print: the premium tax, to the cent",
-    customerAsksForTax.ok && cents(customerAsksForTax.value.amount) === pageTerms.taxCents,
-    customerAsksForTax.ok
-      ? `${cents(customerAsksForTax.value.amount)} cents, page reads ${pageTerms.taxCents}`
-      : customerAsksForTax.refusal,
+    "A BROKER KEY STILL READS ITS OWN POLICY'S EXPLANATION LINES: the same fold its own screen renders",
+    (brokerReadsEndorsement.ok && (brokerReadsEndorsement.value.formula as unknown[]).length > 0) ||
+      // A fixture with no endorsement answers a sentence saying so, which is an answer and not a
+      // refusal of the tool; the tax read above already proves the lines come back for this key.
+      (!brokerReadsEndorsement.ok && /carries no endorsement/.test(brokerReadsEndorsement.refusal)),
+    brokerReadsEndorsement.ok
+      ? `${(brokerReadsEndorsement.value.formula as unknown[]).length} lines`
+      : brokerReadsEndorsement.refusal,
   );
 
   // -------------------------------------------------------------------------
@@ -1022,11 +1084,25 @@ async function main() {
   // 6. Every call is written down
   // -------------------------------------------------------------------------
 
+  // ONE ROW PER POST, EXACTLY, counted over the six keys THIS RUN created rather than over the
+  // whole table. corgi_test is shared, and a global count of mcp_calls also counts the rows
+  // another agent's check appended while this one was running, which made this assertion fail on
+  // a run that was in fact correct. Each key here belongs to this run alone, so its rows are
+  // this run's calls and nobody else's. The 401s that presented no key at all (they log no key
+  // id) are proved by the next assertion instead.
+  const thisRunsKeys = [brokerKey, otherBrokerKey, customerKey, staffKey, agentKey, doomedKey];
+  const postsWithThisRunsKeys = thisRunsKeys.reduce(
+    (total, key) => total + (postsByPresentedKey.get(key.presentedKey) ?? 0),
+    0,
+  );
+  const rowsOfThisRunsKeys = await mcpCallCountForKeys(thisRunsKeys.map((key) => key.keyId));
   const callsAfter = await mcpCallCount();
   report(
-    "EVERY CALL IS LOGGED, refusals and 401s included: one row per POST, exactly",
-    callsAfter - callsBefore === postsSent,
-    `${postsSent} calls sent, ${callsAfter - callsBefore} rows appended to mcp_calls`,
+    "EVERY CALL IS LOGGED, refusals included: one row per POST, exactly, for the keys this run created",
+    rowsOfThisRunsKeys === postsWithThisRunsKeys,
+    `${postsWithThisRunsKeys} calls sent with this run's keys, ${rowsOfThisRunsKeys} rows appended for them ` +
+      `(the whole table grew by ${callsAfter - callsBefore} for ${postsSent} POSTs: the difference, if any, is ` +
+      "another agent working on the shared disposable database)",
   );
   const unauthorisedRows = await callsWithOutcome("unauthorised");
   report(
@@ -1235,6 +1311,15 @@ async function apiKeyCountOf(userId: string): Promise<number> {
 
 async function mcpCallCount(): Promise<number> {
   const [row] = await owner<{ count: string }[]>`select count(*)::text as count from mcp_calls`;
+  return Number(row.count);
+}
+
+// The rows of a given set of keys. Used instead of a count of the whole table, which on the
+// shared disposable database also counts another agent's calls.
+async function mcpCallCountForKeys(keyIds: string[]): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`
+    select count(*)::text as count from mcp_calls where api_key_id = any(${keyIds}::uuid[])
+  `;
   return Number(row.count);
 }
 
