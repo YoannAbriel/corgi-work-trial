@@ -45,7 +45,7 @@ export default async function StaffPoliciesPage() {
 
       <Panel title="All policies" className="list-panel">
         {policies.length === 0 ? (
-          <Empty>No policy yet. Policies appear here when a broker creates the first draft.</Empty>
+          <Empty illustration="closed-folder">No policy yet. Policies appear here when a broker creates the first draft.</Empty>
         ) : (
           <div className="table-scroll" role="region" aria-label="Policies" tabIndex={0}>
             <table>

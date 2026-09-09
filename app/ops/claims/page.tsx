@@ -32,7 +32,7 @@ export default async function OpsClaimsPage() {
 
       <Panel title="All claims" className="list-panel">
         {claims.length === 0 ? (
-          <Empty>No claim yet. A claim is opened from a policy page, by staff operations, on a policy that was bound.</Empty>
+          <Empty illustration="search-corgi">No claim yet. A claim is opened from a policy page, by staff operations, on a policy that was bound.</Empty>
         ) : (
           <div className="table-scroll" role="region" aria-label="Claims" tabIndex={0}>
             <table>
