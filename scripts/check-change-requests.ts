@@ -59,12 +59,24 @@ async function main() {
   // Imported here rather than at the top of the file: the module opens the application
   // connection pool as soon as it is loaded, which needs the environment read first.
   const {
+    ChangeRequestRefused,
     createChangeRequest,
     replyToChangeRequest,
     changeRequestsOfPolicy,
     openChangeRequestsOfPolicy,
     countOpenChangeRequests,
   } = await import("@/lib/policy/change-requests");
+
+  // Where a refusal can be read. An ownership refusal cannot be shown on the policy page, because
+  // that page redirects the person away and the message goes with the redirect (F-B13-02).
+  const refusalPlace = async (attempt: () => Promise<unknown>): Promise<string> => {
+    try {
+      await attempt();
+      return "NOTHING WAS REFUSED";
+    } catch (error) {
+      return error instanceof ChangeRequestRefused ? error.readableFrom : "not a change request refusal";
+    }
+  };
 
   const [{ current_database: databaseName }] = await owner<{ current_database: string }[]>`
     select current_database()
@@ -138,6 +150,16 @@ async function main() {
     createChangeRequest({ policyId: fixture.policyId, lines: ["annual_premium"], comment: "too short", actor: customer }, runtime),
   );
   report("a comment under ten characters is refused", /at least 10 characters/.test(tooShort), tooShort);
+
+  const ownershipPlace = await refusalPlace(() =>
+    createChangeRequest({ policyId: fixture.policyId, lines: ["annual_premium"], comment: COMMENT, actor: otherCustomer }, runtime),
+  );
+  report("an ownership refusal is sent to the actor's own workspace, not to a page they cannot open", ownershipPlace === "home", ownershipPlace);
+
+  const formPlace = await refusalPlace(() =>
+    createChangeRequest({ policyId: fixture.policyId, lines: [], comment: COMMENT, actor: customer }, runtime),
+  );
+  report("a form refusal stays on the policy page, where the form is", formPlace === "policy", formPlace);
 
   const tooLong = await refused(() =>
     createChangeRequest(

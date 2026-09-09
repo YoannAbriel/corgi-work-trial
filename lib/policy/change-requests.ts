@@ -22,7 +22,30 @@ type Queryable = postgres.Sql | postgres.TransactionSql;
 
 // A refusal a person can act on: wrong actor, empty comment, a request already answered. It
 // becomes a message on the page, never a 500.
-export class ChangeRequestRefused extends Error {}
+//
+// It carries WHERE THE PERSON CAN READ IT, because a refusal shown on a page the actor is not
+// allowed to open is a silent failure: the policy page redirects them away and the message goes
+// with the redirect (review finding F-B13-02). 'policy' is the normal case, a person who may
+// open the policy and got their form wrong; 'home' is the ownership refusal, where the only page
+// that will render the sentence is the actor's own workspace.
+export class ChangeRequestRefused extends Error {
+  readonly readableFrom: "policy" | "home";
+
+  constructor(message: string, readableFrom: "policy" | "home" = "policy") {
+    super(message);
+    this.readableFrom = readableFrom;
+  }
+}
+
+// The other half of `readableFrom`: the workspace home of each role, which is the page that will
+// certainly render a refusal for that person. Kept next to the error that asks for it rather than
+// duplicated in the two routes.
+export function workspaceHomeOf(role: UserRole): string {
+  if (role === "customer") return "/customer";
+  if (role === "broker") return "/broker";
+  if (role === "staff_ops" || role === "staff_approver") return "/ops";
+  return "/login"; // 'agent': no session exists, so this is unreachable rather than a real page
+}
 
 // The lines of the policy a request can be about. They are what the customer READS on the page,
 // not database columns: the broker decides what "the annual premium" means in the endorsement.
@@ -105,10 +128,10 @@ export async function createChangeRequest(
 ): Promise<{ requestId: string }> {
   const policy = await loadPolicyOwners(database, input.policyId);
   if (!policy) {
-    throw new ChangeRequestRefused("this policy does not exist");
+    throw new ChangeRequestRefused("this policy does not exist", "home");
   }
   if (input.actor.role !== "customer" || input.actor.customerId !== policy.customerId) {
-    throw new ChangeRequestRefused("only the customer of this policy can ask for a change on it");
+    throw new ChangeRequestRefused("only the customer of this policy can ask for a change on it", "home");
   }
 
   const lines = checkedLines(input.lines);
@@ -170,13 +193,16 @@ export async function replyToChangeRequest(
        and change_request.policy_id = ${input.policyId}
   `;
   if (!request) {
-    throw new ChangeRequestRefused("this change request does not exist on this policy");
+    throw new ChangeRequestRefused("this change request does not exist on this policy", "home");
   }
 
   const isOwningBroker = input.actor.role === "broker" && input.actor.brokerId === request.broker_id;
   const isStaffOperations = input.actor.role === "staff_ops";
   if (!isOwningBroker && !isStaffOperations) {
-    throw new ChangeRequestRefused("only the broker who writes this policy, or staff operations, can answer a change request");
+    throw new ChangeRequestRefused(
+      "only the broker who writes this policy, or staff operations, can answer a change request",
+      "home",
+    );
   }
 
   if (input.outcome !== "answered" && input.outcome !== "done") {
