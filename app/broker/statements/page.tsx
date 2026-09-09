@@ -56,19 +56,18 @@ export default async function BrokerStatementsPage() {
 
   const runs = await listStatementRuns(sql, { brokerId: user.brokerId, limit: HOW_MANY_RUNS_SHOWN });
   const now = new Date();
-  // The broker's own name as the statements themselves record it; the session only carries the
-  // person's name, which is not the same thing.
-  const brokerName = runs[0]?.brokerName ?? user.displayName;
+  // The broker firm's own name as the statements themselves record it. No fallback to the signed-in
+  // person's name: that is a different thing, and the sidebar already says who is signed in
+  // (Yoann, 2026-09-09). With no run yet there is no firm name to show, and the band drops it.
+  const brokerName = runs[0]?.brokerName;
   const provisional = runs.filter((run) => run.monthWasStillRunning).length;
   // The newest revision's own figure, not a total: adding the net due of several revisions of the
   // same month would count the same money once per revision.
   const latestRun = runs[0] ?? null;
-  // The reading order of the table: months newest first, and inside one month its revisions
-  // newest first, so the revisions of one month stay together and "identical to revision 1" sits
-  // under revision 1 (round 1, MEDIUM). `runs` itself stays in production order for the tile.
-  const runsInReadingOrder = [...runs].sort(
-    (one, other) => other.statementMonth.localeCompare(one.statementMonth) || other.revision - one.revision,
-  );
+  // The reading order of the table: by age only, newest run first (Yoann, 2026-09-09). Sorting by
+  // month put a rerun of an old month below a newer month's run, which hides the run that just
+  // happened; the Month and Revision columns say which statement each row is.
+  const runsInReadingOrder = [...runs].sort((one, other) => other.createdAt.getTime() - one.createdAt.getTime());
 
   return (
     <PortalShell
