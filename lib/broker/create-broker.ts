@@ -1,6 +1,6 @@
 import { sql } from "@/db/client";
 import { generateOneTimePassword, hashPassword } from "@/lib/auth/password";
-import { isCookieSafeValue } from "@/lib/broker/reveal-cookie";
+import { isEmailSafeForRevealCookie } from "@/lib/broker/reveal-cookie";
 
 // Creating a broker from the operations screen (decision 52, Yoann, 2026-09-09 at 22:45 local).
 //
@@ -63,8 +63,8 @@ export function readNewBrokerForm(form: NewBrokerForm): NewBroker {
   // hold characters a cookie value may hold (review finding F-NEWBROKER-01). Refused HERE, before
   // any INSERT, because the harm of letting one through is an account that exists and whose
   // one-time password was destroyed on the way to the screen that was supposed to show it.
-  if (!isCookieSafeValue(email)) {
-    throw new BrokerCreationRefused("The contact email must not contain a semicolon, a comma, a quote or a backslash");
+  if (!isEmailSafeForRevealCookie(email)) {
+    throw new BrokerCreationRefused("The contact email must be plain ASCII without a space, a semicolon, a comma, a quote, a backslash or a vertical bar");
   }
 
   // Number() on "" is 0 and on "12abc" is NaN, so both are rejected by the two checks below

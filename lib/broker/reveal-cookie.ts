@@ -52,6 +52,15 @@ export function isCookieSafeValue(value: string): boolean {
   return CHARACTERS_A_COOKIE_VALUE_MAY_HOLD.test(value);
 }
 
+// The check the contact email must pass (review finding F-NEWBROKER-06). A cookie-safe value is
+// not enough on its own: the vertical bar is legal in a cookie but it is THIS value's separator,
+// so an address carrying one would be split in the wrong place and the screen would print a
+// truncated address and a password that is not the password, for an account that exists. The
+// email must therefore hold only characters a cookie value may hold AND no vertical bar.
+export function isEmailSafeForRevealCookie(email: string): boolean {
+  return isCookieSafeValue(email) && !email.includes("|");
+}
+
 // Reads that value back. Anything else is null: the page then says the password is gone rather
 // than printing half of it.
 export function readRevealCookieValue(raw: string | undefined): RevealedSignIn | null {

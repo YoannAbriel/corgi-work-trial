@@ -80,14 +80,19 @@ export async function passwordHashMatches(plain: string, stored: string): Promis
 //
 // The hash is derived once, on the first call, from a random password nobody holds. It is not a
 // secret: it opens no account, and no account is ever made from it.
-let hashOfNoAccount: Promise<string> | null = null;
+let hashOfNoAccount: string | null = null;
 
 // 32 random bytes, written as hexadecimal: far past guessing, and it never leaves this file.
 const BYTES_OF_THE_PASSWORD_NOBODY_HOLDS = 32;
 
 export async function spendPasswordCheckTime(submittedPassword: string): Promise<void> {
-  hashOfNoAccount ??= hashPassword(randomBytes(BYTES_OF_THE_PASSWORD_NOBODY_HOLDS).toString("hex"));
-  await passwordHashMatches(submittedPassword, await hashOfNoAccount);
+  // The HASH is memoised, never the promise (review finding F-NEWBROKER-08): a promise kept after
+  // a rejection would answer every later call with the same rejection, so one failed derivation
+  // would make every sign-in on an unknown address answer 500 for the life of the process.
+  if (hashOfNoAccount === null) {
+    hashOfNoAccount = await hashPassword(randomBytes(BYTES_OF_THE_PASSWORD_NOBODY_HOLDS).toString("hex"));
+  }
+  await passwordHashMatches(submittedPassword, hashOfNoAccount);
 }
 
 // The password the operator reads once, on the screen that created the broker.

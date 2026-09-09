@@ -71,6 +71,11 @@ const COMMISSION_RATE_BPS = "1500";
 // other fixture here, because the disposable database is shared and keeps what earlier runs left.
 const SEMICOLON_EMAIL = `probe;max-age=99999-${RUN_ID}@example.invalid`;
 const COMMA_EMAIL = `probe,corgi_session=x-${RUN_ID}@example.invalid`;
+// The third hostile address, of review finding F-NEWBROKER-06: the vertical bar is legal inside a
+// cookie value but it is the separator of THIS value, so an address carrying one would be split in
+// the wrong place and the screen would print a truncated address and a password that is not the
+// password, for a broker that exists.
+const SEPARATOR_EMAIL = `probe|split-${RUN_ID}@example.invalid`;
 
 // Above this many brokers, /ops/brokers takes minutes to render and the two screen checks are
 // skipped out loud rather than waited for. See the comment beside them.
@@ -167,10 +172,11 @@ async function main() {
     ["a commission rate with a decimal part", { name: BROKER_NAME, email: BROKER_EMAIL, commissionRateBps: "15.5" }],
     ["a negative commission rate", { name: BROKER_NAME, email: BROKER_EMAIL, commissionRateBps: "-1" }],
     ["a commission rate over 10000", { name: BROKER_NAME, email: BROKER_EMAIL, commissionRateBps: "10001" }],
-    // The two hostile addresses declared above. They must be refused BEFORE the account is
+    // The three hostile addresses declared above. They must be refused BEFORE the account is
     // created, which is what the "no sign-in account" line below proves.
     ["an email carrying a semicolon", { name: BROKER_NAME, email: SEMICOLON_EMAIL, commissionRateBps: COMMISSION_RATE_BPS }],
     ["an email carrying a comma", { name: BROKER_NAME, email: COMMA_EMAIL, commissionRateBps: COMMISSION_RATE_BPS }],
+    ["an email carrying the cookie separator", { name: BROKER_NAME, email: SEPARATOR_EMAIL, commissionRateBps: COMMISSION_RATE_BPS }],
   ];
   for (const [what, form] of invalidForms) {
     const refused = await createBroker(operationsSession, form);
@@ -182,7 +188,7 @@ async function main() {
     (await countBrokersNamed(BROKER_NAME)) === 0,
     `${await countBrokersNamed(BROKER_NAME)} brokers named "${BROKER_NAME}"`,
   );
-  // The hostile addresses again, from the other side: no sign-in account was created for either
+  // The hostile addresses again, from the other side: no sign-in account was created for any of them
   // of them. This is the line that says the refusal happened before the INSERT and not after it,
   // which is the whole point: an account created with a broken cookie could never be repaired,
   // because nothing anywhere holds the password it was supposed to show.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isCookieSafeValue, readRevealCookieValue, revealCookieValue } from "./reveal-cookie";
+import { isCookieSafeValue, isEmailSafeForRevealCookie, readRevealCookieValue, revealCookieValue } from "./reveal-cookie";
 
 // The value the reveal cookie carries, both ways: what goes in comes back out whole.
 test("an email and a password survive the trip through the cookie value", () => {
@@ -42,4 +42,12 @@ test("a control character is refused too", () => {
   assert.equal(isCookieSafeValue("probe\nSet-Cookie: x=y@example.invalid"), false);
   // The delete character, written as an escape so the source file holds no invisible byte.
   assert.equal(isCookieSafeValue("probe\u007f@example.invalid"), false);
+});
+
+test("an email carrying the separator is refused for the reveal cookie (F-NEWBROKER-06)", () => {
+  assert.equal(isEmailSafeForRevealCookie("a|b@example.invalid"), false);
+  assert.equal(isEmailSafeForRevealCookie("ops@example.com"), true);
+  // Still refused for the reasons of F-NEWBROKER-01.
+  assert.equal(isEmailSafeForRevealCookie("probe;max-age=99999@example.invalid"), false);
+  assert.equal(isEmailSafeForRevealCookie("probe,other=1@example.invalid"), false);
 });
