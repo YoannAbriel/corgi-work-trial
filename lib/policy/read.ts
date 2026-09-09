@@ -14,6 +14,7 @@ export type PolicyListRow = {
   status: PolicyStatus;
   effectiveAt: string;
   totalChargeCents: number;
+  quotedAt: Date; // when the policy row was written: the age of a policy still waiting to be paid
 };
 
 export async function policiesOfBroker(brokerId: string): Promise<PolicyListRow[]> {
@@ -26,6 +27,7 @@ export async function policiesOfBroker(brokerId: string): Promise<PolicyListRow[
       status: PolicyStatus;
       effective_at: string;
       total_charge_cents: string;
+      quoted_at: Date;
     }[]
   >`
     select policy.id            as policy_id,
@@ -34,7 +36,8 @@ export async function policiesOfBroker(brokerId: string): Promise<PolicyListRow[
            policy.state_code    as state_code,
            current_policy.status,
            to_char(current_policy.effective_at, 'YYYY-MM-DD') as effective_at,
-           current_policy.total_charge_cents
+           current_policy.total_charge_cents,
+           policy.created_at    as quoted_at
       from policies policy
       join customers customer      on customer.id = policy.customer_id
       join policy_current current_policy on current_policy.policy_id = policy.id
@@ -49,6 +52,7 @@ export async function policiesOfBroker(brokerId: string): Promise<PolicyListRow[
     status: row.status,
     effectiveAt: row.effective_at,
     totalChargeCents: centsFromDatabase(row.total_charge_cents, "total_charge_cents"),
+    quotedAt: row.quoted_at,
   }));
 }
 
@@ -501,11 +505,43 @@ export async function refundOperationsOfPolicy(policyId: string): Promise<Refund
 // in the unapplied_customer_cash suspense account until staff operations bind the policy or send
 // the money back, so every one of these is work waiting for a person.
 // Read from the policy_current cache, which is the same derived status the policy list shows.
-export async function countPoliciesPaidButNotBound(): Promise<number> {
-  const [row] = await sql<{ waiting: number }[]>`
-    select count(*)::int as waiting from policy_current where status = 'paid_not_bound'
+export type PolicyPaidNotBoundRow = {
+  policyId: string;
+  policyNumber: string;
+  customerName: string;
+  totalChargeCents: number;
+  quotedAt: Date;
+};
+
+export async function policiesPaidButNotBound(): Promise<PolicyPaidNotBoundRow[]> {
+  const rows = await sql<
+    { policy_id: string; policy_number: string; customer_name: string; total_charge_cents: string; quoted_at: Date }[]
+  >`
+    select policy.id            as policy_id,
+           policy.policy_number as policy_number,
+           customer.name        as customer_name,
+           current_policy.total_charge_cents,
+           policy.created_at    as quoted_at
+      from policy_current current_policy
+      join policies policy    on policy.id = current_policy.policy_id
+      join customers customer on customer.id = policy.customer_id
+     where current_policy.status = 'paid_not_bound'
+     order by policy.created_at
   `;
-  return row.waiting;
+  return rows.map((row) => ({
+    policyId: row.policy_id,
+    policyNumber: row.policy_number,
+    customerName: row.customer_name,
+    totalChargeCents: centsFromDatabase(row.total_charge_cents, "total_charge_cents"),
+    quotedAt: row.quoted_at,
+  }));
+}
+
+// The badge on the sidebar asks how many; the inbox asks which ones. Counting the list rather
+// than repeating the condition in a second query is what keeps the two from ever disagreeing,
+// and policy_current holds one row per policy, so the list can never count a policy twice.
+export async function countPoliciesPaidButNotBound(): Promise<number> {
+  return (await policiesPaidButNotBound()).length;
 }
 
 // Endorsements the customer has paid for and that are NOT in force, because the broker was not
@@ -513,10 +549,29 @@ export async function countPoliciesPaidButNotBound(): Promise<number> {
 // The policy page offers staff operations an "Apply now" button for each of them.
 // An endorsement that was applied afterwards has an 'endorsed' event naming its request, so it
 // stops being counted without anything being rewritten.
-export async function countEndorsementsPaidButNotApplied(): Promise<number> {
-  const [row] = await sql<{ waiting: number }[]>`
-    select count(distinct link.request_event_id)::int as waiting
+export type EndorsementPaidNotAppliedRow = {
+  policyId: string;
+  policyNumber: string;
+  requestEventId: string;
+  amountCents: number;
+  paidAt: Date;
+};
+
+export async function endorsementsPaidButNotApplied(): Promise<EndorsementPaidNotAppliedRow[]> {
+  // `distinct on (request_event_id)` is the list form of the `count(distinct request_event_id)`
+  // this used to be: one endorsement request that somehow carries two succeeded events is one
+  // piece of work, not two.
+  const rows = await sql<
+    { policy_id: string; policy_number: string; request_event_id: string; amount_cents: string; paid_at: Date }[]
+  >`
+    select distinct on (link.request_event_id)
+           link.policy_id,
+           policy.policy_number,
+           link.request_event_id,
+           link.amount_cents,
+           paid.recorded_at as paid_at
       from endorsement_collections link
+      join policies policy on policy.id = link.policy_id
       join money_operation_events paid
         on paid.operation_id = link.collection_operation_id
        and paid.status = 'succeeded'
@@ -526,6 +581,19 @@ export async function countEndorsementsPaidButNotApplied(): Promise<number> {
               where applied.event_type = 'endorsed'
                 and applied.payload ->> 'request_event_id' = link.request_event_id::text
            )
+     order by link.request_event_id, paid.recorded_at
   `;
-  return row.waiting;
+  return rows.map((row) => ({
+    policyId: row.policy_id,
+    policyNumber: row.policy_number,
+    requestEventId: row.request_event_id,
+    amountCents: centsFromDatabase(row.amount_cents, "amount_cents"),
+    paidAt: row.paid_at,
+  }));
+}
+
+// Same reason as the policies above: the badge counts what the inbox lists, never a second copy
+// of the condition.
+export async function countEndorsementsPaidButNotApplied(): Promise<number> {
+  return (await endorsementsPaidButNotApplied()).length;
 }

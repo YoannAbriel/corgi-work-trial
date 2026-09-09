@@ -903,6 +903,12 @@ code {
     font-size: 13px;
     min-height: 44px;
   }
+  .sidebar-nav a.nav-badge {
+    padding: 0 8px;
+    min-height: 24px;
+    line-height: 24px;
+    font-size: 12px;
+  }
   .sidebar-account {
     padding: 12px 22px;
     border-top: 1px solid #e8e8eb;
@@ -1089,9 +1095,38 @@ h3 { margin-top: 24px; font-size: 16px; }
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.sidebar-nav a[aria-current="page"] .nav-badge {
+/* The count is its own link, to the inbox section that lists those items, so it sits beside the
+   navigation link rather than inside it: a link inside a link is not valid HTML. The row holds
+   the two, and the rules below undo the navigation-link shape for the badge. */
+.sidebar-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sidebar-nav-row > a:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-nav a.nav-badge {
+  display: block;
+  flex: 0 0 auto;
+  margin-left: 0;
+  padding: 0 6px;
+  min-height: 20px;
+  border-radius: 999px;
+  color: white;
+  font-size: 11px;
+  line-height: 20px;
+}
+.sidebar-nav a.nav-badge:hover {
+  background: #c04600;
+}
+.sidebar-nav-row a[aria-current="page"] + .nav-badge {
   background: white;
   color: #c04600;
+}
+.sidebar-nav-row a[aria-current="page"] + .nav-badge:hover {
+  background: #f3f3f5;
 }
 
 /* The "what needs you" block at the top of a workspace home. */

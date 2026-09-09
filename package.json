@@ -18,6 +18,7 @@
     "check:endorsement-replay": "tsx scripts/check-endorsement-replay.ts",
     "check:correction-replay": "tsx scripts/check-correction-replay.ts",
     "check:claims-and-approvals": "tsx scripts/check-claims-and-approvals.ts",
+    "check:inbox-counts": "tsx scripts/check-inbox-counts.ts",
     "check:reconciliation": "tsx scripts/check-reconciliation.ts",
     "check:statements": "tsx scripts/check-statements.ts",
     "check:mcp": "tsx scripts/check-mcp.ts",
