@@ -218,3 +218,7 @@ Recorded by the coordinator from docs/handoffs/ui-system-notes.md at the merge (
 41. Landing at /, sign-in card at /login; the sandbox sentence and the five demo logins verbatim.
 
 Exceptions to the "what must not change" list of the interface brief, required by findings: components/journal-table.tsx (F-LU-02, F-LU-03, F-UA-04) and components/amount-explained-motion.tsx (F-B12-20); the browser still computes no money figure (lib/money/amount-explained-motion.test.ts).
+
+## 2026-09-09T16:08:00+00:00 | Correction note | Migration numbers named in decisions 28 and 32
+
+Decision 32 named "migration 0023" for the rate-table guards: that migration was never written, because the builder and the reviewer of the slice verified that brokers and state_tax_rates already carried the append-only guards (two assertions were added to the guards proof instead). The numbers as applied: 0022 reconciliation_break_notes, 0023 the probe classification (a widened CHECK and a nullable probe_count on runs), 0024 the MCP key creator and the trigger, 0025 the three nullable columns binding a break note to the report it explained. Decision 28 said "migration 0022" for the notes table, which holds. Applied migration files are never renumbered.
