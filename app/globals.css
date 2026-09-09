@@ -1565,6 +1565,16 @@ div.note {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px 14px;
   margin: 0;
+  /* UI-007: a card is as tall as its own content. Stretching every card to the tallest one meant
+     that opening a single explanation pushed the neighbouring figures far below their labels. */
+  align-items: start;
+}
+/* UI-007: an explanation opened inside a figure takes the whole row of the grid. In a 150 px
+   column its paragraphs and its formula table were a 174 px wide, 1693 px tall ribbon; across the
+   row it has the reading width of the panel. At 375 px the grid is one column already, so this
+   changes nothing there and the page still does not scroll sideways (F-B13-30). */
+.fact:has(details.amount-explain[open]) {
+  grid-column: 1 / -1;
 }
 .fact {
   display: grid;
