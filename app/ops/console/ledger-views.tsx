@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { Chip } from "@/components/detail-layout";
 import { About } from "@/components/ui/about";
-import { Chart, ChartRow, HBars, Sparkline, StackedBars, Swatch } from "@/components/ui/charts";
+import { Chart, ChartRow, StackedBars, Swatch } from "@/components/ui/charts";
+import { RailsAbout } from "@/components/console-parts";
 import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
-import { DataTable, ExpandHead, ExpandRow, EntryLines, FactGrid, MoreRows, Num, Primary, Ref, Row, Chevron } from "@/components/ui/table";
+import { DataTable, ExpandHead, ExpandRow, EntryLinesTable, FactGrid, MoreRows, Num, Primary, Ref, Row, Chevron } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import { FilterChip, Toolbar, ToolbarCount, ToolbarGroup, ToolbarSpacer } from "@/components/ui/toolbar";
 import { formatCentsAsUsd } from "@/lib/money/cents";
@@ -36,9 +37,15 @@ function entryTypeLabel(entryType: string): string {
 // A description is stored text, and a few of them are three lines long (the reversal entries
 // carry the reason they were posted). A table cell holds no sentence, so the cell shows the head
 // of it and the expansion holds the whole thing.
+//
+// The cut lands on the last space rather than mid-character: "premium collect..." read as a broken
+// word, not as a shortened sentence (round 1, MEDIUM).
 const MOST_DESCRIPTION_CHARACTERS = 52;
 function shortDescription(text: string): string {
-  return text.length <= MOST_DESCRIPTION_CHARACTERS ? text : `${text.slice(0, MOST_DESCRIPTION_CHARACTERS).trimEnd()}...`;
+  if (text.length <= MOST_DESCRIPTION_CHARACTERS) return text;
+  const head = text.slice(0, MOST_DESCRIPTION_CHARACTERS);
+  const lastSpace = head.lastIndexOf(" ");
+  return `${(lastSpace > 20 ? head.slice(0, lastSpace) : head).trimEnd()}...`;
 }
 
 // The lines of an entry, in the shape components/ui/table.tsx draws them.
@@ -87,13 +94,10 @@ function factsOf(entry: JournalEntryRow, inspect?: string) {
 // ---------------------------------------------------------------------------
 
 export function BalancesView({ balance, proof, query }: { balance: TrialBalance; proof: AppendOnlyProof; query: Query }) {
-  const moving = balance.accounts.filter((account) => account.balanceCents !== 0);
-  const bars = moving.map((account) => ({
-    label: account.name,
-    value: Math.abs(account.balanceCents),
-    display: formatCentsAsUsd(account.balanceCents),
-    color: account.side === "debit" ? "var(--chart-1)" : "var(--chart-2)",
-  }));
+  // How many of the chart of accounts have ever moved. It is said once, on the toolbar, beside the
+  // total: printed 350 px apart as "10 accounts" and "16 accounts" with nothing telling them apart,
+  // the two figures read as a contradiction (round 1, MEDIUM).
+  const moving = balance.accounts.filter((account) => account.balanceCents !== 0).length;
 
   return (
     <>
@@ -111,25 +115,8 @@ export function BalancesView({ balance, proof, query }: { balance: TrialBalance;
         />
       </Stats>
 
-      {/* `ledger-screen` scopes the one HBars rule this builder had to park in
-          app/styles/landing.css; the comment there says why and when it goes away. */}
-      <div className="ledger-screen">
-        <ChartRow>
-          <Chart
-            title="Balances not at zero"
-            figure={`${moving.length} accounts`}
-            legend={
-              <>
-                <Swatch color="var(--chart-1)">debit side</Swatch>
-                <Swatch color="var(--chart-2)">credit side</Swatch>
-              </>
-            }
-          >
-            <HBars rows={bars} caption="Balance of each account, signed by its own side" format={(value) => formatCentsAsUsd(value)} />
-          </Chart>
-        </ChartRow>
-      </div>
-
+      {/* The bar chart that stood here drew the Balance column of the table under it, account by
+          account, figure for figure. A trial balance is a table (cycle 2, decision 4). */}
       <DataTable
         ariaLabel="Trial balance"
         toolbar={
@@ -147,7 +134,9 @@ export function BalancesView({ balance, proof, query }: { balance: TrialBalance;
               </button>
             </form>
             <ToolbarSpacer />
-            <ToolbarCount>{balance.accounts.length} accounts</ToolbarCount>
+            <ToolbarCount>
+              {balance.accounts.length} accounts, {moving} with a balance
+            </ToolbarCount>
           </Toolbar>
         }
         legend={
@@ -205,6 +194,7 @@ export function BalancesView({ balance, proof, query }: { balance: TrialBalance;
       </DataTable>
 
       <About>
+        <RailsAbout />
         <h4>The sign of a balance</h4>
         <p>Each account has a side, the side that increases it. A debit account answers debits minus credits. A credit account answers credits minus debits.</p>
         <h4>One example</h4>
@@ -222,7 +212,7 @@ export function BalancesView({ balance, proof, query }: { balance: TrialBalance;
         <h4>The two counts</h4>
         <p>Entries and lines count the whole journal, whatever date is set. The two totals and the table below them follow the date.</p>
         <h4>Accounts at zero</h4>
-        <p>The table lists the whole chart of accounts. The chart above lists only the accounts whose balance is not zero.</p>
+        <p>The table lists the whole chart of accounts. The count beside it says how many of them have ever moved.</p>
       </About>
     </>
   );
@@ -245,9 +235,6 @@ export function AccountView({
   now: Date;
   inspected: string | null;
 }) {
-  // Oldest first, which is the direction a balance is read in.
-  const trend = ledger.rows.map((row) => row.runningBalanceCents).reverse();
-
   return (
     <>
       <Stats>
@@ -257,14 +244,8 @@ export function AccountView({
         <Stat label="Credits" value={formatCentsAsUsd(account.creditCents)} note="whole journal" />
       </Stats>
 
-      {trend.length > 1 ? (
-        <ChartRow>
-          <Chart title="Running balance of the window" figure={formatCentsAsUsd(trend[trend.length - 1])}>
-            <Sparkline points={trend} width={640} height={72} caption={`Running balance of ${account.name} across the entries shown, oldest first`} />
-          </Chart>
-        </ChartRow>
-      ) : null}
-
+      {/* The sparkline that stood here traced the Running balance column of the table under it, and
+          its headline was that column's last figure (cycle 2, decision 4). */}
       <DataTable
         ariaLabel={`Entries of ${account.name}`}
         toolbar={
@@ -368,7 +349,7 @@ export function AccountView({
                 }
               >
                 <FactGrid items={factsOf(row, inspectHref(LEDGER_PATH, query, row.entryId))} />
-                <EntryLines lines={linesOf(row)} />
+                <EntryLinesTable lines={linesOf(row)} />
               </ExpandRow>
             );
           })
@@ -376,6 +357,7 @@ export function AccountView({
       </DataTable>
 
       <About>
+        <RailsAbout />
         <h4>Running balance</h4>
         <p>
           It is the balance of the window shown, counted from the oldest entry on the page. It is not the balance of the account when that entry was posted.
@@ -426,32 +408,27 @@ export function EntriesView({
         ariaLabel="Journal entries"
         toolbar={
           <Toolbar>
+            {/* Twenty types is a list, not a row of chips: as chips they took four lines above the
+                table and pushed it off the first screen (round 1, MEDIUM). The parameter, the
+                method and the values are the ones the page already reads: a GET form on `type`, so
+                the URL still holds the filter and can be pasted into a ticket. */}
             <ToolbarGroup label="Type">
-              <FilterChip
-                href={withParams(LEDGER_PATH, query, {
-                  type: null,
-                  all: null,
-                  inspect: null,
-                })}
-                active={selectedType === null}
-                count={types.reduce((total, one) => total + one.count, 0)}
-              >
-                All
-              </FilterChip>
-              {types.map((one) => (
-                <FilterChip
-                  key={one.entryType}
-                  href={withParams(LEDGER_PATH, query, {
-                    type: one.entryType,
-                    all: null,
-                    inspect: null,
-                  })}
-                  active={selectedType === one.entryType}
-                  count={one.count}
-                >
-                  {entryTypeLabel(one.entryType)}
-                </FilterChip>
-              ))}
+              <form method="get" action={LEDGER_PATH}>
+                <input type="hidden" name="view" value="entries" />
+                {policyFilter ? <input type="hidden" name="policy" value={policyFilter} /> : null}
+                {claimFilter ? <input type="hidden" name="claim" value={claimFilter} /> : null}
+                <select name="type" defaultValue={selectedType ?? ""} aria-label="Entry type">
+                  <option value="">All types ({types.reduce((total, one) => total + one.count, 0)})</option>
+                  {types.map((one) => (
+                    <option key={one.entryType} value={one.entryType}>
+                      {entryTypeLabel(one.entryType)} ({one.count})
+                    </option>
+                  ))}
+                </select>
+                <button type="submit" className="secondary">
+                  Apply
+                </button>
+              </form>
             </ToolbarGroup>
             {policyFilter || claimFilter ? (
               <ToolbarGroup label="Filed under">
@@ -541,6 +518,9 @@ export function EntriesView({
                   </td>
                   <td title={row.description}>{shortDescription(row.description)}</td>
                   <Num>{formatCentsAsUsd(row.totalDebitCents)}</Num>
+                  {/* A plain link, not a reference token. Styled as a `ref` it looked like the one
+                      thing on this screen that opens a record, and it filters the table instead
+                      (round 1, MEDIUM: the affordance said the wrong thing). */}
                   <td className="nowrap">
                     {row.claimId ? (
                       <Link
@@ -551,7 +531,6 @@ export function EntriesView({
                           inspect: null,
                         })}
                         prefetch={false}
-                        className="ref"
                       >
                         claim {row.claimId.slice(0, 8)}
                       </Link>
@@ -564,7 +543,6 @@ export function EntriesView({
                           inspect: null,
                         })}
                         prefetch={false}
-                        className="ref"
                       >
                         policy {row.policyId.slice(0, 8)}
                       </Link>
@@ -576,13 +554,14 @@ export function EntriesView({
               }
             >
               <FactGrid items={factsOf(row)} />
-              <EntryLines lines={linesOf(row)} />
+              <EntryLinesTable lines={linesOf(row)} />
             </ExpandRow>
           ))
         )}
       </DataTable>
 
       <About>
+        <RailsAbout />
         <h4>What a row is</h4>
         <p>One journal entry: a header and the lines under it. Open a row to read its lines, its source and what it reverses.</p>
         <h4>Total</h4>
@@ -600,11 +579,13 @@ export function EntriesView({
 // flows: money in, money out, commission and reserves, day by day
 // ---------------------------------------------------------------------------
 
+// Three colours, three series, and they are the three that are cash. A reserve is an estimate
+// opened on a claim, so stacking it on top of money that actually moved made a bar whose height was
+// not an amount of money at all (round 1, MEDIUM). It keeps its tile and its table column.
 const FLOW_COLORS = {
   collected: "var(--chart-1)",
   refunded: "var(--chart-2)",
   commission: "var(--chart-3)",
-  reserves: "var(--chart-4)",
 };
 
 export function FlowsView({ flows, days, query }: { flows: DailyFlow[]; days: number; query: Query }) {
@@ -630,53 +611,45 @@ export function FlowsView({ flows, days, query }: { flows: DailyFlow[]; days: nu
         <Stat label="Reserves" value={formatCentsAsUsd(reserves)} note="credits of claim reserve" />
       </Stats>
 
-      {/* `ledger-screen`: the two parked rules in app/styles/landing.css, one of which keeps this
-          chart's hidden data table from stretching the page. */}
-      <div className="ledger-screen">
-        <ChartRow>
-          <Chart
-            title={`Flows over ${days} days, by ${columnLabel}`}
-            figure={formatCentsAsUsd(collected)}
-            legend={
-              <>
-                <Swatch color={FLOW_COLORS.collected}>collected</Swatch>
-                <Swatch color={FLOW_COLORS.refunded}>refunded</Swatch>
-                <Swatch color={FLOW_COLORS.commission}>commission</Swatch>
-                <Swatch color={FLOW_COLORS.reserves}>reserves</Swatch>
-              </>
-            }
-          >
-            <StackedBars
-              labels={columns.map((column) => column.day.slice(5))}
-              series={[
-                {
-                  name: "collected",
-                  values: columns.map((column) => column.collectedCents),
-                  color: FLOW_COLORS.collected,
-                },
-                {
-                  name: "refunded",
-                  values: columns.map((column) => column.refundedCents),
-                  color: FLOW_COLORS.refunded,
-                },
-                {
-                  name: "commission",
-                  values: columns.map((column) => column.commissionCents),
-                  color: FLOW_COLORS.commission,
-                },
-                {
-                  name: "reserves",
-                  values: columns.map((column) => column.reservesCents),
-                  color: FLOW_COLORS.reserves,
-                },
-              ]}
-              height={180}
-              format={(value) => formatCentsAsUsd(value)}
-              caption={`Collected, refunded, commission and reserves per ${columnLabel} over ${days} days`}
-            />
-          </Chart>
-        </ChartRow>
-      </div>
+      {/* No headline figure: the four tiles above already carry the four totals, and the one that
+          used to sit here was the Collected total beside a stack of four other series (round 1,
+          MEDIUM). The chart is here for the shape of the days, nothing else. */}
+      <ChartRow>
+        <Chart
+          title={`Cash over ${days} days, by ${columnLabel}`}
+          legend={
+            <>
+              <Swatch color={FLOW_COLORS.collected}>collected</Swatch>
+              <Swatch color={FLOW_COLORS.refunded}>refunded</Swatch>
+              <Swatch color={FLOW_COLORS.commission}>commission</Swatch>
+            </>
+          }
+        >
+          <StackedBars
+            labels={columns.map((column) => column.day.slice(5))}
+            series={[
+              {
+                name: "collected",
+                values: columns.map((column) => column.collectedCents),
+                color: FLOW_COLORS.collected,
+              },
+              {
+                name: "refunded",
+                values: columns.map((column) => column.refundedCents),
+                color: FLOW_COLORS.refunded,
+              },
+              {
+                name: "commission",
+                values: columns.map((column) => column.commissionCents),
+                color: FLOW_COLORS.commission,
+              },
+            ]}
+            height={180}
+            format={(value) => formatCentsAsUsd(value)}
+            caption={`Collected, refunded and commission per ${columnLabel} over ${days} days`}
+          />
+        </Chart>
+      </ChartRow>
 
       <DataTable
         ariaLabel="Flows per day"
@@ -753,16 +726,20 @@ export function FlowsView({ flows, days, query }: { flows: DailyFlow[]; days: nu
       </DataTable>
 
       <About>
+        <RailsAbout />
         <h4>Which date</h4>
         <p>The business date of the entry, not its booking time. A day of flows is a day of business.</p>
         <h4>Future dates</h4>
         <p>A forward dated policy event is effective after today, so it sits outside a window that ends today and is not counted here.</p>
         <h4>Reserves</h4>
-        <p>A reserve is an estimate on an open claim. It is drawn beside the cash flows for context, and it is not cash.</p>
+        <p>A reserve is an estimate on an open claim, not cash. It has its own tile and its own column, and it is kept out of the chart&apos;s stack.</p>
         <h4>Where the figures come from</h4>
         <p>Four sums of journal lines: debits and credits of cash at Stripe, debits of commission expense, credits of claim reserve.</p>
         <h4>The table and the chart</h4>
-        <p>The chart draws the whole window, by day up to thirty days and by week beyond. The table lists only the days something moved.</p>
+        <p>
+          The chart draws the whole window, by day up to thirty days and by week beyond, and it draws the three cash series. The table lists only the days
+          something moved, and it carries the reserves as well.
+        </p>
       </About>
     </>
   );

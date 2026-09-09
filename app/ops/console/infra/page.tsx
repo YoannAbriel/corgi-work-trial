@@ -1,15 +1,14 @@
 import "@/app/styles/console.css";
 import Link from "next/link";
-import { BookOpenText, Gauge, Rss, Search, ServerCog, TriangleAlert } from "lucide-react";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
-import { FailureLine, IntegrationModes, utc } from "@/components/console-parts";
+import { FailureLine, RailsAbout, consoleViews, utc } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
 import { Chart, ChartRow, HBars } from "@/components/ui/charts";
 import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
-import { DataTable, Num, Row } from "@/components/ui/table";
+import { DataTable, ExpandHead, ExpandRow, FactGrid, Num, Row } from "@/components/ui/table";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import {
@@ -64,14 +63,8 @@ export default async function ConsoleInfraPage() {
   }
   const countOn = (rows: { day: string; count: number }[], day: string) => rows.find((row) => row.day === day)?.count ?? 0;
 
-  const views = [
-    { key: "feed", label: "Feed", href: "/ops/console?view=feed", icon: Rss },
-    { key: "problems", label: "Problems", href: "/ops/console?view=problems", icon: TriangleAlert },
-    { key: "latency", label: "Latency", href: "/ops/console?view=latency", icon: Gauge },
-    { key: "ledger", label: "Ledger", href: "/ops/console/ledger", icon: BookOpenText, group: "More" },
-    { key: "search", label: "Search", href: "/ops/console/search", icon: Search, group: "More" },
-    { key: "infra", label: "Infrastructure", href: PATH, icon: ServerCog, current: true, group: "More" },
-  ];
+  // The same nine entries in the same three groups as every other console screen (decision 11).
+  const views = consoleViews("infra");
 
   return (
     <PortalShell
@@ -83,13 +76,9 @@ export default async function ConsoleInfraPage() {
       band={{
         title: "Infrastructure",
         suffix: `revision ${deployedRevision().slice(0, 12)}`,
-        meta: (
-          <>
-            {storage ? <Chip tone={storage.usedPercent > 80 ? "warn" : "ok"}>{storage.usedPercent}% of the documented storage</Chip> : null}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
-            <Chip tone="neutral">claim rail: LOCAL SIMULATOR</Chip>
-          </>
-        ),
+        // One chip: the one figure of this page a person acts on. The AF-02 modes are in the top
+        // bar of every screen (cycle 2, decision 1).
+        meta: storage ? <Chip tone={storage.usedPercent > 80 ? "warn" : "ok"}>{storage.usedPercent}% of the documented storage</Chip> : undefined,
         actions: (
           <Link href="/ops/console" prefetch={false} className="button-link secondary">
             Back to the feed
@@ -97,8 +86,6 @@ export default async function ConsoleInfraPage() {
         ),
       }}
     >
-      <IntegrationModes />
-
       <FailureLine attempted={databaseRead} />
       <Stats>
         <Stat label="Database size" value={measured ? formatBytes(measured.databaseBytes) : "not measured"} note="measured now" />
@@ -119,35 +106,30 @@ export default async function ConsoleInfraPage() {
         />
       </Stats>
 
-      <div className="console-charts">
-        <ChartRow>
-          <Chart title="Neon storage against the documented limit" figure={storage ? `${storage.usedPercent}%` : undefined}>
-            {measured && storage ? (
-              <HBars
-                rows={[
-                  { label: "Measured now", value: measured.databaseBytes, display: formatBytes(measured.databaseBytes) },
-                  { label: "Still free", value: storage.remainingBytes, display: formatBytes(storage.remainingBytes), color: "var(--chart-3)" },
-                ]}
-                max={NEON_FREE_STORAGE_BYTES}
-                caption="Database size against the documented Neon Free storage of 0.5 GB per project"
-              />
-            ) : (
-              <p className="chart-empty">The database could not be measured.</p>
-            )}
-          </Chart>
-          <Chart title="Ten largest tables" figure={measured ? measured.largestTables.length : undefined}>
+      {/* One chart, and it is the one comparison this page can make: what we use against what the
+          provider documents. The bars of the ten largest tables drew the same ten figures as the
+          table under them, so they are gone (cycle 2, decision 4). The percentage is printed once,
+          in the tile above; the chart carries the shape and no headline of its own (round 1). */}
+      <ChartRow>
+        <Chart title="Neon storage against the documented limit">
+          {measured && storage ? (
             <HBars
-              rows={(measured?.largestTables ?? []).map((table) => ({
-                label: table.tableName,
-                value: table.totalBytes,
-                display: formatBytes(table.totalBytes),
-              }))}
-              caption="Total size of the ten largest tables of this database"
+              rows={[
+                { label: "Measured now", value: measured.databaseBytes, display: formatBytes(measured.databaseBytes) },
+                { label: "Still free", value: storage.remainingBytes, display: formatBytes(storage.remainingBytes), color: "var(--chart-3)" },
+              ]}
+              max={NEON_FREE_STORAGE_BYTES}
+              caption="Database size against the documented Neon Free storage of 0.5 GB per project"
             />
-          </Chart>
-        </ChartRow>
-      </div>
+          ) : (
+            <p className="chart-empty">The database could not be measured.</p>
+          )}
+        </Chart>
+      </ChartRow>
 
+      {/* Figures in the cells, never sentences: "the Neon plans page states no connection limit"
+          and "a frequency against an instant" turned this table into a wall of prose in a grid
+          (round 1, MEDIUM). What each "none" means is one paragraph of About, said once. */}
       <h2 className="console-heading">Measured now</h2>
       <DataTable
         ariaLabel="Measured infrastructure"
@@ -156,7 +138,7 @@ export default async function ConsoleInfraPage() {
             items={[
               { term: "Measured", meaning: "read from this database, now, by lib/console/infra.ts" },
               { term: "Documented", meaning: `copied from the provider page on ${DOCUMENTED_READ_ON}` },
-              { term: "Headroom", meaning: "computed only where both sides are the same unit" },
+              { term: "none", meaning: "the two sides are not the same unit, so nothing is subtracted" },
             ]}
           />
         }
@@ -181,20 +163,20 @@ export default async function ConsoleInfraPage() {
               <Row>
                 <td>Database size</td>
                 <td>{formatBytes(measured.databaseBytes)}</td>
-                <td>0.5 GB per project (Neon Free)</td>
-                <td>{storage ? `${formatBytes(storage.remainingBytes)} left, ${storage.usedPercent}% used` : ""}</td>
+                <td>0.5 GB</td>
+                <td>{storage ? `${formatBytes(storage.remainingBytes)} left` : ""}</td>
               </Row>
               <Row>
                 <td>Active connections</td>
                 <td>{measured.activeConnections}</td>
-                <td className="dt-muted">the Neon plans page states no connection limit</td>
-                <td className="dt-muted">nothing documented to subtract from</td>
+                <td className="dt-muted">not stated</td>
+                <td className="dt-muted">none</td>
               </Row>
               <Row>
                 <td>Postgres version</td>
                 <td>{measured.serverVersion}</td>
                 <td className="dt-muted">not a limit</td>
-                <td className="dt-muted">not comparable</td>
+                <td className="dt-muted">none</td>
               </Row>
               <Row>
                 <td>Application revision</td>
@@ -202,7 +184,7 @@ export default async function ConsoleInfraPage() {
                   <code className="ref">{deployedRevision()}</code>
                 </td>
                 <td className="dt-muted">not a limit</td>
-                <td className="dt-muted">not comparable</td>
+                <td className="dt-muted">none</td>
               </Row>
               <Row>
                 <td>Last scheduled reconciliation</td>
@@ -215,17 +197,17 @@ export default async function ConsoleInfraPage() {
                       </span>
                     </>
                   ) : (
-                    <span className="dt-muted">no run with an empty run_by yet</span>
+                    <span className="dt-muted">never</span>
                   )}
                 </td>
-                <td>once per day, per-hour precision (Vercel Hobby)</td>
-                <td className="dt-muted">a frequency against an instant</td>
+                <td>1/day</td>
+                <td className="dt-muted">none</td>
               </Row>
               <Row>
                 <td>Last manual reconciliation</td>
                 <td>{scheduled.lastManualRunAt ? utc(scheduled.lastManualRunAt) : <span className="dt-muted">never</span>}</td>
                 <td className="dt-muted">not a limit</td>
-                <td className="dt-muted">not comparable</td>
+                <td className="dt-muted">none</td>
               </Row>
             </>
           )}
@@ -283,6 +265,9 @@ export default async function ConsoleInfraPage() {
         </tbody>
       </DataTable>
 
+      {/* The documented side is the provider's own sentence, copied whole and never rewritten: a
+          shortened limit would be our paraphrase of somebody else's promise. So the row shows one
+          line of it and the fold prints it as it was copied (round 1, MEDIUM: sentences in cells). */}
       <h2 className="console-heading">Documented limits</h2>
       <DataTable
         ariaLabel="Documented limits"
@@ -290,43 +275,64 @@ export default async function ConsoleInfraPage() {
       >
         <thead>
           <tr>
+            <ExpandHead />
             <th>Provider</th>
             <th>What</th>
             <th>Documented</th>
             <th>Source</th>
           </tr>
         </thead>
-        <tbody>
-          {DOCUMENTED_LIMITS.map((limit) => (
-            <Row key={`${limit.provider}-${limit.what}`}>
-              <td className="nowrap">{limit.provider}</td>
-              <td>{limit.what}</td>
-              <td>{limit.documented}</td>
-              <td>
-                <a href={limit.sourceUrl} rel="noreferrer noopener" target="_blank">
-                  {limit.sourceUrl}
-                </a>
-                <span className="dt-sub">read {limit.readOn}</span>
-              </td>
-            </Row>
-          ))}
-        </tbody>
+        {DOCUMENTED_LIMITS.map((limit) => (
+          <ExpandRow
+            key={`${limit.provider}-${limit.what}`}
+            columns={4}
+            cells={
+              <>
+                <td className="nowrap">{limit.provider}</td>
+                <td>
+                  <span className="console-oneline" title={limit.what}>
+                    {limit.what}
+                  </span>
+                </td>
+                <td>
+                  <span className="console-oneline" title={limit.documented}>
+                    {limit.documented}
+                  </span>
+                </td>
+                <td>
+                  <a href={limit.sourceUrl} rel="noreferrer noopener" target="_blank" className="console-oneline" title={limit.sourceUrl}>
+                    {limit.sourceUrl}
+                  </a>
+                  <span className="dt-sub">read {limit.readOn}</span>
+                </td>
+              </>
+            }
+          >
+            <FactGrid
+              items={[
+                { label: "What", value: limit.what, wide: true },
+                { label: "Documented", value: limit.documented, wide: true },
+              ]}
+            />
+          </ExpandRow>
+        ))}
       </DataTable>
 
       <About>
+        <RailsAbout />
+        <h4>Where a headroom says &ldquo;none&rdquo;</h4>
+        <p>
+          A headroom is a subtraction, so both sides have to be the same unit. Database size against Neon&apos;s
+          documented 0.5 GB is the only pair on this page that is. The Neon plans page states no connection limit, a
+          cron frequency cannot be subtracted from an instant, and a Postgres version and a revision are not limits at
+          all: those rows say <strong>none</strong> rather than inventing a percentage.
+        </p>
         <h4>Measured against documented</h4>
         <p>
           Measured means read from this database, now. Documented means a human opened the provider&apos;s page on{" "}
           {DOCUMENTED_READ_ON} and copied the sentence. A documentation page can change without telling us; when one
           does, the answer is to read it again and change the table in <code>lib/console/infra.ts</code>, never to
           adjust it to match what we observe.
-        </p>
-        <h4>Why only one chart compares the two sides</h4>
-        <p>
-          A headroom needs both sides in the same unit. The database size against Neon&apos;s documented 0.5 GB is the
-          only pair on this page that satisfies that. Every other documented limit is a frequency, a rate per second or
-          a plan allowance, so the two figures are printed side by side and left uncompared rather than divided into
-          each other.
         </p>
         <h4>The row count is an estimate</h4>
         <p>
