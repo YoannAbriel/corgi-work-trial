@@ -38,9 +38,13 @@ if (!runtimeUrl) {
 const email = readOption("email");
 const label = readOption("label");
 const kind = readOption("kind") ?? "agent";
+// How many days this token answers for. Left out, it never expires, which is what every token
+// created before migration 0026 does; the screen defaults to 90 days instead, because a person
+// picking from a list should be given the safe answer, while a script says what it means.
+const expiresInDays = readOption("expires-in-days");
 if (!email || !label) {
   console.error(
-    'usage: npm run create-mcp-key -- --email=<demo user email> --label="<what this key is>" [--kind=agent|human] [--database=test]',
+    'usage: npm run create-mcp-key -- --email=<demo user email> --label="<what this key is>" [--kind=agent|human] [--expires-in-days=90] [--database=test]',
   );
   process.exit(1);
 }
@@ -48,6 +52,11 @@ if (kind !== "agent" && kind !== "human") {
   console.error(`--kind must be "agent" or "human", got "${kind}"`);
   process.exit(1);
 }
+if (expiresInDays !== null && !/^[1-9][0-9]{0,3}$/.test(expiresInDays)) {
+  console.error(`--expires-in-days must be a whole number of days between 1 and 9999, got "${expiresInDays}"`);
+  process.exit(1);
+}
+const expiresAt = expiresInDays === null ? null : new Date(Date.now() + Number(expiresInDays) * 24 * 60 * 60 * 1000);
 
 const runtime = postgres(runtimeUrl, { max: 1, prepare: false });
 
@@ -65,7 +74,7 @@ async function main() {
   }
 
   const created = await createApiKey(
-    { userId: user.id, label: label!, principalKind: kind as "agent" | "human", createdByUserId: null },
+    { userId: user.id, label: label!, principalKind: kind as "agent" | "human", createdByUserId: null, expiresAt },
     runtime,
   );
 
@@ -73,6 +82,7 @@ async function main() {
   console.log(`key created for   ${user.display_name} (${user.role}), ${email}`);
   console.log(`label             ${label}`);
   console.log(`holder            ${kind === "agent" ? "an autonomous agent" : "a person using an MCP client"}`);
+  console.log(`expires           ${expiresAt === null ? "never (only a revocation ends it)" : expiresAt.toISOString()}`);
   console.log(`prefix            ${created.keyPrefix}    (public, shown on /ops/mcp-keys)`);
   console.log("");
   console.log("THE SECRET, SHOWN ONCE AND NEVER STORED. Put it in your MCP client configuration now:");

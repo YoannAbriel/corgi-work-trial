@@ -2,6 +2,7 @@ import "@/app/styles/lists.css";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
 import { SandboxReferences } from "@/components/disclosures";
+import { KybEvidenceNote } from "@/components/kyb-evidence-note";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
@@ -10,7 +11,7 @@ import { SubmitButton } from "@/components/ui/submit-button";
 import { DataTable, ExpandHead, ExpandRow, FactGrid } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
 import { currentUser } from "@/lib/auth/current-user";
-import { bindingIsAllowed, KYB_NOT_LIVE_LABEL } from "@/lib/broker/eligibility";
+import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybEventHistory, brokerKybState, latestBrokerKybSubmission } from "@/lib/broker/kyb";
 import { pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 
@@ -142,9 +143,7 @@ export default async function BrokerKybPage({ searchParams }: { searchParams: Pr
           <section className="card lists-section">
             <h2>Where it stands</h2>
             <p className="note">{kyb.explanation}</p>
-            {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
-              <p className="note">{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
-            )}
+            <KybEvidenceNote kyb={kyb} className="note" />
             {/* The provider in words, and every instant through `When`: an age at a glance, the
                 full UTC instant on hover and in the markup. These four facts were raw machine
                 values, "stripe_connect" and "2026-09-08 12:10:34" (round 1, MEDIUM). */}

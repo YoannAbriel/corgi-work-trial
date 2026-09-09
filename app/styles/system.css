@@ -461,24 +461,36 @@
 .navigation-collapsed .context-nav {
   display: none;
 }
-.topbar {
+/* The bar and the band are one sticky block (components/portal-frame.tsx). Neither pins on its
+   own any more: the band used to offset itself by --top-h, and a bar that wrapped to a third row
+   on a narrow screen was 29 px taller than the token said, so the band was drawn under it and its
+   title was cut (review finding F-EV2-02, 2026-09-09). A wrapper is always exactly as tall as
+   what it holds. --top-h survives for the inspector drawer, which is fixed and cannot ask. */
+.portal-sticky {
   position: sticky;
   top: 0;
   z-index: 5;
+}
+.topbar {
   min-height: var(--top-h);
   display: flex;
   flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  /* 12 px, not 16: the three gaps of this row were the last few pixels the breadcrumb needed to
+     print "Overview > Policies > Policy CGP-01707" whole at 1440 px (2026-09-09). */
+  gap: 12px;
   padding: 0 var(--content-x);
   background: white;
   border-bottom: 1px solid var(--line);
 }
+/* The breadcrumb takes the room the top bar has left, and gives it back last: the search field
+   beside it shrinks first (see .topbar-search). */
 .page-navigation {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 button.sidebar-toggle {
@@ -518,6 +530,11 @@ button.sidebar-toggle:hover {
   gap: 6px;
   min-width: 0;
 }
+/* The last item is the screen the reader is on, so it is the one item worth the room: it keeps
+   its width and the items before it are the ones that get an ellipsis. */
+.breadcrumb li:last-child {
+  flex-shrink: 0;
+}
 .breadcrumb a {
   color: var(--ink-2);
   text-decoration: none;
@@ -526,14 +543,22 @@ button.sidebar-toggle:hover {
   color: var(--ink);
   text-decoration: underline;
 }
+/* `display: block`, not `inline-flex`: text-overflow has no effect on a flex container, so the
+   trail used to be cut mid-word with no ellipsis ("Overview > Policie: > Policy CGP-0170" at
+   1440 px, 2026-09-09). The line-height replaces the min-height the flex box gave it. */
 .breadcrumb a,
 .breadcrumb span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
+  display: block;
+  line-height: 28px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The current screen is allowed to be long: a policy number is what the reader came for. */
+.breadcrumb li:last-child a,
+.breadcrumb li:last-child span {
+  max-width: 320px;
 }
 .breadcrumb svg {
   flex-shrink: 0;
@@ -544,8 +569,13 @@ button.sidebar-toggle:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 0 1 260px;
-  min-width: 0;
+  /* 220 px, and a shrink factor of 8 against the breadcrumb's 1: the field gives up its room
+     first and the trail keeps its words. It stops at 160 px, which is the width the whole "Find a
+     reference" placeholder needs: screenshotted at 150, 160, 170 and 180, the 150 px box read
+     "Find a referenc" and 160 was the first that fitted (review finding F-EV2-04, corrected from
+     the 150 px this comment used to claim). */
+  flex: 0 8 220px;
+  min-width: 160px;
   margin: 0;
   padding: 0 10px;
   height: 28px;
@@ -629,9 +659,6 @@ button.sidebar-toggle:hover {
 /* The band is aligned with the content under it: above 1480 px the page stops growing, so the
    band has to stop with it or its title and its buttons sit off the grid (round 1, HIGH). */
 .page-band {
-  position: sticky;
-  top: var(--top-h);
-  z-index: 4;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
@@ -1710,6 +1737,13 @@ table.entry-lines > thead > tr > th.amount {
   z-index: 39;
   background: transparent;
 }
+/* The inspector panel is opaque and fixed, so where it starts has to be right: it offsets by
+   --top-h, which is exact on every screen that carries an inspector. Those screens have a two-row
+   bar at every width above 800 px; the bar only takes a third row on the previews, which have no
+   inspector. Starting the panel at 0 instead was tried between 801 and 1000 px and painted it
+   over the sticky bar, cutting the right end of the AF-02 mode line (review finding on F-EV2-02,
+   2026-09-09). If a three-row bar ever reaches a screen with an inspector, publish the sticky
+   wrapper's real height rather than start the panel higher. */
 .drawer {
   position: fixed;
   right: 0;
@@ -1775,12 +1809,10 @@ table.entry-lines > thead > tr > th.amount {
   color: var(--ink-2);
   letter-spacing: 0;
 }
+/* Same in the inspector drawer: tighter padding, the same 200 px picture. The drawer is 440 px
+   wide, so a 200 px drawing sits comfortably inside it. */
 .drawer-body .empty {
   padding: 18px 8px 12px;
-}
-.drawer-body .empty img {
-  width: min(160px, 100%);
-  max-height: 110px;
 }
 
 .inspector-links {
@@ -1950,11 +1982,17 @@ table.entry-lines > thead > tr > th.amount {
   padding: 32px 24px 28px;
   text-align: center;
 }
+/* 200 px square, everywhere an empty state is drawn (Yoann, 2026-09-09: the drawings were too
+   small to tell what they were). The old rule capped the height at 150 px, which is what actually
+   decided the size: a portrait drawing came out 80 px wide inside a card. `object-fit: contain`
+   keeps each drawing's own shape inside that square. The mask opens wider than it used to, 55/85
+   instead of 48/74, because the cropped copies in public/illustrations/empty fill their frame and
+   the old ellipse would have cut a tail or the handle of a magnifying glass. */
 .empty img {
   width: min(200px, 100%);
-  max-height: 150px;
+  max-height: 200px;
   object-fit: contain;
-  mask-image: radial-gradient(ellipse, #000 48%, transparent 74%);
+  mask-image: radial-gradient(ellipse, #000 55%, transparent 85%);
 }
 .empty p {
   margin: 0;
@@ -2016,12 +2054,11 @@ table.entry-lines > thead > tr > th.amount {
 .card .note:last-child {
   margin-bottom: 0;
 }
+/* A card is already a frame, so the empty state inside one keeps its tighter padding and draws no
+   frame of its own. Its illustration is the same 200 px as everywhere else: it used to be capped
+   at 140x100, which is how the inbox corgi ended up 80 px tall (Yoann, 2026-09-09). */
 .card .empty {
   padding: 18px 8px 12px;
-}
-.card .empty img {
-  width: min(140px, 100%);
-  max-height: 100px;
 }
 main > .card + .card,
 main > .card + .dt-wrap,
@@ -2452,11 +2489,35 @@ button.secondary.is-working::after {
     margin-left: 0;
     max-width: 100%;
   }
-  .breadcrumb {
-    display: none;
-  }
+  /* The breadcrumb used to be hidden here, which is how a reader lost the only thing telling
+     them where they were on a 1024 px screen. It stays, and its items ellipsise (2026-09-09). */
   .topbar-search {
-    flex: 0 1 200px;
+    flex: 0 8 200px;
+  }
+  /* At 1280 px a three-level trail, a usable search field and the AF-02 mode line stop fitting
+     on one row: measured on a policy page, the first two trail items were squeezed to nothing.
+     Rather than cut one of the three, the mode line takes a row of its own, the same mechanism
+     as under 800 px, and the trail gets the whole first row. The bar is one row taller here, so
+     --top-h is redefined with it: the sticky band and the drawer both offset from that token
+     and follow it, measured at 62 px (2026-09-09). */
+  :root {
+    --top-h: 62px;
+  }
+  .topbar {
+    flex-wrap: wrap;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    row-gap: 2px;
+  }
+  .topbar-modes {
+    flex: 1 1 100%;
+    order: 3;
+    margin-right: 0;
+  }
+  /* Here the current screen gives way too: on a narrow window an ellipsis on a policy number
+     costs less than another row of top bar (F-EV2-02). */
+  .breadcrumb li:last-child {
+    flex-shrink: 1;
   }
   .layout-2 {
     grid-template-columns: minmax(0, 1fr) 300px;
@@ -2590,8 +2651,12 @@ button.secondary.is-working::after {
   .portal-body {
     border-left: 0;
   }
-  .topbar {
+  /* On a phone nothing pins: the bar and the band scroll away with the page, which is what the
+     small screen needs its height for. The wrapper is what carries the stickiness now. */
+  .portal-sticky {
     position: static;
+  }
+  .topbar {
     flex-wrap: wrap;
     padding-top: 6px;
     padding-bottom: 6px;
@@ -2615,7 +2680,6 @@ button.secondary.is-working::after {
     height: 100dvh;
   }
   .page-band {
-    position: static;
     flex-wrap: wrap;
     gap: 10px 12px;
     padding: 10px var(--content-x);
@@ -2660,6 +2724,12 @@ button.secondary.is-working::after {
   }
   .welcome-card img {
     display: none;
+  }
+  /* 160 px under 800 px: the drawing is still readable and the sentence under it stays above the
+     fold on a phone (Yoann, 2026-09-09). */
+  .empty img {
+    width: min(160px, 100%);
+    max-height: 160px;
   }
 }
 @media (max-width: 580px) {

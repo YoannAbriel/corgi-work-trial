@@ -1,17 +1,21 @@
 import Link from "next/link";
 import { Download } from "lucide-react";
-import { SandboxReferences } from "@/components/disclosures";
+import { Disclosure, SandboxReferences } from "@/components/disclosures";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { JournalTable } from "@/components/journal-table";
 import { DataTable, ExpandHead, ExpandRow, FactGrid } from "@/components/ui/table";
+import { Stat } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { When } from "@/components/ui/time";
 import { formatCentsAsUsd } from "@/lib/money/cents";
+import type { NavView } from "@/components/shell/app-shell";
+import type { UserRole } from "@/lib/auth/current-user";
 import {
-  correctionsOfPolicy,
   policyAsItStoodOn,
   policyAsOfSteps,
   policyTimeline,
+  type CorrectionView,
   type TimelineAudience,
 } from "@/lib/policy/correction-read";
 import { FormulaLinesTable } from "./formula-lines";
@@ -38,13 +42,16 @@ import { FormulaLinesTable } from "./formula-lines";
 // The views of a policy, named once. The screen itself cannot hold this list: a Next.js page
 // module may only export the page, and the six form pages need the same list to keep the policy's
 // navigation open while a form is on screen (cycle 2, decision 17).
-export const POLICY_VIEWS = ["overview", "endorsements", "claims", "money", "timeline"] as const;
+// `billing` is decision 43 (Yoann, 2026-09-09): the money a policy owes, has paid and is getting
+// back, with the buttons that take it, in one place between the journal and the history.
+export const POLICY_VIEWS = ["overview", "endorsements", "claims", "money", "billing", "timeline"] as const;
 export type PolicyView = (typeof POLICY_VIEWS)[number];
 export const POLICY_VIEW_LABEL: Record<PolicyView, string> = {
   overview: "Overview",
   endorsements: "Endorsements",
   claims: "Claims",
   money: "Money",
+  billing: "Billing",
   timeline: "Timeline",
 };
 
@@ -53,9 +60,202 @@ export const POLICY_VIEW_LABEL: Record<PolicyView, string> = {
 export function customerPolicyViews(policyId: string, formLabel: string, formHref: string) {
   return [
     { key: "overview", label: "Overview", href: `/policies/${policyId}`, current: false },
+    { key: "billing", label: "Billing", href: `/policies/${policyId}?view=billing`, current: false },
     { key: "documents", label: "Documents", href: `/policies/${policyId}?view=documents`, current: false },
     { key: "form", label: formLabel, href: formHref, current: true },
   ];
+}
+
+// THE SECOND HEADLINE TILE: the latest annual premium the record carries, and the date it starts.
+//
+// Yoann, live on 2026-09-09: "pourquoi ici je vois 1 200 ?". The first tile answers "what is in
+// force today", which on a policy carrying an endorsement to $2,400.00 effective 2026-09-22 and a
+// quote for $2,700.00 effective 2026-10-01 is $1,200.00 and reads as a stale figure. It is not
+// stale, it is a different question, so the other question gets its own tile beside it.
+//
+// Every figure comes from the endorsement's own stored event; nothing is recomputed and nothing
+// new is read.
+//
+// F-LT-02: NO APPLIED ENDORSEMENT, NO TILE. It used to fall back to the unpaid quote as its
+// headline figure, under the words "nothing applied yet", so a tile labelled "Latest terms on
+// record" printed a premium that is on no record at all: nobody has paid for it and the policy
+// does not carry it. A change that is only quoted already has its notice above the tiles, its row
+// in the table of changes and its own card; it does not also need to be the headline. The quote
+// keeps its place on the note line, under a figure the record really holds.
+export function LatestTermsStat({
+  schedule,
+  pending,
+  href,
+}: {
+  // The applied endorsements, oldest effective date first, as the page already read them.
+  schedule: { endorsedEventId: string; effectiveAt: string; figures: { newAnnualPremiumCents: number } }[];
+  // The endorsement that is quoted or approved and whose delta has not been collected, if any.
+  pending: {
+    newAnnualPremiumCents: number;
+    effectiveAt: string;
+    // True once the customer has approved the quote: what is left is the payment. Before that,
+    // the change needs a yes as well as the money, and the line says so.
+    approved: boolean;
+  } | null;
+  // Where the detail is. Staff and the broker have an endorsements view; the customer does not.
+  href?: string;
+}) {
+  // The last row of the schedule is the newest effective date: the reader orders by it.
+  const latestApplied = schedule.length > 0 ? schedule[schedule.length - 1] : null;
+  if (!latestApplied) {
+    return null;
+  }
+  return (
+    <Stat
+      label="Latest terms on record"
+      href={href}
+      value={formatCentsAsUsd(latestApplied.figures.newAnnualPremiumCents)}
+      note={
+        <>
+          <span>from {latestApplied.effectiveAt}</span>
+          {pending ? (
+            <span className="stat-note-line">
+              {formatCentsAsUsd(pending.newAnnualPremiumCents)} from {pending.effectiveAt}{" "}
+              {pending.approved ? "once the delta is paid" : "if it is approved and the delta is paid"}
+            </span>
+          ) : null}
+        </>
+      }
+    />
+  );
+}
+
+// WHO IS READING A POLICY, for the sentences and the counts that differ between them. The three
+// are not roles: `owning-broker` is the broker this policy belongs to, and `staff` is everybody
+// else with the run of the record (operations and approvers). F-LT-01: one union of two ran the
+// broker and staff together and told operations they were the ones who pay.
+export type PolicyAudience = "customer" | "owning-broker" | "staff";
+
+// F-BL-13: a reason an operator typed usually ends with a full stop of its own, and every
+// sentence that quotes it added another ("...per review finding F-B2-01 and Yoann's decision.."
+// on the void banner). One place decides, so the three sentences that quote a reason stop
+// disagreeing about it. Only trailing stops go; the operator's words are otherwise untouched.
+export function withoutTrailingStop(text: string): string {
+  return text.trim().replace(/\.+$/, "");
+}
+
+// The id the band's "Pay the delta" link lands on: the Pay row of the Billing view. Named beside
+// COLLECT_ANCHOR below so the anchors of the policy's views are declared together.
+export const PAY_DELTA_ANCHOR = "pay-delta";
+
+// The id the "refunds approved, $X to send" notice lands on: the refunds table of the Money view.
+export const REFUNDS_ANCHOR = "refunds";
+
+// THE SENTENCE ABOVE THE TILES while a change is quoted or approved and not paid for.
+//
+// LIVE-9 again, from the broker's side: the customer approved the $287.69 quote and the broker
+// saw nothing. The inbox badge already read 1 for something else, and the only place the state
+// existed was inside the "Endorsement in progress" card, three views away from where he was
+// standing. This is one line at the top of the page, in the reader's own terms.
+//
+// It returns a plain string because <Emphasis> takes one: the rule that decides which pieces go
+// bold lives in lib/ui/emphasis.ts, and nothing here rewords or rounds anything.
+export function pendingEndorsementNotice({
+  standingState,
+  approvedAt,
+  requestedAt,
+  audience,
+}: {
+  standingState: string;
+  // When the customer said yes, on an approved change. Null while it is still a quote.
+  approvedAt: Date | null;
+  // When the quote was written.
+  requestedAt: Date;
+  audience: PolicyAudience;
+}): string | null {
+  const asUtc = (instant: Date) => `${instant.toISOString().replace("T", " ").slice(0, 19)} UTC`;
+  if (standingState === "approved" && approvedAt) {
+    if (audience === "customer") {
+      return `You approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when your broker pays the delta.`;
+    }
+    // F-LT-01: "when YOU pay" is true of one reader only. Staff operations have no Pay button on
+    // this policy: the Billing view draws it for the owning broker and tells every other reader
+    // that the owning broker collects. This sentence was telling them the opposite.
+    return audience === "owning-broker"
+      ? `The customer approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when you pay.`
+      : `The customer approved the quote at ${asUtc(approvedAt)}; the endorsement takes effect when the broker pays the delta.`;
+  }
+  if (standingState === "awaiting_approval") {
+    // The waiting sentence names nobody as the payer, so the broker and staff read the same one.
+    return audience === "customer"
+      ? `The quote was sent to you at ${asUtc(requestedAt)}; the endorsement takes effect when you approve it and the delta is paid.`
+      : `The quote was sent to the customer at ${asUtc(requestedAt)}; the endorsement takes effect when the customer approves and the delta is paid.`;
+  }
+  return null;
+}
+
+// Whether the change that is not in force yet is waiting on THIS reader, for the count chip on
+// the Endorsements entry of the policy's navigation. A count is only ever drawn for something the
+// person reading has to do (cycle 2, decision 3: counts are not notifications), so a broker is
+// not counted for a quote sitting with the customer, and a customer is not counted for a delta
+// their broker has to pay.
+export function endorsementNeedsThisReader(standingState: string, audience: PolicyAudience): boolean {
+  if (audience === "customer") {
+    return standingState === "awaiting_approval";
+  }
+  // F-LT-01: paying the delta is the OWNING BROKER's work. Staff operations were counted for a
+  // job that is not theirs and that they have no button for on this policy.
+  return audience === "owning-broker" && standingState === "approved";
+}
+
+// THE STATE OF A CHANGE THAT IS NOT IN FORCE YET, in the words of the reader looking at it.
+//
+// LIVE-9: a customer who had already approved a $287.69 quote saw nothing about it in "Changes to
+// this policy"; the change existed only as two lines of the event list at the bottom of the page.
+// It is a row of that table now, and this chip is what keeps the row from reading as in force.
+//
+// The rule it states is the one the "Endorsement in progress" card already states in a sentence:
+// the policy terms stay as they are until the delta is paid.
+export function pendingEndorsementState(
+  standingState: string,
+  audience: PolicyAudience,
+): { label: string; tone: "warn" | "neutral" } {
+  if (standingState === "awaiting_approval") {
+    return { label: audience === "customer" ? "awaiting your approval" : "awaiting the customer", tone: "neutral" };
+  }
+  return { label: "approved, awaiting payment", tone: "warn" };
+}
+
+// Where the backdated correction lives, named once so the band and every navigation that offers
+// it point at the same address.
+export function correctionHref(policyId: string) {
+  return `/policies/${policyId}/corrections/new`;
+}
+
+// The correction as an entry of the policy's navigation, for the one role allowed to make one.
+//
+// Finding F-LIVE-01: the screen had no visible way in. The band offered Endorse, Cancel and Open
+// a claim, the navigation listed the five views, and the only link was the one-line form under
+// the Endorsements table, which reads as a filter; the word "Correct" appeared only once the
+// reader was already on the screen.
+//
+// Operations only, because correcting the record is their job and the screen itself refuses
+// anybody else (app/policies/[policyId]/corrections/new/page.tsx redirects every other role back
+// to the policy). Listed whether or not the policy has an endorsement, because that screen says
+// so in its own words: "This policy has no endorsement in force, so there is no effective date to
+// correct."
+//
+// It returns no entry or one, so a caller spreads it into its own list and the role test is
+// written here instead of on every screen.
+export function correctionViews({
+  policyId,
+  role,
+  current = false,
+}: {
+  policyId: string;
+  role: UserRole;
+  // True on the correction screen itself, so the entry is the one the reader is standing on.
+  current?: boolean;
+}): NavView[] {
+  if (role !== "staff_ops") {
+    return [];
+  }
+  return [{ key: "correct", label: "Correct", href: correctionHref(policyId), current }];
 }
 
 // The same navigation, for a form opened on top of a policy (endorse, cancel, correct, open a
@@ -66,13 +266,18 @@ export function policyFormViews({
   policyId,
   formLabel,
   formHref,
+  role,
 }: {
   policyId: string;
   // What the form is, in one or two words: "Endorse", "Cancel", "Correct".
   formLabel: string;
   // Where the reader is, so the current entry is a link to the page they are on.
   formHref: string;
-}) {
+  // The reader's role, when the screen wants the correction listed here too. Optional: the
+  // correction's own screen draws itself as the current entry below and needs no second copy, and
+  // a caller that passes nothing simply lists no correction.
+  role?: UserRole;
+}): NavView[] {
   return [
     ...POLICY_VIEWS.map((one) => ({
       key: one,
@@ -80,19 +285,20 @@ export function policyFormViews({
       href: one === "overview" ? `/policies/${policyId}` : `/policies/${policyId}?view=${one}`,
       current: false,
     })),
+    ...(role ? correctionViews({ policyId, role }) : []),
     { key: "form", label: formLabel, href: formHref, current: true },
   ];
 }
 
-// The two documents of a policy, in the Documents card of the overview: one line each, the date
-// they are rebuilt on beside the button that opens them (cycle 2, decision 16 folded the
-// Documents view into this card). Same action, same method, same field name as before: the route
-// reads `asOf` and rebuilds the PDF from the events effective on or before it.
+// The two documents of a policy, in the Documents card of the overview: one compact line each,
+// the name on the left, the date they are rebuilt on in the middle, the download on the right
+// (cycle 2, decision 16 folded the Documents view into this card). Same action, same method, same
+// field name as before: the route reads `asOf` and rebuilds the PDF from the events effective on
+// or before it.
 //
-// The label of a button is two words, so neither wraps at any desktop width (round 1: both ran to
-// two lines everywhere), and the icon says what pressing it does. The date the browser draws in
-// its own locale is said again underneath in the ISO format the rest of the product prints, so
-// one screen never shows a date two ways (round 1).
+// The name is plain text and the button is the icon alone, because a button carrying the name of
+// the document repeated it and made the row as wide as the card for no gain (Yoann, 2026-09-09).
+// What pressing it does is said once, under the list, instead of once per row.
 export function PolicyDocuments({
   policyId,
   documentDate,
@@ -120,6 +326,7 @@ export function PolicyDocuments({
         documentDate={documentDate}
         termStart={termStart}
       />
+      <p className="pd-note">PDF as of the chosen date, opens in a new tab.</p>
     </>
   );
 }
@@ -143,13 +350,18 @@ function DocumentRow({
 }) {
   return (
     // The PDF is reached through this GET form, so the new tab is asked for on the form
-    // rather than on a link: same action, same method, same field name.
+    // rather than on a link: same action, same method, same field name. One row is one form,
+    // because the date field belongs to the document it rebuilds and to no other.
     <form
       method="get"
       action={`/api/policies/${policyId}/documents/${endpoint}`}
       className="pd-doc-row"
       target="_blank"
+      // F-EV-07: a target="_blank" without this hands the opened tab a window.opener back into
+      // this page. The five anchors that open a PDF already carry it; these two forms did not.
+      rel="noopener"
     >
+      <span className="pd-doc-name">{label}</span>
       <input
         id={fieldId}
         name="asOf"
@@ -159,11 +371,16 @@ function DocumentRow({
         required
         aria-label={`${label} as of`}
       />
-      <button type="submit" className="secondary">
-        <Download size={14} aria-hidden="true" />
-        {label}
+      {/* The icon alone, so the name is not printed twice on one row. The label a screen reader
+          and a hover both get says which document and what comes back. */}
+      <button
+        type="submit"
+        className="secondary pd-doc-download"
+        aria-label={`Download ${label} as PDF`}
+        title={`Download ${label} as PDF`}
+      >
+        <Download size={15} aria-hidden="true" />
       </button>
-      <span className="pd-doc-asof">as of {documentDate}, PDF</span>
     </form>
   );
 }
@@ -225,102 +442,295 @@ export function CorrectEndorsementDateForm({
 // Corrections, explained
 // ---------------------------------------------------------------------------
 
-export async function CorrectionsExplained({ policyId, canPay, now }: { policyId: string; canPay: boolean; now: Date }) {
-  const corrections = await correctionsOfPolicy(policyId);
+// The id the band's "Collect" link and the broker's inbox item land on: the action row of the
+// correction whose difference is still open. One anchor per page, so a link cannot land on a
+// correction that was settled long ago.
+export const COLLECT_ANCHOR = "collect";
+
+// F-EV2-05: one anchor per correction. The broker's inbox lists one row per open difference and
+// every row used to point at the same `#collect`, which was the first one, so the second row sent
+// the reader to the wrong correction.
+//
+// F-BL-12: the bare `collect` id is NOT dropped, and it is not on a row: the "What needs paying
+// now" card of the Billing view carries it (app/policies/[policyId]/page.tsx), which is where a
+// link written before this change should land. That claim was in this comment before anything
+// rendered the id; it is true now.
+export function collectAnchorFor(rebookEventId: string) {
+  return `${COLLECT_ANCHOR}-${rebookEventId}`;
+}
+
+// Is this correction's difference still waiting to be collected, and may this reader collect it?
+// The three facts the button is drawn from, read in one place, so the band, the anchor and the
+// button cannot disagree about whether there is money to take.
+export function openCollectionOf(correction: CorrectionView, canPay: boolean) {
+  const collection = correction.collection;
+  if (correction.money.settlement !== "collect" || !collection || collection.paidOn) {
+    return null;
+  }
+  // F-EV2-01: nothing is open FOR THIS READER when the money is not theirs to take. This used to
+  // return the object whatever `canPay` said and leave the caller to look at `canCollectNow`, so
+  // the band drew an orange "Collect $X" for an approver, who has no button behind it.
+  if (!canPay) {
+    return null;
+  }
+  const waitingForTheCustomer = collection.customerApprovalRequired && !collection.customerApprovedAt;
+  return {
+    amountCents: collection.amountCents,
+    waitingForTheCustomer,
+    // Collectable now only when the money is this reader's to take AND the customer has approved
+    // it where approval was required. The server checks both again when the form is posted.
+    canCollectNow: canPay && !waitingForTheCustomer,
+  };
+}
+
+// The first correction on this policy whose difference is still open, for the band. Null when
+// there is nothing to collect, which is the ordinary case.
+export function firstOpenCollection(corrections: CorrectionView[], canPay: boolean) {
+  for (const correction of corrections) {
+    const open = openCollectionOf(correction, canPay);
+    if (open) {
+      return { correction, open };
+    }
+  }
+  return null;
+}
+
+// Where the money of one correction stands, in one badge. Drawn on the Money view beside the
+// correction it belongs to, and again at the top of the Billing view above the button, so the two
+// screens say the same sentence about the same money.
+function CorrectionMoneyBadge({
+  correction,
+  open,
+}: {
+  correction: CorrectionView;
+  open: ReturnType<typeof openCollectionOf>;
+}) {
+  const collection = correction.collection;
+  if (!collection) {
+    return null;
+  }
+  return (
+    <p
+      className={
+        collection.paidOn ? "badge badge-ok" : open?.waitingForTheCustomer ? "badge badge-neutral" : "badge badge-warn"
+      }
+    >
+      {collection.paidOn
+        ? `The difference of ${formatCentsAsUsd(collection.amountCents)} was collected on ${collection.paidOn}`
+        : open?.waitingForTheCustomer
+          ? `${formatCentsAsUsd(collection.amountCents)} waiting for the customer's approval`
+          : `${formatCentsAsUsd(collection.amountCents)} still to collect from the customer`}
+    </p>
+  );
+}
+
+// THE ACTION ROW OF A CORRECTION, on the Billing view: the state, why it is waiting if it is, and
+// the button that opens the Stripe page. Same POST, same route, same absence of fields as when it
+// sat at the bottom of the Money view; only where it is drawn changed (decision 43).
+export function CorrectionCollectRows({
+  corrections,
+  policyId,
+  canPay,
+}: {
+  corrections: CorrectionView[];
+  policyId: string;
+  // Whether this reader may take the money: the owning broker or staff operations. The API checks
+  // it again when the form is posted.
+  canPay: boolean;
+}) {
+  // Only what is still open: a difference already collected belongs in "What was paid", not
+  // under a heading that says something needs paying.
+  const stillOpen = corrections.filter((correction) => openCollectionOf(correction, canPay) !== null);
+  if (stillOpen.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {stillOpen.map((correction) => {
+        const open = openCollectionOf(correction, canPay);
+        const collection = correction.collection;
+        // F-BL-10: `stillOpen` was filtered on `openCollectionOf`, which already refuses a
+        // correction without a collection, so this can only be null for a reader of the code.
+        // Saying so once beats four non-null assertions that each have to be argued about.
+        if (!open || !collection) {
+          return null;
+        }
+        return (
+          <div
+            className="pd-collect"
+            key={correction.rebookEventId}
+            // The anchor the band's "Collect" link and THIS correction's inbox row land on.
+            id={collectAnchorFor(correction.rebookEventId)}
+          >
+            {/* The badge stays plain: it is a chip, already short and already scanned by its tone.
+                Only the sentences under it are emphasised (Yoann, 2026-09-09 22:10). They followed
+                the collect form here from the Money view (decision 43) and carry the emphasis with
+                them. */}
+            <CorrectionMoneyBadge correction={correction} open={open} />
+            {open.waitingForTheCustomer ? (
+              <p className="pd-note">
+                <Emphasis>
+                  {`The customer has to approve it from their own screen before it can be collected: ${correction.approvalSentences.customer ?? "it is above the customer approval threshold"}.`}
+                </Emphasis>
+              </p>
+            ) : null}
+            {!collection.paidOn && !collection.customerApprovalRequired && correction.approvalSentences.customer ? (
+              <p className="pd-note">
+                <Emphasis>{`Customer approval: ${correction.approvalSentences.customer}.`}</Emphasis>
+              </p>
+            ) : null}
+            {open.canCollectNow ? (
+              <form
+                method="post"
+                action={`/api/policies/${policyId}/corrections/${correction.rebookEventId}/checkout`}
+                className="inline-form"
+              >
+                <SubmitButton>
+                  {collection.checkoutUrl && !collection.isDead
+                    ? "Continue the payment of the difference at Stripe"
+                    : `Collect the difference (${formatCentsAsUsd(collection.amountCents)}) with Stripe (test mode)`}
+                </SubmitButton>
+              </form>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+export function CorrectionsExplained({
+  corrections,
+  billingHref,
+  now,
+}: {
+  // Read once by the page, so the band's "Collect $X", this block and the Billing view are all
+  // the same figures from the same rows.
+  corrections: CorrectionView[];
+  // Where the button that takes the money lives (decision 43).
+  billingHref: string;
+  now: Date;
+}) {
   if (corrections.length === 0) {
     return null;
   }
 
   return (
     <>
-      {corrections.map((correction) => (
-        <section className="card" key={correction.rebookEventId}>
-          <h2>
-            Correction: {correction.wrongEffectiveAt} to {correction.correctedEffectiveAt}
-            {correction.money.settlement === "collect" ? (
-              <Chip tone="warn">to collect</Chip>
-            ) : correction.money.settlement === "refund" ? (
-              <Chip tone="warn">to give back</Chip>
-            ) : (
-              <Chip tone="ok">no money</Chip>
-            )}
-          </h2>
-          <FactGrid
-            items={[
-              { label: "What", value: correction.description || "Endorsement" },
-              { label: "Recorded", value: <When instant={correction.recordedAt} now={now} mode="utc" /> },
-              ...(correction.operatorName ? [{ label: "By", value: correction.operatorName }] : []),
-              { label: "Reason", value: correction.reason },
-            ]}
-          />
-          <p className="pd-note">
-            The effective dates are business dates in the past; the recording time is when we learned we were wrong.
-            Every figure below is the one stored on those events and posted to the journal.
-          </p>
+      {corrections.map((correction) => {
+        // Asked with canPay = true because this badge states a fact about the money, not what
+        // this reader may press: the button and its permission check are on the Billing view.
+        const open = openCollectionOf(correction, true);
+        return (
+          <section className="card pd-correction" key={correction.rebookEventId}>
+            <h2>
+              Correction: {correction.wrongEffectiveAt} to {correction.correctedEffectiveAt}
+              {correction.money.settlement === "collect" ? (
+                <Chip tone={correction.collection?.paidOn ? "ok" : "warn"}>
+                  {correction.collection?.paidOn ? "collected" : "to collect"}
+                </Chip>
+              ) : correction.money.settlement === "refund" ? (
+                <Chip tone="warn">to give back</Chip>
+              ) : (
+                <Chip tone="ok">no money</Chip>
+              )}
+            </h2>
+            <FactGrid
+              items={[
+                { label: "What", value: correction.description || "Endorsement" },
+                { label: "Recorded", value: <When instant={correction.recordedAt} now={now} mode="utc" /> },
+                ...(correction.operatorName ? [{ label: "By", value: correction.operatorName }] : []),
+                { label: "Reason", value: correction.reason },
+              ]}
+            />
 
-          <FormulaLinesTable lines={correction.lines} />
-
-          <JournalTable
-            entries={correction.entries}
-            panelKey="correction"
-            visibleEntries={6}
-            ariaLabel="Correction entries"
-            // The money view's own journal card says what a debit and a credit are, under it. This
-            // panel sits on the same view, above it: repeating the sentence per correction would
-            // print it four times on one screen.
-            legend={false}
-          />
-          <p className="pd-note">
-            The cash entries of the original endorsement are not in this table on purpose: Stripe really does hold that
-            money, so reversing them would make the ledger claim it left. What the correction changes is what the
-            customer was billed, and the difference sits in premium receivable until it is settled.
-          </p>
-
-          {correction.money.settlement === "collect" && correction.collection ? (
-            <>
-              <p className={correction.collection.paidOn ? "badge badge-ok" : "badge badge-warn"}>
-                {correction.collection.paidOn
-                  ? `The difference of ${formatCentsAsUsd(correction.collection.amountCents)} was collected on ${correction.collection.paidOn}`
-                  : `${formatCentsAsUsd(correction.collection.amountCents)} still to collect from the customer`}
-              </p>
-              {!correction.collection.paidOn && correction.collection.customerApprovalRequired && !correction.collection.customerApprovedAt ? (
+            {/* Where the money of this correction stands, said here, with no button: taking it is
+                the Billing view's job (decision 43). The state is a fact about the correction and
+                belongs beside it; the action belongs where the reader is told whose card pays. */}
+            {correction.money.settlement === "collect" && correction.collection ? (
+              <div className="pd-collect">
+                <CorrectionMoneyBadge correction={correction} open={open} />
                 <p className="pd-note">
-                  The customer has to approve it from their own screen before it can be collected:{" "}
-                  {correction.approvalSentences.customer ?? "it is above the customer approval threshold"}.
+                  <Link href={billingHref}>Pay and collect on the Billing view</Link>
                 </p>
-              ) : null}
-              {!correction.collection.paidOn && !correction.collection.customerApprovalRequired && correction.approvalSentences.customer ? (
-                <p className="pd-note">Customer approval: {correction.approvalSentences.customer}.</p>
-              ) : null}
-              {!correction.collection.paidOn &&
-              canPay &&
-              (!correction.collection.customerApprovalRequired || correction.collection.customerApprovedAt) ? (
-                <form
-                  method="post"
-                  action={`/api/policies/${policyId}/corrections/${correction.rebookEventId}/checkout`}
-                  className="inline-form"
-                >
-                  <SubmitButton>
-                    {correction.collection.checkoutUrl && !correction.collection.isDead
-                      ? "Continue the payment of the difference at Stripe"
-                      : `Collect the difference (${formatCentsAsUsd(correction.collection.amountCents)}) with Stripe (test mode)`}
-                  </SubmitButton>
-                </form>
-              ) : null}
-            </>
-          ) : null}
-          {correction.money.settlement === "refund" ? (
-            <p className="pd-note">
-              The corrected date charges fewer days, so {formatCentsAsUsd(-correction.money.differenceTotalCents)} goes
-              back to the customer through Stripe. It is listed under the refunds above, with its state and the approver
-              it is waiting for. Second approver: {correction.approvalSentences.refund ?? "read from the refund itself"}.
-            </p>
-          ) : null}
-          {correction.money.settlement === "none" ? (
-            <p className="pd-note">The corrected date prices the same amount, so no money moves.</p>
-          ) : null}
-        </section>
-      ))}
+              </div>
+            ) : null}
+            {correction.money.settlement === "refund" ? (
+              <p className="pd-note">
+                <Emphasis>
+                  {`The corrected date charges fewer days, so ${formatCentsAsUsd(-correction.money.differenceTotalCents)} goes back to the customer through Stripe. It is listed under the refunds above, with its state and the approver it is waiting for. Second approver: ${correction.approvalSentences.refund ?? "read from the refund itself"}.`}
+                </Emphasis>
+              </p>
+            ) : null}
+            {correction.money.settlement === "none" ? (
+              <p className="pd-note">
+                <Emphasis>{"The corrected date prices the same amount, so no money moves."}</Emphasis>
+              </p>
+            ) : null}
+
+            {/* THE ARITHMETIC, FOLDED, closed on arrival. Yoann's rule F-YA-05 bans folding an
+                ACTION; this is reading matter, and every row is in the HTML whether the fold is
+                open or not, so a reviewer and a text search still find it. */}
+            <Disclosure title="Impact, line by line">
+              <p className="pd-note">
+                <Emphasis>
+                  {"The effective dates are business dates in the past; the recording time is when we learned we were wrong. Every figure here is the one stored on those events and posted to the journal."}
+                </Emphasis>
+              </p>
+              {/* The same reading as the preview and the customer's approval screen (Yoann,
+                  2026-09-09): the differences carry their sign and their direction colour, what was
+                  booked and what the corrected date prices step back, the total is bold. */}
+              <FormulaLinesTable
+                lines={correction.lines}
+                highlightKey="difference_total"
+                signedKeys={["premium_difference", "tax_difference", "difference_total"]}
+                referenceKeys={["premium_as_booked", "premium_corrected"]}
+              />
+            </Disclosure>
+
+            {/* THE ENTRIES, FOLDED AND PAIRED. A correction posts entries that undo the wrong
+                booking and entries that re-book it; they are marked so the pairs read as one
+                movement each rather than as four separate ones. */}
+            <Disclosure
+              title={
+                correction.entries.length === 1
+                  ? "The entry this correction posted"
+                  : `The ${correction.entries.length} entries this correction posted`
+              }
+            >
+              <JournalTable
+                entries={correction.entries}
+                panelKey="correction"
+                visibleEntries={6}
+                ariaLabel="Correction entries"
+                // The money view's own journal card says what a debit and a credit are, under it.
+                // This panel sits on the same view, above it: repeating the sentence per correction
+                // would print it four times on one screen.
+                legend={false}
+                // F-EV2-06: an entry carrying `reversesEntryId` is the one that DOES the undoing,
+                // so "reversed" beside `reversal_of_endorsement_tax_billed` read as "this reversal
+                // was reversed". The chip says the direction now, and names the entry it undoes.
+                //
+                // The strike-through is gone with it, and deliberately: this entry's amounts are
+                // real postings that stand in the ledger for ever. What no longer stands is the
+                // ORIGINAL entry, which is not in this table (the correction posts the reversal
+                // and the re-booking; the entry being undone belongs to the endorsement).
+                // Striking a line that is still true was the same mistake as the wording.
+                mark={(entry) =>
+                  entry.reversesEntryId
+                    ? { chip: <Chip tone="danger">undoes {entry.reversesEntryId.slice(0, 8)}</Chip> }
+                    : { chip: <Chip tone="ok">re-booked on {entry.effectiveAt}</Chip> }
+                }
+              />
+              <p className="pd-note">
+                The cash entries of the original endorsement are not in this table on purpose: Stripe really does hold
+                that money, so reversing them would make the ledger claim it left. What the correction changes is what
+                the customer was billed, and the difference sits in premium receivable until it is settled.
+              </p>
+            </Disclosure>
+          </section>
+        );
+      })}
     </>
   );
 }

@@ -14,6 +14,8 @@
 // helper logs error.message and never error.stack, and migration 0021 gives the table no column
 // a payload could be put in.
 
+import { TOKEN_REVEAL_COOKIE } from "@/lib/mcp/token-reveal";
+
 // A sentence, not a document. A log line is read during an incident; 300 characters is what an
 // operator reads. The database allows 500, so a cut sentence can never fail an insert.
 export const MOST_CHARACTERS_OF_A_MESSAGE = 300;
@@ -29,6 +31,17 @@ const SECRET_KEY_SHAPE = /\b(sk|rk|whsec)_[A-Za-z0-9_-]{3,}/g;
 // "Authorization: Bearer <token>" is how the cron secret and every MCP API key arrive. The token
 // itself never appears, whatever it was.
 const BEARER_SHAPE = /bearer\s+[A-Za-z0-9._~+/=-]{4,}/gi;
+
+// A WHOLE MCP access token, prefix and secret: cmk_1a2b3c4d_<43 characters>. The bare prefix stays
+// readable above, because it is the reference an operator needs; the secret behind it never is.
+// The prefix is kept in the mask so a line still says WHICH token it was about.
+const PRESENTED_TOKEN_SHAPE = /\b(cmk_[0-9a-f]{8})_[A-Za-z0-9_-]{20,}/g;
+
+// The cookie that carries a new token from POST /api/mcp-keys to the screen that shows it once
+// (lib/mcp/token-reveal.ts). It is httpOnly and lives 120 seconds, but a cookie header pasted into
+// a bug report, or echoed inside a framework error, is exactly the accident this file exists for.
+// Built from the constant itself, so renaming the cookie can never leave this rule behind.
+const TOKEN_REVEAL_COOKIE_SHAPE = new RegExp(`${TOKEN_REVEAL_COOKIE}=[^;\\s,"]*`, "gi");
 
 // A password in a form field, a query string or a JSON body: password=..., "password": "...".
 // DEMO_PASSWORD is shared by every demo account, so one leaked line is every account.
@@ -50,12 +63,15 @@ export function maskEmail(email: string): string {
 }
 
 // The one sanitiser. Order matters: the connection string and the bearer token are removed before
-// the email rule can match the "user:password@host" that looks like one.
+// the email rule can match the "user:password@host" that looks like one, and the reveal cookie is
+// masked whole before the token rule can leave its name beside a mask.
 export function redact(raw: string): string {
   const onOneLine = raw.replace(/\s+/g, " ").trim();
   const withoutCredentials = onOneLine
     .replace(CONNECTION_STRING_CREDENTIALS, "//****:****@")
     .replace(BEARER_SHAPE, "Bearer ****")
+    .replace(TOKEN_REVEAL_COOKIE_SHAPE, `${TOKEN_REVEAL_COOKIE}=****`)
+    .replace(PRESENTED_TOKEN_SHAPE, "$1_****")
     .replace(PASSWORD_FIELD_SHAPE, "$1$2$1$3$4****$4")
     .replace(SECRET_KEY_SHAPE, "$1_****")
     .replace(EMAIL_SHAPE, maskEmail);

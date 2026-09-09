@@ -1,3 +1,5 @@
+import "@/app/styles/lists.css";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
@@ -13,7 +15,7 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { centsFromDatabase, formatCentsAsUsd } from "@/lib/money/cents";
 import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
-import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
+import { liveEndorsementRequest, type EndorsementRequest, type EndorsementRequestStanding } from "@/lib/policy/endorsement-requests";
 import { policyDetail } from "@/lib/policy/read";
 import { termsInForceOn, type TermsInForce } from "@/lib/policy/terms-in-force";
 import { toastsFromQuery, type Query } from "@/lib/ui/views";
@@ -31,6 +33,24 @@ const STATUS_MEANING: Record<string, string> = {
   bound: "in force, on the terms this row shows",
   cancelled: "cover stopped, the unearned premium was refunded",
   voided: "a correction reversed the issuance; this policy never took effect",
+};
+
+// THE TWO CLAUSES A REQUESTED CHANGE CAN END ON, and what each says to the customer.
+//
+// A request the customer has already approved needs nothing but the payment. One still waiting
+// for their yes needs BOTH, and a row that promised the change on the money alone was telling the
+// customer their decision had already been taken (review finding F-LT-03). These are the two
+// sentences the policy's own page prints, in LatestTermsStat
+// (app/policies/[policyId]/correction-sections.tsx), so the list and the policy agree.
+//
+// The legend reads these same two strings, so it can never define a clause no row shows
+// (review finding F-LT-09).
+const ONCE_PAID = "once the delta is paid";
+const IF_APPROVED_AND_PAID = "if it is approved and the delta is paid";
+
+const REQUESTED_CONDITION_MEANING: Record<string, string> = {
+  [ONCE_PAID]: "the premium from the day beside it, as soon as your broker collects the delta of the change you approved",
+  [IF_APPROVED_AND_PAID]: "the premium from the day beside it, if you approve the change that was asked for and its delta is then collected",
 };
 
 // The statuses on the screen, once each, in the order the rows use them.
@@ -82,6 +102,10 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
       live,
       correctionsToApprove,
       terms: await termsInForceForThisList(policy.policy_id, policy.effective_at, today, policy.annual_premium_cents),
+      // The LATEST premium written on the policy record: policy_current applies every event
+      // whatever its effective date, so this is what the policy becomes once the changes already
+      // signed take effect. The cell below names it under the premium in force today.
+      latestAnnualPremiumCents: centsFromDatabase(policy.annual_premium_cents, "annual_premium_cents"),
     });
   }
 
@@ -152,6 +176,13 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
           <Legend
             items={[
               { term: "Annual premium", meaning: "the premium in force today, before state tax and the policy fee" },
+              // Named only when a row below prints it: a legend is a reading of THIS screen.
+              ...(rows.some((policy) => writtenLaterPremium(policy) !== null)
+                ? [{ term: "on the latest terms", meaning: "a change is already written on your policy and takes effect later; the figure above it is the one in force today" }]
+                : []),
+              // The clause itself is the term, so a reader finds in the legend the words that are
+              // in the cell above it (F-LT-09).
+              ...conditionsOnScreen(rows).map((condition) => ({ term: condition, meaning: REQUESTED_CONDITION_MEANING[condition] })),
               ...statusesOnScreen(rows).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),
               { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
             ]}
@@ -198,7 +229,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
                 {/* F-LU-05: the same wording the broker and staff lists carry. The fold has no
                     answer on that date (the policy was voided, or was not issued yet), so this is
                     the policy record's own figure and the row says so. */}
-                <Num sub={policy.terms.onDate === null ? "on the policy record" : undefined}>
+                <Num sub={underThePremium(policy)}>
                   {formatCentsAsUsd(policy.terms.annualPremiumCents)}
                 </Num>
                 {/* The documents, and the one decision waiting on this policy when there is one.
@@ -252,7 +283,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
       <About>
         <h4>Annual premium</h4>
         <p>
-          The premium in force today, or on the first day of the term when the term has not begun. An endorsement dated later is not in this figure; the policy page names it under the terms.
+          The premium in force today, or on the first day of the term when the term has not begun. An endorsement dated later is not in this figure: when there is one, the second line of the cell says what your policy&apos;s latest terms are, and a change that was asked for and not paid yet is named under it with the day it would start.
         </p>
         <h4>On the policy record</h4>
         <p>
@@ -270,6 +301,89 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
         The policy, its documents and every decision live in one clear place.
       </LandscapeFooter>
     </PortalShell>
+  );
+}
+
+// WHAT THE PREMIUM CELL SAYS UNDER ITS FIGURE, and nothing at all when there is nothing to say.
+//
+// The figure above is the premium in force today. It is right, and on a policy carrying a change
+// dated later it reads as stale to the person holding the policy: on 2026-09-09 Yoann read
+// $1,200.00 on CGP-01707 while an endorsement to $2,400.00 was already written for 2026-09-22 and
+// another to $2,700.00 had been asked for. The cell now names all three.
+//
+// TWO SOURCES, and they are not equally complete:
+//   - the terms already WRITTEN on the record come from policy_current, which stores the latest
+//     premium and NOT the effective date of the endorsement that wrote it (lib/policy/current.ts
+//     folds `latestEndorsementEffectiveAt`, refreshPolicyCurrent never writes it to the table),
+//     so that line names the amount and not the day;
+//   - the change REQUESTED and not in force comes from liveEndorsementRequest
+//     (lib/policy/endorsement-requests.ts), which carries the whole quote: it returns only the
+//     request that is neither applied nor superseded, so this is exactly the one that is not in
+//     force yet. The line names the amount, the day, and what still has to happen before it
+//     takes effect: the customer's own yes counts when the request is still waiting for it.
+type PremiumRow = {
+  status: string;
+  terms: Pick<TermsInForce, "onDate" | "annualPremiumCents">;
+  latestAnnualPremiumCents: number;
+  live: { request: EndorsementRequest; standing: EndorsementRequestStanding } | null;
+};
+
+function writtenLaterPremium(row: PremiumRow): string | null {
+  if (policyIsClosed(row)) return null;
+  // The fold has no answer for that date, so the figure above IS the policy record's own and
+  // there is nothing later to compare it with.
+  if (row.terms.onDate === null) return null;
+  if (row.latestAnnualPremiumCents === row.terms.annualPremiumCents) return null;
+  return `${formatCentsAsUsd(row.latestAnnualPremiumCents)} on the latest terms`;
+}
+
+// A CLOSED POLICY HAS NOTHING LATER TO SHOW. Cover has stopped or never started, so terms
+// written for a later date can no longer take effect and naming them would promise cover that
+// will not happen (Yoann's rule, 2026-09-09). ACCEPTED EDGE CASE: a cancellation recorded now
+// but effective in the future, with an endorsement effective before it, really does take effect
+// and is hidden here. Telling the two apart needs the cancellation's effective date, which
+// these lists do not read (cancellationOfPolicy, lib/policy/read.ts); week two, "cancellation
+// effective date on the lists".
+function policyIsClosed(row: PremiumRow): boolean {
+  return row.status === "cancelled" || row.status === "voided";
+}
+
+// What still has to happen before the requested change takes effect. `approved` is the standing
+// where the only thing left is the money; `awaiting_approval` needs the customer's yes first.
+function requestedCondition(row: PremiumRow): string | null {
+  if (policyIsClosed(row) || !row.live) return null;
+  return row.live.standing.state === "approved" ? ONCE_PAID : IF_APPROVED_AND_PAID;
+}
+
+function requestedPremium(row: PremiumRow): string | null {
+  const condition = requestedCondition(row);
+  if (!row.live || condition === null) return null;
+  return `${formatCentsAsUsd(row.live.request.figures.newAnnualPremiumCents)} from ${row.live.request.figures.effectiveAt} ${condition}`;
+}
+
+// The clauses the rows below actually end on, once each, in the order they appear.
+function conditionsOnScreen(rows: PremiumRow[]): string[] {
+  const seen: string[] = [];
+  for (const row of rows) {
+    const condition = requestedCondition(row);
+    if (condition !== null && !seen.includes(condition)) seen.push(condition);
+  }
+  return seen;
+}
+
+// Everything the cell says under its figure, or nothing at all: an empty `sub` would draw an
+// empty line under every row of the table.
+function underThePremium(row: PremiumRow): ReactNode | undefined {
+  const fromTheRecord = row.terms.onDate === null;
+  const written = writtenLaterPremium(row);
+  const requested = requestedPremium(row);
+  if (!fromTheRecord && !written && !requested) return undefined;
+  return (
+    <>
+      {fromTheRecord ? "on the policy record" : null}
+      {written ? <span className="lists-later">{written}</span> : null}
+      {requested ? <span className="lists-later">{requested}</span> : null}
+    </>
   );
 }
 

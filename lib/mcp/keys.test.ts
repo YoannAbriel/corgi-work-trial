@@ -1,6 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canonicalJson, generateApiKey, hashApiKey, hashArguments, keyPrefixOf } from "./key-format";
+import {
+  canonicalJson,
+  DEFAULT_TOKEN_LIFETIME,
+  expiryInstant,
+  generateApiKey,
+  hashApiKey,
+  hashArguments,
+  isTokenLifetime,
+  keyPrefixOf,
+  tokenExpiresSoon,
+  tokenHasExpired,
+  TOKEN_LIFETIMES,
+} from "./key-format";
 
 // The key format and the hashing, proved without a database: these are the two facts the whole
 // authentication of the MCP endpoint rests on.
@@ -78,4 +90,51 @@ test("canonical JSON sorts keys everywhere, including inside arrays and nested o
   assert.equal(canonicalJson({ b: 1, a: { d: 2, c: [3, { f: 4, e: 5 }] } }), '{"a":{"c":[3,{"e":5,"f":4}],"d":2},"b":1}');
   assert.equal(canonicalJson(undefined), "null");
   assert.equal(canonicalJson({ kept: 1, dropped: undefined }), '{"kept":1}');
+});
+
+// ---------------------------------------------------------------------------
+// When a token stops answering (migration 0026)
+// ---------------------------------------------------------------------------
+
+// The clock is an argument everywhere below, so these facts are the same in every timezone and
+// at every hour of the day.
+const NOON = new Date("2026-09-09T12:00:00.000Z");
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+test("the five expirations the form offers, and the instant each one produces", () => {
+  assert.deepEqual(
+    TOKEN_LIFETIMES.map((lifetime) => lifetime.value),
+    ["7d", "30d", "90d", "1y", "never"],
+  );
+  assert.equal(expiryInstant("7d", NOON)?.toISOString(), "2026-09-16T12:00:00.000Z");
+  assert.equal(expiryInstant("30d", NOON)?.toISOString(), "2026-10-09T12:00:00.000Z");
+  assert.equal(expiryInstant("90d", NOON)?.toISOString(), "2026-12-08T12:00:00.000Z");
+  assert.equal(expiryInstant("1y", NOON)?.toISOString(), "2027-09-09T12:00:00.000Z");
+  // "never" is stored as null, which is exactly what every token created before 0026 holds.
+  assert.equal(expiryInstant("never", NOON), null);
+  assert.equal(DEFAULT_TOKEN_LIFETIME, "90d");
+});
+
+test("anything that is not one of the five is refused rather than turned into never", () => {
+  assert.ok(isTokenLifetime("90d"));
+  assert.ok(!isTokenLifetime(""));
+  assert.ok(!isTokenLifetime("90"));
+  assert.ok(!isTokenLifetime("10y"));
+  assert.ok(!isTokenLifetime("NEVER"));
+});
+
+test("a token with no expiration never expires; one dated in the past does", () => {
+  assert.equal(tokenHasExpired(null, NOON), false);
+  assert.equal(tokenHasExpired(new Date(NOON.getTime() + 1), NOON), false);
+  // The stored instant is the moment it is over: at exactly that instant the token is refused.
+  assert.equal(tokenHasExpired(NOON, NOON), true);
+  assert.equal(tokenHasExpired(new Date(NOON.getTime() - 1), NOON), true);
+});
+
+test("expiring soon is the last seven days, and neither never nor already expired", () => {
+  assert.equal(tokenExpiresSoon(new Date(NOON.getTime() + 6 * DAY_MS), NOON), true);
+  assert.equal(tokenExpiresSoon(new Date(NOON.getTime() + 7 * DAY_MS), NOON), false);
+  assert.equal(tokenExpiresSoon(new Date(NOON.getTime() + 30 * DAY_MS), NOON), false);
+  assert.equal(tokenExpiresSoon(null, NOON), false);
+  assert.equal(tokenExpiresSoon(new Date(NOON.getTime() - DAY_MS), NOON), false);
 });

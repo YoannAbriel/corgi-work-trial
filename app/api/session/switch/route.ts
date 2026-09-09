@@ -1,7 +1,7 @@
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { isDemoAccountEmail } from "@/lib/auth/demo-accounts";
-import { SESSION_COOKIE_NAME, SESSION_LIFETIME_SECONDS, sessionSecret, signSessionCookie } from "@/lib/auth/session";
+import { SESSION_COOKIE_NAME, SESSION_LIFETIME_SECONDS, secureFlag, sessionSecret, signSessionCookie } from "@/lib/auth/session";
 import { withActivity, type Activity } from "@/lib/observability/log";
 
 // POST /api/session/switch, called by the account menu at the bottom of the sidebar.
@@ -28,7 +28,14 @@ async function handlePost(request: Request, _context: unknown, activity: Activit
     return redirectTo(`${home}?error=${encodeURIComponent("only a demo account can switch accounts")}`);
   }
 
-  const form = await request.formData();
+  // A body that is not a form (JSON, for example) is a refusal like any other, not a 500
+  // (review finding F-SWITCH-02).
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return redirectTo(`${home}?error=${encodeURIComponent("that is not the account form")}`);
+  }
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   if (!isDemoAccountEmail(email)) {
     return redirectTo(`${home}?error=${encodeURIComponent("that is not one of the demo accounts")}`);
@@ -67,10 +74,6 @@ function homeOf(role: string): string {
   if (role === "staff_ops" || role === "staff_approver") return "/ops";
   if (role === "customer") return "/customer";
   return "/broker";
-}
-
-function secureFlag(): string {
-  return process.env.APP_BASE_URL?.startsWith("https://") ? "; Secure" : "";
 }
 
 // 303 turns the POST into a GET on the next page, so a refresh does not resubmit the form.

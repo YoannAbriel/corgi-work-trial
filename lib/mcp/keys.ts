@@ -29,6 +29,9 @@ export type McpPrincipal = {
   keyPrefix: string;
   principalKind: PrincipalKind;
   revokedAt: Date | null;
+  // When this token stops answering, or null when it has no end date (migration 0026). The
+  // endpoint compares it with its own clock; nothing here decides, it only reports.
+  expiresAt: Date | null;
   user: {
     id: string;
     displayName: string;
@@ -39,9 +42,11 @@ export type McpPrincipal = {
 };
 
 // Returns the principal for a presented key, or null when the value is not one of our keys.
-// A REVOKED key is returned too, with revokedAt set: the caller refuses it, and the call is
-// still logged against the key it named, because a revoked key still being used is exactly
-// what an operator wants to see.
+// A REVOKED key is returned too, with revokedAt set, and an EXPIRED one with expiresAt in the
+// past: the endpoint refuses both with the SAME answer an unknown key gets, and the call is still
+// logged against the key it named, because a token that stopped answering and is still being used
+// is exactly what an operator wants to see. This function reads facts and says nothing to
+// anybody; the endpoint decides, and what it tells the caller is one 401 in every case.
 export async function principalForPresentedKey(
   presentedKey: string,
   database: postgres.Sql = sql,
@@ -55,6 +60,7 @@ export async function principalForPresentedKey(
       key_prefix: string;
       principal_kind: PrincipalKind;
       revoked_at: Date | null;
+      expires_at: Date | null;
       user_id: string;
       display_name: string;
       role: UserRole;
@@ -62,7 +68,7 @@ export async function principalForPresentedKey(
       customer_id: string | null;
     }[]
   >`
-    select key.id, key.key_prefix, key.principal_kind, revocation.recorded_at as revoked_at,
+    select key.id, key.key_prefix, key.principal_kind, key.expires_at, revocation.recorded_at as revoked_at,
            holder.id as user_id, holder.display_name, holder.role, holder.broker_id, holder.customer_id
       from mcp_api_keys key
       join users holder on holder.id = key.user_id
@@ -77,6 +83,7 @@ export async function principalForPresentedKey(
     keyPrefix: row.key_prefix,
     principalKind: row.principal_kind,
     revokedAt: row.revoked_at,
+    expiresAt: row.expires_at,
     user: {
       id: row.user_id,
       displayName: row.display_name,
@@ -98,6 +105,10 @@ export type CreateApiKeyRequest = {
   label: string;
   principalKind: PrincipalKind;
   createdByUserId: string | null; // the staff member, or null when a script created it
+  // When the token stops answering. Absent or null is "never", which is what every token created
+  // before migration 0026 has. The caller computes the instant (lib/mcp/key-format.ts,
+  // expiryInstant) so that the clock stays in one place and this function only writes.
+  expiresAt?: Date | null;
 };
 
 // Creates the key and returns the secret ONCE. The caller shows it to a person and drops it;
@@ -113,9 +124,9 @@ export async function createApiKey(
   const generated = generateApiKey();
   try {
     const [created] = await database<{ id: string }[]>`
-      insert into mcp_api_keys (user_id, label, key_prefix, key_hash, principal_kind, created_by)
+      insert into mcp_api_keys (user_id, label, key_prefix, key_hash, principal_kind, created_by, expires_at)
       values (${request.userId}, ${label}, ${generated.keyPrefix}, ${generated.keyHash},
-              ${request.principalKind}, ${request.createdByUserId})
+              ${request.principalKind}, ${request.createdByUserId}, ${request.expiresAt ?? null})
       returning id
     `;
     return { keyId: created.id, keyPrefix: generated.keyPrefix, presentedKey: generated.presentedKey };
@@ -163,6 +174,7 @@ export type ApiKeyListRow = {
   createdByName: string | null;
   revokedAt: Date | null;
   revokedByName: string | null;
+  expiresAt: Date | null;
   lastCallAt: Date | null;
   callCount: number;
 };
@@ -181,6 +193,7 @@ export async function listApiKeys(database: postgres.Sql = sql): Promise<ApiKeyL
       holder_role: UserRole;
       created_at: Date;
       created_by_name: string | null;
+      expires_at: Date | null;
       revoked_at: Date | null;
       revoked_by_name: string | null;
       last_call_at: Date | null;
@@ -189,7 +202,7 @@ export async function listApiKeys(database: postgres.Sql = sql): Promise<ApiKeyL
   >`
     select key.id, key.key_prefix, key.label, key.principal_kind,
            holder.display_name as holder_name, holder.email as holder_email, holder.role as holder_role,
-           key.created_at, creator.display_name as created_by_name,
+           key.created_at, creator.display_name as created_by_name, key.expires_at,
            revocation.recorded_at as revoked_at, revoker.display_name as revoked_by_name,
            usage.last_call_at, coalesce(usage.call_count, 0)::text as call_count
       from mcp_api_keys key
@@ -213,6 +226,7 @@ export async function listApiKeys(database: postgres.Sql = sql): Promise<ApiKeyL
     holderRole: row.holder_role,
     createdAt: row.created_at,
     createdByName: row.created_by_name,
+    expiresAt: row.expires_at,
     revokedAt: row.revoked_at,
     revokedByName: row.revoked_by_name,
     lastCallAt: row.last_call_at,

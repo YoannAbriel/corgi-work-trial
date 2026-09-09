@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Download } from "lucide-react";
 import { AmountExplained } from "@/components/amount-explained";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { SandboxReferences } from "@/components/disclosures";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
@@ -221,6 +222,8 @@ export default async function StatementPage({
         </div>
       )}
 
+      {/* The two collected figures are a pair on their own: they are the same money read twice,
+          and neither of them is a term of the subtraction below. */}
       <Stats>
         <Stat
           label="Cash collected"
@@ -236,23 +239,62 @@ export default async function StatementPage({
           }
           note="the commission base"
         />
-        <Stat
-          label="Commission earned"
-          value={total(run.commissionEarnedCents, `Commission earned in ${run.statementMonth}`, "commission_earned")}
-          note="on that premium"
-        />
-        <Stat
-          label="Clawback"
-          value={total(-run.clawbackCents, `Commission clawed back in ${run.statementMonth}`, "clawback")}
-          note="on refunded premium"
-        />
-        <Stat
-          label="Net due"
-          value={total(run.netDueCents, `Net due to ${run.brokerName} for ${run.statementMonth}`, "net_due")}
-          tone="accent"
-          note={tiesToTheLedger ? "equals the journal movement" : "the journal disagrees"}
-        />
       </Stats>
+
+      {/* Yoann, 2026-09-09 evening: "why is there no line with the negative?". Commission earned
+          and net due used to sit side by side as two more tiles of the same row, so the reader had
+          to work out that one produced the other. They are one subtraction and they are printed as
+          one, top to bottom, with the rule above the line the ones over it add up to, the way a
+          receipt is read. Same stored figures, same formatter, same folds as the tiles had. */}
+      <section className="money-totals" aria-labelledby="totals-heading">
+        <h2 id="totals-heading">How the net due is reached</h2>
+        <dl>
+          <div>
+            <dt>Commission earned</dt>
+            <dd>{total(run.commissionEarnedCents, `Commission earned in ${run.statementMonth}`, "commission_earned")}</dd>
+          </div>
+          {/* A clawback takes money back off what the broker is owed, so it is printed with its
+              minus sign and in the danger colour: a positive number on this line would read as
+              something being added. The figure is the stored one, negated for display only.
+              The colour is on the line only when something was actually clawed back (review
+              finding F-ST-03): a month with no clawback printed a red $0.00, which reads as a
+              problem where there is none. Same shape as the adjustment line below. */}
+          <div className={run.clawbackCents === 0 ? undefined : "money-totals-negative"}>
+            <dt>Clawback</dt>
+            <dd>{total(-run.clawbackCents, `Commission clawed back in ${run.statementMonth}`, "clawback")}</dd>
+          </div>
+          {/* The third term of the subtraction, when there is one. It used to be a fact of the
+              revision card, where it sat outside the arithmetic it belongs to and left the three
+              lines above failing to add up. Printed once, here, and signed like the clawback when
+              it takes money away.
+              No run in the trial data carries an adjustment or a negative net due, so this branch
+              and the sentence under the block were looked at on a disposable database seeded for
+              that alone (review finding F-ST-04, 2026-09-09 evening). */}
+          {run.adjustmentCents === 0 ? null : (
+            <div className={run.adjustmentCents < 0 ? "money-totals-negative" : undefined}>
+              <dt>Other adjustments</dt>
+              <dd>{formatCentsAsUsd(run.adjustmentCents)}</dd>
+            </div>
+          )}
+          <div className={`money-totals-net${run.netDueCents < 0 ? " money-totals-negative" : ""}`}>
+            <dt>Net due</dt>
+            <dd>{total(run.netDueCents, `Net due to ${run.brokerName} for ${run.statementMonth}`, "net_due")}</dd>
+          </div>
+        </dl>
+        {/* Kept from the tile this block replaces: the live comparison with the journal is the
+            point of the page, and it belongs under the figure it is about. */}
+        <p className="money-totals-note">
+          {tiesToTheLedger ? "equals the journal movement" : "the journal disagrees"}
+        </p>
+        {/* Net due is what the insurer pays the broker. A negative one is the other direction and
+            the screen has to say so in words rather than leave a minus sign to be read. */}
+        {run.netDueCents < 0 ? (
+          <p className="money-totals-note">
+            Negative: the clawbacks of this month are larger than the commission earned, so the broker owes this
+            amount rather than being owed it.
+          </p>
+        ) : null}
+      </section>
 
       {/* An empty month has no table to put beside the two cards, and the two column layout left
           roughly 300 px of empty grey beside the empty state (round 1, MEDIUM): the empty state
@@ -377,12 +419,16 @@ export default async function StatementPage({
             <h4>Format</h4>
             {formatChanged ? (
               <p>
-                Revision {run.revision - 1} was written in format v{run.previousCanonicalVersion} and this one in v
-                {run.canonicalVersion}, so the two hash different texts and cannot be compared by hash. Their journal
-                entries can be, and they are.
+                <Emphasis>
+                  {`Revision ${run.revision - 1} was written in format v${run.previousCanonicalVersion} and this one in v${run.canonicalVersion}, so the two hash different texts and cannot be compared by hash. Their journal entries can be, and they are.`}
+                </Emphasis>
               </p>
             ) : null}
-            {collected.formatNote ? <p>{collected.formatNote}</p> : null}
+            {collected.formatNote ? (
+              <p>
+                <Emphasis>{collected.formatNote}</Emphasis>
+              </p>
+            ) : null}
           </>
         ) : null}
       </About>
@@ -405,7 +451,8 @@ function RevisionCard({ run }: { run: StatementRunRow }) {
           { label: "Revision", value: run.revision },
           { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
           { label: "Produced", value: `${utc(run.createdAt)} UTC${run.runByName ? `, ${run.runByName}` : ""}` },
-          ...(run.adjustmentCents === 0 ? [] : [{ label: "Other adjustments", value: formatCentsAsUsd(run.adjustmentCents) }]),
+          // Other adjustments moved to the totals block above (Yoann, 2026-09-09 evening): they are
+          // a term of the subtraction that produces the net due, not a fact about the revision.
           {
             label: "Supersedes",
             value: run.supersedesRunId ? (

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
 import { SandboxReferences } from "@/components/disclosures";
 import { PortalShell } from "@/components/portal-shell";
+import { EarlierRevisions } from "@/components/statement-revisions";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
@@ -14,10 +15,15 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { collectedFigures } from "@/lib/statements/compute";
-import { brokersForStatements, listStatementRuns, type StatementRunRow } from "@/lib/statements/read";
+import { groupRunsByBrokerAndMonth, type StatementMonthGroup } from "@/lib/statements/group-runs";
+import { brokersForStatements, listStatementRuns } from "@/lib/statements/read";
 import { toastsFromQuery, type Query } from "@/lib/ui/views";
 
 // /ops/statements: run a broker's monthly statement, and read every run ever made.
+//
+// ONE ROW PER BROKER AND MONTH since 2026-09-09 evening (Yoann): the row is the newest revision
+// of that month and the revisions it replaced are folded under it. Every run is still on the
+// screen; five rows that only differed by a revision number were not five things to read.
 //
 // Staff only. Nothing on this page computes money in the browser: the figures are the ones the
 // runs stored, rendered on the server, and the only button posts to a route handler.
@@ -54,14 +60,17 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
   ]);
   const now = new Date();
 
-  const provisional = runs.filter((run) => run.monthWasStillRunning).length;
+  // One row per broker and month, showing its newest revision, the ones it replaced folded under
+  // it (Yoann, 2026-09-09 evening). The order across rows is still by age only, newest first: the
+  // month somebody has just run is the first row, whoever the broker is. Not by month, because a
+  // rerun of an old month is newer than the first run of a later month.
+  const months = groupRunsByBrokerAndMonth(runs);
+  // Counted on the rows the table shows, so the tile and the table say the same thing: how many
+  // months are STILL provisional, that is whose newest revision was produced before the month was
+  // over. A provisional revision that has since been superseded is history, not a thing to act on.
+  const provisional = months.filter((month) => month.latest.monthWasStillRunning).length;
   // `runs` arrives newest first, so the first row carries the most recent month produced.
   const latestMonth = runs[0]?.statementMonth ?? "none";
-  // The reading order of the table: by age only, newest run first (Yoann, 2026-09-09). A person
-  // scans the runs that just happened, whoever the broker is; the Broker column and the broker
-  // filter say who. Not by month: a rerun of an old month is newer than the first run of a later
-  // month, and burying it under its month would hide the run someone just made.
-  const runsInReadingOrder = [...runs].sort((one, other) => other.createdAt.getTime() - one.createdAt.getTime());
 
   // No `ran` rule: no route sends that parameter to this screen (feedback audit of 2026-09-09).
   const toasts = toastsFromQuery(query, {
@@ -94,7 +103,7 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
           label="Provisional"
           value={provisional}
           tone={provisional > 0 ? "warn" : "ok"}
-          note="produced before the month was over"
+          note="months whose newest revision is provisional"
           hint="A provisional run stays as it is. The run made after the month ends is the next revision and the definitive one."
         />
         <Stat label="Latest month" value={latestMonth} note="business month of the newest run" />
@@ -103,7 +112,19 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
       {/* The table and the form that feeds it, side by side (round 1, MEDIUM: the form was a whole
           view holding one small card in a 1450 px row). */}
       <div className="layout-2">
-        <DataTable ariaLabel="Statement runs" legend={<Legend items={STATUS_LEGEND} />}>
+        {/* The cap said out loud (review finding F-ST-02): the rows are built from the 30 runs
+            this page read, so "5 earlier" is a count of that window and not of the month's whole
+            history. Widening the query is a reader change and is not tonight's work. */}
+        <DataTable
+          ariaLabel="Statement runs"
+          legend={<Legend items={STATUS_LEGEND} />}
+          footer={
+            <p className="money-cap">
+              This table reads the {HOW_MANY_RUNS_SHOWN} most recent runs. Earlier revisions of a month beyond them
+              are not counted here; each run page names the revision it supersedes.
+            </p>
+          }
+        >
           <thead>
             <tr>
               <ExpandHead />
@@ -125,7 +146,7 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
               </tr>
             </tbody>
           ) : (
-            runsInReadingOrder.map((run) => <RunRow key={run.runId} run={run} now={now} />)
+            months.map((month) => <MonthRow key={month.latest.runId} month={month} now={now} />)
           )}
         </DataTable>
 
@@ -189,16 +210,28 @@ export default async function OpsStatementsPage({ searchParams }: { searchParams
           A run made before the month is over is marked provisional and stays exactly as it is. Running the month again
           stores a new revision that names the one it replaces. Nothing is rewritten, so both stay readable.
         </p>
+        <h4>One row per broker and month</h4>
+        <p>
+          Each row is the newest revision of one broker&rsquo;s month, and the revisions it replaced are inside its
+          fold, newest first, each one a link to the run it was, with the same chips it would carry as a row. The rows
+          are ordered by the age of the revision they show, so the month somebody has just run is the first row. The
+          fold holds the revisions inside the {HOW_MANY_RUNS_SHOWN} runs this page reads and no more: on an old month
+          it can be fewer than the month has, and the way past that window is the run page of a revision, which names
+          the one it supersedes.
+        </p>
       </About>
     </PortalShell>
   );
 }
 
-// One run: the five columns an operator scans, and every stored figure in the expansion. The
-// broker cell is the link, stretched over the whole row by the system stylesheet, so a click
-// anywhere but the chevron opens the run. When it was produced is a fact of the fold, not a
-// column: the table has to fit six cells (round 1, HIGH on the broker's own list).
-function RunRow({ run, now }: { run: StatementRunRow; now: Date }) {
+// One broker and one month: the five columns an operator scans, read off the NEWEST revision of
+// that month, with every stored figure of that revision in the expansion and the revisions it
+// replaced listed under them. The broker cell is the link, stretched over the whole row by the
+// system stylesheet, so a click anywhere but the chevron opens the newest run. When it was
+// produced is the line under the broker name, not a column: the table has to fit six cells
+// (round 1, HIGH on the broker's own list).
+function MonthRow({ month, now }: { month: StatementMonthGroup; now: Date }) {
+  const run = month.latest;
   const collected = collectedFigures(run);
   return (
     <ExpandRow
@@ -209,7 +242,14 @@ function RunRow({ run, now }: { run: StatementRunRow; now: Date }) {
             {run.brokerName}
           </Primary>
           <td className="nowrap">{run.statementMonth}</td>
-          <Num>{run.revision}</Num>
+          {/* The revision this row shows, and how many earlier ones the fold holds: without that
+              count the fold looks like the ordinary row detail and the history stays hidden.
+              "shown" and not "earlier" (review finding F-ST-02): it counts the revisions inside
+              the 30 run window this page read, which on an old month can be fewer than the month
+              has. The sentence under the table says so in full. */}
+          <Num sub={month.earlier.length === 0 ? undefined : `${month.earlier.length} earlier shown`}>
+            {run.revision}
+          </Num>
           <Num>{formatCentsAsUsd(run.netDueCents)}</Num>
           {/* One word per chip; the legend under the table says what each one means (cycle 2,
               decision 7 and round 1, HIGH: "identical to revision 4" was a sentence in a chip). */}
@@ -264,6 +304,7 @@ function RunRow({ run, now }: { run: StatementRunRow; now: Date }) {
           },
         ]}
       />
+      <EarlierRevisions revisions={month.earlier} now={now} windowSize={HOW_MANY_RUNS_SHOWN} />
     </ExpandRow>
   );
 }

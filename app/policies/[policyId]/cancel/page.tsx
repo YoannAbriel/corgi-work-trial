@@ -1,7 +1,10 @@
 import "@/app/styles/policy-detail.css";
+import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { SandboxReferences } from "@/components/disclosures";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
+import { formatSignedCentsAsUsd, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { Stat, Stats } from "@/components/ui/stat";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -68,7 +71,7 @@ export default async function CancelPolicyPage({
             { label: "Policy", href: `/policies/${policyId}` },
             { label: "Cancellation preview" },
           ]}
-          views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
+          views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel`, role: user.role })}
           band={{ title: "Cancellation preview", status: <Chip tone="warn">refused</Chip> }}
         >
           <div className="notices">
@@ -93,7 +96,7 @@ export default async function CancelPolicyPage({
         { label: `Policy ${plan.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Cancellation preview" },
       ]}
-      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
+      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel`, role: user.role })}
       band={{
         title: "Cancellation preview",
         suffix: `Policy ${plan.policyNumber}`,
@@ -103,10 +106,14 @@ export default async function CancelPolicyPage({
       }}
     >
       <Stats>
+        {/* Money going back to the customer, so the same red minus as a refunding correction
+            (Yoann, 2026-09-09). The breakdown below holds the refund as a positive amount, which
+            is what it is; the MOVEMENT is that amount leaving, hence the sign here. */}
         <Stat
           label="Refunded"
-          tone="accent"
-          value={formatCentsAsUsd(breakdown.totalRefundCents)}
+          tone={signedTone(-breakdown.totalRefundCents)}
+          valueIcon={signedArrow(-breakdown.totalRefundCents)}
+          value={formatSignedCentsAsUsd(-breakdown.totalRefundCents)}
           note="unearned premium and its tax"
         />
         <Stat
@@ -155,15 +162,23 @@ export default async function CancelPolicyPage({
                 <dt>Policy fee, earned at issuance</dt>
                 <dd>{formatCentsAsUsd(breakdown.refundedFeeCents)}</dd>
               </div>
+              {/* The total of this list, in the colour of money going back. NO SIGN HERE, unlike
+                  the tile: every line above is a part of this one refund, and a lone minus at the
+                  foot of a column of positive parts would read as an arithmetic mistake rather
+                  than as a direction. The direction is the tile's job; this row's job is to be
+                  the total, which is why it is bold. */}
               <div>
                 <dt>Total refunded</dt>
-                <dd>{formatCentsAsUsd(breakdown.totalRefundCents)}</dd>
+                <dd>
+                  <b className={`signed-${signedTone(-breakdown.totalRefundCents)}`}>{formatCentsAsUsd(breakdown.totalRefundCents)}</b>
+                </dd>
               </div>
             </dl>
             {breakdown.taxRefundWasCappedAtCharged ? (
               <p className="pd-note">
-                The tax refund is capped at the {formatCentsAsUsd(plan.taxChargedCents)} of premium tax this policy still
-                holds: rounding up the refund would otherwise give back a cent that was never collected.
+                <Emphasis>
+                  {`The tax refund is capped at the ${formatCentsAsUsd(plan.taxChargedCents)} of premium tax this policy still holds: rounding up the refund would otherwise give back a cent that was never collected.`}
+                </Emphasis>
               </p>
             ) : null}
           </section>
@@ -179,7 +194,9 @@ export default async function CancelPolicyPage({
                   { label: "Already paid on it, untouched", value: formatCentsAsUsd(plan.openClaims.paidCents) },
                 ]}
               />
-              <p className="pd-note">{plan.openClaims.explanation}</p>
+              <p className="pd-note">
+                <Emphasis>{plan.openClaims.explanation}</Emphasis>
+              </p>
             </section>
           ) : null}
 
@@ -219,11 +236,13 @@ export default async function CancelPolicyPage({
         <section className="card pd-form-card">
           <h2>Confirm</h2>
           <p className="pd-note">
-            {breakdown.totalRefundCents === 0
-              ? "Confirming records the cancellation and its journal entries. No refund is due on this date."
-              : plan.refundNeedsApproval
-                ? "Confirming records the cancellation, its journal entries and the refund request. The refund waits for approval before it is sent."
-                : "Confirming records the cancellation, its journal entries and the refund request, then asks Stripe for the money. The refund is complete only after the provider confirms it."}
+            <Emphasis>
+              {breakdown.totalRefundCents === 0
+                ? "Confirming records the cancellation and its journal entries. No refund is due on this date."
+                : plan.refundNeedsApproval
+                  ? "Confirming records the cancellation, its journal entries and the refund request. The refund waits for approval before it is sent."
+                  : "Confirming records the cancellation, its journal entries and the refund request, then asks Stripe for the money. The refund is complete only after the provider confirms it."}
+            </Emphasis>
           </p>
           {/* Slice B7: maker-checker. Above the threshold the cancellation still happens, and so do
               its journal entries; what waits is the money leaving. */}
@@ -232,9 +251,12 @@ export default async function CancelPolicyPage({
               <strong>
                 This refund is above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}, so it requires approval.
               </strong>{" "}
-              Confirming cancels the policy and records what the customer is owed, but nothing is sent to Stripe until a
-              staff approver who is not you approves it in the money-out queue. The threshold is an assumption of this
-              build, not a regulatory figure.
+              {/* The sentence above keeps its own <strong>: it is a whole sentence a reader must
+                  not miss, which is a different job from marking the figures inside a sentence.
+                  Only the explanation after it is emphasised. */}
+              <Emphasis>
+                {"Confirming cancels the policy and records what the customer is owed, but nothing is sent to Stripe until a staff approver who is not you approves it in the money-out queue. The threshold is an assumption of this build, not a regulatory figure."}
+              </Emphasis>
             </p>
           ) : null}
           <form method="post" action={`/api/policies/${policyId}/cancel`} className="card">
@@ -302,7 +324,7 @@ async function CancellationForm({
         { label: `Policy ${policy.policyNumber}`, href: `/policies/${policyId}` },
         { label: "Cancel" },
       ]}
-      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel` })}
+      views={policyFormViews({ policyId, formLabel: "Cancel", formHref: `/policies/${policyId}/cancel`, role: user.role })}
       band={{
         title: "Cancel the policy",
         suffix: `Policy ${policy.policyNumber}`,

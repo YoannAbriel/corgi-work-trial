@@ -3,6 +3,7 @@ import { PortalShell } from "@/components/portal-shell";
 import { AmountExplained } from "@/components/amount-explained";
 import { SandboxReferences } from "@/components/disclosures";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { JournalTable } from "@/components/journal-table";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
@@ -42,7 +43,7 @@ import {
   type JournalEntryView,
   type RefundOperationView,
 } from "@/lib/policy/read";
-import { policyAsItStoodOn } from "@/lib/policy/correction-read";
+import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import {
   closeInspectorHref,
@@ -56,6 +57,20 @@ import {
   type ToastNotice,
 } from "@/lib/ui/views";
 import {
+  COLLECT_ANCHOR,
+  collectAnchorFor,
+  CorrectionCollectRows,
+  endorsementNeedsThisReader,
+  LatestTermsStat,
+  PAY_DELTA_ANCHOR,
+  REFUNDS_ANCHOR,
+  pendingEndorsementNotice,
+  pendingEndorsementState,
+  withoutTrailingStop,
+  type PolicyAudience,
+  correctionHref,
+  correctionViews,
+  firstOpenCollection,
   CorrectEndorsementDateForm,
   CorrectionsExplained,
   PolicyAsOf,
@@ -65,6 +80,16 @@ import {
   POLICY_VIEWS,
   POLICY_VIEW_LABEL,
 } from "./correction-sections";
+import {
+  AGENCY_BILL_SENTENCE_FOR_STAFF,
+  BillingSummary,
+  billingRows,
+  // F-BL-02: the Billing view's comment said these were shared so the two screens could not use
+  // different words for the same refund, while this page kept private copies of both. One import
+  // makes the comment true.
+  refundStateTone,
+  refundStateWord,
+} from "./billing-sections";
 import { CustomerChangeRequestsPanel, CustomerPolicyView } from "./customer-view";
 import { FormulaLinesTable } from "./formula-lines";
 
@@ -126,14 +151,29 @@ export default async function PolicyPage({
   // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
   const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
 
-  const [kyb, operation, entries, cancellation, refunds, voidCorrection, endorsements, schedule, claims, termsToday, query] =
-    await Promise.all([
+  const [
+    kyb,
+    operation,
+    entries,
+    cancellation,
+    refunds,
+    voidCorrection,
+    corrections,
+    endorsements,
+    schedule,
+    claims,
+    termsToday,
+    query,
+  ] = await Promise.all([
       brokerKybState(policy.brokerId),
       checkoutOperationOfPolicy(policyId),
       journalEntriesOfPolicy(policyId),
       cancellationOfPolicy(policyId),
       refundOperationsOfPolicy(policyId),
       voidCorrectionOfPolicy(policyId),
+      // Read here rather than inside the corrections block, because the band above the views needs
+      // the same rows to offer "Collect $X" (F-LIVE-02).
+      correctionsOfPolicy(policyId),
       endorsementsOfPolicy(policyId),
       endorsementScheduleOfPolicy(policyId),
       // Slice B7: the claims of this policy, each with the reserve and the incurred amount folded
@@ -145,7 +185,7 @@ export default async function PolicyPage({
       // says "in force".
       policyAsItStoodOn(policyId, documentDate),
       searchParams,
-    ]);
+  ]);
 
   const path = `/policies/${policy.policyId}`;
   const view = pickView(query.view, POLICY_VIEWS);
@@ -179,9 +219,78 @@ export default async function PolicyPage({
   // confirmed, so hiding a button is a convenience, never the control.
   const canChange = (isOwningBroker || user.role === "staff_ops") && policy.status === "bound";
   const canOpenClaim = user.role === "staff_ops" && (policy.status === "bound" || policy.status === "cancelled");
+  // Who may take the difference a correction created: the broker whose policy it is, or staff
+  // operations. The corrections block below draws its button from exactly this, and the API
+  // checks it again when the form is posted.
+  const canPayTheDifference = isOwningBroker || user.role === "staff_ops";
+  // F-LT-01: who is reading, for the sentences and the counts that differ between them. The
+  // owning broker is the one who pays a delta; every other staff reader watches them do it.
+  const policyAudience: PolicyAudience = isOwningBroker ? "owning-broker" : "staff";
+  // Money a correction is still waiting to take FROM THIS READER, if any. Yoann could not find
+  // the button: it was the last thing in a block sitting far down the Money view, so the Billing
+  // view carries it and the band names the amount and links straight to it.
+  const collectable = firstOpenCollection(corrections, canPayTheDifference);
+  // F-EV2-01: the BAND needs more than "open for this reader". An owning broker whose customer
+  // has not approved the difference yet has an open row and no button on it, and the band was
+  // offering them an orange "Collect $X" that lands on an explanation. The band's link exists
+  // only where the button exists, which is exactly `canCollectNow`.
+  const collectableNow = collectable?.open.canCollectNow ? collectable : null;
+  // Every button that takes money on a CHANGE lives on the Billing view (decision 43): the delta
+  // of an endorsement and the difference of a correction. The issuance payment of the policy
+  // itself is still the band's own "Pay with Stripe", where it has always been.
+  const billingHref = `${path}?view=billing`;
+  // The band names one correction when it offers one, and the card that holds them all otherwise.
+  // F-BL-12: the second branch is not dead code — the card carries `id={COLLECT_ANCHOR}` below,
+  // which is also where an inbox row rendered before F-EV2-05 lands.
+  const collectHref = collectableNow
+    ? `${billingHref}#${collectAnchorFor(collectableNow.correction.rebookEventId)}`
+    : `${billingHref}#${COLLECT_ANCHOR}`;
+  // What is owed, what was paid and what is coming back, built from the rows already read above.
+  const billingLists = billingRows({ policy, payment: operation, endorsements, corrections, refunds, voidCorrection });
   const liveEndorsement = endorsements.find(
     (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
   );
+  // The endorsement delta, when it is approved, unpaid, and this reader is the one who pays it.
+  // The Billing view draws that Pay form for the owning broker only; this reuses the same test,
+  // so the band never links to a button that is not there. Staff therefore get no action here.
+  const payableDelta =
+    liveEndorsement &&
+    liveEndorsement.standing.state === "approved" &&
+    isOwningBroker &&
+    !liveEndorsement.collection?.applicationRefusedReason &&
+    liveEndorsement.collection?.latestStatus !== "succeeded"
+      ? liveEndorsement
+      : null;
+  const payDeltaHref = `${billingHref}#${PAY_DELTA_ANCHOR}`;
+  // F-BL-03: an approved delta the Billing view can actually offer something about. A delta whose
+  // application Stripe accepted but the policy refused has no button: the money is at Stripe and
+  // an operator has to apply it, which is said beside the owed row, not under a "pay now" heading.
+  const deltaIsPayableHere =
+    liveEndorsement !== undefined &&
+    liveEndorsement.standing.state === "approved" &&
+    !liveEndorsement.collection?.applicationRefusedReason;
+  // LIVE-7: refunds an approver has said yes to and nobody has sent yet. EXACTLY the condition
+  // the "Send to Stripe" buttons on the Money view are drawn from, read once here so the notice
+  // and the buttons can never disagree about how many there are.
+  const refundsWaitingToBeSent =
+    user.role === "staff_ops"
+      ? refunds.filter(
+          (refund) =>
+            refund.state === "requested" && (!refund.approvalRequestId || refund.approvalDecision === "approved"),
+        )
+      : [];
+  const refundsWaitingCents = refundsWaitingToBeSent.reduce((total, refund) => total + refund.amountCents, 0);
+  const refundsHref = `${path}?view=money#${REFUNDS_ANCHOR}`;
+  // TWO OPEN ITEMS, ONE PRIMARY. Both orange is two shouts and no order, so the one that has been
+  // waiting longest is the orange action and the other steps back to secondary. "Waiting since"
+  // is when each became payable: the customer's approval for a delta, the recording of the
+  // correction for a difference.
+  const deltaWaitingSince = payableDelta?.standing.approvedAt ?? null;
+  const differenceWaitingSince = collectableNow?.correction.recordedAt ?? null;
+  const deltaIsTheOlder =
+    payableDelta !== null &&
+    (differenceWaitingSince === null ||
+      (deltaWaitingSince !== null && deltaWaitingSince.getTime() <= differenceWaitingSince.getTime()));
   const historicalRequests = endorsements.filter((endorsement) => endorsement.standing.state === "superseded");
   // Slice B7: an open claim survives a cancellation untouched, which is the live-fire question,
   // so the explanation sits next to the cancellation amounts it explains.
@@ -242,12 +351,51 @@ export default async function PolicyPage({
     ...toast("endorsement", endorsementOutcome, "info", "Endorsement", (endorsementOutcome ?? "").replace(/-/g, " ")),
     ...toast("correction", correctionOutcome, "info", "Correction", (correctionOutcome ?? "").replace(/-/g, " ")),
     ...toast("reissued", reissuedOutcome, "info", "Refund re-issued", (reissuedOutcome ?? "").replace(/_/g, " ")),
-    ...toast("refundSent", refundSentOutcome, "ok", "Refund sent", refundSentOutcome ?? ""),
+    // LIVE-7. The send route redirects with ?refundSent=<status>, one of the four words
+    // RefundIssueOutcome carries (lib/payments/refunds.ts): provider_accepted, queued_for_approval,
+    // failed, refused. Only the first is money on its way. The toast used to be green for all four
+    // with the raw word as its body, so four sends in a row said "provider_accepted" four times in
+    // green whatever had happened.
+    ...toast(
+      "refundSent",
+      refundSentOutcome,
+      refundSentTone(refundSentOutcome),
+      refundSentOutcome === "provider_accepted" ? "Refund sent" : "Refund not sent",
+      refundSentText(refundSentOutcome),
+    ),
     ...toast("changeRequest", changeRequestOutcome, "ok", "Answer sent", "It is under the request it answers."),
   ];
 
+  // LIVE-9, the broker's side: what the change waiting on this policy is waiting for, at the top
+  // of every view of it, so a broker who has just been approved does not have to open a card
+  // three views away to learn that the delta is his to pay.
+  const pendingNotice = liveEndorsement
+    ? pendingEndorsementNotice({
+        standingState: liveEndorsement.standing.state,
+        approvedAt: liveEndorsement.standing.approvedAt,
+        requestedAt: liveEndorsement.request.recordedAt,
+        audience: policyAudience,
+      })
+    : null;
+
   const notices = [
     refusal ? <p key="error" className="error" role="alert">{refusal}</p> : null,
+    // LIVE-7: four approved refund slices sat on the money view with nothing at the top of the
+    // page saying so, and each send gave no readable answer. Staff operations only, because they
+    // are the only role that may press the button the line points at.
+    refundsWaitingToBeSent.length > 0 ? (
+      <p key="refundsToSend" className="note" role="status">
+        <Emphasis>
+          {`${refundsWaitingToBeSent.length} ${refundsWaitingToBeSent.length === 1 ? "refund" : "refunds"} approved, ${formatCentsAsUsd(refundsWaitingCents)} to send.`}
+        </Emphasis>{" "}
+        <Link href={refundsHref}>Send them on the money view</Link>
+      </p>
+    ) : null,
+    pendingNotice ? (
+      <p key="pendingEndorsement" className="note" role="status">
+        <Emphasis>{pendingNotice}</Emphasis>
+      </p>
+    ) : null,
     paymentOutcome === "returned" ? (
       <p key="returned" className="note" role="status">
         You came back from the Stripe hosted page. The policy is bound when Stripe&apos;s webhook confirms the payment,
@@ -271,7 +419,9 @@ export default async function PolicyPage({
             : `A new refund was re-issued: Stripe answered ${reissuedOutcome}.`}
       </p>
     ) : null,
-    refundSentOutcome ? <p key="sent" className="note">The refund was sent to Stripe: {refundSentOutcome}.</p> : null,
+    // The long form of the same event as the toast. It used to read "was sent to Stripe" even
+    // when the status was `refused` or `failed`; both now come from one sentence, decided once.
+    refundSentOutcome ? <p key="sent" className="note">{refundSentText(refundSentOutcome)}</p> : null,
     boundOutcome === "1" ? (
       <p key="bound" className="note" role="status">The policy is now bound and the four issuance entries are in the journal.</p>
     ) : null,
@@ -285,7 +435,7 @@ export default async function PolicyPage({
       // them, and the reversal entries are visible in the journal.
       <div key="voided" className="error" role="alert">
         Voided by a correction on {voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC:{" "}
-        {voidCorrection.reason}.{" "}
+        {withoutTrailingStop(voidCorrection.reason)}.{" "}
         {voidCorrection.reversedEntryCount > 0 ? `${voidCorrection.reversedEntryCount} entries were reversed. ` : ""}
         Nothing was deleted: the original entries and their reversals are both in the journal, and this policy can no
         longer be paid. A replacement needs a new draft.
@@ -320,13 +470,27 @@ export default async function PolicyPage({
   // A count only where a person must act (cycle 2, decision 3): an open claim is work, and the
   // number of endorsements, of journal entries and of closed claims is not. Opening a view says
   // how many rows it holds; the navigation does not have to.
-  const views = POLICY_VIEWS.map((one) => ({
-    key: one,
-    label: POLICY_VIEW_LABEL[one],
-    href: withParams(path, query, { view: one, inspect: null }),
-    current: one === view,
-    count: one === "claims" && openClaims.length > 0 ? openClaims.length : undefined,
-  }));
+  const views = [
+    ...POLICY_VIEWS.map((one) => ({
+      key: one,
+      label: POLICY_VIEW_LABEL[one],
+      href: withParams(path, query, { view: one, inspect: null }),
+      current: one === view,
+      count:
+        one === "claims" && openClaims.length > 0
+          ? openClaims.length
+          : // LIVE-9: one, while the change waiting is waiting on THIS reader.
+            one === "endorsements" &&
+                liveEndorsement &&
+                endorsementNeedsThisReader(liveEndorsement.standing.state, policyAudience)
+              ? 1
+              : undefined,
+    })),
+    // F-LIVE-01: the correction is a screen of the policy, so it is listed with the policy's own
+    // views. Operations only, and always, whether or not there is an endorsement to correct: the
+    // screen says when there is nothing.
+    ...correctionViews({ policyId: policy.policyId, role: user.role }),
+  ];
 
   // The inspector, on the staff views that carry a Stripe or an operation reference: a reference
   // opens its whole trail in the drawer instead of being a code token nobody can follow (cycle 2,
@@ -372,8 +536,25 @@ export default async function PolicyPage({
                 <SubmitButton>Bind now that the broker is eligible</SubmitButton>
               </form>
             ) : null}
+            {/* F-LIVE-02: while a correction difference is waiting, taking that money is the
+                one thing to do on this policy, so it is the orange action and Endorse steps back
+                to secondary. The link lands on the action row of the block itself, not on the
+                top of a long view. */}
+            {payableDelta ? (
+              <Link href={payDeltaHref} className={deltaIsTheOlder ? "button-link orange" : "button-link secondary"}>
+                Pay the delta {formatCentsAsUsd(payableDelta.request.figures.deltaTotalCents)}
+              </Link>
+            ) : null}
+            {collectableNow ? (
+              <Link href={collectHref} className={deltaIsTheOlder ? "button-link secondary" : "button-link orange"}>
+                Collect {formatCentsAsUsd(collectableNow.open.amountCents)}
+              </Link>
+            ) : null}
             {canChange && !liveEndorsement ? (
-              <Link href={`/policies/${policy.policyId}/endorse`} className="button-link orange">
+              <Link
+                href={`/policies/${policy.policyId}/endorse`}
+                className={collectableNow ? "button-link secondary" : "button-link orange"}
+              >
                 Endorse
               </Link>
             ) : null}
@@ -385,6 +566,14 @@ export default async function PolicyPage({
             {canOpenClaim ? (
               <Link href={`/policies/${policy.policyId}/claims/new`} className="button-link secondary">
                 Open a claim
+              </Link>
+            ) : null}
+            {/* F-LIVE-01: the same three conditions the Endorsements view uses to draw the
+                correction form, so the band offers the screen exactly when there is an effective
+                date to put right. No icon: no other band action carries one. */}
+            {user.role === "staff_ops" && policy.status === "bound" && schedule.length > 0 ? (
+              <Link href={correctionHref(policy.policyId)} className="button-link secondary">
+                Correct a date
               </Link>
             ) : null}
           </>
@@ -400,6 +589,22 @@ export default async function PolicyPage({
               label="Annual premium"
               value={formatCentsAsUsd(terms.annualPremiumCents)}
               note={terms.onDate ? `in force on ${terms.onDate}` : "on the policy record"}
+            />
+            {/* LIVE-9: "pourquoi ici je vois 1 200 ?". What is in force today and what the record
+                carries are two questions; this tile answers the second, with the quote that is
+                not paid for yet on a line under it. Same rows the endorsements view reads. */}
+            <LatestTermsStat
+              schedule={schedule}
+              pending={
+                liveEndorsement
+                  ? {
+                      newAnnualPremiumCents: liveEndorsement.request.figures.newAnnualPremiumCents,
+                      effectiveAt: liveEndorsement.request.figures.effectiveAt,
+                      approved: liveEndorsement.standing.state === "approved",
+                    }
+                  : null
+              }
+              href={withParams(path, query, { view: "endorsements" })}
             />
             <Stat
               label={`${policy.stateCode} premium tax`}
@@ -478,85 +683,96 @@ export default async function PolicyPage({
               </p>
             </div>
           ) : null}
-          {/* Finding F-YA-07: what the policy is today, and separately what it becomes. One short
-              line beside the tiles, and the rest of it under its own heading in About (round 1,
-              HIGH: a 37 word paragraph sat in the reading flow between the tiles and the cards).
-              The figures come from the endorsement's own stored event; nothing is recomputed. */}
-          {endorsementsNotYetInForce.length > 0 ? (
-            <p className="pd-lead">
-              {endorsementsNotYetInForce.map((row) => (
-                <span key={`not-yet-${row.endorsedEventId}`}>
-                  From {row.effectiveAt} the annual premium becomes {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}.{" "}
-                </span>
-              ))}
-              <Link href={withParams(path, query, { view: "endorsements" })}>The endorsements</Link>
-            </p>
-          ) : null}
+          {/* F-YA-07's one-line answer to "what does it become" is the "Latest terms on record"
+              tile above now (LIVE-9): it carries the same date and the same figure, and it is
+              beside the figure it was contradicting rather than under it. The rest of the
+              explanation stays under its own heading in About. */}
 
-          <div className="cards pd-cards-4">
-            <section className="card">
-              <h2>Cover</h2>
-              <FactGrid
-                items={[
-                  ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
-                  { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
-                  { label: "State", value: policy.stateCode },
-                  { label: "Commission rate", value: `${(policy.commissionRateBps / 100).toFixed(2)}%` },
-                ]}
-              />
-            </section>
+          {/* Two stacks rather than one grid row of four: a short card and a tall card sharing a
+              grid row left the short one ending far above the row, so the card under it started
+              below an empty gap (Yoann, 2026-09-09). The two short records are the left stack, the
+              two blocks that grow with the policy are the right one, and each stack sits tight. */}
+          <div className="pd-columns">
+            <div className="pd-column">
+              <section className="card">
+                <h2>Cover</h2>
+                <FactGrid
+                  items={[
+                    ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
+                    { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
+                    { label: "State", value: policy.stateCode },
+                    { label: "Commission rate", value: `${(policy.commissionRateBps / 100).toFixed(2)}%` },
+                  ]}
+                />
+              </section>
 
-            <section className="card">
-              <h2>So far, from the journal</h2>
-              <LedgerSoFarFacts
-                ledger={ledger}
-                entries={entriesStillStanding}
-                operation={operation}
-                openClaims={openClaims.length}
-                openClaimReserveCents={openClaimReserveCents}
-                referenceHref={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
-                inspected={inspected}
-              />
-              {reversedPairCount > 0 ? (
-                // UI-022: said out loud rather than left to be inferred from four figures that no
-                // longer match the journal line by line. One line here, the reason in About.
-                <p className="pd-note">
-                  {reversedPairCount === 1
-                    ? "One reversed entry is left out, with its mirror."
-                    : `${reversedPairCount} reversed entries are left out, with their mirrors.`}
-                </p>
-              ) : null}
-            </section>
+              <section className="card">
+                <h2>Broker</h2>
+                <dl className="pd-facts">
+                  <div>
+                    <dt>Name</dt>
+                    <dd>{policy.brokerName}</dd>
+                  </div>
+                  <div>
+                    <dt>Verification</dt>
+                    <dd>
+                      <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>{kyb.status}</Chip>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Customer</dt>
+                    <dd>{policy.customerEmail}</dd>
+                  </div>
+                </dl>
+                {/* AF-02 on the record itself when the status is not provider evidence; what the
+                    status means is under its own heading in About (cycle 2, decision 9).
 
-            <section className="card">
-              <h2>Broker</h2>
-              <dl className="pd-facts">
-                <div>
-                  <dt>Name</dt>
-                  <dd>{policy.brokerName}</dd>
-                </div>
-                <div>
-                  <dt>Verification</dt>
-                  <dd>
-                    <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>{kyb.status}</Chip>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Customer</dt>
-                  <dd>{policy.customerEmail}</dd>
-                </div>
-              </dl>
-              {/* AF-02 on the record itself when the status is not provider evidence; what the
-                  status means is under its own heading in About (cycle 2, decision 9). */}
-              {kyb.isProviderEvidence ? null : (
-                <p className="pd-note">{KYB_NOT_LIVE_LABEL}: a seeded placeholder, not provider evidence.</p>
-              )}
-            </section>
+                    LIVE-3, Yoann: one sentence answered for two different situations. A broker who
+                    has never submitted anything was described as carrying "a seeded placeholder",
+                    which is a claim about a record that does not exist. Three cases now, decided
+                    on the two facts the state carries: nothing on file, the seed script's own
+                    placeholder, and anything else that is not provider evidence.
 
-            <section className="card">
-              <h2>Documents</h2>
-              <PolicyDocuments policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
-            </section>
+                    The lists builder is putting the same rule in components/kyb-evidence-note.tsx
+                    for the broker pages; a later tidy-up imports it here and deletes this block. */}
+                {kyb.isProviderEvidence ? null : kyb.status === "unknown" && !kyb.providerAccountId ? (
+                  <p className="pd-note">Not submitted yet: no verification on file.</p>
+                ) : kyb.provider === "seed" ? (
+                  <p className="pd-note">{KYB_NOT_LIVE_LABEL}: a seeded placeholder, not provider evidence.</p>
+                ) : (
+                  <p className="pd-note">{KYB_NOT_LIVE_LABEL}.</p>
+                )}
+              </section>
+            </div>
+
+            <div className="pd-column">
+              <section className="card">
+                <h2>So far, from the journal</h2>
+                <LedgerSoFarFacts
+                  ledger={ledger}
+                  entries={entriesStillStanding}
+                  operation={operation}
+                  openClaims={openClaims.length}
+                  openClaimReserveCents={openClaimReserveCents}
+                  referenceHref={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
+                  inspected={inspected}
+                />
+                {reversedPairCount > 0 ? (
+                  // UI-022: said out loud rather than left to be inferred from four figures that no
+                  // longer match the journal line by line. One line here, the reason in About.
+                  <p className="pd-note">
+                    {reversedPairCount === 1
+                      ? "One reversed entry is left out, with its mirror."
+                      : `${reversedPairCount} reversed entries are left out, with their mirrors.`}
+                  </p>
+                ) : null}
+              </section>
+
+              <section className="card">
+                <h2>Documents</h2>
+                <PolicyDocuments policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
+              </section>
+            </div>
           </div>
 
           {/* Slice B13-6: what the customer has asked for on this policy, and the box to answer
@@ -619,6 +835,7 @@ export default async function PolicyPage({
             <EndorsementInProgress
               endorsement={liveEndorsement}
               policyId={policy.policyId}
+              billingHref={billingHref}
               isOwningBroker={isOwningBroker}
               isStaffOperations={user.role === "staff_ops"}
               now={now}
@@ -647,7 +864,7 @@ export default async function PolicyPage({
                 <th>Ref</th>
               </tr>
             </thead>
-            {schedule.length === 0 ? (
+            {schedule.length === 0 && !liveEndorsement ? (
               <tbody>
                 <tr>
                   <td colSpan={6} className="dt-empty">
@@ -751,6 +968,61 @@ export default async function PolicyPage({
                 </ExpandRow>
               ))
             )}
+            {/* LIVE-9: the change that is quoted or approved and not paid for is a row of this
+                table too, last because its effective date is the furthest away. The chip in the
+                Ref column, where a settled row shows the Stripe reference of the money that
+                moved, is what keeps it from reading as in force: no money has moved for it yet,
+                and the card above says so in a sentence. Its figures are the request's own
+                stored quote, the same ones the Billing view collects. */}
+            {liveEndorsement ? (
+              <ExpandRow
+                key={liveEndorsement.request.eventId}
+                columns={5}
+                cells={
+                  <>
+                    <td className="nowrap">
+                      {liveEndorsement.request.figures.effectiveAt}
+                      <span className="dt-sub">
+                        <When instant={liveEndorsement.request.recordedAt} now={now} />
+                      </span>
+                    </td>
+                    <td>
+                      {formatCentsAsUsd(liveEndorsement.request.figures.oldAnnualPremiumCents)} to{" "}
+                      {formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}
+                      <span className="dt-sub">{liveEndorsement.request.newLimitLabel}</span>
+                    </td>
+                    <Num sub="to settle">
+                      {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)}
+                    </Num>
+                    <Num>{formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}</Num>
+                    <td>
+                      <Chip tone={pendingEndorsementState(liveEndorsement.standing.state, policyAudience).tone}>
+                        {pendingEndorsementState(liveEndorsement.standing.state, policyAudience).label}
+                      </Chip>
+                    </td>
+                  </>
+                }
+              >
+                <FactGrid
+                  items={[
+                    { label: "What changes", value: liveEndorsement.request.description },
+                    { label: "Limits after it", value: liveEndorsement.request.newLimitLabel },
+                    {
+                      label: "Days left in the term",
+                      value: `${liveEndorsement.request.figures.daysRemaining} of ${liveEndorsement.request.figures.termDays}`,
+                    },
+                    { label: "Requested", value: <When instant={liveEndorsement.request.recordedAt} now={now} mode="utc" /> },
+                    ...(liveEndorsement.standing.approvedAt
+                      ? [{ label: "Approved", value: <When instant={liveEndorsement.standing.approvedAt} now={now} mode="utc" /> }]
+                      : []),
+                  ]}
+                />
+                <p className="pd-note">
+                  The policy terms stay as they are until the delta is paid. It is collected on{" "}
+                  <Link href={billingHref}>the Billing view</Link>.
+                </p>
+              </ExpandRow>
+            ) : null}
           </DataTable>
 
           {/* Slice B8: the live-fire test of this view. Staff operations can put a wrong effective
@@ -1048,6 +1320,8 @@ export default async function PolicyPage({
           {refunds.length > 0 ? (
             <DataTable
               ariaLabel="Refunds"
+              // The anchor the "refunds approved, $X to send" notice lands on (LIVE-7).
+              id={REFUNDS_ANCHOR}
               legend={
                 <Legend
                   items={[
@@ -1078,7 +1352,7 @@ export default async function PolicyPage({
                             the customer has received. Above $1,000 a third state sits in front of
                             both: the refund is recorded and owed, and it is not going anywhere
                             until a second person approves it (slice B7, /ops/approvals). */}
-                        <Chip tone={refundTone(refund)}>{refundState(refund)}</Chip>
+                        <Chip tone={refundStateTone(refund)}>{refundStateWord(refund)}</Chip>
                         {refund.completedOn ? <span className="dt-sub">{refund.completedOn}</span> : null}
                       </td>
                       <Num>{formatCentsAsUsd(refund.amountCents)}</Num>
@@ -1165,7 +1439,7 @@ export default async function PolicyPage({
           ) : null}
 
           {/* Slice B8: backdated corrections, both clocks, and what they did to the money. */}
-          <CorrectionsExplained policyId={policy.policyId} canPay={isOwningBroker || user.role === "staff_ops"} now={now} />
+          <CorrectionsExplained corrections={corrections} billingHref={billingHref} now={now} />
 
           <section className="card">
             <h2>Journal entries</h2>
@@ -1198,6 +1472,103 @@ export default async function PolicyPage({
             <p>
               A refund counts as completed only when Stripe&apos;s webhook confirms the money left. A failed refund
               reverses nothing: the customer is still owed the money.
+            </p>
+          </About>
+        </>
+      ) : null}
+
+      {/* THE BILLING VIEW (decision 43, Yoann live at 19:50Z: "on dit que le broker collecte,
+          mais c'est lui qui paye ?"). The buttons that take money for a CHANGE used to sit each in
+          its own corner of the broker's space with nothing saying whose card pays. They are here
+          now, under one sentence that says it, followed by the three questions anyone asks about
+          the money of a policy: what is owed, what was paid, what is coming back.
+
+          F-BL-11: the ISSUANCE payment is NOT here, and deliberately. It is the band's own "Pay
+          with Stripe", where it has always been, on every view of a policy nobody has paid for
+          yet; the comment here used to claim that every button that takes money had moved.
+
+          Nothing new is read: the rows are the ones the Money view and the Endorsements view
+          already had. */}
+      {view === "billing" ? (
+        <>
+          {/* The sentence FIRST, above the buttons rather than under them: it is the answer to
+              the question Yoann asked while looking at one ("on dit que le broker collecte, mais
+              c'est lui qui paye ?"), and an answer printed under the button answers nobody. */}
+          <p className="pd-lead">{AGENCY_BILL_SENTENCE_FOR_STAFF}</p>
+
+          {/* F-BL-03: gated on what it will actually DRAW, not on what exists. An approved delta
+              whose application was refused has no button and no line here, so with no open
+              difference this card was a heading over nothing. Its reason is beside the owed row
+              in "What is owed" instead, where the amount it explains is. */}
+          {deltaIsPayableHere || collectable ? (
+            // F-BL-12: the bare `collect` anchor lives here. Every link written since F-EV2-05
+            // names one correction (`collect-<rebookEventId>`), but the inbox rows that were
+            // rendered before this deploys still say `#collect`, and this is where they should
+            // land: the card that holds every difference waiting to be taken.
+            <section className="card" id={COLLECT_ANCHOR}>
+              <h2>What needs paying now</h2>
+              {liveEndorsement && liveEndorsement.standing.state === "approved" && isOwningBroker &&
+              !liveEndorsement.collection?.applicationRefusedReason ? (
+                // The endorsement delta, moved here from the Endorsements card. Same route, same
+                // method, same hidden `quoteHash`: only the screen it is drawn on changed.
+                <div className="pd-collect" id={PAY_DELTA_ANCHOR}>
+                  <p className="badge badge-warn">
+                    {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)} of endorsement delta to collect,
+                    effective {liveEndorsement.request.figures.effectiveAt}
+                  </p>
+                  <form
+                    method="post"
+                    action={`/api/policies/${policy.policyId}/endorsements/${liveEndorsement.request.eventId}/checkout`}
+                    className="inline-form"
+                  >
+                    <input type="hidden" name="quoteHash" value={liveEndorsement.request.figures.quoteHash} />
+                    <SubmitButton>
+                      {liveEndorsement.collection &&
+                      !liveEndorsement.collection.isDead &&
+                      liveEndorsement.collection.latestStatus !== "succeeded" &&
+                      liveEndorsement.collection.checkoutUrl
+                        ? "Continue the delta payment at Stripe"
+                        : `Pay the delta (${formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)}) with Stripe (test mode)`}
+                    </SubmitButton>
+                  </form>
+                </div>
+              ) : null}
+              {liveEndorsement && liveEndorsement.standing.state === "approved" && !isOwningBroker ? (
+                <p className="pd-note">
+                  The owning broker collects the endorsement delta of{" "}
+                  {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)} from this view.
+                </p>
+              ) : null}
+              <CorrectionCollectRows
+                corrections={corrections}
+                policyId={policy.policyId}
+                canPay={canPayTheDifference}
+              />
+            </section>
+          ) : null}
+
+          <BillingSummary
+            rows={billingLists}
+            now={now}
+            // Staff can follow a reference into the whole trail behind it; a broker reads the
+            // same string without the console behind it, exactly as on the Money view.
+            inspectHrefFor={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
+            inspected={inspected}
+          />
+
+          <About>
+            <h4>Agency bill</h4>
+            <p>
+              The broker is the one who opens the Stripe page and answers for the money, and the card entered on it is
+              the customer&apos;s. Nothing on this screen charges anybody: a button opens the hosted Stripe page, and
+              the policy only moves when Stripe&apos;s webhook confirms what happened.
+            </p>
+            <h4>Where these figures come from</h4>
+            <p>
+              What is owed is read from the policy&apos;s own status, from the endorsements that are approved and not
+              yet collected, and from the corrections whose difference is still open. What was paid and what is being
+              refunded are the money operations themselves, and a payment a correction reversed is struck through.
+              Every amount here is also in the journal on the Money view.
             </p>
           </About>
         </>
@@ -1410,27 +1781,33 @@ function ledgerSoFar(entries: JournalEntryView[]) {
   };
 }
 
+// LIVE-7. POST /api/policies/{id}/refunds/{operationId}/send redirects here with
+// ?refundSent=<status>, one of the four words RefundIssueOutcome carries
+// (lib/payments/refunds.ts): provider_accepted, queued_for_approval, failed, refused. Only the
+// first is money on its way to the customer. The toast was green for all four with the raw word
+// as its body, so four sends in a row said "provider_accepted" in green whatever had happened
+// (Yoann, LIVE-7). The three tones the shell has are ok, info and error; there is no warn.
+function refundSentTone(status: string | undefined): ToastNotice["tone"] {
+  if (status === "provider_accepted") return "ok";
+  if (status === "queued_for_approval") return "info";
+  return "error";
+}
+
+function refundSentText(status: string | undefined): string {
+  if (status === "provider_accepted") {
+    return "Refund sent to Stripe. It counts as completed when Stripe's webhook confirms the money left.";
+  }
+  if (status === "queued_for_approval") {
+    return "Refund not sent: it waits for a second approver.";
+  }
+  return `Refund not sent: ${(status ?? "").replace(/_/g, " ")}.`;
+}
+
 // One toast, when the route sent the page back with that parameter. The long sentence stays in
 // the notices block under the band; this is the same event in one line.
 function toast(param: string, value: string | undefined, tone: ToastNotice["tone"], title: string, text: string): ToastNotice[] {
   if (value === undefined || value.trim() === "") return [];
   return [{ tone, title, text, param }];
-}
-
-// The state of a refund in one word, and its colour. Requested and completed are never mixed up.
-function refundState(refund: RefundOperationView): string {
-  if (refund.state === "completed") return "completed";
-  if (refund.state === "failed") return refund.failureStage === "approval" ? "rejected" : "failed";
-  if (refund.approvalRequestId && refund.approvalDecision !== "approved") {
-    return refund.approvalDecision === "rejected" ? "rejected" : "awaiting approval";
-  }
-  return refund.state === "accepted" ? "sent" : "requested";
-}
-
-function refundTone(refund: RefundOperationView): "ok" | "warn" | "neutral" {
-  if (refund.state === "completed") return "ok";
-  if (refund.state === "failed" || refund.approvalDecision === "rejected") return "warn";
-  return "neutral";
 }
 
 // The endorsement that is neither applied nor superseded: where it stands and what to do next.
@@ -1439,12 +1816,15 @@ function refundTone(refund: RefundOperationView): "ok" | "warn" | "neutral" {
 function EndorsementInProgress({
   endorsement,
   policyId,
+  billingHref,
   isOwningBroker,
   isStaffOperations,
   now,
 }: {
   endorsement: EndorsementView;
   policyId: string;
+  // Where the Pay button lives now (decision 43).
+  billingHref: string;
   isOwningBroker: boolean;
   isStaffOperations: boolean;
   now: Date;
@@ -1515,18 +1895,14 @@ function EndorsementInProgress({
         </>
       ) : null}
 
-      {standing.state === "approved" && isOwningBroker && !collection?.applicationRefusedReason ? (
-        <form method="post" action={`/api/policies/${policyId}/endorsements/${request.eventId}/checkout`} className="inline-form">
-          <input type="hidden" name="quoteHash" value={figures.quoteHash} />
-          <SubmitButton>
-            {paymentInFlight
-              ? "Continue the delta payment at Stripe"
-              : `Pay the delta (${formatCentsAsUsd(figures.deltaTotalCents)}) with Stripe (test mode)`}
-          </SubmitButton>
-        </form>
-      ) : null}
-      {standing.state === "approved" && !isOwningBroker ? (
-        <p className="pd-note">The owning broker pays the delta from this page.</p>
+      {/* The Pay button moved to the Billing view (decision 43): the two buttons that take money
+          for a CHANGE, the delta of an endorsement and the difference of a correction, are in one
+          place under the sentence saying whose card pays. This card keeps the quote. */}
+      {standing.state === "approved" && !collection?.applicationRefusedReason ? (
+        <p className="pd-note">
+          <Link href={billingHref}>Pay and collect on the Billing view</Link>
+          {isOwningBroker ? "" : ". The owning broker pays the delta."}
+        </p>
       ) : null}
     </section>
   );

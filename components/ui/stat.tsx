@@ -17,6 +17,7 @@ export function Stat({
   tone = "neutral",
   href,
   icon: Icon,
+  valueIcon: ValueIcon,
   hint,
   spark,
   className: extraClassName,
@@ -30,6 +31,10 @@ export function Stat({
   // A tile that opens the view holding the detail.
   href?: string;
   icon?: LucideIcon;
+  // A direction beside the figure itself rather than beside the label: the arrow of a signed
+  // amount (components/signed.tsx). Decorative, because the sign is already in the figure. Its
+  // rule lives in app/styles/signed.css, which the pages using it import.
+  valueIcon?: LucideIcon;
   // The provider, the window or the rule behind the figure: one sentence on a small info icon,
   // never a third line in the tile (cycle 2, decision 2).
   hint?: string;
@@ -53,6 +58,7 @@ export function Stat({
       <span className="stat-value">
         {value}
         {unit ? <small>{unit}</small> : null}
+        {ValueIcon ? <ValueIcon className="stat-value-icon" size={18} strokeWidth={2} aria-hidden="true" /> : null}
       </span>
       {spark ? <span className="stat-spark">{spark}</span> : null}
       {note ? <span className="stat-note">{note}</span> : null}

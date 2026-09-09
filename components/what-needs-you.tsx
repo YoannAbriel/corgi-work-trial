@@ -1,7 +1,7 @@
 import "@/app/styles/lists.css";
 import Link from "next/link";
 import { ArrowRight, BellRing } from "lucide-react";
-import { DecorativeIllustration } from "./decorative-illustration";
+import { Emphasis } from "@/components/emphasis";
 import type { WorkspaceTask } from "@/lib/inbox/tasks";
 
 // The "what needs you" block at the top of each role's workspace home: the work waiting for the
@@ -30,31 +30,40 @@ export type BlockingTask = {
   href: string;
 };
 
+// Every task label from lib/inbox/tasks.ts is a whole sentence that ALREADY begins with its count
+// and is already pluralised: "1 endorsement delta to pay", "2 endorsement deltas to pay", "4 open
+// breaks between a provider and the ledger". This block prints the count as a chip of its own, so
+// printing the sentence unchanged said the number twice, and with no space between the two the row
+// read as "11 endorsement delta to pay" for a count of 1 (Yoann, on the broker home, 2026-09-09).
+//
+// The count is removed HERE and not in lib/inbox/tasks.ts, because the sentence with its count is
+// the counting module's own wording and nothing else should have to reassemble it; what this block
+// needs is the same sentence minus the number it is already showing. The pluralisation stays where
+// it is, which is what makes "endorsement deltas" appear beside a chip saying 2.
+//
+// The count is matched as a prefix rather than assumed: a label that does not start with its own
+// count (the blocking task below has none) is printed exactly as it was written.
+function withoutTheLeadingCount(label: string, count: number): string {
+  const prefix = `${count} `;
+  return label.startsWith(prefix) ? label.slice(prefix.length) : label;
+}
+
 // The block at the top of each role's workspace home. It lists the same tasks the sidebar counts,
 // with a link to the screen where the work is done.
 export function WhatNeedsYou({
   tasks,
   blocking = null,
-  showEmptyIllustration = true,
 }: {
   tasks: WorkspaceTask[];
   blocking?: BlockingTask | null;
-  showEmptyIllustration?: boolean;
 }) {
-  // NOTHING WAITING: one grey line, an illustration the size of a stamp, one sentence (cycle 2).
-  // It used to be a card around a 24-word paragraph, so the block took MORE room saying there was
-  // no work than it takes listing it (round 1, MEDIUM, on /broker and /customer). Where the rest
-  // of the sentence went: the inbox is in the sidebar, and the counts are beside their screens.
+  // NOTHING WAITING: nothing at all, and the next block moves up (Yoann, 2026-09-09). A bar
+  // saying "Nothing is waiting for you." was still a bar: it cost a row of the home screen to
+  // report an absence. The fact is not lost. The sidebar shows a count beside a section only
+  // while something waits there, and /inbox draws "Nothing is waiting for you." with its own
+  // illustration when nothing waits anywhere (app/inbox/page.tsx, `inbox.totalWaiting === 0`).
   if (tasks.length === 0 && !blocking) {
-    return (
-      <section className="lists-empty-line lists-needs-empty" aria-labelledby="needs-you-heading">
-        {showEmptyIllustration ? <DecorativeIllustration name="all-clear" variant="empty" /> : null}
-        <h2 id="needs-you-heading">
-          <BellRing size={15} aria-hidden="true" /> What needs you
-        </h2>
-        <p>Nothing is waiting for you.</p>
-      </section>
-    );
+    return null;
   }
 
   // `lists-needs` is the dense shape of the interface system of 2026-09-09: 32 px rows, the count
@@ -75,7 +84,11 @@ export function WhatNeedsYou({
               <span className="count-chip">1</span>
               <span>
                 <strong>{blocking.label}</strong>
-                <span title={blocking.detail}>{blocking.detail}</span>
+                {/* The title keeps the plain sentence for the tooltip and for a text search; only
+                    what is drawn carries the emphasis (Yoann, 2026-09-09 22:10). */}
+                <span title={blocking.detail}>
+                  <Emphasis>{blocking.detail}</Emphasis>
+                </span>
               </span>
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
@@ -92,10 +105,14 @@ export function WhatNeedsYou({
             <Link href={`/inbox#${task.anchor}`} prefetch={false}>
               <span className="count-chip">{task.count}</span>
               <span>
-                <strong>{task.label}</strong>
+                {/* The chip above is the count, so the sentence beside it drops the one it carried:
+                    the two together read "4 open breaks between a provider and the ledger", once. */}
+                <strong>{withoutTheLeadingCount(task.label, task.count)}</strong>
                 {/* One line, cut with an ellipsis: the whole sentence stays in the title and in
                     the inbox section this row links to. */}
-                <span title={task.detail}>{task.detail}</span>
+                <span title={task.detail}>
+                  <Emphasis>{task.detail}</Emphasis>
+                </span>
               </span>
               <ArrowRight size={16} aria-hidden="true" />
             </Link>

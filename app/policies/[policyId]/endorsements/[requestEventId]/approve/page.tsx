@@ -1,6 +1,9 @@
 import "@/app/styles/policy-detail.css";
+import "@/app/styles/signed.css";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
+import { formatSignedCentsAsUsd, signedArrow, signedTone } from "@/components/signed";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Stat, Stats } from "@/components/ui/stat";
@@ -113,10 +116,13 @@ export default async function ApproveEndorsementPage({
 
       <Stats>
         <Stat label="Annual premium" value={formatCentsAsUsd(figures.newAnnualPremiumCents)} note={`from ${formatCentsAsUsd(figures.oldAnnualPremiumCents)}`} />
+        {/* The same convention as every other money screen (Yoann, 2026-09-09): what the customer
+            owes MORE is green and carries a plus. */}
         <Stat
           label="You would pay"
-          tone="accent"
-          value={formatCentsAsUsd(figures.deltaTotalCents)}
+          tone={signedTone(figures.deltaTotalCents)}
+          valueIcon={signedArrow(figures.deltaTotalCents)}
+          value={formatSignedCentsAsUsd(figures.deltaTotalCents)}
           note={`${figures.daysRemaining} of ${figures.termDays} days remain`}
         />
         <Stat label="Effective" value={figures.effectiveAt} note="the day the change starts" />
@@ -139,21 +145,31 @@ export default async function ApproveEndorsementPage({
           <section className="card">
             <h2>What you would pay, line by line</h2>
             <p className="pd-note">
-              {figures.daysRemaining} of {figures.termDays} days of the term remain from {figures.effectiveAt}. Every
-              figure is the one stored on the request; none of it is recomputed for display.
+              <Emphasis>
+                {`${figures.daysRemaining} of ${figures.termDays} days of the term remain from ${figures.effectiveAt}. Every figure is the one stored on the request; none of it is recomputed for display.`}
+              </Emphasis>
             </p>
-            <FormulaLinesTable lines={endorsementFormulaLines(figures)} />
+            {/* Same reading as the broker's own preview: the prorated lines and the total carry
+                the direction, the annual rate they are read against steps back. */}
+            <FormulaLinesTable
+              lines={endorsementFormulaLines(figures)}
+              signedKeys={["delta_premium", "delta_tax", "delta_total"]}
+              referenceKeys={["annual_difference"]}
+            />
           </section>
         </div>
 
         <section className="card pd-form-card">
           <h2>Your approval</h2>
           {standing.state === "applied" ? (
-            <p className="pd-note">This endorsement is already in force.</p>
+            <p className="pd-note">
+              <Emphasis>{"This endorsement is already in force."}</Emphasis>
+            </p>
           ) : standing.state === "superseded" ? (
             <p className="error" role="alert">
-              This quote was superseded by a later change on the policy; the figures beside are no longer the ones on
-              offer.
+              <Emphasis>
+                {"This quote was superseded by a later change on the policy; the figures beside are no longer the ones on offer."}
+              </Emphasis>
             </p>
           ) : standing.approvedEventId ? (
             <p className="badge badge-ok">
@@ -162,8 +178,9 @@ export default async function ApproveEndorsementPage({
             </p>
           ) : !standing.approvalRequired ? (
             <p className="pd-note">
-              This endorsement does not take the additional premium of this policy above{" "}
-              {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}, so it needs no approval.
+              <Emphasis>
+                {`This endorsement does not take the additional premium of this policy above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}, so it needs no approval.`}
+              </Emphasis>
             </p>
           ) : null}
 
@@ -173,8 +190,9 @@ export default async function ApproveEndorsementPage({
               <label className="checkbox-label">
                 <input type="checkbox" name="approved" value="yes" required />
                 <span>
-                  I approve paying {formatCentsAsUsd(figures.deltaTotalCents)} for this change, as computed beside. This
-                  approval is bound to these exact figures.
+                  <Emphasis>
+                    {`I approve paying ${formatCentsAsUsd(figures.deltaTotalCents)} for this change, as computed beside. This approval is bound to these exact figures.`}
+                  </Emphasis>
                 </span>
               </label>
               <SubmitButton className="orange">Approve</SubmitButton>

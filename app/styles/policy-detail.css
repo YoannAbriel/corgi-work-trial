@@ -206,21 +206,29 @@ button.pd-drawer-close {
   min-height: 28px;
 }
 
-/* --- Four cards that never leave one alone ---------------------------------------------------
-   The shared `.cards` track is `auto-fit, minmax(280px, 1fr)`, which at 1440 px counts three
-   columns and left the fourth card alone on a second row with two thirds of it empty (round 1,
-   MEDIUM). Four cards are one row of four when there is room for four readable columns, and a
-   2x2 that fills its row when there is not. Two classes deep, so it wins over `.cards`. */
-.cards.pd-cards-4 {
+/* --- The four cards of the overview, as two stacks --------------------------------------------
+   In a grid, two cards on the same row start on the same line, so a short card beside the tall
+   journal ended far above the row and the card under it began below an empty gap (Yoann,
+   2026-09-09). Two independent stacks have no shared row: each card starts where the one above it
+   ended. Cover and Broker are the left stack (two short records, tight), the journal and the
+   documents the right one (the blocks that grow with the policy, so the right stack is the one
+   that carries the height). Nothing is stretched, so no card is given a blank interior. */
+.pd-columns {
+  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+  margin: 0 0 16px;
 }
-@media (min-width: 1701px) {
-  .cards.pd-cards-4 {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.pd-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
+/* Under 700 px the two stacks become one column of four cards, as the grid of four cards did. */
 @media (max-width: 700px) {
-  .cards.pd-cards-4 {
+  .pd-columns {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -281,23 +289,32 @@ button.pd-drawer-close {
   box-shadow: 0 2px 0 #e1e1e1;
 }
 
-/* --- The two documents, as buttons -----------------------------------------------------------
-   The Documents view is folded into this card (cycle 2, decision 16): one line per document, the
-   as-of date beside the button that opens it. The labels are two words, so neither wraps at any
-   desktop width (round 1: both wrapped to two lines at every width). */
+/* --- The two documents, as a short list -------------------------------------------------------
+   The Documents view is folded into this card (cycle 2, decision 16): one row per document, the
+   name on the left, the date it is rebuilt on in the middle, the download on the right. A button
+   labelled with the document's name repeated the name and ran the width of the card, so the name
+   is plain text and the button is the icon alone (Yoann, 2026-09-09).
+   Each row is its own GET form, because the date field belongs to one document. */
 .pd-doc-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   margin: 0;
 }
 .pd-doc-row + .pd-doc-row {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid #f0f0f2;
 }
+/* The name takes what the date and the button leave, and wraps rather than pushing the row wider
+   than the card at 375 px. */
+.pd-doc-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+}
 .pd-doc-row input[type="date"] {
+  flex: 0 0 auto;
   font: inherit;
   font-size: 13px;
   min-height: 32px;
@@ -309,23 +326,77 @@ button.pd-drawer-close {
   color: var(--ink);
   width: auto;
 }
-.pd-doc-row button {
-  margin: 0;
+/* A square the height of the date field beside it: the icon is the whole button, so the padding
+   the shared button rule adds for a label would only make it a lopsided rectangle. */
+.pd-doc-row button.pd-doc-download {
+  flex: 0 0 auto;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
   min-height: 32px;
-  padding: 4px 12px;
-  font-size: 13px;
+  margin: 0;
+  padding: 0;
   border-radius: 8px;
   box-shadow: 0 2px 0 #e1e1e1;
-  white-space: nowrap;
 }
-/* The date a browser prints in its own locale (09/09/2026) beside dates the rest of the product
-   prints as 2026-09-09: the resolved date is said again, once, in the product's own format
-   (round 1, MEDIUM). */
-.pd-doc-asof {
+
+/* --- The second line of a tile's note ---------------------------------------------------------
+   The "Latest terms on record" tile says the premium the record carries, and, under it, the one
+   that is quoted and not paid for yet. Two facts, two lines, one tile: the second is a block so
+   it never runs on from the first. */
+.stat-note-line {
+  display: block;
+}
+
+/* --- A correction: what the money is doing, then the button, then the detail ------------------
+   The state and the button used to be the LAST thing in this card, under the formula and the
+   four journal entries, so a broker owed $53.84 had to scroll past all of it to find out
+   (Yoann, 2026-09-09). They are the first thing under the facts now, in their own row, and the
+   arithmetic and the entries are two closed folds beneath. */
+.pd-collect {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 14px 0 4px;
+  /* The anchor of the band's "Collect" link and of the broker's inbox item. The band is sticky,
+     so the row is scrolled to with room above it rather than under the band. */
+  scroll-margin-top: 96px;
+}
+/* The sentence and the button are one line; anything the state has to explain takes the whole
+   width under them rather than squeezing between the two. */
+.pd-collect > .badge {
+  margin: 0;
+}
+.pd-collect > .pd-note {
   flex-basis: 100%;
   margin: 0;
-  font-size: 11.5px;
-  color: var(--ink-2);
+}
+.pd-collect > form {
+  margin: 0;
+}
+.pd-collect > form button {
+  margin: 0;
+}
+/* A fold INSIDE this card is not a second card: it loses the frame and the white ground that
+   `details.disclosure` gives a fold standing on its own, and becomes a line with a rule above it. */
+.pd-correction > details.disclosure {
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.pd-correction > details.disclosure > summary {
+  padding-left: 0;
+  padding-right: 0;
+  font-weight: 500;
+}
+.pd-correction > details.disclosure[open] > summary {
+  border-bottom: 0;
+}
+.pd-correction > details.disclosure > div {
+  padding: 0 0 12px;
 }
 
 /* --- The claim's actions, one compact panel --------------------------------------------------
@@ -358,7 +429,9 @@ button.pd-drawer-close {
 .pd-actions button {
   margin-top: 12px;
 }
-/* The title line of the panel: the heading, then the menu that holds the bank-account form. */
+/* The title line of the panel: the heading of "Reserve, pay, close". It used to carry a three-dot
+   menu holding the bank-account form on its right; that form is in the bank account card now
+   (LIVE-10), so the `.pd-panel-menu` rule that pushed it there has nothing left to push. */
 .pd-panel-head {
   display: flex;
   align-items: center;
@@ -368,11 +441,8 @@ button.pd-drawer-close {
 .pd-panel-head h2 {
   margin: 0;
 }
-.pd-panel-head > .pd-panel-menu {
-  margin-left: auto;
-}
-/* A form inside the row menu is a column of fields, not a menu line. Scoped by its own class,
-   so nothing here reaches another screen's menus. */
+/* The bank-account form is a column of fields, not a menu line. Scoped by its own class, so
+   nothing here reaches another screen's forms. */
 form.pd-menu-form input {
   width: 100%;
 }
@@ -414,4 +484,38 @@ form.pd-menu-form input {
 .pd-field-pair input,
 .pd-field-pair select {
   width: 100%;
+}
+
+/* "Record a bank account", inside the card that says whether one exists (LIVE-10, 2026-09-09).
+   It is a native <details>, like every other fold of this application, so it opens with no script
+   of ours; what these rules do is make its summary read as the secondary BUTTON it is, because a
+   grey line of text is what let the form hide from Yoann in the first place. The colours are the
+   ones of `button.secondary` in app/globals.css, written again rather than shared: a <summary>
+   cannot carry a button's own rules without becoming one. */
+.pd-record-account > details.disclosure {
+  margin: 12px 0 0;
+  border: 0;
+  background: none;
+}
+.pd-record-account > details.disclosure > summary {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid #e1e1e1;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 4px 0 #e1e1e1;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.pd-record-account > details.disclosure > summary:hover {
+  background: #f9fafb;
+}
+.pd-record-account > details.disclosure[open] > summary {
+  border-bottom: 1px solid #e1e1e1;
+  box-shadow: 0 1px 0 #e1e1e1;
+}
+.pd-record-account > details.disclosure > div {
+  padding: 12px 0 0;
 }

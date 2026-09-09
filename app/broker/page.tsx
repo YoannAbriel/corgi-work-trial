@@ -1,7 +1,9 @@
 import "@/app/styles/lists.css";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
+import { KybEvidenceNote } from "@/components/kyb-evidence-note";
 import { PortalShell } from "@/components/portal-shell";
 import { LandscapeFooter } from "@/components/ui/landscape";
 import { WhatNeedsYou, workspaceTasks, type BlockingTask } from "@/components/what-needs-you";
@@ -13,12 +15,12 @@ import { Chevron, DataTable, Num, Primary, Row } from "@/components/ui/table";
 import { FilterChip, Toolbar, ToolbarCount, ToolbarGroup, ToolbarSpacer } from "@/components/ui/toolbar";
 import { currentUser } from "@/lib/auth/current-user";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
-import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
+import { brokerKybState } from "@/lib/broker/kyb";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { policiesOfBroker, policyDetail } from "@/lib/policy/read";
 import type { PolicyStatus } from "@/lib/policy/status";
-import { termsInForceOn } from "@/lib/policy/terms-in-force";
+import { termsInForceOn, type TermsInForce } from "@/lib/policy/terms-in-force";
 import { firstValue, pickFilter, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
 
 // The broker's own policies. A broker only ever sees the policies of the broker their user
@@ -63,6 +65,52 @@ function statusesOnScreen(rows: { status: PolicyStatus }[]): PolicyStatus[] {
   const seen: PolicyStatus[] = [];
   for (const row of rows) if (!seen.includes(row.status)) seen.push(row.status);
   return seen;
+}
+
+// WHAT THE TOTAL CELL SAYS UNDER ITS FIGURE, and nothing at all when there is nothing to say.
+// The same line the staff list draws, because the broker and the operator read the same sentence
+// about the same policy.
+//
+// The figure above is the total in force on the date this list folds the policy for (today, or
+// the first day of the term). It is right, and on a policy carrying a change dated later it reads
+// as stale to anyone who knows that change was signed: on 2026-09-09 Yoann read $1,200.00 of
+// premium on CGP-01707 while an endorsement to $2,400.00 was already written for 2026-09-22.
+//
+// WHAT THIS LINE CANNOT SAY: the day the later terms take effect. This list reads policy_current
+// through policyDetail (lib/policy/read.ts), which stores the latest terms and NOT the effective
+// date of the endorsement that wrote them: lib/policy/current.ts folds
+// `latestEndorsementEffectiveAt` and refreshPolicyCurrent never writes it to the table. The
+// amount is what this row can state honestly; the policy's own page names the date beside it.
+type TotalRow = { status: PolicyStatus; terms: TermsInForce | null; latestTotalChargeCents: number | null };
+
+function laterTerms(row: TotalRow): string | null {
+  // A CLOSED POLICY HAS NOTHING LATER TO SHOW. Cover has stopped or never started, so terms
+  // written for a later date can no longer take effect and naming them would promise cover that
+  // will not happen (Yoann's rule, 2026-09-09). ACCEPTED EDGE CASE: a cancellation recorded now
+  // but effective in the future, with an endorsement effective before it, really does take effect
+  // and is hidden here. Telling the two apart needs the cancellation's effective date, which
+  // these lists do not read (cancellationOfPolicy, lib/policy/read.ts); week two, "cancellation
+  // effective date on the lists".
+  if (row.status === "cancelled" || row.status === "voided") return null;
+  // The fold has no answer for that date, so the figure above IS the policy record's own and
+  // there is nothing later to compare it with.
+  if (row.terms === null || row.terms.onDate === null) return null;
+  if (row.latestTotalChargeCents === null || row.latestTotalChargeCents === row.terms.totalChargeCents) return null;
+  return `${formatCentsAsUsd(row.latestTotalChargeCents)} on the latest terms`;
+}
+
+// Everything the cell says under its figure, or nothing at all: an empty `sub` would draw an
+// empty line under every row of the table.
+function underTheTotal(row: TotalRow): ReactNode | undefined {
+  const fromTheRecord = row.terms !== null && row.terms.onDate === null;
+  const later = laterTerms(row);
+  if (!fromTheRecord && !later) return undefined;
+  return (
+    <>
+      {fromTheRecord ? "on the policy record" : null}
+      {later ? <span className="lists-later">{later}</span> : null}
+    </>
+  );
 }
 
 export default async function BrokerPage({ searchParams }: { searchParams: Promise<Query> }) {
@@ -110,7 +158,14 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
       // The date the policy page uses: today, or the term start when the term has not begun.
       const onDate = today > policy.effectiveAt ? today : policy.effectiveAt;
       const [detail, asOfResult] = await Promise.all([policyDetail(policy.policyId), policyAsItStoodOn(policy.policyId, onDate)]);
-      return { ...policy, terms: detail ? termsInForceOn(detail, asOfResult) : null };
+      return {
+        ...policy,
+        terms: detail ? termsInForceOn(detail, asOfResult) : null,
+        // The LATEST terms written on the policy record, which is what policy_current holds:
+        // every event applied whatever its effective date. It is the figure the second line of
+        // the Total cell names when it is not the one in force today (see underTheTotal).
+        latestTotalChargeCents: detail ? detail.totalChargeCents : null,
+      };
     }),
   );
 
@@ -222,6 +277,10 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
           <Legend
             items={[
               { term: "Total", meaning: "annual premium plus state tax and the flat fee, in force today or on the first day of the term" },
+              // Named only when a row below prints it: a legend is a reading of THIS screen.
+              ...(shown.some((policy) => laterTerms(policy) !== null)
+                ? [{ term: "on the latest terms", meaning: "a change is already written on the policy and takes effect later; the figure above it is the one in force now" }]
+                : []),
               // Only the statuses the rows below print, in the order they appear.
               ...statusesOnScreen(shown).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),
               { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
@@ -269,7 +328,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
                 {/* The fold has no answer on that date (the policy was not issued yet, or a
                     correction reversed its issuance), so these are the policy record's own
                     figures and the row says so rather than calling them cover. */}
-                <Num sub={policy.terms && policy.terms.onDate === null ? "on the policy record" : undefined}>
+                <Num sub={underTheTotal(policy)}>
                   {formatCentsAsUsd(policy.terms ? policy.terms.totalChargeCents : policy.totalChargeCents)}
                 </Num>
                 <Chevron />
@@ -283,7 +342,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
       <About>
         <h4>Total</h4>
         <p>
-          The annual premium plus the state premium tax and the flat policy fee in force on the date the policy&apos;s own page shows: today, or the first day of the term when the term has not begun. An endorsement dated later is not in this figure; the policy page names it under the terms.
+          The annual premium plus the state premium tax and the flat policy fee in force on the date the policy&apos;s own page shows: today, or the first day of the term when the term has not begun. An endorsement dated later is not in this figure: when there is one, the second line of the cell says what the policy&apos;s latest terms total, and the policy page names the day they take effect.
         </p>
         <h4>On the policy record</h4>
         <p>A row marked this way could not be rebuilt on that date, so its figures are the ones written on the policy.</p>
@@ -295,9 +354,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
         </p>
         <h4>Your verification</h4>
         <p>{kyb.explanation}</p>
-        {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
-          <p>{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
-        )}
+        <KybEvidenceNote kyb={kyb} />
       </About>
 
       <LandscapeFooter name="garden-gate" title={<>Built for <em>growing businesses.</em></>}>

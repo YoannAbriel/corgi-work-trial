@@ -1,5 +1,6 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
+import { Emphasis } from "@/components/emphasis";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
@@ -20,12 +21,25 @@ import {
   REPLY_MAXIMUM_CHARACTERS,
   type ChangeRequestView,
 } from "@/lib/policy/change-requests";
-import { policyAsItStoodOn } from "@/lib/policy/correction-read";
-import { endorsementScheduleOfPolicy } from "@/lib/policy/endorsement-read";
-import type { PolicyDetail } from "@/lib/policy/read";
+import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
+import { endorsementScheduleOfPolicy, endorsementsOfPolicy } from "@/lib/policy/endorsement-read";
+import {
+  checkoutOperationOfPolicy,
+  refundOperationsOfPolicy,
+  voidCorrectionOfPolicy,
+  type PolicyDetail,
+} from "@/lib/policy/read";
 import { termsInForceOn } from "@/lib/policy/terms-in-force";
 import { firstValue, pickView, toastsFromQuery, withParams, type Query } from "@/lib/ui/views";
-import { PolicyDocuments, PolicyTimeline } from "./correction-sections";
+import { AGENCY_BILL_SENTENCE_FOR_CUSTOMER, BillingSummary, billingRows } from "./billing-sections";
+import {
+  LatestTermsStat,
+  pendingEndorsementNotice,
+  pendingEndorsementState,
+  PolicyDocuments,
+  PolicyTimeline,
+  withoutTrailingStop,
+} from "./correction-sections";
 
 // The customer's own view of their policy, and the change requests that go with it (slice B13-6,
 // decided by Yoann on 2026-09-08 at 20:35 UTC).
@@ -44,7 +58,14 @@ import { PolicyDocuments, PolicyTimeline } from "./correction-sections";
 // are before rendering a single line of it (app/policies/[policyId]/page.tsx), and every route
 // they can reach checks it again.
 
-const VIEWS = ["overview", "documents"] as const;
+// `billing` is decision 43: the customer reads the same three money questions their broker reads,
+// with no button. Their side of it is read-only until decision 44 gives them one.
+const VIEWS = ["overview", "billing", "documents"] as const;
+const VIEW_LABEL: Record<(typeof VIEWS)[number], string> = {
+  overview: "Overview",
+  billing: "Billing",
+  documents: "Documents",
+};
 
 export async function CustomerPolicyView({
   user,
@@ -63,10 +84,18 @@ export async function CustomerPolicyView({
   // today is before the minimum, so the term start is the honest default (F-B8-07, F-B8-09).
   const documentDate = today > policy.effectiveAt ? today : policy.effectiveAt;
 
-  const [query, schedule, requests, termsToday] = await Promise.all([
-    searchParams,
+  // The view is decided before anything is read, because four of the readers below are needed by
+  // one of the three views only (F-BL-09: they ran on every view, including the overview a
+  // customer opens every time they look at their policy).
+  const query = await searchParams;
+  const view = pickView(query.view, VIEWS);
+
+  const [schedule, requests, endorsements, termsToday] = await Promise.all([
     endorsementScheduleOfPolicy(policy.policyId),
     changeRequestsOfPolicy(policy.policyId),
+    // Read on every view: the overview needs the change that is not in force yet for its tile,
+    // its table row and its notice line.
+    endorsementsOfPolicy(policy.policyId),
     // THE TERMS IN FORCE ON THIS DATE, not the latest terms on the policy record (review finding
     // F-INT-02). policy_current applies every event whatever its effective date, so this page was
     // printing a future endorsement's premium, tax and LIMITS as the cover in force today, to the
@@ -74,15 +103,35 @@ export async function CustomerPolicyView({
     // function, same day, on both screens.
     policyAsItStoodOn(policy.policyId, documentDate),
   ]);
+
+  // The money rows of the Billing view (decision 43). The SAME readers the staff page uses, so
+  // the customer and their broker read one set of figures, not two.
+  const [payment, corrections, refunds, voidCorrection] =
+    view === "billing"
+      ? await Promise.all([
+          checkoutOperationOfPolicy(policy.policyId),
+          correctionsOfPolicy(policy.policyId),
+          refundOperationsOfPolicy(policy.policyId),
+          // F-BL-01: what makes a policy voided. Without it the customer's Billing view printed a
+          // reversed issuance as a plain paid row, with nothing anywhere on their page saying the
+          // policy had been voided at all.
+          voidCorrectionOfPolicy(policy.policyId),
+        ])
+      : [null, [], [], null];
   const terms = termsInForceOn(policy, termsToday);
   // Applied endorsements that have not taken effect yet: the gap between what the policy is today
   // and what policy_current already carries. Named under the facts rather than folded into them.
   const endorsementsNotYetInForce = schedule.filter((row) => row.effectiveAt > documentDate);
+  // The change that is quoted or approved and whose delta has not been collected. The same row
+  // the broker's "Endorsement in progress" card is drawn from, read here for the tile and for the
+  // pending row of the changes table (LIVE-9).
+  const liveEndorsement = endorsements.find(
+    (endorsement) => endorsement.standing.state === "awaiting_approval" || endorsement.standing.state === "approved",
+  );
   const statusTone =
     policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "warn" : "neutral";
 
   const path = `/policies/${policy.policyId}`;
-  const view = pickView(query.view, VIEWS);
   const now = new Date();
   const refusal = firstValue(query.error);
   const sent = firstValue(query.changeRequest) === "sent";
@@ -94,10 +143,26 @@ export async function CustomerPolicyView({
       : []),
   ];
 
+  // LIVE-9: what the change waiting on this policy is waiting for, in the customer's own terms,
+  // at the top of their page instead of only inside a row of the event list at the bottom.
+  const pendingNotice = liveEndorsement
+    ? pendingEndorsementNotice({
+        standingState: liveEndorsement.standing.state,
+        approvedAt: liveEndorsement.standing.approvedAt,
+        requestedAt: liveEndorsement.request.recordedAt,
+        audience: "customer",
+      })
+    : null;
+
   const notices = [
     refusal ? (
       <p key="error" className="error" role="alert">
         {refusal}
+      </p>
+    ) : null,
+    pendingNotice ? (
+      <p key="pendingEndorsement" className="note" role="status">
+        <Emphasis>{pendingNotice}</Emphasis>
       </p>
     ) : null,
     sent ? (
@@ -116,7 +181,7 @@ export async function CustomerPolicyView({
       viewsSubtitle={policy.policyNumber}
       views={VIEWS.map((one) => ({
         key: one,
-        label: one === "overview" ? "Overview" : "Documents",
+        label: VIEW_LABEL[one],
         href: withParams(path, query, { view: one }),
         current: one === view,
       }))}
@@ -141,6 +206,20 @@ export async function CustomerPolicyView({
               value={formatCentsAsUsd(terms.annualPremiumCents)}
               note={terms.onDate ? `in force on ${terms.onDate}` : "on your policy record"}
             />
+            {/* LIVE-9: what is in force today, and beside it what the record already carries.
+                The customer has no endorsements view, so this tile is not a link. */}
+            <LatestTermsStat
+              schedule={schedule}
+              pending={
+                liveEndorsement
+                  ? {
+                      newAnnualPremiumCents: liveEndorsement.request.figures.newAnnualPremiumCents,
+                      effectiveAt: liveEndorsement.request.figures.effectiveAt,
+                      approved: liveEndorsement.standing.state === "approved",
+                    }
+                  : null
+              }
+            />
             <Stat
               label={`${policy.stateCode} premium tax`}
               value={formatCentsAsUsd(terms.taxCents)}
@@ -162,20 +241,9 @@ export async function CustomerPolicyView({
               </p>
             </div>
           ) : null}
-          {/* The same line the staff page prints (F-YA-07, F-INT-02): what the policy is today,
-              and separately what it becomes. One short line here, the rest under its own heading
-              in About (round 1: a 40 word paragraph in the reading flow). The figures come from
-              the endorsement's own stored event; nothing is recomputed. */}
-          {endorsementsNotYetInForce.length > 0 ? (
-            <p className="pd-lead">
-              {endorsementsNotYetInForce.map((row) => (
-                <span key={`not-yet-${row.endorsedEventId}`}>
-                  From {row.effectiveAt} your annual premium becomes{" "}
-                  {formatCentsAsUsd(row.figures.newAnnualPremiumCents)}.{" "}
-                </span>
-              ))}
-            </p>
-          ) : null}
+          {/* F-YA-07's line "From <date> your annual premium becomes <amount>" is the "Latest
+              terms on record" tile above now (LIVE-9): the same date and the same figure, beside
+              the figure it was contradicting instead of under it. */}
 
           {/* The form is tall and the facts beside it are short: `.layout-2` lets the short card
               keep its own height instead of stretching to the form's. */}
@@ -229,14 +297,34 @@ export async function CustomerPolicyView({
                   <span className="toolbar-label">Changes to this policy</span>
                 </ToolbarGroup>
                 <ToolbarSpacer />
-                <ToolbarCount>{schedule.length}</ToolbarCount>
+                <ToolbarCount>{schedule.length + (liveEndorsement ? 1 : 0)}</ToolbarCount>
               </Toolbar>
             }
             legend={
+              /* F-LT-10: the pending row wears a chip this legend never named, in a column whose
+                 legend said "the money that moved" about an amount that has not moved. The three
+                 states a change can be in before it counts are named here, and the Charged
+                 column says what the figure means on a row that is still waiting. */
               <Legend
                 items={[
-                  { term: "Charged", meaning: "the money that moved at the time, priced over the days left in the year" },
+                  {
+                    term: "Charged",
+                    meaning:
+                      "the money that moved at the time, priced over the days left in the year; on a row marked to settle it is the quote, and nothing has moved yet",
+                  },
                   { term: "New annual premium", meaning: "the yearly rate after the change, not the money that moved" },
+                  ...(liveEndorsement
+                    ? [
+                        {
+                          term: "awaiting your approval",
+                          meaning: "your broker quoted this change and it waits for your yes",
+                        },
+                        {
+                          term: "approved, awaiting payment",
+                          meaning: "you said yes; the change takes effect once your broker pays the quoted amount",
+                        },
+                      ]
+                    : []),
                 ]}
               />
             }
@@ -250,7 +338,7 @@ export async function CustomerPolicyView({
               </tr>
             </thead>
             <tbody>
-              {schedule.length === 0 ? (
+              {schedule.length === 0 && !liveEndorsement ? (
                 <tr>
                   <td colSpan={4} className="dt-empty">
                     <EmptyState illustration="closed-folder">No change has been made since this policy was written.</EmptyState>
@@ -270,6 +358,33 @@ export async function CustomerPolicyView({
                   </tr>
                 ))
               )}
+              {/* LIVE-9: the change that is quoted or approved and not paid for is a row of this
+                  table too, last because its effective date is the furthest away. The chip under
+                  its date is what keeps it from reading as in force: nothing on the policy moves
+                  until the delta is collected, which is what the broker's own card says in a
+                  sentence. Every figure is the request's own stored quote. */}
+              {liveEndorsement ? (
+                <tr key={liveEndorsement.request.eventId} className="dt-row">
+                  <td className="nowrap">
+                    {liveEndorsement.request.figures.effectiveAt}
+                    <span className="dt-sub">
+                      <Chip tone={pendingEndorsementState(liveEndorsement.standing.state, "customer").tone}>
+                        {pendingEndorsementState(liveEndorsement.standing.state, "customer").label}
+                      </Chip>
+                    </span>
+                  </td>
+                  <td>
+                    {formatCentsAsUsd(liveEndorsement.request.figures.oldAnnualPremiumCents)} to{" "}
+                    {formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}
+                    <span className="dt-sub">{liveEndorsement.request.newLimitLabel}</span>
+                  </td>
+                  <td className="num">
+                    {formatCentsAsUsd(liveEndorsement.request.figures.deltaTotalCents)}
+                    <span className="dt-sub">to settle</span>
+                  </td>
+                  <td className="num">{formatCentsAsUsd(liveEndorsement.request.figures.newAnnualPremiumCents)}</td>
+                </tr>
+              ) : null}
             </tbody>
           </DataTable>
 
@@ -392,12 +507,60 @@ export async function CustomerPolicyView({
         </>
       ) : null}
 
+      {/* THE CUSTOMER'S BILLING VIEW (decision 43): the same three questions their broker reads,
+          about the same rows, with no button. The sentence is the one fact this whole view exists
+          for: their broker is the one who opens the Stripe page, and the card on it is theirs. */}
+      {view === "billing" ? (
+        <>
+          {/*
+            DECISION 44, NOT BUILT YET: the customer's own Pay button goes here, above everything
+            else, so a customer who wants to settle a difference themselves does not have to wait
+            for their broker. It needs a route of its own (the broker's checkout route is posted
+            by the broker and answers for the broker's eligibility), which is the coordinator's
+            backend slice. This is deliberately a comment and no markup: an empty box promising a
+            button nobody can press is worse than nothing.
+          */}
+          {/* F-BL-01: the same fact the staff page puts above its own views. A customer whose
+              policy was voided by a correction saw nothing of the kind anywhere on their page,
+              while their Billing view listed the reversed issuance as money they had paid. */}
+          {policy.status === "voided" && voidCorrection ? (
+            <div className="notices">
+              <div className="error" role="alert">
+                <Emphasis>
+                  {`This policy was voided by a correction on ${voidCorrection.recordedAt.toISOString().replace("T", " ").slice(0, 19)} UTC: ${withoutTrailingStop(voidCorrection.reason)}. Nothing was collected on it and it cannot be paid; a replacement needs a new policy.`}
+                </Emphasis>
+              </div>
+            </div>
+          ) : null}
+
+          <BillingSummary
+            rows={billingRows({ policy, payment, endorsements, corrections, refunds, voidCorrection })}
+            now={now}
+            lead={AGENCY_BILL_SENTENCE_FOR_CUSTOMER}
+            // No inspector for a customer: the console behind a reference is not theirs to read.
+          />
+
+          <About>
+            <h4>Who takes the money</h4>
+            <p>
+              Your broker opens the payment page and answers for the policy; the card entered on it is yours. Nothing
+              on this screen charges you: your policy only moves once the payment is confirmed.
+            </p>
+            <h4>What each list means</h4>
+            <p>
+              What is owed is what has not been collected yet. What was paid is every payment that reached us, with the
+              reference the payment provider gave it, and a payment a correction reversed is struck through. What is
+              being refunded is money on its way back to you, with what it is waiting for.
+            </p>
+          </About>
+        </>
+      ) : null}
+
       {view === "documents" ? (
         <>
-          {/* One card, two lines, the same block the staff overview uses: a two-word button that
-              cannot wrap (round 1: both labels ran to two lines at 1024 px) and the date said
-              again in the ISO format the rest of the product prints, because a browser draws a
-              date field in its own locale (round 1: 09/09/2026 beside 2026-09-08). */}
+          {/* One card, two rows, the same block the staff overview uses: the document's name, the
+              date it is rebuilt on, and the download as an icon on the right. Same component, so
+              the customer's documents and the broker's cannot drift apart. */}
           <section className="card">
             <h2>Documents</h2>
             <PolicyDocuments

@@ -73,6 +73,67 @@ export function hashArguments(argumentsValue: unknown): string {
   return createHash("sha256").update(canonicalJson(argumentsValue)).digest("hex");
 }
 
+// ---------------------------------------------------------------------------
+// How long a token answers
+// ---------------------------------------------------------------------------
+//
+// Yoann's decision of 2026-09-09: a token belongs to a person's account and has to stop on its
+// own, because nobody remembers to revoke the token of a laptop they stopped using. The end
+// instant is stored in mcp_api_keys.expires_at (migration 0026) and is written ONCE, by the
+// INSERT that creates the token: that table can never be updated, so extending a token means
+// creating another one.
+//
+// These are the five lengths the screen offers, in one list, so the form, the validation of the
+// POST and the words a reader sees cannot drift apart. `days: null` is "never": the token has no
+// end date and only a revocation ends it, which is what every token created before 0026 has.
+export const TOKEN_LIFETIMES = [
+  { value: "7d", label: "7 days", days: 7 },
+  { value: "30d", label: "30 days", days: 30 },
+  { value: "90d", label: "90 days", days: 90 },
+  { value: "1y", label: "1 year", days: 365 },
+  { value: "never", label: "Never", days: null },
+] as const;
+
+export type TokenLifetime = (typeof TOKEN_LIFETIMES)[number]["value"];
+
+// 90 days is the default the form opens on: long enough for a demo laptop, short enough that a
+// forgotten token dies of its own accord within a quarter.
+export const DEFAULT_TOKEN_LIFETIME: TokenLifetime = "90d";
+
+export function isTokenLifetime(value: string): value is TokenLifetime {
+  return TOKEN_LIFETIMES.some((lifetime) => lifetime.value === value);
+}
+
+// The instant a token created now stops answering, or null when it never does. A day is 24 hours
+// exactly and a year is 365 days: no calendar arithmetic, because nothing here has to land on a
+// particular date, only far enough away.
+export function expiryInstant(lifetime: TokenLifetime, now: Date): Date | null {
+  const chosen = TOKEN_LIFETIMES.find((candidate) => candidate.value === lifetime);
+  if (!chosen || chosen.days === null) {
+    return null;
+  }
+  return new Date(now.getTime() + chosen.days * 24 * 60 * 60 * 1000);
+}
+
+// The one reading of expires_at, used by the endpoint that refuses the token and by the screen
+// that draws its chip, so a token can never look live on one and be refused by the other. The
+// stored instant is the moment it is over: at exactly that instant the token no longer answers.
+export function tokenHasExpired(expiresAt: Date | null, now: Date): boolean {
+  return expiresAt !== null && expiresAt.getTime() <= now.getTime();
+}
+
+// A token with less than a week left is worth a warning on the screen: whoever holds it has to
+// create the next one before this one stops, and a client that stops working with no notice is
+// the failure this column exists to prevent.
+export const EXPIRES_SOON_DAYS = 7;
+
+export function tokenExpiresSoon(expiresAt: Date | null, now: Date): boolean {
+  if (expiresAt === null || tokenHasExpired(expiresAt, now)) {
+    return false;
+  }
+  return expiresAt.getTime() - now.getTime() < EXPIRES_SOON_DAYS * 24 * 60 * 60 * 1000;
+}
+
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value ?? null);
