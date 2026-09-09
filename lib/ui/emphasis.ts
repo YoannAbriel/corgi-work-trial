@@ -53,15 +53,20 @@ const EMPHASISED_PHRASES = [
 //      one (components/signed.tsx writes "+$52.61", lib/money/cents.ts writes "-$52.61");
 //   2. an ISO business date, which is the only date format these screens print;
 //   3. a percentage, tax rate or commission rate;
-//   4. a count of days, the unit every proration is expressed in;
-//   5. one of the phrases above, whatever its case at the start of a sentence.
+//   4. a proration read as ONE piece, "351 of 365 days": the figure a reader wants is the days
+//      remaining, and matching plain days first left that figure in grey and put the term length
+//      in bold, which is the opposite of the sentence's point (review finding F-LT-11);
+//   5. any other count of days, the unit every proration is expressed in;
+//   6. one of the phrases above, whatever its case at the start of a sentence.
 // \b around the phrases keeps "collect" out of "collected" and "approve" out of "approver", and
-// the phrase list being longest-first settles which of two overlapping phrases wins.
+// the phrase list being longest-first settles which of two overlapping phrases wins. The same
+// longest-first reason puts the proration above the plain day count.
 const EMPHASIS_PATTERN = new RegExp(
   [
     "[-+]?\\$-?[0-9,]+\\.[0-9]{2}",
     "\\d{4}-\\d{2}-\\d{2}",
     "\\d+(?:\\.\\d+)?%",
+    "\\d+ of \\d+ days?\\b",
     "\\d+ days?\\b",
     `\\b(?:${EMPHASISED_PHRASES.join("|")})\\b`,
   ].join("|"),
