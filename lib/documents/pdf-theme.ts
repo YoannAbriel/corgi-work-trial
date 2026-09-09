@@ -12,17 +12,28 @@ import type { Styles } from "@react-pdf/renderer";
 // accent. A document printed from the application should look like it came from the
 // application.
 //
+// The shape is the one a broker's own paperwork uses, because that is what the reader
+// expects to be handed: an issuer band across the top, a boxed strip carrying the three
+// facts you look up first (policy number, period, status), the parties side by side, then
+// the schedules, then a signature line, then a footer that repeats on every sheet. Nothing
+// here decides a figure; the layout only decides where a figure already computed upstream
+// is printed.
+//
 // WHY THE STANDARD PDF FONTS AND NOT THE PORTAL'S DM SANS AND INTER
 // The portal bundles DM Sans and Inter as WOFF2 (public/fonts). Embedding either one in a
 // PDF changes how the text is written into the file: @react-pdf/renderer subsets the font
 // and writes glyph indexes under an Identity-H encoding instead of readable bytes. The
 // repository's own reader (lib/documents/pdf-text.ts) decodes WinAnsi bytes, which is what
-// the standard fonts use, and every document test asserts on the text it reads back. Two
-// measured facts settled the choice:
+// the standard fonts use, and every document test asserts on the text it reads back. Three
+// measured facts settle the choice, and they have not moved since the first visual pass:
 //   - fontkit cannot subset the WOFF2 files the portal ships (it throws "Offset is outside
 //     the bounds of the DataView"), so those exact files cannot be embedded at all;
+//   - no TTF or OTF of either family is in the repository, and fetching one would be a
+//     network call during a render, which this layer must never make;
 //   - embedding an equivalent TrueType file makes the reader return glyph indexes
-//     (the bytes 00 01 00 02 and so on) instead of "$1,253.20", which fails every test.
+//     (the bytes 00 01 00 02 and so on) instead of "$1,253.20", which fails every document
+//     test. Teaching the reader to decode a ToUnicode CMap would mean changing
+//     pdf-text.ts, which is test tooling and outside this pass.
 // Helvetica also already has the property the figures need: in its metrics every digit is
 // 556 units wide, so amounts line up column by column without asking for a tabular figure
 // feature. Standard fonts embed nothing, download nothing and add no bytes that could
@@ -43,6 +54,9 @@ export const PDF_COLOR = {
   hairline: "#dedee1", // --line, the rule between two table rows
   band: "#f6f6f6", // --bg, the title band and the callout background
   accent: "#b83e00", // --accent, the readable orange the portal uses for links
+  // The diagonal watermark. Light enough that a figure printed over it stays the darkest
+  // thing on the page, dark enough to survive a photocopy.
+  watermark: "#e6e6ea",
 } as const;
 
 // US Letter, portrait or landscape, with the same margin on every side of every document.
@@ -53,11 +67,13 @@ const PAGE_MARGIN = 44;
 const SIZE = {
   documentTitle: 17,
   issuerName: 11,
-  sectionTitle: 10,
+  strongFact: 10.5,
+  sectionTitle: 8.5,
   body: 9.5,
   table: 8.5,
   small: 8,
   footer: 7.5,
+  microLabel: 6.5,
 } as const;
 
 // The issuer printed at the top of every document.
@@ -70,6 +86,12 @@ export const ISSUER_TAGLINE =
   "Policy administration demonstration. Not an insurance carrier and not an offer of cover.";
 export const SANDBOX_LABEL = "TEST DATA, SANDBOX";
 
+// Printed diagonally across every page of every document, underneath the content.
+// It is the same claim the header label makes, in the one form that survives a page being
+// photographed, cropped or forwarded on its own: nobody can mistake one of these sheets for
+// a real policy document.
+export const WATERMARK_TEXT = "SPECIMEN, TEST DATA";
+
 // `StyleSheet.create` is @react-pdf/renderer's identity function: it hands the object back
 // unchanged and only exists to type it. It is passed in as an argument rather than imported
 // at the top of this file because @react-pdf/renderer is published as ES modules only and
@@ -78,6 +100,25 @@ export const SANDBOX_LABEL = "TEST DATA, SANDBOX";
 // nothing at runtime.
 type PdfStyleSheet = { create: <T extends Styles>(styles: T) => T };
 
+// The other half of the same module, for the one typography decision that is not a style.
+type PdfFontRegistry = { registerHyphenationCallback: (hyphenate: (word: string) => string[]) => void };
+
+// Turn hyphenation off for every document.
+//
+// @react-pdf/renderer hyphenates by default, and it is right about English: it broke
+// "premium" as "premi-um" at the end of a statement description column. In running prose
+// that is correct typesetting; in a table cell beside a money amount it reads as a defect,
+// and a broker scanning a column of descriptions should never have to reassemble a word.
+// Returning the word unbroken makes a line wrap at spaces only.
+//
+// It is called by each renderer after the module is loaded, for the same reason the style
+// sheet is built there: this file must not import @react-pdf/renderer at runtime. The
+// registration is global to the module and idempotent, so calling it on every render costs
+// nothing and adds no bytes that could differ between two runs.
+export function applyPdfTypography(Font: PdfFontRegistry): void {
+  Font.registerHyphenationCallback((word) => [word]);
+}
+
 export function createPdfStyles(StyleSheet: PdfStyleSheet) {
   return StyleSheet.create({
     // ---- the page ------------------------------------------------------------------
@@ -85,7 +126,7 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
     // absolutely, so it is out of the flow and would otherwise be printed over.
     page: {
       paddingTop: PAGE_MARGIN,
-      paddingBottom: 100,
+      paddingBottom: 94,
       paddingHorizontal: PAGE_MARGIN,
       fontSize: SIZE.body,
       fontFamily: PDF_FONT.body,
@@ -104,6 +145,31 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
       backgroundColor: "#ffffff",
     },
 
+    // ---- the diagonal watermark --------------------------------------------------------
+    // A full-page absolutely positioned layer, written as the FIRST child of the page so
+    // everything else is drawn on top of it: @react-pdf/renderer paints in document order,
+    // and text has no background, so the grey letters show between the glyphs the way a
+    // watermark should. `fixed` on the element repeats it on every sheet.
+    watermarkLayer: {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: 0,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    // 38 points bold with 3 points of tracking measures about 500 points for the 19
+    // characters of WATERMARK_TEXT, so it never wraps inside a 612 point portrait page and
+    // still reaches corner to corner once it is turned.
+    watermarkText: {
+      fontSize: 38,
+      fontFamily: PDF_FONT.bold,
+      color: PDF_COLOR.watermark,
+      letterSpacing: 3,
+      transform: "rotate(-30deg)",
+    },
+
     // ---- issuer header ---------------------------------------------------------------
     issuerHeader: {
       flexDirection: "row",
@@ -112,7 +178,7 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
       borderBottomWidth: 1,
       borderBottomColor: PDF_COLOR.ink,
       paddingBottom: 8,
-      marginBottom: 14,
+      marginBottom: 12,
     },
     issuerIdentity: { flexGrow: 1, flexBasis: 0, paddingRight: 12 },
     issuerName: { fontSize: SIZE.issuerName, fontFamily: PDF_FONT.bold, color: PDF_COLOR.accent },
@@ -136,15 +202,70 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
       flexDirection: "row",
       backgroundColor: PDF_COLOR.band,
       borderRadius: 6,
-      marginBottom: 18,
+      marginBottom: 12,
       overflow: "hidden",
     },
     titleBandAccentBar: { width: 4, backgroundColor: PDF_COLOR.accent },
-    titleBandBody: { flexGrow: 1, flexBasis: 0, paddingVertical: 12, paddingHorizontal: 14 },
+    titleBandBody: {
+      flexGrow: 1,
+      flexBasis: 0,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      justifyContent: "center",
+    },
     documentTitle: { fontSize: SIZE.documentTitle, fontFamily: PDF_FONT.bold },
     documentSubtitle: { fontSize: SIZE.body, color: PDF_COLOR.inkMuted, marginTop: 3 },
+    // The right-hand end of the band: the one identifier a caller reads out on the phone.
+    titleBandIdentifier: {
+      justifyContent: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderLeftWidth: 0.8,
+      borderLeftColor: PDF_COLOR.hairline,
+      alignItems: "flex-end",
+    },
 
-    // ---- key facts, as a label and value grid ----------------------------------------
+    // ---- the boxed strip of headline facts ---------------------------------------------
+    // Three or four cells across, each a small upright label over one value. It is the
+    // block a broker's eye goes to first, so it sits directly under the title.
+    summaryStrip: {
+      flexDirection: "row",
+      borderWidth: 0.8,
+      borderColor: PDF_COLOR.hairline,
+      borderRadius: 5,
+      marginBottom: 14,
+    },
+    summaryCell: { flexGrow: 1, flexBasis: 0, paddingVertical: 9, paddingHorizontal: 12 },
+    // Every cell but the first carries the rule that separates it from the one before.
+    summaryCellDivided: {
+      flexGrow: 1,
+      flexBasis: 0,
+      paddingVertical: 9,
+      paddingHorizontal: 12,
+      borderLeftWidth: 0.8,
+      borderLeftColor: PDF_COLOR.hairline,
+    },
+    summaryValue: { fontSize: SIZE.strongFact, fontFamily: PDF_FONT.bold },
+
+    // A small upright label. Used above a strip value, above a party block and as a column
+    // heading, so all three read as the same kind of thing.
+    microLabel: {
+      fontSize: SIZE.microLabel,
+      fontFamily: PDF_FONT.bold,
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+      color: PDF_COLOR.inkMuted,
+      marginBottom: 3,
+    },
+
+    // ---- the parties, side by side -----------------------------------------------------
+    partiesRow: { flexDirection: "row", marginBottom: 4 },
+    partyBlock: { flexGrow: 1, flexBasis: 0, paddingRight: 22 },
+    partyName: { fontSize: SIZE.strongFact, fontFamily: PDF_FONT.bold, marginBottom: 3 },
+    partyLine: { marginBottom: 1.5 },
+    partyNote: { fontSize: SIZE.footer, color: PDF_COLOR.inkMuted, marginTop: 5 },
+
+    // ---- key facts, as a label and value grid ------------------------------------------
     factRow: { flexDirection: "row", paddingVertical: 3.5 },
     factLabel: { width: 150, color: PDF_COLOR.inkMuted },
     factValue: { flexGrow: 1, flexBasis: 0 },
@@ -152,7 +273,6 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
     // points and stays on one line inside the 374 point value column. A hash broken across
     // two lines cannot be compared with the one on a screen.
     factValueMono: { flexGrow: 1, flexBasis: 0, fontFamily: PDF_FONT.mono, fontSize: 8.5 },
-    factValueLine: { marginBottom: 1 },
 
     // ---- a callout, for a warning the reader must not miss ---------------------------
     callout: {
@@ -168,16 +288,38 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
     sectionTitle: {
       fontSize: SIZE.sectionTitle,
       fontFamily: PDF_FONT.bold,
-      marginTop: 20,
-      marginBottom: 7,
+      letterSpacing: 0.9,
+      textTransform: "uppercase",
+      marginTop: 15,
+      marginBottom: 6,
+    },
+    // The sentence under a section title that says what the section is answering, and on
+    // which date. It is what turns "Coverage" into "coverage as it stood on October 1".
+    sectionCaption: {
+      fontSize: SIZE.footer,
+      color: PDF_COLOR.inkMuted,
+      marginTop: -3,
+      marginBottom: 6,
     },
     tableHeader: {
       flexDirection: "row",
       paddingBottom: 5,
       borderBottomWidth: 1,
       borderBottomColor: PDF_COLOR.ink,
+    },
+    // Applied to each heading Text rather than to the row: @react-pdf/renderer does not
+    // inherit fontFamily from a View down to the Text inside it, so a bold set on the row
+    // silently did nothing.
+    // The tracking is 0.5 rather than the 0.8 of `microLabel`: a heading sits in a fixed
+    // column and has to fit it. "PREMIUM IN IT" is 13 characters, which is 57 points of
+    // 6.5 point bold plus 6 points of tracking, inside the statement's 66 point amount
+    // column. At 0.8 it grew past the column and crowded the heading beside it.
+    tableHeaderCell: {
+      fontSize: SIZE.microLabel,
       fontFamily: PDF_FONT.bold,
-      fontSize: SIZE.small,
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      color: PDF_COLOR.inkMuted,
     },
     tableRow: {
       flexDirection: "row",
@@ -191,9 +333,10 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
       paddingVertical: 6,
       borderTopWidth: 1,
       borderTopColor: PDF_COLOR.ink,
-      fontFamily: PDF_FONT.bold,
       fontSize: SIZE.table,
     },
+    // Same reason as tableHeaderCell: the weight has to be on the Text.
+    strongCell: { fontFamily: PDF_FONT.bold },
     emptyState: { paddingVertical: 10, color: PDF_COLOR.inkMuted, fontSize: SIZE.table },
     // Every text column is `flexBasis: 0` so it takes its share of the free space and wraps
     // inside it. Without that, a long description keeps its natural width and prints on top
@@ -202,14 +345,71 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
     // A secondary sentence under a coverage name.
     columnDetail: { fontSize: SIZE.footer, color: PDF_COLOR.inkMuted, marginTop: 2 },
 
+    // ---- a boxed money summary ----------------------------------------------------------
+    // The premium summary on the declarations page and the totals on the statement. A box
+    // rather than loose rows: it is the block the reader is looking for, and the total is
+    // shaded so the eye stops on it.
+    moneyBox: {
+      borderWidth: 0.8,
+      borderColor: PDF_COLOR.hairline,
+      borderRadius: 5,
+      overflow: "hidden",
+    },
+    moneyBoxRow: {
+      flexDirection: "row",
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderTopWidth: 0.5,
+      borderTopColor: PDF_COLOR.hairline,
+      fontSize: SIZE.table,
+    },
+    // The first row inside the box: the box's own border is already there, so it takes no
+    // rule of its own.
+    moneyBoxFirstRow: {
+      flexDirection: "row",
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      fontSize: SIZE.table,
+    },
+    moneyBoxTotalRow: {
+      flexDirection: "row",
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderTopWidth: 1,
+      borderTopColor: PDF_COLOR.ink,
+      backgroundColor: PDF_COLOR.band,
+      fontSize: SIZE.body,
+    },
+    // The sentence printed under a money box: what the figures above are, and as of when.
+    boxCaption: { fontSize: SIZE.footer, color: PDF_COLOR.inkMuted, marginTop: 5 },
+
     // ---- the two policy documents (lib/documents/render.tsx) --------------------------
     // Portrait Letter: 612 points wide, 44 of margin on each side, so 524 to divide up.
-    limitColumn: { width: 110, textAlign: "right" },
+    limitColumn: { width: 120, textAlign: "right" },
     chargeAmountColumn: { width: 110, textAlign: "right" },
+    // The endorsement summary on the declarations page: effective date, what changed, and
+    // the money that change moved. 92 + 100 of fixed columns leave 332 for the sentence.
+    endorsementSummaryDateColumn: { width: 92, paddingRight: 6 },
+    endorsementSummaryAmountColumn: { width: 100, textAlign: "right" },
     // Landscape Letter for the endorsement schedule: 792 wide, so 704 to divide up.
     endorsementEffectiveColumn: { width: 92, paddingRight: 6 },
     endorsementRecordedColumn: { width: 128, paddingRight: 6 },
     endorsementAmountColumn: { width: 100, textAlign: "right" },
+
+    // ---- signature and date --------------------------------------------------------------
+    // Two ruled lines a countersigning office would write on. They are printed empty: this
+    // build signs nothing, and the caption under them says so rather than letting a blank
+    // rule imply a signature that was never applied.
+    signatureRow: { flexDirection: "row", marginTop: 14 },
+    signatureCell: { flexGrow: 1, flexBasis: 0, paddingRight: 40 },
+    signatureDateCell: { width: 190 },
+    signatureRule: {
+      height: 20,
+      borderBottomWidth: 0.8,
+      borderBottomColor: PDF_COLOR.ink,
+      marginBottom: 4,
+    },
+    signatureCaption: { fontSize: SIZE.footer, color: PDF_COLOR.inkMuted, marginTop: 2 },
 
     // ---- the broker statement (lib/statements/pdf.tsx) --------------------------------
     // The movements table has six columns on a portrait page, two more than any other table
@@ -231,6 +431,8 @@ export function createPdfStyles(StyleSheet: PdfStyleSheet) {
     statementKindColumn: { width: 92, paddingRight: 6 },
     statementPolicyColumn: { width: 48, paddingRight: 6 },
     statementAmountColumn: { width: 66, textAlign: "right" },
+    // Inside the money box the row is indented by the box's 12 points of padding on each
+    // side, so the amount column is measured against 500 points rather than 524.
     statementTotalAmountColumn: { width: 110, textAlign: "right" },
 
     // ---- footer, repeated on every page ------------------------------------------------
