@@ -691,3 +691,62 @@ rendered HTML.
 | F-PP-10 | LOW | `correctionThatReversedOperation` folds the whole policy on every refused payment | Accepted: asking the fold is what stops the two answers drifting (AF-06) | OPEN (cost noted) |
 | F-PP-11 | LOW | `resolvedBreaks` reads every open break and filters in the application, so the screen slows as the open-break count grows | A correlated `not exists` on the reference pair | OPEN |
 | F-PP-12 | LOW | A genuinely resolved break sharing a provider reference with an open one disappears from the resolved list instead of being annotated (cf. F-B13-12) | Annotate rather than drop | OPEN |
+
+---
+
+## 7. Re-review, 2026-09-09T09:10Z: F-PP-05 fixed
+
+**New revision**: `main` at **ea204d7**, merged into this worktree branch (fast-forward from
+`d96451f` through `f722bd3`). Diff read: `git show ea204d7`, one file,
+`scripts/check-mcp.ts`, +5 / -1.
+
+**Resolved: F-PP-05 (MEDIUM).** The assertion at what is now line 457 compares
+`ownStatement.value.formatVersion` against `CANONICAL_STATEMENT_VERSION`, imported from
+`@/lib/statements/compute` immediately above it, instead of the pinned `2`. That is exactly the
+required correction stated in C.5, and it is the same shape `check-statements.ts` already used.
+
+**Evidence, my own run**, one run, against a dev server on `corgi_test`
+(`DATABASE_URL_APP="$DATABASE_URL_TEST_APP" next dev -p 3877`, `MCP_BASE_URL` pointed at it,
+server stopped afterwards):
+
+```
+PASS  it carries the format version and the lines it published  (format v3, 2 lines)
+ALL CHECKS PASSED
+```
+
+**58 PASS, 0 FAIL**, which reproduces the coordinator's count exactly. The assertion now reads the
+version the application actually wrote (v3) and agrees with it, rather than agreeing with a
+number typed in the script.
+
+**One observation, not a finding.** The import is dynamic (`await import(...)`) with a comment
+saying it is placed there so the environment is loaded before lib modules. That reason does not
+apply to this particular module: `lib/statements/compute.ts` imports only `node:crypto`, is pure,
+and is imported statically at the top of `scripts/check-statements.ts` without trouble. The
+dynamic form is harmless and defensive, and it is genuinely required for any lib module that
+transitively pulls `db/client` (which throws at import time when `DATABASE_URL_APP` is unset, as
+this reviewer found while writing the section A probe). No change requested; the comment slightly
+overstates the necessity for this one module.
+
+**Nothing else blocks.** The eleven remaining findings F-PP-01 to F-PP-04 and F-PP-06 to F-PP-12
+are all LOW, none is reachable on today's code paths, and `REVIEWER.md` does not let cosmetic or
+disclosed items block a scope on their own. The residual limitations of section 4 are unchanged
+and still stand, in particular that **migration 0020 has not been proven under
+`check:money-guards` on an ephemeral database** (that check was last proven at 184/184 at 06:55Z
+at migration **0019**), and that no version 3 statement run exists on either database, so C.3
+remains a reading of the code against the measured v2 row.
+
+**Verdict for C, revised: PASS.**
+**Overall verdict, revised: PASS**, for the seven changes A to G at revision `ea204d7`.
+
+Scope and limits of this PASS are the ones declared in sections 1, 2 and 4: it covers these seven
+diffs, it is a scoped engineering assessment rather than a legal certification, and it is not a
+statement that the six delivery gates pass for the submission.
+
+**Candidate walkthrough status: still NOT REVIEWED WITH YOANN.** Unchanged by this fix; the four
+walkthrough topics listed in section 3 remain open.
+
+### Register update
+
+| ID | Sev | Finding (one line) | Fix | Status |
+|---|---|---|---|---|
+| F-PP-05 | MED | `scripts/check-mcp.ts` hard-coded `formatVersion === 2` after the canonical version moved to 3 | Compare against `CANONICAL_STATEMENT_VERSION` | **FIXED ea204d7**, re-review PASS 09:10Z: `check:mcp` 58 PASS, 0 FAIL on `corgi_test`, the line reads "format v3, 2 lines" |
