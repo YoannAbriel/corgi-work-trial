@@ -233,3 +233,15 @@ One line per finding from the independent reviews (design and implementation). F
 | F-PP-10 | LOW | `correctionThatReversedOperation` folds the whole policy on every refused payment | Accepted: asking the fold is what stops the two answers drifting (AF-06) | ACCEPTED as recorded |
 | F-PP-11 | LOW | `resolvedBreaks` reads every open break and filters in the application, so the screen slows as the open-break count grows | A correlated `not exists` on the reference pair | OPEN (B13 backlog) |
 | F-PP-12 | LOW | A genuinely resolved break sharing a provider reference with an open one disappears from the resolved list instead of being annotated (cf. F-B13-12) | Annotate rather than drop | OPEN (B13 backlog) |
+
+## Cross-model review of the Codex illustration work (docs/reviews/illustration-cross-review.md, FAIL at 08b3678 on two MEDIUM, 11:08 local)
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-IL-01 | MEDIUM | Four banner panoramas ship at 3456 or 4032 px and 472 to 694 KB into a 220 px CSS box, with no srcset, so /broker 743.6 KB, /customer 691.0 KB, /ops 524.5 KB and / 500.6 KB of decoration, identical at 375 px and 1280 px | Point the four banner entries at 440 px variants, or add a srcset | FIX CYCLE (illustrations builder, 09:10Z) |
+| F-IL-02 | MEDIUM | The eager 404 illustration makes React preload 40,640 B on all 29 routes including screens that show no image, the 404 also pulls the home banner's 471,938 B it never shows, and /login at 375 px fetches 104,334 B that display:none hides | Drop eager from not-found, error and the login art panel | FIX CYCLE (illustrations builder, 09:10Z) |
+| F-IL-03 | LOW | 137 of the 150 committed WebPs (about 19.1 MB) plus three older files are referenced by nothing; they are served but never fetched, so the cost is clone, build and deploy size only | Keep the 13 used files in public/, hold the library elsewhere, or disclose | FIX CYCLE (illustrations builder, 09:10Z) |
+| F-IL-04 | LOW | app/ops/reconciliation/page.tsx:118 uses the key "all-clear" for the state where no reconciliation has ever run, which is the opposite claim; no user-visible false statement, the sentence beside it is exact | Give the never-run branch a neutral key | FIX CYCLE (illustrations builder, 09:10Z) |
+| F-IL-05 | LOW | components/decorative-illustration.tsx retypes 13 file names and 26 dimensions from catalog.json with nothing checking the two agree (13 of 13 correct today) | A unit test reading catalog.json, or import it | FIX CYCLE (illustrations builder, 09:10Z) |
+| F-IL-06 | LOW | IllustrationBanner emits the class illustration-banner, which has no rule anywhere in app/globals.css | Remove the class or give it its rule | FIX CYCLE (illustrations builder, 09:10Z) |
+| F-IL-07 | LOW | Record accuracy: four operations screens carry illustrations, not two, and /ops and /ops/statements carry an always-visible banner; measured placement is nevertheless clean | Correct the count in the records | FIX CYCLE (illustrations builder, 09:10Z) |

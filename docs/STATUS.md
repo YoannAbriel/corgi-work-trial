@@ -369,6 +369,12 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - The reviewer confirmed F-PP-05 with its own run (58 PASS, 0 FAIL behind its own server on the disposable database, "format v3, 2 lines"), turned section C to PASS and the overall verdict to PASS at ea204d7. Every money-path change made after a slice's PASS now carries a verdict; the eleven remaining F-PP findings are LOW and none blocks. Note kept from the record: the guards proof it cites is the 0019 one; the coordinator's 0020 proof (184 of 184 at 08:32Z) postdates the brief. The 27 compliance-matrix rows that named the pending record now cite the PASS.
 
+## 2026-09-09T09:09:00+00:00 | Illustrations: cross-model review FAIL on weight only, fix cycle launched
+
+- A Claude reviewer measured the Codex illustration work at 08b3678 (docs/reviews/illustration-cross-review.md): 22 call sites in 13 files, zero image on the policy journal, the approvals queue, the claim detail, the published statement, the breaks table and every console screen (87 measurements over 29 routes at three widths), seven demo accounts signed in, typecheck and tests reproduced, no leak in the changed content. Verdict FAIL on two MEDIUM about bytes: F-IL-01 four banner panoramas ship at 3456 or 4032 px (472 to 694 KB) into a 220 px box with no srcset, the same bytes on a phone; F-IL-02 the eager 404 image is preloaded on all 29 routes, a 404 also pulls the home banner it never shows, and /login at 375 px fetches a hidden image. Five screens above the 400 KB yardstick (broker 744 KB, customer 691 KB, ops 525 KB, home and 404 501 KB). Five LOW: 137 of 150 assets referenced by nothing (served, never fetched), the "all-clear" key on the "no run yet" state (sentence exact), names and dimensions retyped from the catalog, a dead class, four ops screens with illustrations rather than two.
+- The reviewer also rewrote the three Codex-written records without dashes (25 removed). Both commits merged.
+- Fix cycle launched on a builder for F-IL-01, F-IL-02, F-IL-05 and F-IL-06; F-IL-03, F-IL-04 and F-IL-07 disclosed as recorded.
+
 ## Earlier status (kept as history)
 
 Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
