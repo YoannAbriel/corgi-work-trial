@@ -17,6 +17,25 @@ import meadowPath from "@/public/illustrations/library/131-meadow-path.webp";
 import orchardMorning from "@/public/illustrations/library/132-orchard-morning.webp";
 import gardenGate from "@/public/illustrations/library/146-garden-gate.webp";
 import moonlitHills from "@/public/illustrations/library/149-moonlit-hills.webp";
+import openFolder from "@/public/illustrations/library/003-open-folder.webp";
+import magnifyingGlass from "@/public/illustrations/library/007-magnifying-glass.webp";
+import balanceScales from "@/public/illustrations/library/020-balance-scales.webp";
+import receiptRoll from "@/public/illustrations/library/024-receipt-roll.webp";
+import shieldLeaf from "@/public/illustrations/library/026-shield-leaf.webp";
+import umbrella from "@/public/illustrations/library/027-umbrella.webp";
+import safetyNet from "@/public/illustrations/library/031-safety-net.webp";
+import connectedLink from "@/public/illustrations/library/036-connected-link.webp";
+import padlock from "@/public/illustrations/library/037-padlock.webp";
+import keyRing from "@/public/illustrations/library/039-key-ring.webp";
+import serverBox from "@/public/illustrations/library/040-server-box.webp";
+import chessKing from "@/public/illustrations/library/064-chess-king.webp";
+import corgiSleeping from "@/public/illustrations/library/068-corgi-sleeping.webp";
+import corgiBroker from "@/public/illustrations/library/073-corgi-broker-satchel.webp";
+import corgiAccountant from "@/public/illustrations/library/074-corgi-accountant.webp";
+import corgiChecker from "@/public/illustrations/library/075-corgi-checker.webp";
+import corgiEngineer from "@/public/illustrations/library/081-corgi-engineer.webp";
+import corgiCelebrating from "@/public/illustrations/library/110-corgi-celebrating.webp";
+import corgiReading from "@/public/illustrations/library/118-corgi-reading.webp";
 
 // Only the illustrations used by the interface are listed here.
 const illustrations = {
@@ -33,6 +52,27 @@ const illustrations = {
   "orchard-morning": orchardMorning,
   "garden-gate": gardenGate,
   "moonlit-hills": moonlitHills,
+  // Added with the interface system of 2026-09-09: one per section (the page band and the
+  // overview cards) and a few for empty states.
+  "open-folder": openFolder,
+  "magnifying-glass": magnifyingGlass,
+  "balance-scales": balanceScales,
+  "receipt-roll": receiptRoll,
+  "shield-leaf": shieldLeaf,
+  umbrella: umbrella,
+  "safety-net": safetyNet,
+  "connected-link": connectedLink,
+  padlock: padlock,
+  "key-ring": keyRing,
+  "server-box": serverBox,
+  "chess-king": chessKing,
+  "sleeping-corgi": corgiSleeping,
+  "broker-corgi": corgiBroker,
+  "accountant-corgi": corgiAccountant,
+  "checker-corgi": corgiChecker,
+  "engineer-corgi": corgiEngineer,
+  "celebrating-corgi": corgiCelebrating,
+  "reading-corgi": corgiReading,
 } as const;
 
 export type IllustrationName = keyof typeof illustrations;
@@ -44,6 +84,10 @@ const displayedWidths = {
   banner: "220px",
   empty: "360px",
   feedback: "300px",
+  // The page band's vignette and the overview cards are drawn at 46 and 52 px; asking for a
+  // 96 px file keeps them sharp on a dense screen.
+  band: "96px",
+  card: "120px",
 } as const;
 
 export function DecorativeIllustration({
@@ -52,7 +96,7 @@ export function DecorativeIllustration({
   sizes,
 }: {
   name: IllustrationName;
-  variant: "empty" | "banner" | "feedback";
+  variant: "empty" | "banner" | "feedback" | "band" | "card";
   // Only for a box whose width depends on the viewport, such as the login art panel that the
   // stylesheet hides below 580 px. Everything else keeps the fixed width above.
   sizes?: string;

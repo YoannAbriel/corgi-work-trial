@@ -1,148 +1,100 @@
 import Link from "next/link";
-import {
-  ArrowRight,
-  ClipboardCheck,
-  FileText,
-  KeyRound,
-  ShieldCheck,
-  WalletCards,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { DecorativeIllustration } from "./decorative-illustration";
+import { SECTIONS, type SectionId } from "./shell/sections";
 import { WhatNeedsYou, type WorkspaceTask } from "./what-needs-you";
-import { IllustrationBanner } from "./decorative-illustration";
+import { About } from "./ui/about";
+import { Stat, Stats } from "./ui/stat";
+import { INBOX_ANCHORS } from "@/lib/inbox/sections";
+import { MONEY_OUT_APPROVAL_THRESHOLD_CENTS } from "@/lib/approvals/threshold";
+import { formatCentsAsUsd } from "@/lib/money/cents";
 
-export function WorkspaceOverview({
-  isApprover,
-  tasks,
-}: {
-  isApprover: boolean;
-  tasks: WorkspaceTask[];
-}) {
+// The staff overview: the figures that need a person, the work waiting, the map of the
+// sections, one welcome card. Nothing is computed here: the counts come from lib/inbox/tasks.ts,
+// read once by the page and shared with the sidebar.
+export function WorkspaceOverview({ isApprover, tasks }: { isApprover: boolean; tasks: WorkspaceTask[] }) {
+  // A task the reader has none of is not in the list (only what waits is counted), so a zero
+  // is drawn from its absence: "0 open breaks" is the good news the tile is for.
+  const countOf = (anchor: string) => tasks.filter((task) => task.anchor === anchor).reduce((total, task) => total + task.count, 0);
+  const breaks = countOf(INBOX_ANCHORS.openBreaks);
+  const approvals = countOf(INBOX_ANCHORS.approvalRequestsWaiting);
+  const claims = countOf(INBOX_ANCHORS.claimPaymentsStillToMove);
+  const paidNotBound = countOf(INBOX_ANCHORS.policiesPaidNotBound);
+  const endorsements = countOf(INBOX_ANCHORS.endorsementsPaidNotApplied);
+
+  const sections: { section: SectionId; href: string; blurb: string }[] = [
+    { section: "policies", href: "/ops/policies", blurb: "Every policy, its terms and its journal." },
+    { section: "verification", href: "/ops/brokers", blurb: "Who may bind, and what Stripe says." },
+    { section: "claims", href: "/ops/claims", blurb: "Reserves, payments, limits." },
+    { section: "approvals", href: "/ops/approvals", blurb: "Money out above the threshold." },
+    { section: "reconciliation", href: "/ops/reconciliation", blurb: "Provider records against the ledger." },
+    { section: "statements", href: "/ops/statements", blurb: "Monthly commission, frozen revisions." },
+    { section: "console", href: "/ops/console", blurb: "Live feed, errors, latency, the ledger." },
+    ...(isApprover ? [] : [{ section: "mcp-keys" as SectionId, href: "/ops/mcp-keys", blurb: "Agent keys and what they may never do." }]),
+  ];
+
   return (
     <>
-      <div className="page-heading">
-        <h1>
-          Your <em>operations.</em>
-        </h1>
-        <p className="lead">
-          Review verification, follow claims and move requests to the right
-          person.
-        </p>
-        {/*
-          The clearest AF-03 statement an operator ever reads, and the interface pass had left it
-          only in the page's meta description, where nobody sees it (review finding F-UI-03).
-        */}
-        <p className="note">
-          Every screen here reads append-only tables: nothing on these pages
-          edits or deletes a money row. Corrections are reversals plus
-          re-bookings.
-        </p>
-      </div>
-      {/* What is waiting comes first: the map of the screens is below it. */}
-      <WhatNeedsYou tasks={tasks} />
-      <div className="action-grid">
-        <Link className="action-card" href="/ops/brokers" prefetch={false}>
-          <span className="icon-tile">
-            <ShieldCheck aria-hidden="true" />
-          </span>
-          <span>
-            <strong>Brokers and their verification</strong>
-            <span>Review eligibility and verification details.</span>
-          </span>
-          <ArrowRight size={18} aria-hidden="true" />
-        </Link>
-        <Link className="action-card" href="/ops/claims" prefetch={false}>
-          <span className="icon-tile">
-            <WalletCards aria-hidden="true" />
-          </span>
-          <span>
-            <strong>Claims</strong>
-            <span>Follow reserves, payments and claim history.</span>
-          </span>
-          <ArrowRight size={18} aria-hidden="true" />
-        </Link>
-        <Link className="action-card" href="/ops/reconciliation" prefetch={false}>
-          <span className="icon-tile"><ClipboardCheck aria-hidden="true" /></span>
-          <span><strong>Reconciliation</strong><span>Compare provider records with the ledger and investigate open breaks.</span></span>
-          <ArrowRight size={18} aria-hidden="true" />
-        </Link>
-        <Link className="action-card" href="/ops/statements" prefetch={false}>
-          <span className="icon-tile"><FileText aria-hidden="true" /></span>
-          <span><strong>Broker statements</strong><span>Read monthly commission, frozen revisions and their knowledge cutoff.</span></span>
-          <ArrowRight size={18} aria-hidden="true" />
-        </Link>
-        {/* Only staff operations reach the key screen: an approver who could mint the maker's key
-            would be both halves of the maker-checker gate (review finding F-INT-01). The sidebar
-            already left this link out for an approver and this second one was missed
-            (F-INT-21), so the page refused with a redirect what the home had just offered. The
-            refusal is the control and it is unchanged; this is the offer matching it. */}
+      <Stats>
+        <Stat label="Open breaks" value={breaks} tone={breaks > 0 ? "warn" : "ok"} href={`/inbox#${INBOX_ANCHORS.openBreaks}`} note={breaks > 0 ? "provider and ledger disagree" : "provider and ledger agree"} />
+        <Stat label={isApprover ? "Your decisions" : "Waiting for an approver"} value={approvals} tone={approvals > 0 ? "warn" : "neutral"} href={`/inbox#${INBOX_ANCHORS.approvalRequestsWaiting}`} note={`money out above ${formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)}`} />
+        <Stat label="Claim payments to move" value={claims} tone={claims > 0 ? "warn" : "neutral"} href={`/inbox#${INBOX_ANCHORS.claimPaymentsStillToMove}`} note="asked for, not yet on the rail" />
         {isApprover ? null : (
-          <Link className="action-card" href="/ops/mcp-keys" prefetch={false}>
-            <span className="icon-tile"><KeyRound aria-hidden="true" /></span>
-            <span><strong>MCP keys</strong><span>Issue and revoke agent API keys, and read what is never delegated to an agent.</span></span>
-            <ArrowRight size={18} aria-hidden="true" />
-          </Link>
+          <>
+            <Stat label="Paid, not bound" value={paidNotBound} tone={paidNotBound > 0 ? "warn" : "neutral"} href={`/inbox#${INBOX_ANCHORS.policiesPaidNotBound}`} note="money in the suspense account" />
+            <Stat label="Endorsements to apply" value={endorsements} tone={endorsements > 0 ? "warn" : "neutral"} href={`/inbox#${INBOX_ANCHORS.endorsementsPaidNotApplied}`} note="paid, not in force" />
+          </>
         )}
+      </Stats>
+
+      <WhatNeedsYou tasks={tasks} showEmptyIllustration={false} />
+
+      <div className="cards" style={{ marginTop: 16 }}>
+        {sections.map(({ section, href, blurb }) => {
+          const definition = SECTIONS[section];
+          return (
+            <Link key={href} href={href} prefetch={false} className="section-card">
+              <span className="section-card-art" aria-hidden="true">
+                <DecorativeIllustration name={definition.illustration} variant="card" />
+              </span>
+              <span>
+                <strong>{section === "verification" ? "Brokers and verification" : definition.label}</strong>
+                <small>{blurb}</small>
+              </span>
+              <ArrowRight size={16} aria-hidden="true" />
+            </Link>
+          );
+        })}
       </div>
-      <div className="overview-grid">
-        <section className="panel">
+
+      <section className="welcome-card">
+        <div>
           <h2>
-            <ClipboardCheck size={18} aria-hidden="true" /> Your role in the
-            workflow
+            The whole operation, <em>in view.</em>
           </h2>
-          <span className="role-label">
-            {isApprover ? "Staff approver" : "Staff operations"}
-          </span>
-          <h3>
-            {isApprover
-              ? "An independent pair of eyes."
-              : "Move the right work forward."}
-          </h3>
-          <p>
-            {isApprover
-              ? "You approve money out that somebody else requested; you cannot request it yourself."
-              : "You request money out and bind policies; a distinct approver decides above the threshold."}
-          </p>
-          <Link
-            href="/ops/approvals"
-            className="button-link"
-            prefetch={false}
-          >
-            Open approvals <ArrowRight size={16} aria-hidden="true" />
-          </Link>
-          <p className="note">
-            Money out above $1,000 needs a distinct human approver. This
-            threshold is an assumption of this trial build.
-          </p>
-        </section>
-        <section className="panel">
-          <h2>
-            <FileText size={18} aria-hidden="true" /> Keep the context close
-          </h2>
-          <div className="context-item">
-            <strong>Verification before binding</strong>
-            <p>
-              See each broker’s status and re-read it at Stripe when needed.
-            </p>
-          </div>
-          <div className="context-item">
-            <strong>A traceable money history</strong>
-            <p>Policy journals show original entries and their corrections.</p>
-          </div>
-          <div className="context-item">
-            <strong>Claim payout rail: LOCAL SIMULATOR</strong>
-            <p>
-              Claim payouts and bank verification are simulated. They do not
-              move real money.
-            </p>
-          </div>
-        </section>
-      </div>
-      <IllustrationBanner
-        name="moonlit-hills"
-        title={<>The whole operation. <em>In view.</em></>}
-      >
-        From the first policy to the latest reconciliation, every next step stays close.
-      </IllustrationBanner>
+          <p>Every screen reads append-only tables. Nothing here edits or deletes a money row: a correction is a reversal plus a re-booking.</p>
+        </div>
+        <DecorativeIllustration name="moonlit-hills" variant="banner" />
+      </section>
+
+      <About>
+        <h4>Your role</h4>
+        <p>
+          {isApprover
+            ? "You approve money out that somebody else requested. You can never request it yourself, and you can never approve your own request."
+            : "You request money out and bind policies. A distinct staff approver decides above the threshold."}
+        </p>
+        <h4>The threshold</h4>
+        <p>
+          Money out above {formatCentsAsUsd(MONEY_OUT_APPROVAL_THRESHOLD_CENTS)} needs a distinct human approver. The figure is an assumption of this trial build, not a rule of Corgi.
+        </p>
+        <h4>What is real</h4>
+        <p>
+          Stripe runs in test mode on a live sandbox: payments, refunds and broker verification are real Stripe objects. The claim payout rail and the claimant bank check are local simulators, labeled LOCAL SIMULATOR wherever their records appear. No real money moves here.
+        </p>
+        <h4>Where the figures come from</h4>
+        <p>The tiles count the same rows the inbox lists, read once per page. A tile opens the inbox section holding exactly those items.</p>
+      </About>
     </>
   );
 }
