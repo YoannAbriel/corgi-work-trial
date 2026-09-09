@@ -101,10 +101,11 @@ async function main() {
     // workspaceTasks catches the failure and returns no task at all, while the inbox lists what
     // it could read and names the policy it could not. Comparing those two is comparing nothing,
     // so the user is reported as skipped, with the policies that caused it.
-    if (inbox.unreadablePolicyNumbers.length > 0) {
+    if (inbox.unreadablePolicies.length > 0) {
       console.log(
-        `SKIP  ${row.role} ${row.display_name}: ${inbox.unreadablePolicyNumbers.length} unreadable policy or policies ` +
-          `(${inbox.unreadablePolicyNumbers.join(", ")}); the badge shows nothing for this user while the inbox lists ${inbox.totalWaiting}`,
+        `SKIP  ${row.role} ${row.display_name}: ${inbox.unreadablePolicies.length} policy or policies whose stored ` +
+          `figures were refused (${inbox.unreadablePolicies.map((policy) => policy.policyNumber).join(", ")}); ` +
+          `the badge shows nothing for this user while the inbox lists ${inbox.totalWaiting}`,
       );
       continue;
     }
