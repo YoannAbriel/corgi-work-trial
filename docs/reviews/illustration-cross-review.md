@@ -214,3 +214,64 @@ For the coordinator to add to `docs/reviews/FINDINGS.md`; this reviewer does not
 | F-IL-05 | LOW | components/decorative-illustration.tsx retypes 13 file names and 26 dimensions from catalog.json with nothing checking the two agree (13 of 13 correct today) | A unit test reading catalog.json, or import it | OPEN |
 | F-IL-06 | LOW | IllustrationBanner emits the class illustration-banner, which has no rule anywhere in app/globals.css | Remove the class or give it its rule | OPEN |
 | F-IL-07 | LOW | Record accuracy: four operations screens carry illustrations, not two, and /ops and /ops/statements carry an always-visible banner; measured placement is nevertheless clean | Correct the count in the records | OPEN |
+
+## Confirmation re-measurement: F-IL-01, F-IL-02, F-IL-05 and F-IL-06 are closed
+
+Same reviewer, same worktree, same method and units as above. 2026-09-09, 09:34 to 09:52 UTC.
+
+Revision confirmed: `/api/health` reported `3e9d0958...` at 09:33:38Z and **`5fa3d49f7e7ab5f469cb2a86141f08ca9224b817`** at 09:34:08Z; every measurement below was taken after that. `5fa3d49` is the merge of the builder's `a64bd9bfc0b84c5d90abf650efe82f7eea1afffe`, fetched into this worktree before measuring.
+
+What changed: `components/decorative-illustration.tsx` now imports each of the 13 used files directly and renders through `next/image`, so Next reads width and height from the bytes; each variant carries a `sizes` matching its CSS box (banner 220px, empty 360px, feedback 300px, and `(max-width: 580px) 16px, 220px` on the login panel that the stylesheet hides at 580 px); `eager` and `priority` are gone from every call site; the dead class is gone. Production serves the result through Vercel's image optimiser, so the figures below are optimised variants, not the committed originals.
+
+### Image bytes per route, before and after
+
+Transferred image bytes, browser measured, device pixel ratio 1, after scrolling to the foot of the page so every lazy banner is fetched.
+
+| Route | Before at 375 px | Before at 1280 px | After at 375 px | After at 1280 px | Change |
+|---|---|---|---|---|---|
+| `/` | 512,578 B | 512,578 B | **2,910 B** | **2,910 B** | 99.4 percent less |
+| `/login` | 144,974 B | 144,974 B | **0 B** | **11,098 B** | nothing fetched at 375 px, 92.3 percent less at 1280 px |
+| `/broker` | 761,494 B | 761,494 B | **7,806 B** | **7,806 B** | 99.0 percent less |
+| `/customer` | 707,610 B | 707,610 B | **7,810 B** | **7,810 B** | 98.9 percent less |
+| `/ops` | 537,062 B | 537,062 B | **3,006 B** | **3,006 B** | 99.4 percent less |
+| 404 (`/no-such-page-xyz`) | 512,578 B | 512,578 B | **2,616 B** | **2,616 B** | 99.5 percent less |
+| `/inbox` (broker) | 112,420 B | 112,420 B | **8,396 B** | **8,396 B** | 92.5 percent less |
+| **Seven routes together** | **3,288,716 B** | **3,288,716 B** | **32,544 B** | **43,642 B** | **98.7 percent less** |
+
+At device pixel ratio 2 the browser takes the next rung of Next's default width ladder, which is the correct behaviour on a retina screen: `/broker` 27,480 B, `/customer` 26,620 B, `/inbox` 20,726 B, `/ops` 11,084 B, 404 5,008 B, `/login` at 1280 px 38,262 B. The worst case in the whole set is 38.2 KB, against 743.6 KB before.
+
+### F-IL-01: CLOSED
+
+Every illustration now carries a `srcset` from 32w to 3840w and a `sizes` equal to its CSS box. The variant the browser actually picks matches the box it is drawn in: `146-garden-gate` is fetched at `w=256` (5,840 B) for a box measured at 220 by 147, against 694,478 B for the same box before. Same for `131-meadow-path` (2,910 B at `w=256` for 220 by 95), `132-orchard-morning` (5,844 B), `149-moonlit-hills` (3,006 B), `067-corgi-search` (2,616 B at `w=384` for 300 by 200), `015-in-tray` (8,396 B), `045-bird-branch` (1,966 B). **No route now transfers more than 8.2 KB of images at device pixel ratio 1, or 27 KB at ratio 2**, against a 400 KB yardstick and five routes previously between 500 KB and 744 KB.
+
+Two immaterial residues, recorded rather than raised as findings. `.needs-you-empty .empty-illustration` narrows that image to 180 px while its `sizes` still says 360px, so it fetches the 384w variant for a 180 px box: 1,966 B, not worth a second attribute. And the originals in `public/illustrations/library/` are unchanged at 3456 or 4032 px, which is deliberate, since `next/image` derives every variant from them; the 19.7 MB repository weight remains F-IL-03, still open.
+
+### F-IL-02: CLOSED
+
+**Zero image preload links on all 21 route and width loads.** `document.querySelectorAll('link[rel="preload"]')` filtered to images returned an empty list every time, on every route including those that display no illustration. The three consequences measured before are gone: the 404 boundary no longer costs 40,640 B on every route in the application; the 404 page transfers 2,616 B and no longer pulls the home banner's 471,938 B it never shows; `/login` at 375 px now transfers **0 bytes**, because the image is lazy and `.login-art-panel` is hidden below 580 px, so it is never requested at all. `grep` for `eager` and `priority=` over `app/` and `components/` returns nothing.
+
+### F-IL-05: CLOSED
+
+The component imports the 13 `.webp` files as modules; no file name and no dimension is retyped from `docs/illustrations/catalog.json`, so the two cannot drift. The catalog stays out of the bundle. `image-imports.d.ts` is committed so a fresh clone typechecks without the git-ignored `next-env.d.ts`. `npx tsc --noEmit`: exit 0.
+
+### F-IL-06: CLOSED
+
+`IllustrationBanner` now emits `class="welcome-banner"`. Confirmed in the live HTML of `/`, and `illustration-banner` appears nowhere in `app/` or `components/`.
+
+### Caching of the optimised variants
+
+`cache-control: public, max-age=31536000, immutable` on every optimised response. Repeated requests of the same variant URL: first **MISS**, 383 ms; second **HIT**, 213 ms; third **HIT**, 38 ms. Inside the browser runs the same pattern held across routes: `045-bird-branch` at `w=384` was a MISS on `/broker` and then a HIT with `age=6` on `/customer`, and by the 1280 px pass every variant was a HIT with an age of 43 to 93 seconds. A width outside Next's configured ladder is refused with 400 rather than optimised on demand, so the surface is bounded. Second requests are served from cache and faster, as expected.
+
+### Nothing else moved
+
+21 loads across the seven routes at 375, 768 and 1280 px: **`scrollWidth` equalled `innerWidth` every time**, no horizontal scroll. Zero images inside any table. Every rendered image still has `alt=""`, the only alt value observed in the whole set. The sandbox sentence is still present on `/` and `/login` at all three widths.
+
+### Verdict of this confirmation
+
+**PASS. F-IL-01, F-IL-02, F-IL-05 and F-IL-06 are closed at `5fa3d49f7e7ab5f469cb2a86141f08ca9224b817`.** The FAIL recorded above was limited to F-IL-01 and F-IL-02, so **it is lifted**: the illustration integration now passes at this revision.
+
+Still open, untouched by this fix and by design: **F-IL-03** (137 unreferenced assets, about 19.1 MB of repository and deployment weight, zero runtime cost), **F-IL-04** (the `all-clear` key on the never-run reconciliation branch) and **F-IL-07** (record accuracy on the operations footprint). All three are LOW and none blocks.
+
+Unchanged limitations: no LCP or throttled-network measurement, no WCAG audit, the error boundary still not reproducible on production with GET requests only, and the empty states that production has no data for were not seen rendered. Walkthrough status remains **NOT REVIEWED WITH YOANN**.
+
+Proposed register updates: F-IL-01, F-IL-02, F-IL-05 and F-IL-06 move to FIXED a64bd9b, merged 5fa3d49, confirmed by measurement on the deployment at 09:52Z. F-IL-03, F-IL-04 and F-IL-07 stay OPEN.
