@@ -1246,3 +1246,242 @@ check can catch and what it cannot.
 | F-INT-20 | LOW | NEW, OPEN. The console 360 money table shows a green "succeeded" badge with an older failed event's reason underneath it ("Your card was declined." on CGP-01062), undated and unexplained. Correction: drop the reason when the derived status is terminal and not failed, or print its instant and say it is a past attempt |
 | F-INT-21 | LOW | NEW, OPEN. `/ops` still offers a staff_approver the "MCP keys" action card (components/workspace-overview.tsx:73), which the page then refuses with a 307; the sidebar was fixed, this second link was missed. Correction: the same role condition the sidebar carries |
 | F-INT-22 | LOW | NEW, OPEN. The customer terms panel prints "These are the terms in force on that date" even when the fold has no date to name (CGP-01061), one paragraph before saying the policy cannot be rebuilt. Correction: make that sentence conditional, as the heading already is |
+
+---
+
+## 12. Re-review of decision 24, the cumulative customer threshold, at `20439ad` (closes F-INT-12)
+
+Same re-reviewer, same worktree and branch as section 11. Written 2026-09-09 between 10:14Z and
+10:40Z UTC. No code was written or fixed; the only file changed is this record.
+
+**Reviewed revision: `20439ad0475b1017560e39ed603c0cb0562334ed` (`20439ad`, `main`), the merge of
+the builder commit `356b900`.** Production reported that revision at `/api/health` before every
+measurement below and again at **10:25:18Z** after the last one. My worktree is `origin/main` at
+`20439ad` merged into my review branch, so every file I read is the deployed one.
+
+**Read first:** `docs/DECISIONS.md` entry of 2026-09-09T09:50Z, decision 24 in full (per policy,
+cumulative over the additional premium **before tax** of the endorsements of the current term,
+applied ones and open requests together, a decrease never counts, strictly above $500.00, one
+function for the preview and the payment gate, and Yoann's three-step example), then the whole
+diff `git diff 356b900^1 356b900` (11 files, 360 insertions, 117 deletions) and the changed files
+in the tree.
+
+### 12.1 The rule is in one function, and one function only
+
+`endorsementNeedsCustomerApproval` (`lib/approvals/threshold.ts:137`) is a pure predicate over
+three integers: the running total before this endorsement, this endorsement's additional premium,
+and the threshold. It refuses a negative running total, a non-integer amount and a non-positive
+threshold; it returns false on a delta that is zero or negative (a reduction), and it compares
+`additionalPremiumSoFarCents + additionalPremiumCents > thresholdCents`, which is the strict
+comparison decision 24 asks for.
+
+The running total comes from `additionalPremiumOfTheTerm`
+(`lib/policy/endorsement-requests.ts:173`), one SQL query whose comment lists what counts and what
+does not. I read the query clause by clause and it matches the comment:
+
+| Row | Counted? | The clause that decides it |
+|---|---|---|
+| `endorsed` event of this term | yes | `event_type = 'endorsed'`, `term_start` equal, premium > 0 |
+| `correction_rebook` replaying an endorsement | yes | `rebooked_event_type = 'endorsed'` |
+| An endorsement a correction superseded | no | `not exists (correction.supersedes_event_id = applied.id)` |
+| An open request, not applied, not superseded | yes | `not exists (a later event that is not this request's own approval)` |
+| A superseded quote | no | the same clause: any later event kills it |
+| A reduction | no | `(payload ->> 'delta_premium_cents')::bigint > 0` on **both** sides |
+| Another term | no | `payload ->> 'term_start' = ${termStart}` on both sides |
+| The endorsement being decided | no | `exceptRequestEventId`, applied to the request **and** to its application |
+| Tax | never | the sum is over `delta_premium_cents`, nowhere `delta_total_cents` |
+
+**No double count.** An applied endorsement's own request always has a later event (its `endorsed`
+event, which is not an approval naming it), so it is excluded from the open side and counted once
+on the applied side.
+
+**Every caller checked, by grep on the old names.** `otherUnapprovedRequestedCents`,
+`additionalPremiumAwaitingTheCustomer` and `approvedOrAppliedRequestEventIds` exist nowhere in
+`app/`, `lib/`, `scripts/` or `components/`. `customerApprovalNeeded` survives in exactly two
+places, both on the correction path (`lib/money/correction.ts:130`,
+`lib/payments/correction-collection.ts:200`), which is section 12.5.
+`endorsementNeedsCustomerApproval` has exactly two production callers,
+`lib/money/endorsement.ts:168` (the preview and every pricing) and
+`lib/policy/endorsement-requests.ts:142` (the standing). Nothing reads the stored
+`customer_approval_required` flag to gate money: the flag is printed, the standing decides
+(`endorsement-requests.ts:46`, review finding F-B4-08).
+
+### 12.2 The preview, the request standing and the payment gate cannot disagree
+
+The chain, traced in the tree at `20439ad`:
+
+1. **Preview.** `planEndorsement` (`lib/policy/endorse.ts:158`) reads
+   `additionalPremiumOfTheTerm(policyId, fold.terms.termStart, exceptRequestEventId: null)` and
+   passes it into `computeEndorsement`, which sets `figures.customerApprovalRequired`
+   (`lib/money/endorsement.ts:168`). The screen prints the running total beside the verdict.
+2. **Standing.** `customerApprovalIsRequired` (`lib/policy/endorsement-requests.ts:135`) reads the
+   same function with `termStart` taken from the request's own stored figures (which is the same
+   value the preview used, because `computeEndorsement` copies `termStart` from the fold) and with
+   this request excluded, then calls the same predicate on `deltaPremiumCents`.
+3. **Payment gate.** `startEndorsementCheckout` (`lib/payments/endorsement-collection.ts:97`) and
+   `recordSuccessfulEndorsementPayment` (`:382` to `:388`, **inside the advisory lock**) both read
+   `endorsementRequestStanding` and refuse `awaiting_approval`. `lib/payments` and `lib/ledger` are
+   **byte-identical between `a1e525d` and `20439ad`** (`git diff --stat` on both directories is
+   empty, as is the migrations directory), so no posting amount, no entry and no idempotency key
+   changed: this cycle moved a gate, not money.
+
+**Can the gate ever demand less than the preview promised?** I looked for that direction, because
+it is the one that would let money escape the customer. While a request is live, the only rows the
+total can lose are open requests other than this one, and there can be none: `endorsementRequestStanding`
+treats **any** later policy event as superseding, so a second live request makes the first one
+`superseded` and unpayable. What is left in the base is the applied endorsements of the term, which
+only ever grow. So the base at gate time is greater than or equal to the base at preview time for
+every request that can still be paid, and the divergence F-INT-12 described (two different bases,
+`endorse.ts:685` against `endorsement-requests.ts:138`) no longer exists: there is one base.
+
+The quote hash does not cover `customerApprovalRequired` (`endorsementQuoteHash` hashes the policy,
+the version, the effective date, the new annual premium, the premium delta and the tax delta), so a
+preview that said "no approval needed" can still be recorded while another endorsement has moved
+the total. The standing then requires the approval and the gate refuses. That is the safe
+direction, and it is the same recompute-at-execution shape the claims rule uses.
+
+### 12.3 What I measured
+
+**On production, GET only, nothing written.**
+
+- The staff and customer policy pages of CGP-01707 both render 200 at `20439ad`, with the same
+  figures as section 11.4. Its endorsement's delta premium is **$1,101.36**, above $500 on its own,
+  so the deployed data does not change state: the endorsement still reads as approved by the
+  customer (timeline: `endorsement_approved`, "The customer approved that quote ($1,127.24)", then
+  `endorsed`).
+- The **approve page** of that endorsement
+  (`/policies/3c3697b7.../endorsements/bcaef6cd.../approve`, request event id read out of the
+  customer timeline) renders **200** as `customer@example.com` and says "This endorsement is
+  already in force", with the six stored figures under it.
+- **The new rule, measured on the deployed data through the read-only preview.** The endorsement
+  preview is a GET that writes nothing (no event, no operation, no journal entry: it only calls
+  `planEndorsement`). Asking for a further **+$50.00 of annual premium** effective 2026-11-01 on
+  CGP-01707 prices a delta premium of **$42.60**, far below $500 on its own, and the screen says:
+  *"This policy has $1,143.96 of additional premium since issuance, above $500.00: the customer
+  approves before the delta can be paid."* $1,143.96 = 110136 + 4260, that is the applied
+  endorsement's premium plus this quote's. **That is decision 24 working on production data**, and
+  it also proves the applied endorsement carries the `term_start` the query matches on. I then
+  re-read the policy page: one `endorsement_requested` row before and after, same terms, nothing
+  recorded.
+
+**On `corgi_test`, one run, no contention.** `npm run check:endorsement-replay`: **90 PASS, 0 FAIL**
+(the count the builder reported), no deadlock, no timeout, no retry line in the output. Its new
+section 3b is the three-step example on one policy, and it proves the part a unit test cannot:
+
+```
+endorsement 1 adds $300.00 of premium: running total $300.00, no customer approval   (30000, 30000, false)
+its delta is collected with no approval and the endorsement is in force              (posted, annual now 150000)
+endorsement 2 adds $300.00 more: running total $600.00, above $500.00                (30000, 60000, true)
+the recorded request reads the same base as the preview: awaiting the customer       (awaiting_approval)
+the payment gate refuses to collect endorsement 2 before the customer approves       (the customer has to approve ...)
+nothing was created by the refused checkout                                          (0 attempts)
+once approved, the same delta is collected and applied                               (posted, annual now 180000)
+endorsement 3 adds only $50.00, but the running total is $650.00                     (5000, 65000, true)
+a reduction never counts and never needs approval                                    (-80000, 65000, false)
+```
+
+**Unit tests at this revision:** `npm test` **463 tests, 462 pass, 1 skipped, 0 fail** (four more
+than at `a1e525d`), including `Yoann's three-step example: $300, then $300, then $50`, `exactly
+$500.00 of additional premium is not above $500.00, one cent more is`, `an endorsement that lowers
+the premium never needs the customer's approval (rule 8)`, `customer approval is required above
+$500 of PREMIUM, tax excluded, and not at $500` (which now asserts `deltaPremiumCents` 50000 with
+`deltaTaxCents` 1175 and no approval, so the tax provably does not decide), and `the threshold
+counts the term's other endorsements, applied or open`. `npm run typecheck`: **exit 0**.
+
+### 12.4 The wording on the screens
+
+All four screens were changed with the rule and they say the same thing: the customer's own page
+("once this term's changes add more than $500.00 of premium"), the policy page disclosure, the
+approve page ("does not take the additional premium of this policy above $500.00") and the awaiting
+chip. The preview is the one that prints the figure, which is the right place for it.
+
+One wording defect, recorded as F-INT-23 below: the preview says "This policy **has** $1,143.96 of
+additional premium **since issuance**", while the figure is scoped to the current term and includes
+the quote on screen, which has not been requested yet.
+
+### 12.5 The correction path's separate base: an accepted scope line, not a finding
+
+The coordinator asked for a verdict on this, so here it is, with the reasoning rather than a label.
+
+`lib/money/correction.ts:130` and `lib/payments/correction-collection.ts:200` still decide a
+correction difference with `customerApprovalNeeded`, whose base is the difference itself plus
+`moneyStillWaitingForTheCustomer` (unanswered endorsement quotes and other unpaid, unapproved
+correction differences). It differs from the endorsement rule in three ways: it does not count the
+term's **applied** endorsements, it uses the **total** (tax included) rather than the premium, and
+it is keyed on the re-book rather than on the request.
+
+**It is an accepted scope line**, for three reasons I checked rather than assumed:
+
+1. A correction difference above $500.00 still needs the customer on its own, and the correction
+   base is itself cumulative over what the customer has not answered, so neither family can be
+   split into sub-threshold pieces inside itself.
+2. A correction is not new cover sold: it re-prices an endorsement the customer already approved,
+   at the date it should have carried. Its difference is bounded by the date correction, not chosen
+   freely by the operator.
+3. The re-book **does** enter the endorsement base: `additionalPremiumOfTheTerm` counts
+   `correction_rebook` rows replaying an endorsement and drops the corrected-away original, so the
+   next endorsement is decided on the corrected figures. The two rules meet where it matters.
+
+What remains is an asymmetry a panel could ask about: $500 means "premium of the term" on one path
+and "this difference plus what is unanswered, tax included" on the other. It is named in
+`lib/approvals/threshold.ts:85` and in this section, it is decision F-B8-02's own base, and folding
+the two into one rule is a week-two item, not a defect of this build. **No finding raised.**
+
+### 12.6 Checks executed and not executed
+
+| Check | Where | Result |
+|---|---|---|
+| Deployed revision, before and after | `/api/health` | **`20439ad...`** both times, `database: ok` |
+| Policy pages, approve page, 360, read-only preview | production, **GET only** | 6 GETs, all 200; no event recorded (verified by re-reading the policy page) |
+| `npm run check:endorsement-replay` | `corgi_test`, once | **90 PASS, 0 FAIL**, no contention, no retry |
+| `npm test` | this worktree at `20439ad` | **463 tests, 462 pass, 1 skipped, 0 fail** |
+| `npm run typecheck` | this worktree | **exit 0** |
+| `git diff a1e525d 20439ad` on `lib/payments`, `lib/ledger`, `db/migrations` | this worktree | **empty**: no posting, no entry, no migration changed |
+
+Not executed: `check:money-guards` (by instruction, 184 of 184 at migration 0020 at 08:32Z is
+cited, not reproduced); `npm run build`; the other check scripts, which this diff does not touch;
+no browser session; no production database read; no form submitted on production, so the three-step
+example itself was proved on `corgi_test` and not on the deployed data, which is the right place
+for it because it moves money.
+
+### 12.7 New finding
+
+#### F-INT-23 (LOW) The preview names the running total as premium the policy already has, since issuance
+
+`app/policies/[policyId]/endorse/page.tsx:135` prints "This policy has $1,143.96 of additional
+premium **since issuance**, above $500.00". Two words are loose. The figure is
+`additionalPremiumOfTheTermCents`, which is scoped to the **current term** and not to issuance
+(they coincide only because this build has no renewal), and it **includes the quote on screen**,
+which has not been requested yet, so "has" states as a fact something that is still a proposal.
+Everything else about the sentence is right, and printing the figure behind the verdict is the best
+part of this change. **Correction:** "with this change, this policy's endorsements would add
+$1,143.96 of premium over the term", or the same sentence in two halves.
+
+### 12.8 Verdict for decision 24 and F-INT-12
+
+**PASS. F-INT-12 is FIXED at `20439ad` and closed.**
+
+The two bases it named are one function and one query now, read by the preview, by the request
+standing and by both payment gates; the base is the premium before tax, as decided; a decrease
+never counts; the comparison is strictly above; the three-step example Yoann decided is proved end
+to end on a real policy with a real payment gate refusal in `check:endorsement-replay`; and the
+rule is visible on the deployed application, where a $42.60 endorsement on CGP-01707 now correctly
+asks for the customer's approval because the term already carries $1,101.36. No money figure, no
+journal entry, no idempotency key and no migration changed in this cycle.
+
+The integration verdict of section 11.12 is unchanged: **PASS at the reviewed revision**, with
+AF-06 still NOT SATISFIED, F-INT-04 and F-INT-06 still assigned to Yoann as one click each, and the
+LOW findings F-INT-08, 09, 11, 20, 21, 22 and now 23 open and disclosed. Nothing here blocks the
+submission.
+
+**Candidate walkthrough status: NOT REVIEWED WITH YOANN.** The line to put in front of him from
+this cycle is `additionalPremiumOfTheTerm`: he should be able to say, without reading the comment,
+why an applied endorsement counts for ever within the term, why a superseded quote counts for
+nothing, and why the tax is not in the base.
+
+### 12.9 Register lines
+
+| ID | Sev | Status after this re-review, and what was measured |
+|---|---|---|
+| F-INT-12 | LOW | **FIXED at 20439ad, CONFIRMED and CLOSED.** One base (additionalPremiumOfTheTerm) and one predicate (endorsementNeedsCustomerApproval) serve the preview, the standing and both payment gates; the old names are gone from the tree; check:endorsement-replay 90 of 90 including the three-step example and the gate refusal; 463 unit tests; on production a $42.60 endorsement now requires the customer because the term carries $1,101.36 |
+| F-INT-23 | LOW | NEW, OPEN. The endorsement preview prints the running total as premium the policy "has since issuance", although it is scoped to the current term and includes the quote being previewed. Correction: "with this change, this policy's endorsements would add $X of premium over the term" |
