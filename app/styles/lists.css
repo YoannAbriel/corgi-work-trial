@@ -310,6 +310,13 @@ td.dt-actions.lists-row-actions > * + * {
 .lists-token-panel .lists-snippet {
   min-width: 0;
 }
+/* Done is disabled until the consume call has answered (app/ops/mcp-keys/token-reveal-panel.tsx),
+   so that nobody navigates away in the half second before the cookie is cleared. A button that
+   cannot be pressed has to look like one. */
+.lists-token-panel button[disabled] {
+  opacity: 0.55;
+  cursor: default;
+}
 /* The secret itself WRAPS rather than scrolling, unlike the command beside it: a value somebody
    has to copy in the next two minutes must be on screen whole, and a hidden tail is how half a
    token ends up pasted into a client configuration. */

@@ -27,6 +27,7 @@ import {
 } from "@/lib/mcp/keys";
 import { NEVER_DELEGATED } from "@/lib/mcp/never-delegated";
 import { TOKEN_REVEAL_COOKIE } from "@/lib/mcp/token-reveal";
+import { TokenRevealPanel } from "./token-reveal-panel";
 import { MCP_TOOLS } from "@/lib/mcp/tools";
 import {
   closeInspectorHref,
@@ -133,10 +134,10 @@ export default async function AccessTokensPage({ searchParams }: { searchParams:
   //
   // THIS RENDER CANNOT CLEAR THE COOKIE. A server component reads cookies and cannot write them:
   // `cookieStore.delete(...)` here raises "Cookies can only be modified in a Server Action or
-  // Route Handler" (Next.js 16.3.4, measured on 2026-09-09). The Done button below posts
-  // `action=dismiss`, which is a route handler and does clear it; the 120 s Max-Age is the ceiling
-  // behind that. So a reload inside those two minutes shows the token again, and that is stated
-  // in the handover rather than hidden.
+  // Route Handler" (Next.js 16.3.4, measured on 2026-09-09). So the panel below asks a route
+  // handler to do it the moment the token is painted (app/ops/mcp-keys/reveal/consume/route.ts),
+  // which is what makes "shown once" true; the Done button clears it too, and the 120 s Max-Age
+  // is the backstop for a browser that never runs that call.
   const createdPrefix = firstValue(query.created) ?? null;
   const cookieStore = await cookies();
   const revealedToken = cookieStore.get(TOKEN_REVEAL_COOKIE)?.value ?? null;
@@ -452,7 +453,10 @@ function CreateTokenDrawer({
 function NewTokenDrawer({ token, prefix, closeHref }: { token: string; prefix: string; closeHref: string }) {
   return (
     <Drawer title={`Token ${prefix}`} kind="Created just now" closeHref={closeHref}>
-      <div className="lists-token-panel">
+      {/* The token is rendered HERE, by the server, and handed to the panel as children: the
+          client component consumes the cookie and owns the Done button, and never touches the
+          secret itself. */}
+      <TokenRevealPanel>
         <p className="note">Copy it now. It is shown once and never stored.</p>
         <code className="lists-snippet lists-token">{token}</code>
         <div>
@@ -462,11 +466,7 @@ function NewTokenDrawer({ token, prefix, closeHref }: { token: string; prefix: s
         <p className="note">
           The database holds its sha256 and its public prefix, so nobody, including this application, can read it back. Lost means creating another token and revoking this one. Do not paste it into a document, a ticket or a commit.
         </p>
-        <form method="post" action="/api/mcp-keys" className="inline-form">
-          <input type="hidden" name="action" value="dismiss" />
-          <SubmitButton>Done</SubmitButton>
-        </form>
-      </div>
+      </TokenRevealPanel>
     </Drawer>
   );
 }
