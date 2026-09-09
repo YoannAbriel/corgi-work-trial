@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, FileText, ShieldCheck } from "lucide-react";
+import { DecorativeIllustration } from "@/components/decorative-illustration";
 import { PortalShell } from "@/components/portal-shell";
 
 export default function HomePage() {
@@ -49,12 +50,7 @@ export default function HomePage() {
             Every policy, followed through.
           </p>
         </div>
-        <img
-          src="/illustrations/corgi-engraving.webp"
-          width="1152"
-          height="768"
-          alt=""
-        />
+        <DecorativeIllustration name="meadow-path" variant="banner" eager />
       </section>
     </PortalShell>
   );

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, BellRing } from "lucide-react";
+import { DecorativeIllustration } from "./decorative-illustration";
 import { sql } from "@/db/client";
 import { countApprovalRequestsWaitingForDecision } from "@/lib/approvals/read";
 import type { SignedInUser } from "@/lib/auth/current-user";
@@ -234,10 +235,13 @@ export function WhatNeedsYou({ tasks }: { tasks: WorkspaceTask[] }) {
         <BellRing size={18} aria-hidden="true" /> What needs you
       </h2>
       {tasks.length === 0 ? (
-        <p className="note">
-          Nothing is waiting for you right now. New work appears here, in your{" "}
-          <Link href="/inbox">inbox</Link>, and as a number next to the screen it belongs to.
-        </p>
+        <div className="needs-you-empty">
+          <DecorativeIllustration name="all-clear" variant="empty" />
+          <p className="note">
+            Nothing is waiting for you right now. New work appears here, in your{" "}
+            <Link href="/inbox">inbox</Link>, and as a number next to the screen it belongs to.
+          </p>
+        </div>
       ) : (
         <ul className="needs-you-list">
           {tasks.map((task) => (

@@ -536,6 +536,19 @@ main:focus {
   padding: 8px 0;
   text-align: center;
 }
+.needs-you-empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.needs-you-empty .empty-illustration {
+  width: min(180px, 100%);
+  max-height: 120px;
+}
+.needs-you-empty .note {
+  margin: 0;
+}
 .page-actions {
   display: flex;
   gap: 12px;

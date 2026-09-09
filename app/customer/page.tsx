@@ -1,6 +1,7 @@
 import { PortalShell } from "@/components/portal-shell";
 import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
 import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
+import { IllustrationBanner } from "@/components/decorative-illustration";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { sql } from "@/db/client";
@@ -80,7 +81,7 @@ export default async function CustomerPage({
 
       <Panel title="Policies" className="list-panel">
         {rows.length === 0 ? (
-          <Empty>No policy is attached to your account yet.</Empty>
+          <Empty illustration="coverage-corgi">No policy is attached to your account yet.</Empty>
         ) : (
           <div className="table-scroll" role="region" aria-label="Your policies" tabIndex={0}>
             <table>
@@ -143,6 +144,12 @@ export default async function CustomerPage({
           </div>
         )}
       </Panel>
+      <IllustrationBanner
+        name="orchard-morning"
+        title={<>Your coverage. <em>Close at hand.</em></>}
+      >
+        The policy, its documents and every decision live in one clear place.
+      </IllustrationBanner>
     </PortalShell>
   );
 }

@@ -1,4 +1,5 @@
 import { SignedOutFrame } from "@/components/signed-out-frame";
+import { DecorativeIllustration } from "@/components/decorative-illustration";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth/current-user";
 
@@ -68,12 +69,7 @@ export default async function LoginPage({
           </details>
         </div>
         <section className="login-art-panel">
-          <img
-            src="/illustrations/corgi-engraving.webp"
-            width="1152"
-            height="768"
-            alt=""
-          />
+          <DecorativeIllustration name="welcome-corgi" variant="banner" eager />
           <h2>
             A clearer view. <em>A better next step.</em>
           </h2>
