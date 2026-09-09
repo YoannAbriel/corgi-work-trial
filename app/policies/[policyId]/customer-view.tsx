@@ -44,8 +44,10 @@ export async function CustomerPolicyView({
   user: SignedInUser;
   policy: PolicyDetail;
   // The page's own searchParams, passed through: this component reads the two notices its own
-  // forms produce and ignores everything else.
-  searchParams: Promise<Record<string, string | undefined>>;
+  // forms produce and ignores everything else. A repeated parameter arrives as an array, which is
+  // why the values are typed with one (review finding F-B13-32); the two this component reads are
+  // printed through `oneValue` below.
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const today = new Date().toISOString().slice(0, 10);
   // A date field cannot start on a date it would refuse: on a policy whose term has not begun,
@@ -70,13 +72,19 @@ export async function CustomerPolicyView({
   const statusTone =
     policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "warn" : "neutral";
 
+  // One value out of a query parameter, whatever the address carries: a repeated parameter is an
+  // array, and React would print its entries run together (review finding F-B13-32).
+  const oneValue = (parameter: string | string[] | undefined) =>
+    Array.isArray(parameter) ? parameter[0] : parameter;
+  const refusal = oneValue(query.error);
+
   const notices = [
-    query.error ? (
+    refusal ? (
       <p key="error" className="error" role="alert">
-        {query.error}
+        {refusal}
       </p>
     ) : null,
-    query.changeRequest === "sent" ? (
+    oneValue(query.changeRequest) === "sent" ? (
       <p key="sent" className="note" role="status">
         Your request is with your broker. It is on this page below, and it appears on their own screen as work waiting
         for them. Nothing on the policy has changed yet: your broker answers first.

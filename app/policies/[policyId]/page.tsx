@@ -73,7 +73,10 @@ export default async function PolicyPage({
     // Slice B8: the outcome of a backdated correction, and the date the "as it stood on" panel
     // rebuilds the policy for.
     correction?: string;
-    asOf?: string;
+    // A repeated parameter arrives as an array, so the declared type has to say so (review
+    // finding F-B13-32, AF-06: a type that does not describe the value it receives). One value
+    // is read from it below.
+    asOf?: string | string[];
     // Slice B13-6: the broker has just answered a customer's change request.
     changeRequest?: string;
   }>;
@@ -129,6 +132,15 @@ export default async function PolicyPage({
       policyAsItStoodOn(policyId, documentDate),
       searchParams,
     ]);
+
+  // ONE as-of date, even when the address carries several (review finding F-B13-32). Next gives
+  // an array for a repeated parameter, and the panel below prints the value it was given twice:
+  // once in its refusal sentence and once in the heading. React concatenates an array while a
+  // template string comma-joins it, so "?asOf=2026-09-08&asOf=2026-10-08" refused
+  // "2026-09-082026-10-08" and named "2026-09-08,2026-10-08" in the same sentence. The first
+  // entry is the value the panel answers for, and it is refused by name like any other date that
+  // is not a calendar date.
+  const asOfRequested = Array.isArray(query.asOf) ? query.asOf[0] : query.asOf;
 
   // Two different questions, kept apart on purpose. The first is about this policy, the second
   // is about the broker behind it; the server asks both again when the button is pressed and
@@ -267,6 +279,13 @@ export default async function PolicyPage({
           <>
             <Chip tone={statusTone}>{policy.status.replace(/_/g, " ")}</Chip>
             <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>KYB {kyb.status}</Chip>
+            {/* The mode of each slot whose money is on this page, in the same words as the
+                reconciliation screen and never behind a fold (AF-02, review finding F-B13-34).
+                The premium, the endorsement deltas and the refunds are Stripe; the amount paid on
+                a claim went out on the simulated rail, so the second chip appears with the claims
+                that carry it and never on its own. */}
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+            {claims.length > 0 ? <Chip tone="neutral">claim payout rail: LOCAL SIMULATOR</Chip> : null}
             {liveEndorsement ? <Chip tone="warn">endorsement in progress</Chip> : null}
             {openClaims.length > 0 ? (
               <Chip tone="warn">{openClaims.length === 1 ? "1 open claim" : `${openClaims.length} open claims`}</Chip>
@@ -914,9 +933,9 @@ export default async function PolicyPage({
                 was applied. Nothing else changes: the panel is still server-rendered and the form
                 is still a plain GET. */}
             <PolicyAsOf
-              key={query.asOf ?? "default"}
+              key={asOfRequested ?? "default"}
               policyId={policy.policyId}
-              asOf={query.asOf}
+              asOf={asOfRequested}
               termStart={policy.effectiveAt}
               today={today}
             />
@@ -1233,8 +1252,10 @@ function cancellationRefundNotice(refunds: RefundOperationView[]): string {
 
   const parts: string[] = [];
   if (waitingForApproval > 0) {
+    // "waiting for an approver", never "sent to Stripe": nothing has left, and the words the
+    // banner uses here are the ones Yoann asked for (review finding F-YA-04).
     parts.push(
-      `${waitingForApproval} waits for a second person to approve it (nothing has been sent to Stripe)`,
+      `${waitingForApproval} is waiting for an approver, and nothing has been sent to Stripe`,
     );
   }
   if (notSentYet > 0) {

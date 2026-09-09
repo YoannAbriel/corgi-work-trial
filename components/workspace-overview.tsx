@@ -70,11 +70,18 @@ export function WorkspaceOverview({
           <span><strong>Broker statements</strong><span>Read monthly commission, frozen revisions and their knowledge cutoff.</span></span>
           <ArrowRight size={18} aria-hidden="true" />
         </Link>
-        <Link className="action-card" href="/ops/mcp-keys" prefetch={false}>
-          <span className="icon-tile"><KeyRound aria-hidden="true" /></span>
-          <span><strong>MCP keys</strong><span>Issue and revoke agent API keys, and read what is never delegated to an agent.</span></span>
-          <ArrowRight size={18} aria-hidden="true" />
-        </Link>
+        {/* Only staff operations reach the key screen: an approver who could mint the maker's key
+            would be both halves of the maker-checker gate (review finding F-INT-01). The sidebar
+            already left this link out for an approver and this second one was missed
+            (F-INT-21), so the page refused with a redirect what the home had just offered. The
+            refusal is the control and it is unchanged; this is the offer matching it. */}
+        {isApprover ? null : (
+          <Link className="action-card" href="/ops/mcp-keys" prefetch={false}>
+            <span className="icon-tile"><KeyRound aria-hidden="true" /></span>
+            <span><strong>MCP keys</strong><span>Issue and revoke agent API keys, and read what is never delegated to an agent.</span></span>
+            <ArrowRight size={18} aria-hidden="true" />
+          </Link>
+        )}
       </div>
       <div className="overview-grid">
         <section className="panel">

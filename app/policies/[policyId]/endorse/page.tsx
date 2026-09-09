@@ -89,7 +89,7 @@ export default async function EndorsePolicyPage({
       </p>
 
       <h2>What changes</h2>
-      <div className="table-scroll" role="region" aria-label="Policies table 1" tabIndex={0}>
+      <div className="table-scroll" role="region" aria-label="What changes" tabIndex={0}>
 <table className="amounts">
         <tbody>
           <tr>
@@ -131,10 +131,13 @@ export default async function EndorsePolicyPage({
           The request is recorded as a policy event carrying these figures and their hash.{" "}
           {/* The verdict is never printed without the running total behind it: this policy's
               additional premium over the term, before tax, applied endorsements and open
-              requests together (decision 24). */}
+              requests together (decision 24). The sentence used to say the policy "has" that
+              premium "since issuance"; both words were wrong (review finding F-INT-23). The
+              figure is scoped to the CURRENT TERM, and it INCLUDES the quote on this page, which
+              nobody has requested yet, so it is what the policy WOULD carry. */}
           {figures.customerApprovalRequired
-            ? `This policy has ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium since issuance, above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: the customer approves before the delta can be paid.`
-            : `This policy has ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium since issuance, at or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: no approval is needed and the delta can be paid straight away.`}{" "}
+            ? `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, above ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: the customer approves before the delta can be paid.`
+            : `With this change, this policy would carry ${formatCentsAsUsd(plan.additionalPremiumOfTheTermCents)} of additional premium in this term, this quote included, at or below ${formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}: no approval is needed and the delta can be paid straight away.`}{" "}
           The endorsement takes effect only when Stripe confirms the delta was paid; until then the policy terms are
           unchanged.
         </p>

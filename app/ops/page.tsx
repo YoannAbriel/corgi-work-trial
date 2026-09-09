@@ -23,11 +23,15 @@ export default async function OpsHomePage({ searchParams }: { searchParams: Prom
   return (
     <PortalShell user={user} active="home" tasks={tasks}>
       {/* A refused action on another screen sends staff back here with its sentence (review
-          finding F-B13-08): the sentence has to be printed, or the refusal is silent. */}
+          finding F-B13-08): the sentence has to be printed, or the refusal is silent. It sits in
+          the same .notices block as the broker, customer and inbox homes, so the four line up
+          (review finding F-PP-07). */}
       {query.error ? (
-        <p className="error" role="alert">
-          {query.error}
-        </p>
+        <div className="notices">
+          <p className="error" role="alert">
+            {query.error}
+          </p>
+        </div>
       ) : null}
       <WorkspaceOverview isApprover={isApprover} tasks={tasks} />
     </PortalShell>

@@ -112,6 +112,11 @@ export default async function StatementPage({ params }: { params: Promise<{ runI
         lead={`Revision ${run.revision}${run.supersedesRunId ? ", superseding the previous revision of this month" : ", the first run of this month"}. Knowledge cutoff ${utc(run.knowledgeCutoff)} UTC.`}
         chips={
           <>
+            {/* Every movement on a statement is premium collected, commission on it, a clawback
+                or a refund, and all four are Stripe money: the slot is named here in the same
+                words as the reconciliation screen rather than left to the shell's generic sandbox
+                note (AF-02, review finding F-B13-34). No simulated record reaches this page. */}
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
             <Chip tone={tiesToTheLedger ? "ok" : "warn"}>{tiesToTheLedger ? "ties to the ledger" : "does NOT tie to the ledger"}</Chip>
             {run.monthWasStillRunning ? <Chip tone="warn">provisional, month in progress</Chip> : <Chip tone="neutral">month closed</Chip>}
             {run.identicalToPrevious ? <Chip tone="ok">identical to revision {run.revision - 1}</Chip> : null}
@@ -384,7 +389,7 @@ function Changes({ changes, previousRevision }: { changes: { appeared: RevisionC
       {nothingChanged ? (
         <Empty>The same journal entries, one for one. Nothing was added and nothing was taken away.</Empty>
       ) : (
-        <div className="table-scroll" role="region" aria-label="Statements table 4" tabIndex={0}>
+        <div className="table-scroll" role="region" aria-label="Entries that changed" tabIndex={0}>
 <table className="ledger ops-table">
           <thead>
             <tr>
