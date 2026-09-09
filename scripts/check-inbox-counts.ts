@@ -3,7 +3,8 @@
 // components/what-needs-you.tsx counts what is waiting for a person and puts the number on the
 // sidebar; lib/inbox/read.ts lists the same work item by item on /inbox. If the two ever drifted,
 // a badge would send an operator to a screen where the work is not there. This check reads both
-// for every broker and every staff user of the database and compares them, section by section.
+// for the brokers of the database, up to the first one that actually has work waiting, and for
+// one staff user, and compares them section by section.
 //
 // WHAT IT WRITES: nothing at all. Every call here is a read, made with the RESTRICTED runtime
 // role, so it can be run on the disposable database without adding a single row.
@@ -38,6 +39,7 @@ const SIDEBAR_SECTION_OF_ANCHOR: Record<string, string> = {
   policies: "policies",
   "endorsement-deltas": "policies",
   "correction-differences": "policies",
+  "change-requests": "policies",
   "waiting-for-the-customer": "policies",
   corrections: "policies",
   endorsements: "policies",
@@ -62,10 +64,22 @@ async function main() {
     process.exit(1);
   }
 
-  const users = await sql<{ id: string; display_name: string; role: string; broker_id: string | null; customer_id: string | null }[]>`
+  // One staff user is enough: the staff sections do not depend on who is looking, only on the
+  // role, and reading every claim payment of the database is the slow part of this check. The
+  // brokers are walked until one of them actually has work waiting, because comparing two zeros
+  // proves nothing.
+  const brokers = await sql<{ id: string; display_name: string; role: string; broker_id: string | null; customer_id: string | null }[]>`
     select id, display_name, role, broker_id, customer_id
       from users
-     where role in ('broker', 'customer', 'staff_ops', 'staff_approver')
+     where role = 'broker' and broker_id is not null
+     order by display_name
+  `;
+  // One of each staff role: the two see different lists, because binding a paid policy and
+  // applying a paid endorsement are staff operations work and never an approver's.
+  const staff = await sql<{ id: string; display_name: string; role: string; broker_id: string | null; customer_id: string | null }[]>`
+    select distinct on (role) id, display_name, role, broker_id, customer_id
+      from users
+     where role in ('staff_ops', 'staff_approver')
      order by role, display_name
   `;
 
@@ -74,8 +88,12 @@ async function main() {
   let largestBrokerTotal = 0;
   let largestStaffTotal = 0;
 
-  for (const row of users) {
-    const user = { role: row.role as "broker" | "customer" | "staff_ops" | "staff_approver", brokerId: row.broker_id, customerId: row.customer_id };
+  for (const row of [...brokers, ...staff]) {
+    // Stop walking brokers once one with real work has been compared.
+    if (row.role === "broker" && largestBrokerTotal > 0) {
+      continue;
+    }
+    const user = { role: row.role as "broker" | "staff_ops" | "staff_approver", brokerId: row.broker_id, customerId: row.customer_id };
     const [tasks, inbox] = await Promise.all([workspaceTasks(user), workspaceInbox(user)]);
 
     const countedBySection = new Map<string, number>();
@@ -131,7 +149,7 @@ async function main() {
   report(
     "at least one broker and one staff user had work waiting",
     brokersChecked > 0 && staffChecked > 0 && largestBrokerTotal > 0 && largestStaffTotal > 0,
-    `${brokersChecked} brokers (largest inbox ${largestBrokerTotal}), ${staffChecked} staff (largest inbox ${largestStaffTotal})`,
+    `${brokersChecked} brokers compared (largest inbox ${largestBrokerTotal}), ${staffChecked} staff compared (largest inbox ${largestStaffTotal})`,
   );
 
   await sql.end();

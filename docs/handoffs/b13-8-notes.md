@@ -15,7 +15,7 @@ answer.
 
 **`lib/inbox/sections.ts`, pure.** Facts in, sections out. No database, no framework: the
 grouping, the wording and the rule of who does what, in one readable file. Proved line by line in
-`lib/inbox/sections.test.ts` (7 tests, no database).
+`lib/inbox/sections.test.ts` (8 tests, no database).
 
 **`lib/inbox/read.ts`, the reads.** `workspaceInbox(user)` reads the facts through the readers the
 screens themselves use and calls the pure functions above. Nothing restates a business rule in
@@ -31,6 +31,7 @@ SQL:
 | policies paid and not bound | `policiesPaidButNotBound` (new list twin of the count) |
 | endorsements paid and not applied | `endorsementsPaidButNotApplied` (new list twin of the count) |
 | claims with a payment to move | `claimsWithPositions` + `claimPayments` |
+| change requests to answer | `openChangeRequestsOfBroker` (new list twin of the count) |
 | open breaks | `openBreaks` |
 
 **`app/inbox/page.tsx`, the screen.** `DetailHeading` with the total waiting, then one `Panel` per
@@ -47,7 +48,7 @@ to move out of the navigation link, because a link inside a link is not valid HT
 `.sidebar-nav-row` now holds the two, and `app/globals.css` restores the pill shape for the badge
 in both the desktop and the mobile rules.
 
-## Two decisions worth reading
+## Four decisions worth reading
 
 **Why the count functions now count a list.** `countPoliciesPaidButNotBound` and
 `countEndorsementsPaidButNotApplied` used to be their own `count(*)` query. The inbox needs the
@@ -55,11 +56,26 @@ same rows, and a second query with the same `where` clause is exactly how a badg
 points at start disagreeing. Each is now the `.length` of the list function beside it. The
 condition exists once. At trial volume both lists are a handful of rows.
 
+**Why `countOpenChangeRequests` changed too.** Slice B13-6 landed in `main` while this was being
+built, and its count walked `policies` by `broker_id` while the inbox walked the broker's own
+policy list, which joins `policy_current`. On `corgi_test` that showed up at once as "1 counted, 0
+listed": the change-request check writes policies with no `policy_current` row, which the broker's
+list therefore never shows. `lib/policy/change-requests.ts` now has
+`openChangeRequestsOfBroker({ brokerId })`, and the count is its length, so "open" (no reply row
+exists) is stated once and the inbox reads the broker's requests directly rather than through the
+policy list.
+
+**What an approver sees.** `workspaceTasks` gives "paid and not bound" and "paid and not in force"
+to `staff_ops` only: binding and applying are operations work. The inbox keeps both sections for
+an approver, with the sentence "Staff operations do this; it is not an approver's queue.", so the
+screen has the same shape for both roles and the badge and the list still agree. If Yoann wants an
+approver to see those items, `staffSections` takes one word out of two ternaries.
+
 **Which anchor a section carries.** The sidebar knows four section names (`policies`, `claims`,
 `approvals`, `reconciliation`), and each is used exactly once per role in the inbox, so
 `/inbox#approvals` always lands on the section that holds the items the chip counted. The extra
 sections carry their own name (`endorsement-deltas`, `correction-differences`,
-`waiting-for-the-customer`, `corrections`, `endorsements`). Where the sidebar adds two inbox
+`change-requests`, `waiting-for-the-customer`, `corrections`, `endorsements`). Where the sidebar adds two inbox
 sections into one number, staff `policies` for instance, the chip lands on the first of the two
 and the second is immediately below it.
 
@@ -87,11 +103,15 @@ the accumulated data of every replay check.
   TypeScript program (`**/*.ts` with only `node_modules` and `docs` excluded), and a build output
   present in the tree makes `tsc` report a pre-existing duplicate `main` in
   `scripts/post-local-webhook.ts`. Typecheck before building, or remove `.next` first.
-- `npm test`: 421 tests, 420 pass, 1 skipped, 0 fail. Seven of them are the new
+- `npm test`: 434 tests, 433 pass, 1 skipped, 0 fail. Eight of them are the new
   `lib/inbox/sections.test.ts`.
 - `npm run build`: passes, `/inbox` listed as server-rendered on demand.
-- `npm run check:inbox-counts` on `corgi_test`, read-only: see the report to the coordinator for
-  the counts.
+- `npm run check:inbox-counts` on `corgi_test`, read-only, all PASS:
+  - broker with an open change request: 1 counted, 1 listed;
+  - `staff_approver`: 1138 counted, 1138 listed (approvals 90, claims 31, reconciliation 1017,
+    policies 0 on both sides);
+  - `staff_ops`: 1180 counted, 1180 listed (approvals 92, policies 40, claims 31,
+    reconciliation 1017).
 
 ## What is not done here
 

@@ -3,6 +3,7 @@ import { approvalRequests } from "@/lib/approvals/approvals";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import { claimPayments } from "@/lib/claims/payments";
 import { claimsWithPositions } from "@/lib/claims/read";
+import { CHANGE_REQUEST_LINE_LABELS, openChangeRequestsOfBroker } from "@/lib/policy/change-requests";
 import { correctionsOfPolicy } from "@/lib/policy/correction-read";
 import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
 import { endorsementsPaidButNotApplied, policiesOfBroker, policiesPaidButNotBound } from "@/lib/policy/read";
@@ -12,6 +13,7 @@ import {
   customerSections,
   staffSections,
   type BrokerPolicyFacts,
+  type ChangeRequestFacts,
   type ClaimPaymentFacts,
   type CorrectionFacts,
   type CustomerPolicyFacts,
@@ -71,7 +73,11 @@ async function sectionsFor(
   }
   if (user.role === "broker" && user.brokerId) {
     const read = await readBrokerPolicies(user.brokerId);
-    return { sections: brokerSections(read.policies), unreadablePolicyNumbers: read.unreadablePolicyNumbers };
+    const changeRequests = await readOpenChangeRequests(user.brokerId);
+    return {
+      sections: brokerSections(read.policies, changeRequests),
+      unreadablePolicyNumbers: read.unreadablePolicyNumbers,
+    };
   }
   if (user.role === "customer" && user.customerId) {
     const read = await readCustomerPolicies(user.customerId);
@@ -138,6 +144,33 @@ async function readCustomerPolicies(
     }
   }
   return { policies: facts, unreadablePolicyNumbers };
+}
+
+// What this broker's customers asked and nobody has answered yet, through the same reader the
+// broker's panel on the policy page uses (slice B13-6). "Open" is one thing only there: no reply
+// row exists.
+//
+// It is read for the broker, not policy by policy, because a change request can sit on a policy
+// that the broker's own list does not show, and a badge that counts it must lead somewhere.
+async function readOpenChangeRequests(brokerId: string): Promise<ChangeRequestFacts[]> {
+  const requests = await openChangeRequestsOfBroker({ brokerId });
+  const numbers = await policyNumbersOfBroker(brokerId);
+  return requests.map((request) => ({
+    requestId: request.requestId,
+    policyId: request.policyId,
+    policyNumber: numbers.get(request.policyId) ?? "policy",
+    askedByName: request.requestedByName,
+    whatWasAsked: request.lines.map((line) => CHANGE_REQUEST_LINE_LABELS[line]).join(", "),
+    recordedAt: request.recordedAt,
+  }));
+}
+
+// The number printed beside each change request. Ownership again comes from the session's broker.
+async function policyNumbersOfBroker(brokerId: string): Promise<Map<string, string>> {
+  const rows = await sql<{ id: string; policy_number: string }[]>`
+    select id, policy_number from policies where broker_id = ${brokerId}
+  `;
+  return new Map(rows.map((row) => [row.id, row.policy_number]));
 }
 
 // The endorsement request the policy page acts on, when it is still waiting for somebody. A

@@ -280,24 +280,35 @@ export async function openChangeRequestsOfPolicy(policyId: string, database: Que
   return requests.filter((request) => request.reply === null);
 }
 
-// How many change requests are waiting on the policies this broker writes. Counted in the
-// database rather than by folding the list, because the "what needs you" block asks for a number
-// and nothing else.
+// The change requests waiting on the policies this broker writes, newest first within each
+// policy. Only the policies that carry a request are read, so a broker with many policies and no
+// request costs one query.
+export async function openChangeRequestsOfBroker(
+  { brokerId }: { brokerId: string },
+  database: Queryable = sql,
+): Promise<ChangeRequestView[]> {
+  const policies = await database<{ policy_id: string }[]>`
+    select distinct change_request.policy_id
+      from policy_change_requests change_request
+      join policies policy on policy.id = change_request.policy_id
+     where policy.broker_id = ${brokerId}
+  `;
+  const open: ChangeRequestView[] = [];
+  for (const policy of policies) {
+    open.push(...(await openChangeRequestsOfPolicy(policy.policy_id, database)));
+  }
+  return open;
+}
+
+// How many change requests are waiting on the policies this broker writes, for the "what needs
+// you" block and the sidebar badge. It counts the list above rather than asking the same question
+// in a second query: what makes a request open lives in one place (no reply row exists), so the
+// number and the list of lib/inbox/read.ts cannot drift apart.
 export async function countOpenChangeRequests(
   { brokerId }: { brokerId: string },
   database: Queryable = sql,
 ): Promise<number> {
-  const [row] = await database<{ waiting: string }[]>`
-    select count(*) as waiting
-      from policy_change_requests change_request
-      join policies policy on policy.id = change_request.policy_id
-     where policy.broker_id = ${brokerId}
-       and not exists (
-             select 1 from policy_change_request_replies reply
-              where reply.request_id = change_request.id
-           )
-  `;
-  return Number(row.waiting);
+  return (await openChangeRequestsOfBroker({ brokerId }, database)).length;
 }
 
 async function loadPolicyOwners(

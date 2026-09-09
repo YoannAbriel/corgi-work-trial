@@ -43,10 +43,13 @@ function section(sections: InboxSection[], anchor: string): InboxSection {
 }
 
 test("a broker sees a policy to pay only while it is not bound", () => {
-  const sections = brokerSections([
-    brokerPolicy({ policyId: "a", policyNumber: "COR-A", status: "awaiting_payment" }),
-    brokerPolicy({ policyId: "b", policyNumber: "COR-B", status: "bound" }),
-  ]);
+  const sections = brokerSections(
+    [
+      brokerPolicy({ policyId: "a", policyNumber: "COR-A", status: "awaiting_payment" }),
+      brokerPolicy({ policyId: "b", policyNumber: "COR-B", status: "bound" }),
+    ],
+    [],
+  );
   const toPay = section(sections, "policies");
   assert.equal(toPay.items.length, 1);
   assert.equal(toPay.items[0].subject, "COR-A");
@@ -56,7 +59,8 @@ test("a broker sees a policy to pay only while it is not bound", () => {
 });
 
 test("an approved endorsement is the broker's delta to pay, an unapproved one is only information", () => {
-  const sections = brokerSections([
+  const sections = brokerSections(
+    [
     brokerPolicy({
       policyId: "a",
       policyNumber: "COR-A",
@@ -81,7 +85,9 @@ test("an approved endorsement is the broker's delta to pay, an unapproved one is
         approvedAt: null,
       },
     }),
-  ]);
+    ],
+    [],
+  );
 
   const deltas = section(sections, "endorsement-deltas");
   assert.equal(deltas.items.length, 1);
@@ -97,10 +103,10 @@ test("an approved endorsement is the broker's delta to pay, an unapproved one is
 });
 
 test("every broker section exists when nothing is waiting, with its empty sentence", () => {
-  const sections = brokerSections([]);
+  const sections = brokerSections([], []);
   assert.deepEqual(
     sections.map((one) => one.anchor),
-    ["policies", "endorsement-deltas", "correction-differences", "waiting-for-the-customer"],
+    ["policies", "endorsement-deltas", "correction-differences", "change-requests", "waiting-for-the-customer"],
   );
   for (const one of sections) {
     assert.equal(one.items.length, 0);
@@ -186,4 +192,26 @@ test("the five staff sections exist in order, empty or not", () => {
     staffSections(staffFacts(), "staff_ops").map((one) => one.anchor),
     ["approvals", "policies", "endorsements", "claims", "reconciliation"],
   );
+});
+
+test("a change request nobody answered is the broker's to answer", () => {
+  const sections = brokerSections(
+    [],
+    [
+      {
+        requestId: "request-1",
+        policyId: "p9",
+        policyNumber: "COR-C",
+        askedByName: "Acme Roofing",
+        whatWasAsked: "the address of the business",
+        recordedAt: REQUESTED_AT,
+      },
+    ],
+  );
+  const requests = section(sections, "change-requests");
+  assert.equal(requests.items.length, 1);
+  assert.equal(requests.items[0].subject, "COR-C");
+  assert.equal(requests.items[0].amountCents, null);
+  assert.equal(requests.items[0].href, "/policies/p9");
+  assert.match(requests.items[0].what, /the address of the business/);
 });

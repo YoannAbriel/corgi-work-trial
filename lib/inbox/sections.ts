@@ -28,11 +28,6 @@ export type InboxSection = {
   items: InboxItem[];
 };
 
-export type WorkspaceInbox = {
-  totalWaiting: number;
-  sections: InboxSection[];
-};
-
 // ---------------------------------------------------------------------------
 // The facts each role's grouping needs, read once from the database below
 // ---------------------------------------------------------------------------
@@ -51,6 +46,15 @@ export type CorrectionFacts = {
   amountCents: number;
   recordedAt: Date;
   correctedEffectiveAt: string;
+};
+
+export type ChangeRequestFacts = {
+  requestId: string;
+  policyId: string;
+  policyNumber: string;
+  askedByName: string;
+  whatWasAsked: string; // the lines of the request, already in words
+  recordedAt: Date;
 };
 
 export type BrokerPolicyFacts = {
@@ -112,7 +116,12 @@ export type StaffFacts = {
 // A broker pays. Four things can be waiting on them, and the fourth one is not their move: an
 // endorsement quote the customer has not accepted yet is shown so that the broker knows why the
 // delta cannot be collected, not so that they do something about it.
-export function brokerSections(policies: BrokerPolicyFacts[]): InboxSection[] {
+export function brokerSections(
+  policies: BrokerPolicyFacts[],
+  // Change requests come as their own list, not folded into the policies above: a customer can
+  // ask a question about a policy that carries no money work at all (slice B13-6).
+  changeRequests: ChangeRequestFacts[],
+): InboxSection[] {
   const toPay = policies.filter(
     (policy) => policy.status === "draft" || policy.status === "awaiting_payment" || policy.status === "payment_failed",
   );
@@ -163,6 +172,20 @@ export function brokerSections(policies: BrokerPolicyFacts[]): InboxSection[] {
           href: `/policies/${policy.policyId}`,
         })),
       ),
+    },
+    {
+      anchor: "change-requests",
+      title: "Change requests to answer",
+      sinceHeading: "Asked",
+      emptySentence: "No customer is waiting for an answer.",
+      items: changeRequests.map((request) => ({
+        subject: request.policyNumber,
+        what: `${request.askedByName} asked about ${request.whatWasAsked}. Answering changes nothing on the policy on its own.`,
+        amountCents: null,
+        since: request.recordedAt,
+        actionLabel: "Answer",
+        href: `/policies/${request.policyId}`,
+      })),
     },
     {
       anchor: "waiting-for-the-customer",
@@ -219,11 +242,18 @@ export function customerSections(policies: CustomerPolicyFacts[]): InboxSection[
   ];
 }
 
-// Staff operations and the staff approver see the same five sections. The wording of the first
-// one changes, because an operator cannot decide the requests they can see: only a distinct
-// staff approver can, and the database enforces it, not this page.
+// Staff operations and the staff approver see the same five sections, and their contents differ
+// with the role, exactly as the sidebar counts already do:
+//
+//   the wording of the approvals section, because an operator cannot decide the requests they can
+//   see, only a distinct staff approver can, and the database enforces that, not this page;
+//
+//   the two operational lists, binding a paid policy and applying a paid endorsement, which are
+//   staff operations work. The approver keeps the section and its sentence, so the shape of the
+//   screen does not change with the role, and reads who does it.
 export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_approver"): InboxSection[] {
   const isApprover = role === "staff_approver";
+  const operationsOnly = "Staff operations do this; it is not an approver's queue.";
 
   return [
     {
@@ -246,8 +276,8 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
       anchor: "policies",
       title: "Policies paid and not bound",
       sinceHeading: "Quoted",
-      emptySentence: "No paid policy is waiting to be bound.",
-      items: facts.paidNotBound.map((policy) => ({
+      emptySentence: isApprover ? operationsOnly : "No paid policy is waiting to be bound.",
+      items: (isApprover ? [] : facts.paidNotBound).map((policy) => ({
         subject: policy.policyNumber,
         what: `${policy.customerName} paid while the broker was not eligible to bind. The cash sits in the suspense account until you bind the policy or send it back.`,
         amountCents: policy.totalChargeCents,
@@ -260,8 +290,8 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
       anchor: "endorsements",
       title: "Endorsements paid and not in force",
       sinceHeading: "Paid",
-      emptySentence: "No paid endorsement is waiting to be applied.",
-      items: facts.paidNotApplied.map((endorsement) => ({
+      emptySentence: isApprover ? operationsOnly : "No paid endorsement is waiting to be applied.",
+      items: (isApprover ? [] : facts.paidNotApplied).map((endorsement) => ({
         subject: endorsement.policyNumber,
         what: "The delta was collected while the broker was not eligible, so the endorsement is not in force yet.",
         amountCents: endorsement.amountCents,
