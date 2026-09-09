@@ -21,9 +21,6 @@ import {
 } from "@/lib/ledger/read";
 import { closeInspectorHref, firstValue, inspectedReference, pickView, withParams, type Query } from "@/lib/ui/views";
 import { AccountView, BalancesView, EntriesView, FlowsView, LEDGER_PATH } from "../ledger-views";
-// One parked rule of this builder's own stylesheet (`.ledger-screen`, the HBars fill); the
-// comment in that file says which rule and why it is not in app/styles/system.css yet.
-import "@/app/styles/landing.css";
 
 // /ops/console/ledger: the books themselves, beside the console that watches them work.
 //

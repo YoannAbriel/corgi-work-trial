@@ -38,7 +38,7 @@ export function DataTable({
 // primary cell); other links and forms in the row keep working above it.
 export function Row({ href, selected, children, className, id }: { href?: string; selected?: boolean; children: ReactNode; className?: string; id?: string }) {
   return (
-    <tr className={`dt-row${selected ? " is-selected" : ""}${className ? ` ${className}` : ""}`} id={id} data-href={href}>
+    <tr className={`dt-row${selected ? " is-selected" : ""}${className ? ` ${className}` : ""}`} id={id}>
       {children}
     </tr>
   );

@@ -9,37 +9,6 @@
    Reading order: the header slot, the hero, the two card sections, the sign-in card, the
    feedback screens, then the narrow-screen rules. */
 
-/* ---------------------------------------------------------------------------
-   ONE RULE THAT BELONGS IN app/styles/system.css, PARKED HERE
-   ---------------------------------------------------------------------------
-   Reported to the coordinator as a shared change request on 2026-09-09.
-
-   components/ui/charts.tsx draws an HBars bar as `<span class="hbar-fill">` inside
-   `<span class="hbar-track">`. The track is a grid item of `.hbar-row`, so the browser
-   blockifies it and its `height: 10px` applies. The fill is not: it stays an inline box, where
-   `width` and `height` have no effect, so EVERY BAR MEASURES ZERO and the chart draws only its
-   grey tracks. Measured with Playwright on /ops/console/ledger: the fill's bounding box was
-   0 x 0 inside a track of 817 x 10.
-
-   The fix is one line in `.hbar-row .hbar-fill` in system.css, which this builder may not edit.
-   Until it lands there the rule lives here, scoped to `.ledger-screen`, the wrapper the ledger
-   screen puts around its chart. It affects no other screen, and it should be deleted from this
-   file the day system.css carries it. */
-.ledger-screen .hbar-row .hbar-fill {
-  display: block;
-}
-
-/* Second rule, same request. Every chart of components/ui/charts.tsx repeats its data as a
-   `<table class="visually-hidden">` for a screen reader. `.visually-hidden` in app/globals.css
-   sets `height: 1px`, but on a `display: table` box CSS height is a MINIMUM: the table keeps its
-   content height, and being absolutely positioned it still stretches the document's scroll area.
-   Measured on /ops/console/ledger?view=flows: a page whose content ends at 980 px reported a
-   document height of 2029 px, and the fullPage screenshot showed 1000 px of blank paper.
-   Making the box a block lets the 1 px height and the overflow clip do their work. */
-.ledger-screen table.visually-hidden {
-  display: block;
-}
-
 /* UI-003, carried over from app/styles/shell.css. The signed-out frame is a column flex box and
    `main` carries `margin: 0 auto` (app/globals.css); an automatic margin on the cross axis cancels
    the stretch, so `main` measures ITS OWN CONTENT. Opening "Demo accounts and access" then moved

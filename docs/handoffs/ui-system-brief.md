@@ -59,7 +59,7 @@ Legacy blocks you may still use: `Chip` from `components/detail-layout.tsx` (sta
 - Forms: same `action`, `method`, field `name`s and hidden inputs. Use `SubmitButton` for the submit of a form that posts; `className` as before.
 - Inbox anchors (`lib/inbox/sections.ts`) and the ids the checks assert.
 - Every figure: the 30 figures measured on CGP-01707 and CGP-01274 by the UI reviewer must print the same.
-- `components/amount-explained-motion.tsx` logic and tests; `money-amount-input.tsx`; `journal-table.tsx`.
+- `components/amount-explained-motion.tsx` logic and tests; `money-amount-input.tsx`. (`journal-table.tsx` and the container of the amount explanation were changed on purpose by the policy builder for F-LU-02, F-LU-03 and the popover; their figures and tests did not.)
 
 ## How you work
 

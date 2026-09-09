@@ -512,16 +512,6 @@ button.sidebar-toggle:hover {
   object-fit: contain;
   padding: 3px;
 }
-.band-icon {
-  width: 46px;
-  height: 46px;
-  flex-shrink: 0;
-  border-radius: 13px;
-  display: grid;
-  place-items: center;
-  background: #fff1e8;
-  color: var(--accent);
-}
 .band-title {
   min-width: 0;
 }
@@ -1267,10 +1257,6 @@ table.dt tr.dt-expansion > td {
 .pop-menu button:hover {
   background: #f3f3f5;
   color: var(--ink);
-}
-.pop-menu button.destructive:hover {
-  background: var(--danger-bg);
-  color: var(--danger);
 }
 .pop-menu form {
   padding: 0;
@@ -2275,8 +2261,7 @@ button.secondary.is-working::after {
     width: 100%;
     justify-content: flex-start;
   }
-  .band-art,
-  .band-icon {
+  .band-art {
     width: 40px;
     height: 40px;
   }

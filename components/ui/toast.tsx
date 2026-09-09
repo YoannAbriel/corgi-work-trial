@@ -8,7 +8,7 @@ import type { ToastNotice } from "@/lib/ui/views";
 // query on the server (lib/ui/views.ts, toastsFromQuery) and passes them here; this component
 // only shows them, lets them be closed, and removes their parameters from the URL so that a
 // reload does not repeat them. The text is also in the page for a screen reader and for the
-// review, in the hidden status region below.
+// review, as the visible element itself.
 //
 // A success or an information notice leaves on its own after six seconds. An error stays until
 // it is closed: a refusal is something the person has to read.
@@ -69,13 +69,6 @@ export function Toaster({ notices }: { notices: ToastNotice[] }) {
             </div>
           ),
         )}
-      </div>
-      <div className="visually-hidden" role="status">
-        {notices.map((notice, index) => (
-          <p key={index}>
-            {notice.title}: {notice.text}
-          </p>
-        ))}
       </div>
     </>
   );
