@@ -78,7 +78,11 @@ A rehearsed live demonstration for the debrief is written up in [docs/handoffs/b
 
 ## Explain this amount, animated
 
-Clicking a figure opens its explanation and builds it line by line; the result counts up to the figure; a connector is drawn to the journal entry block that proves it, and "Trace to the ledger" scrolls to that entry. No money is computed in the browser: every string the animation shows was rendered on the server and arrives in a prop or a data attribute, which lib/money/amount-explained-motion.test.ts asserts against the source of the client component. With JavaScript off the fold is the same static details element with every line visible; prefers-reduced-motion shows the finished state at once. Frames under docs/evidence/b12-4/.
+Clicking a figure opens its explanation and builds it line by line; the result counts up to the figure. When the journal entry that proves it is already on screen, a connector is drawn to it and it lights up; the reveal never opens a fold and never scrolls. "Trace to the ledger" is the one action that opens the journal, scrolls to the entry and lights it.
+
+The browser never computes a money figure. Every figure shown at rest is a string rendered on the server and carried in a prop or a data attribute. The one exception is stated plainly: for the 600 ms of the count-up the browser does arithmetic on the digits of that server-rendered text to draw the intermediate frames. Those are frames of a count, never an amount the application states, stores, posts or totals, and the frame the count stops on is the server's own text. lib/money/amount-explained-motion.test.ts asserts this against the source of the client component.
+
+With JavaScript off the fold is the same static details element with every line visible, and "Trace to the ledger" is a plain in-page anchor. prefers-reduced-motion shows the finished state at once, with no count-up and no connector. Frames under docs/evidence/b12-4/.
 
 ## Customer change requests
 
