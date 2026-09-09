@@ -566,6 +566,11 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T19:54:00+00:00 | LIVE-8 in progress: correction confirmed, customer approved, collection pending; decisions 43 and 44 relayed
+
+- Correction confirmed at 19:33:07Z (reversal and re-book events, entries 110136 and 2588 reversed at effect 2026-10-08, re-booked 115397 and 2711 at effect 2026-09-22); customer approved the $53.84 difference at about 19:39Z; collection waits on Yoann's broker click. Redwood 2026-09 revision 5 at 19:36:34Z is identical to revision 4 ($429.56, same hash), the right answer since the correction alone posts neither cash nor commission; the revision after the collection is expected at $437.45.
+- Decisions 43 (Billing view, presentation) and 44 (direct bill by the customer through the same Checkout, a money path) recorded as relayed by the co-pilot session, not built until Yoann confirms them here; 44 is a backend slice with its own review, after LIVE-7.
+
 ## 2026-09-09T19:41:00+00:00 | US and California rules consistency check (workflow, 21 agents)
 
 - Asked by Yoann at 21:30 local: many small checkers, one rule each. Record `docs/reviews/us-rules-check.md`; register lines F-US-01 to F-US-07. Checkers on the haiku family alias, refuters and synthesis on the opus alias; 14 checks, 6 refuters, 1 synthesis, 0 errors, nothing written by the agents.
