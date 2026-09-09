@@ -14,7 +14,7 @@ This is the independent measurement `REVIEWER.md` requires for the cycle. The in
 runs its own screenshot loop; nothing in this record comes from it. I fixed no code, edited no
 shared document and pushed nothing.
 
-**Corrected on 2026-09-09 at 20:55Z.** Five of the 24 evidence files were copies of the login page
+**Corrected on 2026-09-09 at 20:55Z.** _Coordinator note, 19:10Z: the stamps `20:55Z` in this record and its register line are Europe/Zurich local time written with a Z; the correction happened at 18:55Z, merged on main at b33edbc at 19:00Z._ Five of the 24 evidence files were copies of the login page
 and this record claimed they had been opened. Section 12 records the defect, its cause, the guarded
 recapture of six files and exactly which claims it touches. The verdict and every measurement in
 sections 3 to 10 are unchanged.
