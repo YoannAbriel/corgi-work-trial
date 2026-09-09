@@ -566,7 +566,7 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
-## 2026-09-09T19:55:00+00:00 | US and California rules consistency check (workflow, 21 agents)
+## 2026-09-09T19:41:00+00:00 | US and California rules consistency check (workflow, 21 agents)
 
 - Asked by Yoann at 21:30 local: many small checkers, one rule each. Record `docs/reviews/us-rules-check.md`; register lines F-US-01 to F-US-07. Checkers on the haiku family alias, refuters and synthesis on the opus alias; 14 checks, 6 refuters, 1 synthesis, 0 errors, nothing written by the agents.
 - **Consistent (7)**: the 2.35% California rate and its basis (a checker's medium finding on scope was refuted: Ins. Code 1775.5 taxes the surplus line broker, a different taxpayer); tax base premium only with return premiums deducted (RTC 12221); the itemised tax line as a disclosed interpretation; pro-rata return premium with short-rate representable (Ins. Code 481); incurred = paid + reserve and the limit guard; fiduciary funds avoided because the broker never holds the money (Ins. Code 1733); endorsement premium pro rata for the remaining term.
@@ -574,17 +574,17 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 - **Unverifiable (2)**: the flat $25 policy fee fully earned at issuance (no public source fetched on whether rate regulation permits it; the decision of 2026-09-08T09:29Z already calls the fee an assumption of this build; the record rates it HIGH because a panel would ask); daily pro rata earning against SSAP No. 53, paywalled.
 - No code change tonight. This is a consistency check against public sources, never a legal PASS.
 
-## 2026-09-09T19:25:00+00:00 | F-LIVE-01: the backdated correction has no visible entry point (found by Yoann during LIVE-8)
+## 2026-09-09T19:23:00+00:00 | F-LIVE-01: the backdated correction has no visible entry point (found by Yoann during LIVE-8)
 
 - On 92379e2 the policy band offers Endorse, Cancel and Open a claim; the `Correct` sub-menu item appears only on the corrections route; the sole link is the one-line form under the Endorsements table. Yoann could not find it on his first LIVE-8 attempt. Registered MED (the panel's live-fire item 2 depends on reaching it), passed to the interface session for tonight's batch as its own commit. Not blocking: the direct URL `/policies/<id>/corrections/new` and the Endorsements line work, LIVE-8 continues on 92379e2.
 
-## 2026-09-09T19:35:00+00:00 | LIVE-0 done by Yoann on production, evidence merged (3c67d45)
+## 2026-09-09T19:07:00+00:00 | LIVE-0 done by Yoann on production, evidence merged (3c67d45)
 
 - **Reconciliation click at 18:38:23Z** as `ops` in the interface: 42 Stripe records against 7 ledger records, 32 probes, 4 breaks to act on ($100.00, two of $12.61, one refund of $8.98), claims rail 1 provider record, 3 ledger, 0 break. Board chip, probes tile and inbox badge agree. F-BP-01 and F-UI2-01 closed on that run.
 - **Redwood 2026-09 statement, revision 4 at 18:45:13Z** (run c602abcf, version 3, 16 lines): cash collected $8,328.61, premium collected $8,064.11, commission earned $1,209.61, clawback $780.05, net due $429.56, content hash `7eddb01a…78c` identical to the hash the co-pilot predicted read-only before the click. A first click produced Harbor Point 2026-09 revision 2 ($0.00, identical), disclosed in the handoff.
 - Evidence under `docs/evidence/live-fire-day2/LIVE-0/{before,after}` and `docs/handoffs/live-fire-day2.md`, merged with `--no-ff`. LIVE-8 briefed to Yoann on 92379e2 (preview read by GET: 351 of 365 days, $1,153.97, difference $53.84, commission $7.89, customer approval required); LIVE-9 and LIVE-7 not started.
 
-## 2026-09-09T19:20:00+00:00 | Cycle-2 evidence corrected, freeze checklist on main, interface batch announced
+## 2026-09-09T19:06:00+00:00 | Cycle-2 evidence corrected, freeze checklist on main, interface batch announced
 
 - **F-UI2-08 fixed and merged** (c8d679d, merge b33edbc): six PNGs recaptured with a login guard, 24 distinct md5 values in section 11 of `docs/reviews/ui-cycle-2.md`, defect and cause in its section 12. The record stamped the correction `20:55Z`, which is local time (18:55Z); coordinator note added on the record. The evidence pack rows for that folder are stale and the freeze-package session is refreshing them on its branch.
 - **F-UI2-04 reopened as LOW, wording only**: the coordinator's closure of 20:39 local read the HTML source; the reviewer's DOM measurement stands and was confirmed in the markup at 19:05Z (verbatim sentence inside a closed details, visible sentence `Work-trial build on sandbox providers and test data. No real money moves here.`). AF-02 holds on the visible sentence; no code change before the freeze.
