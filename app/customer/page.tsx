@@ -1,3 +1,5 @@
+import "@/app/styles/lists.css";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
@@ -13,7 +15,7 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { centsFromDatabase, formatCentsAsUsd } from "@/lib/money/cents";
 import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
-import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
+import { liveEndorsementRequest, type EndorsementRequest, type EndorsementRequestStanding } from "@/lib/policy/endorsement-requests";
 import { policyDetail } from "@/lib/policy/read";
 import { termsInForceOn, type TermsInForce } from "@/lib/policy/terms-in-force";
 import { toastsFromQuery, type Query } from "@/lib/ui/views";
@@ -82,6 +84,10 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
       live,
       correctionsToApprove,
       terms: await termsInForceForThisList(policy.policy_id, policy.effective_at, today, policy.annual_premium_cents),
+      // The LATEST premium written on the policy record: policy_current applies every event
+      // whatever its effective date, so this is what the policy becomes once the changes already
+      // signed take effect. The cell below names it under the premium in force today.
+      latestAnnualPremiumCents: centsFromDatabase(policy.annual_premium_cents, "annual_premium_cents"),
     });
   }
 
@@ -152,6 +158,13 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
           <Legend
             items={[
               { term: "Annual premium", meaning: "the premium in force today, before state tax and the policy fee" },
+              // Named only when a row below prints it: a legend is a reading of THIS screen.
+              ...(rows.some((policy) => writtenLaterPremium(policy) !== null)
+                ? [{ term: "on the latest terms", meaning: "a change is already written on your policy and takes effect later; the figure above it is the one in force today" }]
+                : []),
+              ...(rows.some((policy) => requestedPremium(policy) !== null)
+                ? [{ term: "from a date", meaning: "the premium from that day, once your broker collects the delta of the change that was asked for" }]
+                : []),
               ...statusesOnScreen(rows).map((status) => ({ term: status.replace(/_/g, " "), meaning: STATUS_MEANING[status] })),
               { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
             ]}
@@ -198,7 +211,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
                 {/* F-LU-05: the same wording the broker and staff lists carry. The fold has no
                     answer on that date (the policy was voided, or was not issued yet), so this is
                     the policy record's own figure and the row says so. */}
-                <Num sub={policy.terms.onDate === null ? "on the policy record" : undefined}>
+                <Num sub={underThePremium(policy)}>
                   {formatCentsAsUsd(policy.terms.annualPremiumCents)}
                 </Num>
                 {/* The documents, and the one decision waiting on this policy when there is one.
@@ -252,7 +265,7 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
       <About>
         <h4>Annual premium</h4>
         <p>
-          The premium in force today, or on the first day of the term when the term has not begun. An endorsement dated later is not in this figure; the policy page names it under the terms.
+          The premium in force today, or on the first day of the term when the term has not begun. An endorsement dated later is not in this figure: when there is one, the second line of the cell says what your policy&apos;s latest terms are, and a change that was asked for and not paid yet is named under it with the day it would start.
         </p>
         <h4>On the policy record</h4>
         <p>
@@ -270,6 +283,57 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
         The policy, its documents and every decision live in one clear place.
       </LandscapeFooter>
     </PortalShell>
+  );
+}
+
+// WHAT THE PREMIUM CELL SAYS UNDER ITS FIGURE, and nothing at all when there is nothing to say.
+//
+// The figure above is the premium in force today. It is right, and on a policy carrying a change
+// dated later it reads as stale to the person holding the policy: on 2026-09-09 Yoann read
+// $1,200.00 on CGP-01707 while an endorsement to $2,400.00 was already written for 2026-09-22 and
+// another to $2,700.00 had been asked for. The cell now names all three.
+//
+// TWO SOURCES, and they are not equally complete:
+//   - the terms already WRITTEN on the record come from policy_current, which stores the latest
+//     premium and NOT the effective date of the endorsement that wrote it (lib/policy/current.ts
+//     folds `latestEndorsementEffectiveAt`, refreshPolicyCurrent never writes it to the table),
+//     so that line names the amount and not the day;
+//   - the change REQUESTED and not in force comes from liveEndorsementRequest
+//     (lib/policy/endorsement-requests.ts), which carries the whole quote: it returns only the
+//     request that is neither applied nor superseded, so this is exactly the one whose delta has
+//     still to be paid, and the line names both the amount and the day.
+type PremiumRow = {
+  terms: Pick<TermsInForce, "onDate" | "annualPremiumCents">;
+  latestAnnualPremiumCents: number;
+  live: { request: EndorsementRequest; standing: EndorsementRequestStanding } | null;
+};
+
+function writtenLaterPremium(row: PremiumRow): string | null {
+  // The fold has no answer for that date, so the figure above IS the policy record's own and
+  // there is nothing later to compare it with.
+  if (row.terms.onDate === null) return null;
+  if (row.latestAnnualPremiumCents === row.terms.annualPremiumCents) return null;
+  return `${formatCentsAsUsd(row.latestAnnualPremiumCents)} on the latest terms`;
+}
+
+function requestedPremium(row: PremiumRow): string | null {
+  if (!row.live) return null;
+  return `${formatCentsAsUsd(row.live.request.figures.newAnnualPremiumCents)} from ${row.live.request.figures.effectiveAt} once the delta is paid`;
+}
+
+// Everything the cell says under its figure, or nothing at all: an empty `sub` would draw an
+// empty line under every row of the table.
+function underThePremium(row: PremiumRow): ReactNode | undefined {
+  const fromTheRecord = row.terms.onDate === null;
+  const written = writtenLaterPremium(row);
+  const requested = requestedPremium(row);
+  if (!fromTheRecord && !written && !requested) return undefined;
+  return (
+    <>
+      {fromTheRecord ? "on the policy record" : null}
+      {written ? <span className="lists-later">{written}</span> : null}
+      {requested ? <span className="lists-later">{requested}</span> : null}
+    </>
   );
 }
 
