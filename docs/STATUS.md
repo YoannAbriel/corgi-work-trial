@@ -566,6 +566,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T21:03:00+00:00 | Demo-account switcher merged locally (switch-only, merge 8d567cc), focused review running, deploy before LIVE-10
+
+- Yoann asked for the switcher on production ahead of batch 2. Two commits cherry-picked by the interface session onto origin/main a7279a6 (menu, route, lib/auth/demo-accounts.ts with test, activity row naming both roles, and the F-EV-08 375 px fix). Coordinator checks: gitleaks clean, no dash, typecheck clean, 537 tests (536 pass, 1 skipped). Decision 54 recorded, README sentence added, F-EV-08 fixed. An independent reviewer (docs/reviews/demo-switch-r1.md, on its way) attacks the route on the built server; the push waits for its verdict and for the co-pilot's confirmation that Yoann has not started LIVE-10 clicks.
+
 ## 2026-09-09T20:57:00+00:00 | LIVE-3 done by Yoann on production (d002f77), evidence merged (2443843): the five live-fire steps of day 2 are done
 
 - **Two refusals read first**: Harbor Point (failed, verification_failed_tax_id_match) draft CGP-01708, Pay disabled with the Stripe reason; Sierra Crest (never submitted) draft CGP-01709, Pay disabled with "No verification on file for this broker".
