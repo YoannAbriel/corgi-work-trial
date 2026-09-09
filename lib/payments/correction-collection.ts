@@ -4,9 +4,9 @@ import { correctionCollectionEntries } from "@/lib/ledger/correction-entries";
 import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { commissionCents } from "@/lib/money/premium";
-import { customerApprovalNeeded } from "@/lib/approvals/threshold";
+import { endorsementNeedsCustomerApproval } from "@/lib/approvals/threshold";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS } from "@/lib/money/endorsement";
-import { moneyStillWaitingForTheCustomer } from "@/lib/policy/correct-endorsement-date";
+import { additionalPremiumOfTheTerm } from "@/lib/policy/endorsement-requests";
 import { correctionCheckoutIdempotencyKey } from "@/lib/money/idempotency";
 import { foldPolicyEvents } from "@/lib/policy/current";
 import { policyWasVoided } from "@/lib/policy/status";
@@ -158,9 +158,9 @@ export async function approveCorrectionCollection(
   if (!outstanding) {
     throw new CorrectionCheckoutRefused("this correction has no difference waiting to be collected");
   }
-  if (!(await differenceNeedsTheCustomer(database, input.policyId, input.rebookEventId, outstanding.amountCents))) {
+  if (!(await differenceNeedsTheCustomer(database, input.rebookEventId))) {
     throw new CorrectionCheckoutRefused(
-      "this difference is at or below the $500 threshold, counting anything else waiting for you on this policy, so it needs no approval",
+      "this difference leaves this term's additional premium at or below the $500 threshold, so it needs no approval",
     );
   }
 
@@ -186,22 +186,56 @@ export async function approveCorrectionCollection(
 
 // Does this difference need the customer's yes, asked at the GATE, right now?
 //
-// It is the cumulative rule (review findings F-B4-09 and F-B8-02): the amount of this difference
-// plus anything else on the policy still waiting for this customer, against the $500 line. The
-// correction wrote its own verdict down when it happened, and the screens read that; this asks
-// the question again at the moment money would actually be collected, because more may have
-// piled up since. It can only ever ask for MORE approval, never less.
-async function differenceNeedsTheCustomer(
-  database: postgres.Sql,
-  policyId: string,
-  rebookEventId: string,
-  amountCents: number,
-): Promise<boolean> {
-  return customerApprovalNeeded({
-    amountCents,
-    unapprovedRequestedCents: await moneyStillWaitingForTheCustomer(database, policyId, rebookEventId),
+// It is the cumulative rule of decision 24, the one an endorsement is judged by: the additional
+// premium (before tax) this term's endorsements carry, this difference included, against the $500
+// line (review findings F-B4-09, F-B8-02 and F-B8-04). The correction wrote its own verdict down
+// when it happened, and the screens read that; this asks the question again at the moment money
+// would actually be collected, because another endorsement may have been requested since. It can
+// only ever ask for MORE approval, never less.
+//
+// The re-book is already in force here, so additionalPremiumOfTheTerm ALREADY counts this
+// difference: the corrected figure is the one on the re-book event, and the endorsement it
+// replaced is dropped as superseded. The shared predicate takes the running total BEFORE the
+// difference and adds it back itself, so the difference is taken out again on the line below. The
+// subtraction cannot go negative: the term total contains this endorsement's premium as booked,
+// which a correction only ever reaches when it was a charge.
+async function differenceNeedsTheCustomer(database: postgres.Sql, rebookEventId: string): Promise<boolean> {
+  const rebook = await correctionDifferenceOnTheTerm(database, rebookEventId);
+  const termAdditionalPremiumCents = await additionalPremiumOfTheTerm(database, {
+    policyId: rebook.policyId,
+    termStart: rebook.termStart,
+    exceptRequestEventId: null,
+  });
+  return endorsementNeedsCustomerApproval({
+    additionalPremiumSoFarCents: termAdditionalPremiumCents - rebook.differencePremiumCents,
+    additionalPremiumCents: rebook.differencePremiumCents,
     thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
   });
+}
+
+// The three facts the rule above needs about a correction, read from the re-book event itself:
+// the policy, the term the corrected endorsement belongs to, and the PREMIUM the correction added
+// to that term, before tax. They were written when the correction was recorded and never change.
+async function correctionDifferenceOnTheTerm(
+  database: postgres.Sql,
+  rebookEventId: string,
+): Promise<{ policyId: string; termStart: string; differencePremiumCents: number }> {
+  const [row] = await database<{ policy_id: string; term_start: string; difference_premium_cents: string }[]>`
+    select policy_id,
+           payload ->> 'term_start' as term_start,
+           payload ->> 'difference_premium_cents' as difference_premium_cents
+      from policy_events
+     where id = ${rebookEventId} and event_type = 'correction_rebook'
+  `;
+  if (!row) {
+    throw new CorrectionCheckoutRefused("this correction has no re-book event");
+  }
+  return {
+    policyId: row.policy_id,
+    termStart: row.term_start,
+    // Signed: negative on a correction that gave money back, where nothing is ever collected.
+    differencePremiumCents: centsFromDatabase(row.difference_premium_cents, "difference_premium_cents"),
+  };
 }
 
 export async function correctionApprovalEventId(
@@ -280,11 +314,11 @@ export async function startCorrectionCheckout(
   }
 
   if (
-    (await differenceNeedsTheCustomer(database, link.policyId, link.rebookEventId, link.amountCents)) &&
+    (await differenceNeedsTheCustomer(database, link.rebookEventId)) &&
     !(await correctionApprovalEventId(database, link.rebookEventId))
   ) {
     throw new CorrectionCheckoutRefused(
-      "the customer has to approve this difference before it can be collected: it is above $500 counting anything else still waiting for them on this policy",
+      "the customer has to approve this difference before it can be collected: with it, this term's endorsements add more than $500 of premium",
     );
   }
 
