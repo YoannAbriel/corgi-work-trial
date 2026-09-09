@@ -35,14 +35,21 @@ async function handlePost(request: Request, _context: unknown, activity: Activit
   }
 
   const [target] = await sql<{ id: string; role: string }[]>`select id, role from users where email = ${email}`;
-  if (!target || target.role === "agent") {
+  // Two sentences for two different facts, in the redirect and in the audit row alike (review
+  // finding F-LT-07): a missing row is not the same thing as an agent principal.
+  if (!target) {
     return redirectTo(`${home}?error=${encodeURIComponent("that demo account does not exist on this database")}`);
+  }
+  if (target.role === "agent") {
+    return redirectTo(`${home}?error=${encodeURIComponent("an agent principal cannot hold a browser session")}`);
   }
 
   // The activity row names both sides of the switch, old role to new role, so the console and the
   // walkthrough can show who became whom. The maker-checker proof is unaffected: it is about user
   // ids on the rows, not about which browser held the session.
-  activity.message = `demo switch: ${user.role} (${user.email}) to ${target.role} (${email})`;
+  // The log redacts emails to three characters, which cannot tell the three brokers apart, so
+  // the row also carries the target's user id, which is never redacted (review finding F-LT-06).
+  activity.message = `demo switch: ${user.role} (${user.email}) to ${target.role} (${email}, user ${target.id})`;
 
   const expiresAtEpochSeconds = Math.floor(Date.now() / 1000) + SESSION_LIFETIME_SECONDS;
   const cookie = signSessionCookie(target.id, expiresAtEpochSeconds, sessionSecret());
