@@ -253,7 +253,16 @@ export async function CorrectionsExplained({ policyId, canPay, now }: { policyId
 
           <FormulaLinesTable lines={correction.lines} />
 
-          <JournalTable entries={correction.entries} panelKey="correction" visibleEntries={6} ariaLabel="Correction entries" />
+          <JournalTable
+            entries={correction.entries}
+            panelKey="correction"
+            visibleEntries={6}
+            ariaLabel="Correction entries"
+            // The money view's own journal card says what a debit and a credit are, under it. This
+            // panel sits on the same view, above it: repeating the sentence per correction would
+            // print it four times on one screen.
+            legend={false}
+          />
           <p className="pd-note">
             The cash entries of the original endorsement are not in this table on purpose: Stripe really does hold that
             money, so reversing them would make the ledger claim it left. What the correction changes is what the

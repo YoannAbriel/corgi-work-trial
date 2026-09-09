@@ -2,16 +2,17 @@ import "@/app/styles/console.css";
 import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
-import { EventTable, FailureLine, Masked, RailsAbout, consoleViews } from "@/components/console-parts";
+import { EventTable, FailureLine, RailsAbout, consoleViews, railLabel, utc } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
+import { Inspector, factValue } from "@/components/ui/inspector";
 import { FactGrid } from "@/components/ui/table";
 import { Toolbar, ToolbarCount, ToolbarGroup, ToolbarSpacer } from "@/components/ui/toolbar";
 import { sql } from "@/db/client";
 import { requireStaff } from "@/lib/console/guard";
 import { recogniseReference, resolveReference } from "@/lib/console/read";
 import { attempt, valueOr } from "@/lib/console/safe-read";
-import { firstValue, type Query } from "@/lib/ui/views";
+import { closeInspectorHref, firstValue, inspectHref, inspectedReference, type Query } from "@/lib/ui/views";
 
 // /ops/console/search: type a reference, get the object and its trail.
 //
@@ -47,12 +48,41 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
   // The same nine entries in the same three groups as every other console screen (decision 11).
   const views = consoleViews("search");
 
+  // Every reference of the trail opens the drawer on this same page, exactly as the feed does
+  // (cycle 2, decision 5). `?inspect=` is added beside the `reference` parameter, so closing the
+  // drawer leaves the search that was typed where it was.
+  const inspected = inspectedReference(query.inspect);
+  const refOf = (value: string) => inspectHref(PATH, query, value);
+
+  // The fallback the console uses: a provider reference this database never resolved into an
+  // operation would make the drawer answer "nothing matches", which reads as a broken link. It
+  // is handed the trail row's own facts instead, and says so in one sentence.
+  const inspectedEvent = inspected === null ? undefined : trail.find((event) => event.reference === inspected);
+  const inspectorContext = inspectedEvent
+    ? {
+        title: inspectedEvent.title,
+        sentence: "No operation of this database carries that reference, so what the console knows about it is the row you clicked.",
+        facts: [
+          { label: "What", value: inspectedEvent.title },
+          { label: "When", value: `${utc(inspectedEvent.instant)} UTC` },
+          { label: "Kind", value: inspectedEvent.kind.replace(/_/g, " ") },
+          { label: "Rail", value: inspectedEvent.rail ? railLabel(inspectedEvent.rail) : "not a rail" },
+          { label: "Reason", value: inspectedEvent.detail === "" ? "none" : inspectedEvent.detail },
+        ],
+      }
+    : undefined;
+
   return (
     <PortalShell
       user={user}
       active="search"
       views={views}
       viewsSubtitle="one reference, its whole trail"
+      inspector={
+        inspected ? (
+          <Inspector reference={inspected} closeHref={closeInspectorHref(PATH, query)} user={user} now={now} context={inspectorContext} />
+        ) : undefined
+      }
       trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Search" }]}
       band={{
         title: "Search",
@@ -121,7 +151,9 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
               <FactGrid
                 items={match.facts.map((fact) => ({
                   label: fact.label,
-                  value: fact.sensitive ? <Masked value={fact.value} what={fact.label} /> : fact.value,
+                  // "Created 2026-09-08T18:37:28.473Z" used to print raw here and as an age in the
+                  // drawer over it. Same helper on both sides now (components/ui/inspector.tsx).
+                  value: factValue(fact, now),
                 }))}
               />
               {match.consoleHref || match.existingHref ? (
@@ -150,6 +182,8 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
             events={trail}
             ariaLabel="Reference trail"
             now={now}
+            inspectHref={refOf}
+            openReference={inspected}
             emptyMessage="No event names this reference yet."
           />
         </>

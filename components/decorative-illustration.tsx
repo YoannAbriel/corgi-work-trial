@@ -46,6 +46,13 @@ import corgiResearcher from "@/public/illustrations/library/076-corgi-researcher
 import corgiMechanic from "@/public/illustrations/library/098-corgi-mechanic.webp";
 import corgiUmbrella from "@/public/illustrations/library/112-corgi-umbrella.webp";
 import corgiLaptopWork from "@/public/illustrations/library/119-corgi-laptop-work.webp";
+// The band draws its vignette at 52 px. Three sections carried a dark tricolour corgi drawn
+// small inside its frame (067-corgi-search, 069-corgi-guard, 070-corgi-letter): masked down to
+// 52 px they read as a dark blob. These three are light, and the animal fills the frame. The
+// names above stay: the same three files are still the right drawing at 200 px in an empty state.
+import corgiCourier from "@/public/illustrations/library/093-corgi-courier.webp";
+import corgiElectrician from "@/public/illustrations/library/099-corgi-electrician.webp";
+import corgiMapExplorer from "@/public/illustrations/library/126-corgi-map-explorer.webp";
 
 // Only the illustrations used by the interface are listed here.
 const illustrations = {
@@ -89,6 +96,9 @@ const illustrations = {
   "mechanic-corgi": corgiMechanic,
   "umbrella-corgi": corgiUmbrella,
   "laptop-corgi": corgiLaptopWork,
+  "courier-corgi": corgiCourier,
+  "cable-corgi": corgiElectrician,
+  "explorer-corgi": corgiMapExplorer,
 } as const;
 
 export type IllustrationName = keyof typeof illustrations;

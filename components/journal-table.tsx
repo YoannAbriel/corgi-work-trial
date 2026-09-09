@@ -17,6 +17,11 @@ export type JournalEntryForTable = {
   effectiveAt: string;
   recordedAt: Date;
   reversesEntryId?: string | null;
+  // The sentence the posting itself stored (journal_entries.description). Optional because one
+  // of the four readers does not select it: journalEntriesOfSubject in lib/console/read.ts, which
+  // feeds the 360 journal. That panel prints the block without the sentence rather than a blank
+  // line; nothing under lib/ was changed to add it.
+  description?: string;
   lines: { accountId: string; accountName: string; debitCents: number; creditCents: number }[];
 };
 
@@ -25,6 +30,7 @@ export function JournalTable({
   panelKey,
   visibleEntries = 4,
   ariaLabel = "Journal",
+  legend = true,
 }: {
   entries: JournalEntryForTable[];
   // Which panel this table is: it goes into the id of every block, so two panels printing the same
@@ -32,6 +38,9 @@ export function JournalTable({
   panelKey: string;
   visibleEntries?: number;
   ariaLabel?: string;
+  // What a debit and a credit mean, under the entries. On by default; a panel that sits on a
+  // screen where another journal table already says it passes false, so the screen says it once.
+  legend?: boolean;
 }) {
   // Newest first: the last thing that happened is what the reader is looking for.
   const newestFirst = [...entries].sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime());
@@ -56,6 +65,14 @@ export function JournalTable({
             ))}
           </div>
         </details>
+      ) : null}
+      {legend ? (
+        <div className="legend journal-legend">
+          <span>
+            <b>Credit:</b> where the money comes from. <b>Debit:</b> where it goes. Every entry takes as much as it
+            brings.
+          </span>
+        </div>
       ) : null}
     </div>
   );
@@ -91,6 +108,9 @@ function EntryBlock({ entry, panelKey }: { entry: JournalEntryForTable; panelKey
         </span>
         {entry.reversesEntryId ? <span className="entry-when">reverses {entry.reversesEntryId.slice(0, 8)}</span> : null}
       </div>
+      {/* The sentence the posting stored, under the header and above the lines: what this entry
+          did, in words, for a reader who does not read debits and credits (Yoann, 2026-09-09). */}
+      {entry.description ? <p className="entry-description">{entry.description}</p> : null}
       {/* The lines of the entry, through the shared table of the interface system
           (components/ui/table.tsx, EntryLinesTable): Account, Debit, Credit, credits indented
           under the account they answer, and bounded to 720 px so that at 1920 px an account name

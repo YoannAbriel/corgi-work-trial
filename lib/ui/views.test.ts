@@ -66,6 +66,25 @@ test("toastsFromQuery turns the redirect parameters a page knows into notices, n
   assert.deepEqual(toastsFromQuery({ error: "   " }, { error: { tone: "error", title: "Refused" } }), []);
 });
 
+test("a rule with a text writes the body itself instead of showing the raw query value", () => {
+  const toasts = toastsFromQuery(
+    { revoked: "1", produced: "3" },
+    {
+      // A bare flag: the sentence is fixed and the value never reaches the reader.
+      revoked: { tone: "ok", title: "Key revoked", text: "It answers 401 from now on." },
+      // A value worth printing: the rule builds the sentence around it.
+      produced: { tone: "ok", title: "Statement produced", text: (revision) => `Revision ${revision} produced` },
+    },
+  );
+  assert.deepEqual(
+    toasts.map((toast) => [toast.title, toast.text]),
+    [
+      ["Key revoked", "It answers 401 from now on."],
+      ["Statement produced", "Revision 3 produced"],
+    ],
+  );
+});
+
 test("relativeAge reads at a glance and falls back to the date past a month", () => {
   const now = new Date("2026-09-09T12:00:00Z");
   assert.equal(relativeAge(new Date("2026-09-09T11:59:40Z"), now), "just now");
