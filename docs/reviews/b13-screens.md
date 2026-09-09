@@ -549,3 +549,88 @@ for these screens), Chromium 1228, `deviceScaleFactor` 1.
   statement run itself.
 - `policy-fold-explain-375.png` and `statement-run-fold-explain-375.png`: the F-B13-30 overflow,
   captured with a single fold open.
+
+---
+
+# Re-review: `3e9d095`, F-B13-30 fixed
+
+**Timestamp:** 2026-09-09T09:14:00Z. **Deployed revision re-measured:**
+`3e9d0958e883a7fee03578c609f9501fb1f6c4c4`, confirmed on `/api/health` immediately before and
+immediately after every reading below.
+
+## What changed
+
+The stylesheet delta between `08b3678` and `3e9d095` is three lines, and they are exactly the
+correction this record asked for:
+
+```css
+.fact {
+  display: grid;
+  /* F-B13-30: one explicit column that can shrink; an implicit auto track sizes to the widest
+     fold and made the page scroll sideways at 375 px once an explanation opened. */
+  grid-template-columns: minmax(0, 1fr);
+  ...
+}
+```
+
+Nothing else in the stylesheet moved. The same commit also touches `app/inbox/page.tsx`,
+`app/ops/console/page.tsx` and `components/what-needs-you.tsx`, none of which is on any of the three
+reviewed screens.
+
+## The measurement, on the exact case recorded above
+
+375 px, both signed-in contexts, one real click on the first "Explain this amount" summary (a
+`locator.click()`, not a scripted `details.open = true`, so the B12-4 reveal actually runs: 922 and
+1820 characters of explanation were revealed before the reading was taken).
+
+| Screen | Context | `scrollWidth` closed | `scrollWidth` with the fold open | `innerWidth` | Panel width | Verdict |
+|---|---|---|---|---|---|---|
+| policy detail CGP-01707 | `ops@example.com` | 375 | **375** | 375 | 249 px (was 668) | no sideways scroll |
+| statement run 2026-09 rev 3 | `broker@example.com` | 375 | **375** | 375 | 249 px (was 668) | no sideways scroll |
+
+Previously, at `08b3678`: 375 to **731** on both, an overflow of +356 px. The `.fact` track now
+computes to the container width instead of the panel's max-content, and the panel's own inner
+tables scroll inside their `.table-scroll` regions, which is the intended behaviour.
+
+The other folds were re-measured at the same time and remain clean: sandbox references on all three
+screens at 375 px, and every fold on all three screens at 1280 px.
+
+## No regression at 1280 px
+
+All 14 desktop states re-measured on `3e9d095`, and every number matches what this record captured
+at `08b3678`:
+
+| Check | `08b3678` | `3e9d095` |
+|---|---|---|
+| states with horizontal overflow | 0 of 14 | **0 of 14** |
+| widest `.panel` (policy, reconciliation, statement run) | 556 px | **556 px** |
+| widest `.panel` (statements list) | 918 px | **918 px** |
+| amount cells not right-aligned | 0 of 722 | **0 of 722** |
+| stack-trace markers | 0 | **0** |
+| secret-shaped strings | 0 | **0** |
+| emails rendered | `customer@example.com` only | **unchanged** |
+| both integration chips on reconciliation | yes | **yes** |
+
+## Verdict
+
+**F-B13-30: RESOLVED at `3e9d095`.** Verified by measurement on the deployed application, not by
+reading the diff.
+
+F-B13-31, F-B13-32, F-B13-33 and F-B13-34 were not in scope for this fix and remain OPEN and
+unchanged. **The slice verdict moves from FAIL to PASS**, with those four LOW items outstanding.
+
+**Walkthrough status: still NOT REVIEWED WITH YOANN.**
+
+### Evidence
+
+Both states are kept, so the finding and its fix can each be seen:
+
+- `policy-fold-explain-375.png`, `statement-run-fold-explain-375.png`: the overflow at `08b3678`.
+- `policy-foldfixed-explain-375.png`, `statement-run-foldfixed-explain-375.png`: the same fold, same
+  width, at `3e9d095`, fully revealed and inside the viewport.
+
+### Register line, updated
+
+| ID | Severity | Finding | Required correction | Status |
+|---|---|---|---|---|
+| F-B13-30 | MEDIUM | One click on "Explain this amount" made the policy detail and the statement run scroll sideways at 375 px: `.fact` was a grid with no `grid-template-columns`, so its `auto` track sized to max-content (668 px inside a 277 px box) and `documentElement.scrollWidth` went 375 to 731 | `.fact { grid-template-columns: minmax(0, 1fr); }` | **FIXED `3e9d095`** (re-review: 375 stays 375 with the fold open on both screens, panel 668 to 249 px, 14 desktop states unchanged) |
