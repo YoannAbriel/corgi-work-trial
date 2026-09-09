@@ -160,6 +160,12 @@
 .sidebar-nav a svg {
   flex-shrink: 0;
 }
+/* The chevron of an entry whose submenu is open: pushed to the end of the line, pointing down at
+   the views listed under it. Only the open state exists, so it never rotates. */
+.sidebar-nav .nav-chevron {
+  margin-left: auto;
+  opacity: 0.65;
+}
 .sidebar-nav a:hover {
   background: #e9eaec;
   color: var(--ink);
@@ -258,6 +264,9 @@
   height: 40px;
   padding: 0;
 }
+.sidebar.is-rail .sidebar-nav .nav-chevron {
+  display: none;
+}
 /* Folded, the sidebar has to let the flyout of the current section out of its box. */
 .sidebar.is-rail {
   overflow: visible;
@@ -319,16 +328,6 @@
 }
 .sidebar-views a[aria-current="page"] svg {
   color: var(--orange);
-}
-.sidebar-views details.context-fold > summary {
-  list-style: none;
-  cursor: pointer;
-}
-.sidebar-views details.context-fold > summary::-webkit-details-marker {
-  display: none;
-}
-.sidebar-views details.context-fold + details.context-fold {
-  margin-top: 1px;
 }
 /* Folded to icons: the same list, as a flyout on hover of the entry, and on focus so the
    keyboard reaches it too. */
@@ -447,32 +446,6 @@
 .context-nav nav a[aria-current="page"] .context-count {
   background: var(--orange);
   color: white;
-}
-/* The heading of a group of views. Inside a <details> it is the summary that folds the group,
-   so it carries a caret drawn from a border, not a glyph. */
-.context-group {
-  padding: 12px 10px 4px;
-  font-size: 11px;
-  color: var(--ink-2);
-}
-.sidebar-views summary.context-group {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 3px 10px;
-  min-height: 22px;
-  line-height: 16px;
-}
-.sidebar-views summary.context-group::before {
-  content: "";
-  width: 0;
-  height: 0;
-  border: 3.5px solid transparent;
-  border-left-color: currentColor;
-  transition: transform 0.15s;
-}
-.sidebar-views details.context-fold[open] > summary.context-group::before {
-  transform: rotate(90deg) translateX(1px);
 }
 
 /* The body: top bar, page band, content, footer. */
@@ -804,7 +777,7 @@ main:focus {
 /* A tile is never wider than 360 px: two tiles at 1920 px used to stretch to 700 px each and
    put one "0" in a half-screen box (round 1, MEDIUM). The cap is on the tile, not on the track:
    `minmax(168px, 360px)` counts its tracks at 360 px and left four tiles in one column at
-   1024 px (measured 2026-09-09 on /ops/console/ledger).
+   1024 px (measured 2026-09-09 on /ops/ledger).
    A grid cannot both count its tracks from 168 px and stop one at 360 px, so this is a wrapping
    flex row instead: a tile asks for 168 px, grows to share the line, and stops at 360 px. Two
    tiles on a 1440 px screen therefore sit side by side on the left with the free space after
@@ -2545,7 +2518,16 @@ button.secondary.is-working::after {
   .sidebar.is-rail .sidebar-nav-line > a > span {
     display: inline;
   }
-  /* The views of the section take their own row under the wrapped list of sections. */
+  .sidebar.is-rail .sidebar-nav .nav-chevron {
+    display: inline;
+  }
+  /* The views of the section take their own row under the wrapped list of sections. The break is
+     asked of the ROW, because that is the flex child of the wrapped list; asking it of the list of
+     views left them in a narrow column with the next two sections beside them (375 px, 2026-09-09). */
+  .sidebar .sidebar-nav-row:has(.sidebar-views),
+  .sidebar.is-rail .sidebar-nav-row:has(.sidebar-views) {
+    flex-basis: 100%;
+  }
   .sidebar .sidebar-views,
   .sidebar.is-rail .sidebar-views {
     display: grid;
@@ -2603,9 +2585,6 @@ button.secondary.is-working::after {
     gap: 4px;
   }
   .context-nav nav a[aria-current="page"]::before {
-    display: none;
-  }
-  .context-nav .context-group {
     display: none;
   }
   .portal-body {

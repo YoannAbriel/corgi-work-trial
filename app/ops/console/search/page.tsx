@@ -2,7 +2,7 @@ import "@/app/styles/console.css";
 import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
-import { EventTable, FailureLine, RailsAbout, consoleViews, railLabel, utc } from "@/components/console-parts";
+import { EventTable, FailureLine, RailsAbout, railLabel, utc } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Inspector, factValue } from "@/components/ui/inspector";
@@ -45,9 +45,6 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
   const matches = result?.matches ?? [];
   const trail = result?.trail ?? [];
 
-  // The same nine entries in the same three groups as every other console screen (decision 11).
-  const views = consoleViews("search");
-
   // Every reference of the trail opens the drawer on this same page, exactly as the feed does
   // (cycle 2, decision 5). `?inspect=` is added beside the `reference` parameter, so closing the
   // drawer leaves the search that was typed where it was.
@@ -76,14 +73,11 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
     <PortalShell
       user={user}
       active="search"
-      views={views}
-      viewsSubtitle="one reference, its whole trail"
       inspector={
         inspected ? (
           <Inspector reference={inspected} closeHref={closeInspectorHref(PATH, query)} user={user} now={now} context={inspectorContext} />
         ) : undefined
       }
-      trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Search" }]}
       band={{
         title: "Search",
         suffix: reference === "" ? undefined : reference,

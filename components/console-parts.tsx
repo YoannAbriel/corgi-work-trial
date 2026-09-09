@@ -1,7 +1,7 @@
 import "@/app/styles/console.css";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { BookOpenText, Gauge, ListTree, Rss, Scale, Search, ServerCog, TrendingUp, TriangleAlert } from "lucide-react";
+import { BookOpenText, Gauge, ListTree, Rss, Scale, TrendingUp, TriangleAlert } from "lucide-react";
 import { Chip } from "@/components/detail-layout";
 import type { NavView } from "@/components/shell/section-nav";
 import { EmptyState } from "@/components/ui/empty";
@@ -22,60 +22,63 @@ import { withParams, type Query } from "@/lib/ui/views";
 // pages and components/console-360.tsx already import; the new props are all optional.
 
 // ---------------------------------------------------------------------------
-// One navigation for the nine console screens
+// The views of the console, and the views of the ledger
 // ---------------------------------------------------------------------------
 
-// Cycle 2, decision 11: the console's navigation holds three groups, and every console and ledger
-// screen shows the SAME list. It is written here once and imported by the four route files, so a
-// group can never drift into "More" on one screen and "Tools" on another.
+// Yoann's decision of 2026-09-09: the ledger is a sidebar entry of its own, not a group inside the
+// console's submenu, and Search and Infrastructure are single entries with no submenu at all. So
+// there are two lists here, one per sidebar entry, and neither carries a group heading: a submenu
+// is a plain indented list of links (cycle 2, decision 11 is superseded on this point).
 //
 // Decision 3: a count is drawn only for something a person must act on. Problems is the one entry
 // that qualifies, and only while there are problems; the number of entries, runs or webhooks is a
 // record count and carries none.
-export type ConsoleViewKey = "feed" | "problems" | "latency" | "balances" | "account" | "entries" | "flows" | "search" | "infra";
+export type ConsoleViewKey = "feed" | "problems" | "latency";
+export type LedgerViewKey = "balances" | "account" | "entries" | "flows";
 
 const CONSOLE_PATH = "/ops/console";
-const CONSOLE_LEDGER_PATH = "/ops/console/ledger";
+// The same route as LEDGER_PATH in app/ops/ledger-views.tsx. It is written again here rather than
+// imported, because a component must not reach into a route folder to learn its own links.
+const LEDGER_PATH = "/ops/ledger";
 
-// Every entry: its group, its icon, and the URL that opens it from another screen.
-const CONSOLE_NAV: { key: ConsoleViewKey; label: string; group: "Console" | "Ledger" | "Tools"; icon: NavView["icon"]; href: string }[] = [
-  { key: "feed", label: "Feed", group: "Console", icon: Rss, href: CONSOLE_PATH },
-  { key: "problems", label: "Problems", group: "Console", icon: TriangleAlert, href: `${CONSOLE_PATH}?view=problems` },
-  { key: "latency", label: "Latency", group: "Console", icon: Gauge, href: `${CONSOLE_PATH}?view=latency` },
-  { key: "balances", label: "Balances", group: "Ledger", icon: Scale, href: CONSOLE_LEDGER_PATH },
-  { key: "account", label: "Account", group: "Ledger", icon: BookOpenText, href: `${CONSOLE_LEDGER_PATH}?view=account` },
-  { key: "entries", label: "Entries", group: "Ledger", icon: ListTree, href: `${CONSOLE_LEDGER_PATH}?view=entries` },
-  { key: "flows", label: "Flows", group: "Ledger", icon: TrendingUp, href: `${CONSOLE_LEDGER_PATH}?view=flows` },
-  { key: "search", label: "Search", group: "Tools", icon: Search, href: `${CONSOLE_PATH}/search` },
-  { key: "infra", label: "Infrastructure", group: "Tools", icon: ServerCog, href: `${CONSOLE_PATH}/infra` },
+// Every view of the console: its icon, and the URL that opens it from another screen.
+const CONSOLE_NAV: { key: ConsoleViewKey; label: string; icon: NavView["icon"]; href: string }[] = [
+  { key: "feed", label: "Feed", icon: Rss, href: CONSOLE_PATH },
+  { key: "problems", label: "Problems", icon: TriangleAlert, href: `${CONSOLE_PATH}?view=problems` },
+  { key: "latency", label: "Latency", icon: Gauge, href: `${CONSOLE_PATH}?view=latency` },
 ];
 
-// Which of the nine entries are views of the SAME route. Switching between them keeps the window,
-// the kinds and the date the reader has already chosen; leaving the route drops them, because a
-// window of the feed means nothing to the trial balance.
-const CONSOLE_VIEW_KEYS: ConsoleViewKey[] = ["feed", "problems", "latency"];
-const LEDGER_VIEW_KEYS: ConsoleViewKey[] = ["balances", "account", "entries", "flows"];
+const LEDGER_NAV: { key: LedgerViewKey; label: string; icon: NavView["icon"]; href: string }[] = [
+  { key: "balances", label: "Balances", icon: Scale, href: LEDGER_PATH },
+  { key: "account", label: "Account", icon: BookOpenText, href: `${LEDGER_PATH}?view=account` },
+  { key: "entries", label: "Entries", icon: ListTree, href: `${LEDGER_PATH}?view=entries` },
+  { key: "flows", label: "Flows", icon: TrendingUp, href: `${LEDGER_PATH}?view=flows` },
+];
 
+// Every view of one list is the SAME route with another `view=`, so switching between them keeps
+// the window, the kinds, the date or the account the reader has already chosen. `inspect` is always
+// dropped, because an open drawer belongs to the view it was opened from.
 export function consoleViews(current: ConsoleViewKey, options?: { query?: Query; problemCount?: number }): NavView[] {
   const query = options?.query;
-  const onConsole = CONSOLE_VIEW_KEYS.includes(current);
-  const onLedger = LEDGER_VIEW_KEYS.includes(current);
+  return CONSOLE_NAV.map((entry) => ({
+    key: entry.key,
+    label: entry.label,
+    href: query ? withParams(CONSOLE_PATH, query, { view: entry.key, inspect: null }) : entry.href,
+    current: entry.key === current,
+    icon: entry.icon,
+    count: entry.key === "problems" ? options?.problemCount : undefined,
+  }));
+}
 
-  return CONSOLE_NAV.map((entry) => {
-    // A view of the route the reader is already on keeps that route's filters; `inspect` is always
-    // dropped, because an open drawer belongs to the view it was opened from.
-    const sameRoute = (onConsole && CONSOLE_VIEW_KEYS.includes(entry.key)) || (onLedger && LEDGER_VIEW_KEYS.includes(entry.key));
-    const href = sameRoute && query ? withParams(onConsole ? CONSOLE_PATH : CONSOLE_LEDGER_PATH, query, { view: entry.key, inspect: null }) : entry.href;
-    return {
-      key: entry.key,
-      label: entry.label,
-      href,
-      current: entry.key === current,
-      icon: entry.icon,
-      group: entry.group,
-      count: entry.key === "problems" ? options?.problemCount : undefined,
-    };
-  });
+export function ledgerViews(current: LedgerViewKey, options?: { query?: Query }): NavView[] {
+  const query = options?.query;
+  return LEDGER_NAV.map((entry) => ({
+    key: entry.key,
+    label: entry.label,
+    href: query ? withParams(LEDGER_PATH, query, { view: entry.key, inspect: null }) : entry.href,
+    current: entry.key === current,
+    icon: entry.icon,
+  }));
 }
 
 // ---------------------------------------------------------------------------

@@ -13,7 +13,7 @@ import { formatCentsAsUsd } from "@/lib/money/cents";
 import { intoWeeks, type AccountLedger, type AppendOnlyProof, type DailyFlow, type EntriesPage, type JournalEntryRow, type TrialBalance } from "@/lib/ledger/read";
 import { inspectHref, withParams, type Query } from "@/lib/ui/views";
 
-// The four views of /ops/console/ledger, as presentation only. Every figure arrives already read
+// The four views of /ops/ledger, as presentation only. Every figure arrives already read
 // and already in cents from lib/ledger/read.ts; nothing here queries and nothing here computes an
 // amount beyond adding up the window the page asked for. Money is printed by formatCentsAsUsd and
 // by nothing else.
@@ -21,7 +21,7 @@ import { inspectHref, withParams, type Query } from "@/lib/ui/views";
 // They live beside the route rather than inside it so that the page file stays the short list of
 // "who is signed in, what does the URL ask for, which reads answer it".
 
-export const LEDGER_PATH = "/ops/console/ledger";
+export const LEDGER_PATH = "/ops/ledger";
 
 // A reversal and a correction are the two entry types that undo something, so they are the two a
 // reader must not mistake for an ordinary posting.
