@@ -21,10 +21,14 @@ export type JournalEntryForTable = {
 
 export function JournalTable({
   entries,
+  panelKey,
   visibleEntries = 4,
   ariaLabel = "Journal",
 }: {
   entries: JournalEntryForTable[];
+  // Which panel this table is: it goes into the id of every block, so two panels printing the same
+  // entry cannot produce the same id. Required, so no new panel can forget it.
+  panelKey: string;
   visibleEntries?: number;
   ariaLabel?: string;
 }) {
@@ -42,7 +46,7 @@ export function JournalTable({
       </div>
       <div className="journal-list">
         {shown.map((entry) => (
-          <EntryBlock key={entry.entryId} entry={entry} />
+          <EntryBlock key={entry.entryId} entry={entry} panelKey={panelKey} />
         ))}
       </div>
       {folded.length > 0 ? (
@@ -52,7 +56,7 @@ export function JournalTable({
           </summary>
           <div className="journal-list">
             {folded.map((entry) => (
-              <EntryBlock key={entry.entryId} entry={entry} />
+              <EntryBlock key={entry.entryId} entry={entry} panelKey={panelKey} />
             ))}
           </div>
         </details>
@@ -69,18 +73,21 @@ function toneOf(entryType: string): "in" | "out" | "reversal" | "neutral" {
   return "neutral";
 }
 
-// The id an "explain this amount" fold points at (slice B12-4, YOA-637): the entry id the ledger
-// gave the entry, prefixed so it cannot collide with anything else on the page. It is only an
-// anchor; nothing on the page reads money out of it.
-export function journalEntryElementId(entryId: string): string {
-  return `journal-entry-${entryId}`;
+// The id an "explain this amount" fold points at (slice B12-4, YOA-637): the panel the block is
+// rendered in, then the entry id the ledger gave the entry. The panel is part of the id because a
+// page can print the SAME entry twice (review finding F-B12-18): the policy page shows a
+// correction's entries in the corrections panel and again in the journal panel, which produced two
+// elements with one id and an anchor that landed on whichever came first. It is only an anchor;
+// nothing on the page reads money out of it.
+export function journalEntryElementId(panelKey: string, entryId: string): string {
+  return `journal-entry-${panelKey}-${entryId}`;
 }
 
-function EntryBlock({ entry }: { entry: JournalEntryForTable }) {
+function EntryBlock({ entry, panelKey }: { entry: JournalEntryForTable; panelKey: string }) {
   const tone = toneOf(entry.entryType);
   const recorded = entry.recordedAt.toISOString().replace("T", " ").slice(0, 19);
   return (
-    <div className="entry-block" id={journalEntryElementId(entry.entryId)}>
+    <div className="entry-block" id={journalEntryElementId(panelKey, entry.entryId)}>
       <div className="entry-head">
         <span className={`entry-tag entry-${tone}`}>{entry.entryType}</span>
         <span className="entry-when">

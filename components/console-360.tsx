@@ -257,6 +257,7 @@ export async function Console360({ kind, id }: { kind: ConsoleSubjectKind; id: s
                 <Empty>Nothing has been posted for this object.</Empty>
               ) : (
                 <JournalTable
+                  panelKey="console"
                   entries={valueOr(journalRead, []).map((entry) => ({
                     entryId: entry.entryId,
                     entryType: entry.entryType,
