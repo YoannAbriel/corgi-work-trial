@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Info } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 // A row of figures. Every value arrives formatted by the page (formatCentsAsUsd for money, a
@@ -16,6 +17,7 @@ export function Stat({
   tone = "neutral",
   href,
   icon: Icon,
+  hint,
   spark,
   className: extraClassName,
 }: {
@@ -28,6 +30,9 @@ export function Stat({
   // A tile that opens the view holding the detail.
   href?: string;
   icon?: LucideIcon;
+  // The provider, the window or the rule behind the figure: one sentence on a small info icon,
+  // never a third line in the tile (cycle 2, decision 2).
+  hint?: string;
   // A sparkline (components/ui/charts.tsx) under the figure.
   spark?: ReactNode;
   className?: string;
@@ -38,6 +43,12 @@ export function Stat({
       <span className="stat-label">
         {Icon ? <Icon size={13} strokeWidth={1.8} aria-hidden="true" /> : null}
         {label}
+        {hint ? (
+          <span className="stat-hint" title={hint}>
+            <Info size={13} strokeWidth={1.8} aria-hidden="true" />
+            <span className="visually-hidden">{hint}</span>
+          </span>
+        ) : null}
       </span>
       <span className="stat-value">
         {value}
