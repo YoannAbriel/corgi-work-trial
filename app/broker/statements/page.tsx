@@ -5,6 +5,7 @@ import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
+import { Legend } from "@/components/ui/legend";
 import { Stat, Stats } from "@/components/ui/stat";
 import { DataTable, ExpandHead, ExpandRow, FactGrid, Num, Primary } from "@/components/ui/table";
 import { When } from "@/components/ui/time";
@@ -21,6 +22,15 @@ import { listStatementRuns, type StatementRunRow } from "@/lib/statements/read";
 // broker could type to see somebody else's commission. No inspector either: it is a staff tool.
 
 const HOW_MANY_RUNS_SHOWN = 30;
+
+// What the chips of a row mean, said once under the table instead of once per row (round 1,
+// MEDIUM: the table had no legend at all).
+const STATUS_LEGEND = [
+  { term: "provisional", meaning: "produced before its month was over; the run made after the month ends is the next revision" },
+  { term: "closed", meaning: "produced after its month was over" },
+  { term: "identical", meaning: "the same content hash as the revision before it, so nothing changed" },
+  { term: "format v1", meaning: "an old format whose premium column held the cash collected; the commission base was not stored" },
+];
 
 export default async function BrokerStatementsPage() {
   const user = await currentUser();
@@ -53,6 +63,12 @@ export default async function BrokerStatementsPage() {
   // The newest revision's own figure, not a total: adding the net due of several revisions of the
   // same month would count the same money once per revision.
   const latestRun = runs[0] ?? null;
+  // The reading order of the table: months newest first, and inside one month its revisions
+  // newest first, so the revisions of one month stay together and "identical to revision 1" sits
+  // under revision 1 (round 1, MEDIUM). `runs` itself stays in production order for the tile.
+  const runsInReadingOrder = [...runs].sort(
+    (one, other) => other.statementMonth.localeCompare(one.statementMonth) || other.revision - one.revision,
+  );
 
   return (
     <PortalShell
@@ -63,27 +79,31 @@ export default async function BrokerStatementsPage() {
         suffix: brokerName,
         meta: (
           <>
+            {/* Two chips (cycle 2, decision 1): how many statements there are, and how many of
+                them are still provisional. The AF-02 words are in the top bar of every screen. */}
             <Chip tone="neutral">
               {runs.length} {runs.length === 1 ? "statement" : "statements"}
             </Chip>
             {provisional > 0 ? <Chip tone="warn">{provisional} provisional</Chip> : null}
-            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
           </>
         ),
       }}
     >
+      {/* One tile: the figure a broker opens this screen for. The month and the revision it
+          belongs to are the line under it (cycle 2, decision 2). */}
       <Stats>
-        <Stat label="Statements" value={runs.length} note={`newest ${HOW_MANY_RUNS_SHOWN}`} />
-        <Stat label="Latest month" value={latestRun?.statementMonth ?? "none"} note="business month of the newest run" />
         <Stat
           label="Net due, latest"
           value={latestRun ? formatCentsAsUsd(latestRun.netDueCents) : "none"}
           tone="accent"
           note={latestRun ? `revision ${latestRun.revision} of ${latestRun.statementMonth}` : "no statement yet"}
+          hint="The newest revision's own figure. Revisions of the same month are not added up: each one restates the whole month."
         />
       </Stats>
 
-      <DataTable ariaLabel="Your statements">
+      {/* Five columns and the fold. When it was produced is a fact of the expansion: at seven
+          columns the table was one over what the system allows (round 1, HIGH). */}
+      <DataTable ariaLabel="Your statements" legend={<Legend items={STATUS_LEGEND} />}>
         <thead>
           <tr>
             <ExpandHead />
@@ -91,20 +111,19 @@ export default async function BrokerStatementsPage() {
             <th className="num">Revision</th>
             <th className="num">Commission</th>
             <th className="num">Net due</th>
-            <th className="nowrap">Produced</th>
             <th>Status</th>
           </tr>
         </thead>
         {runs.length === 0 ? (
           <tbody>
             <tr>
-              <td colSpan={7} className="dt-empty">
+              <td colSpan={6} className="dt-empty">
                 <EmptyState illustration="open-ledger">No statement has been produced for you yet.</EmptyState>
               </td>
             </tr>
           </tbody>
         ) : (
-          runs.map((run) => <StatementRow key={run.runId} run={run} now={now} />)
+          runsInReadingOrder.map((run) => <StatementRow key={run.runId} run={run} now={now} />)
         )}
       </DataTable>
 
@@ -129,31 +148,35 @@ export default async function BrokerStatementsPage() {
   );
 }
 
-// One statement: the six columns a broker scans, everything else in the expansion, and the PDF
+// One statement: the five columns a broker scans, everything else in the expansion, and the PDF
 // beside the figures it prints.
 function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
   const collected = collectedFigures(run);
   return (
     <ExpandRow
-      columns={6}
+      columns={5}
       cells={
         <>
           <Primary href={`/statements/${run.runId}`}>{run.statementMonth}</Primary>
           <Num>{run.revision}</Num>
           <Num>{formatCentsAsUsd(run.commissionEarnedCents)}</Num>
           <Num>{formatCentsAsUsd(run.netDueCents)}</Num>
-          <td className="nowrap">
-            <When instant={run.createdAt} now={now} />
-          </td>
+          {/* One word per chip; the legend under the table says what each one means (round 1,
+              HIGH: "identical to revision 4" was a four word sentence inside a chip). */}
           <td>
             {run.monthWasStillRunning ? <Chip tone="warn">provisional</Chip> : <Chip tone="neutral">closed</Chip>}
-            {run.identicalToPrevious ? <Chip tone="ok">identical to revision {run.revision - 1}</Chip> : null}
+            {run.identicalToPrevious ? (
+              <span title={`The same content hash as revision ${run.revision - 1}`}>
+                <Chip tone="ok">identical</Chip>
+              </span>
+            ) : null}
           </td>
         </>
       }
     >
       <FactGrid
         items={[
+          { label: "Produced", value: `${utc(run.createdAt)} UTC` },
           { label: "Knowledge cutoff", value: `${utc(run.knowledgeCutoff)} UTC` },
           {
             label: "Premium collected, the commission base",
@@ -165,7 +188,9 @@ function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
           { label: "Cash collected from customers", value: formatCentsAsUsd(collected.cashCollectedCents) },
           { label: "Commission clawed back", value: formatCentsAsUsd(-run.clawbackCents) },
           ...(run.adjustmentCents === 0 ? [] : [{ label: "Other adjustments", value: formatCentsAsUsd(run.adjustmentCents) }]),
-          ...(collected.formatNote ? [{ label: "Format", value: collected.formatNote }] : []),
+          // A chip, defined once in the legend: the same 34-word paragraph on three rows was a
+          // wall of repeated text (round 1, MEDIUM).
+          ...(collected.formatNote ? [{ label: "Format", value: <Chip tone="warn">format v1</Chip> }] : []),
           {
             label: "Document",
             value: (
