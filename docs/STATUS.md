@@ -566,6 +566,10 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T20:22:00+00:00 | Interface batch 1 deployed: /api/health reports d002f77
+
+- Pushed alone at 20:21Z, health at d002f77 at 20:24Z. Anonymous checks after the deploy: /ops/ledger and the old /ops/console/ledger answer 307 to the session read, POST /api/mcp without a key answers 401, the sandbox sentence is on /login. Docs pushed after the code, per the Vercel rule. The co-pilot starts LIVE-7 on d002f77.
+
 ## 2026-09-09T20:21:00+00:00 | LIVE-9 done by Yoann on production (92379e2), evidence merged (73f528c); interface batch 1 pushed (d002f77), deployment in progress
 
 - **Second endorsement on CGP-01707**, $2,400.00 to $2,700.00 effective 2026-10-01, requested 20:11:09Z: preview identical to the read-only one (342 of 365 days, premium 28109, tax 660, delta 28769, commission 4216, running total $1,435.06 above the $500 threshold so customer approval); approved at about 20:15Z, paid 20:17:43Z (payment_intent.succeeded): premium written 28109 and tax 660 effective 2026-10-01, collected 28769 and commission 4216 effective 2026-09-09. Cash on the policy $2,721.97 (125320 + 112724 + 5384 + 28769), commission payable $395.25, unearned premium $2,635.06.
