@@ -131,7 +131,10 @@ export async function correctionsOfPolicy(policyId: string, database: Queryable 
       totals: {
         policyRefundedCents: centsOrZeroWhenTheKeyIsAbsent(row.rebook_payload, "policy_refunded_cents"),
         policyPendingRefundCents: centsOrZeroWhenTheKeyIsAbsent(row.rebook_payload, "policy_pending_refund_cents"),
-        customerUnapprovedRequestedCents: centsOrZeroWhenTheKeyIsAbsent(row.rebook_payload, "customer_unapproved_requested_cents"),
+        additionalPremiumOfTheTermCents: centsOrZeroWhenTheKeyIsAbsent(
+          row.rebook_payload,
+          "additional_premium_of_the_term_before_difference_cents",
+        ),
       },
     };
     const totalsNotStored = TOTALS_ADDED_AFTER_THE_FIRST_CORRECTIONS.filter((key) => !(key in row.rebook_payload));
@@ -275,7 +278,12 @@ function signedCents(payload: Record<string, unknown>, key: string): number {
 const TOTALS_ADDED_AFTER_THE_FIRST_CORRECTIONS = [
   "policy_refunded_cents",
   "policy_pending_refund_cents",
-  "customer_unapproved_requested_cents",
+  // Written since decision 24 made the customer threshold cumulative over the term's additional
+  // premium. A correction recorded before it carries `customer_unapproved_requested_cents`
+  // instead, a different figure with a different meaning, which is why it is not read as this
+  // one: the sentence says the running total was not recorded rather than printing a number the
+  // event never meant.
+  "additional_premium_of_the_term_before_difference_cents",
 ];
 
 function centsOrZeroWhenTheKeyIsAbsent(payload: Record<string, unknown>, key: string): number {

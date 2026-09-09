@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   claimPayoutNeedsApproval,
-  customerApprovalNeeded,
   endorsementNeedsCustomerApproval,
   MONEY_OUT_APPROVAL_THRESHOLD_CENTS,
   moneyOutNeedsApproval,
@@ -86,16 +85,6 @@ test("an amount that is not whole cents is a programming error on the refund rul
 
 const CUSTOMER_THRESHOLD = 50000; // $500, the value lib/money/endorsement.ts passes in
 
-test("a correction difference keeps its own base: the difference plus what is still waiting (F-B8-02)", () => {
-  // A difference of $400 needs no approval; the same difference while $400 is still unanswered
-  // on the policy does, because together they collect $800 from the customer.
-  assert.equal(customerApprovalNeeded({ amountCents: 40000, unapprovedRequestedCents: 0, thresholdCents: CUSTOMER_THRESHOLD }), false);
-  assert.equal(customerApprovalNeeded({ amountCents: 40000, unapprovedRequestedCents: 40000, thresholdCents: CUSTOMER_THRESHOLD }), true);
-  // Exactly $500 is still not above $500.
-  assert.equal(customerApprovalNeeded({ amountCents: 50000, unapprovedRequestedCents: 0, thresholdCents: CUSTOMER_THRESHOLD }), false);
-  assert.equal(customerApprovalNeeded({ amountCents: 50001, unapprovedRequestedCents: 0, thresholdCents: CUSTOMER_THRESHOLD }), true);
-});
-
 // The endorsement rule, decision 24: per policy, cumulative over the term, premium before tax.
 function endorsementApproval(additionalPremiumSoFarCents: number, additionalPremiumCents: number): boolean {
   return endorsementNeedsCustomerApproval({ additionalPremiumSoFarCents, additionalPremiumCents, thresholdCents: CUSTOMER_THRESHOLD });
@@ -117,6 +106,14 @@ test("exactly $500.00 of additional premium is not above $500.00, one cent more 
 test("an endorsement that lowers the premium never needs the customer's approval (rule 8)", () => {
   assert.equal(endorsementApproval(60000, -43562), false);
   assert.equal(endorsementApproval(0, 0), false); // a change that moves no money asks for nothing
+});
+
+// The correction path no longer has a base of its own (review findings F-B8-02 and F-B8-04): a
+// correction difference is additional premium of the same term, so it is this same predicate on
+// this same running total. The correction's own tests are in lib/money/correction.test.ts.
+test("a correction difference is judged by the same rule: $400 endorsed, then $200 of difference", () => {
+  assert.equal(endorsementApproval(0, 40000), false); // the endorsement alone: no approval
+  assert.equal(endorsementApproval(40000, 20000), true); // the difference takes the term to $600
 });
 
 test("figures that are not whole cents are a programming error on the endorsement rule too", () => {
