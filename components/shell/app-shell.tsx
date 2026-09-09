@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Search as SearchIcon, Shapes, UserRound } from "lucide-react";
+import { ChevronDown, Search as SearchIcon, UserRound } from "lucide-react";
 import type { SignedInUser } from "@/lib/auth/current-user";
 import type { ToastNotice } from "@/lib/ui/views";
 import { workspaceTasks, type WorkspaceTask } from "@/lib/inbox/tasks";
@@ -13,9 +13,9 @@ import { SECTIONS, type SectionId } from "./sections";
 // The workspace shell, in two levels.
 //
 // Level one is the main sidebar: the sections the signed-in role can open, each with the count
-// of what is waiting behind it. Level two appears when a screen declares its `views`: the main
-// sidebar folds to an icon rail and a section navigation lists those views beside it. Above the
-// content sits the page band, which is sticky and never moves.
+// of what is waiting behind it. Level two appears when a screen declares its `views`: they are
+// drawn as plain indented links under that section's own entry, with a chevron on the entry
+// pointing down at them. Above the content sits the page band, which is sticky and never moves.
 //
 // Pages keep their own server-side identity and ownership checks; this component only draws
 // what it is given. It is async because it reads the counts of what is waiting for the person
@@ -50,7 +50,8 @@ export async function PortalShell({
   tasks?: WorkspaceTask[];
   // The sticky band. A screen without one is a legacy screen still drawing its own heading.
   band?: Band;
-  // The views of the section; their presence folds the main sidebar to a rail.
+  // The views of the section, listed under its sidebar entry. A section without views (Search,
+  // Infrastructure) simply passes none.
   views?: NavView[];
   viewsSubtitle?: string;
   // The AF-02 mode line of the top bar. A page that must not show it passes `modes={null}`.
@@ -72,12 +73,20 @@ export async function PortalShell({
         { href: "/ops", section: "home", group: "Work" },
         { href: "/inbox", section: "inbox", group: "Work" },
         { href: "/ops/console", section: "console", group: "Work" },
+        // Yoann's decision of 2026-09-09: the ledger is not a group inside the console's submenu,
+        // it is a section of its own with its own four views, and Search is a screen of its own
+        // rather than a tool hidden under the console.
+        { href: "/ops/ledger", section: "ledger", group: "Work" },
+        { href: "/ops/console/search", section: "search", group: "Work" },
         { href: "/ops/policies", section: "policies", group: "Records" },
         { href: "/ops/brokers", section: "verification", group: "Records" },
         { href: "/ops/claims", section: "claims", group: "Records" },
         { href: "/ops/approvals", section: "approvals", group: "Money" },
         { href: "/ops/reconciliation", section: "reconciliation", group: "Money" },
         { href: "/ops/statements", section: "statements", group: "Money" },
+        // Infrastructure is what this deployment is running on, so it belongs to System. Its route
+        // is unchanged and so is its guard: requireStaff, the same as every other console screen.
+        { href: "/ops/console/infra", section: "infra", group: "System" },
         // Only staff operations reach the key screen (review finding F-INT-01: an approver who
         // could mint the maker's key would be both halves of the maker-checker gate).
         ...(user?.role === "staff_ops" ? [{ href: "/ops/mcp-keys", section: "mcp-keys" as SectionId, group: "System" }] : []),
@@ -99,8 +108,6 @@ export async function PortalShell({
             { href: "/login", section: "login" },
           ];
 
-  // The console's sibling screens live under the console entry.
-  const activeEntry: SectionId = active === "search" || active === "infra" || active === "ledger" ? "console" : active;
   const sectionLabel = SECTIONS[active].label;
   const root =
     user?.role === "broker" || user?.role === "customer"
@@ -130,7 +137,10 @@ export async function PortalShell({
         prefetch={false}
       >
         <span className="workspace-icon">
-          <Shapes size={20} strokeWidth={1.8} aria-hidden="true" />
+          {/* The Corgi mark, drawn as a CSS mask (app/styles/system.css) rather than as an
+              image: only the shape comes from the file and the colour comes from the sidebar,
+              so the mark follows the theme and stays crisp at this size. */}
+          <span className="workspace-mark" aria-hidden="true" />
         </span>
         <span>
           <strong>Corgi</strong>
@@ -155,8 +165,10 @@ export async function PortalShell({
           lastGroup = entry.group;
           const label = entry.section === "verification" && isStaff ? "Brokers" : entry.section === "verification" ? "Business verification" : definition.label;
           // The views of the screen the reader is on are drawn under its own entry, and nowhere
-          // else: one navigation column, submenus that fold (cycle 2, decision 17).
-          const isHere = activeEntry === entry.section;
+          // else: one navigation column, one indented list of plain links (cycle 2, decision 17,
+          // as amended by Yoann on 2026-09-09).
+          const isHere = active === entry.section;
+          const submenuOpen = isHere && views !== undefined && views.length > 0;
           return (
             <div key={entry.href} style={{ display: "contents" }}>
               {heading}
@@ -165,6 +177,10 @@ export async function PortalShell({
                   <Link href={entry.href} prefetch={false} aria-current={isHere ? "page" : undefined} title={label} aria-label={label}>
                     <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
                     <span>{label}</span>
+                    {/* The chevron of an open submenu, pointing down at the list under it. Only the
+                        open state is ever drawn: the shell learns a section's views from the page
+                        the reader is on, so it does not know that a section it is not on has any. */}
+                    {submenuOpen ? <ChevronDown className="nav-chevron" size={14} strokeWidth={2} aria-hidden="true" /> : null}
                   </Link>
                   {waiting > 0 ? (
                     // The number is a link of its own, to the inbox section listing exactly those

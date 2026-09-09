@@ -103,8 +103,9 @@ export async function Console360({ kind, id, searchParams }: { kind: ConsoleSubj
         active="console"
         trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Unreadable" }]}
         band={{
+          // No chip: the title already says the read failed, and What failed says why (Yoann,
+          // 2026-09-09).
           title: `This ${kind} could not be read`,
-          meta: <Chip tone="warn">read failed</Chip>,
           actions: (
             <Link href="/ops/console" prefetch={false} className="button-link">
               Back to the feed
@@ -251,14 +252,8 @@ export async function Console360({ kind, id, searchParams }: { kind: ConsoleSubj
         // (round 1, MEDIUM). The top bar of every workspace screen carries the three slots now,
         // and a simulated record still says LOCAL SIMULATOR on its own row below. The kind is
         // dropped too: the title already reads "Broker Redwood Commercial Brokers".
-        meta: (
-          <>
-            <Chip tone={breaks.length > 0 ? "warn" : "ok"}>
-              {breaks.length === 0 ? "no open break" : `${breaks.length} open break${breaks.length === 1 ? "" : "s"}`}
-            </Chip>
-            <Chip tone="neutral">{operations.length} money operations</Chip>
-          </>
-        ),
+        // No chip: a 360 shows no state of its own, only counts, and each count is a panel of
+        // the page with its own heading (Yoann, 2026-09-09).
         // Two actions of two words, side by side (cycle 2, decision 8).
         actions: (
           <>

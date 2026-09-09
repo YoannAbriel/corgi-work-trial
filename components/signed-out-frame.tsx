@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Shapes, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
 // The frame of a page nobody is signed in to. It is deliberately NOT the workspace shell: a
 // visitor who has not signed in has no policies, no claims and no approvals, so a sidebar of
@@ -17,7 +17,8 @@ export function SignedOutFrame({ children, actions }: { children: ReactNode; act
       <header className="signed-out-header">
         <div className="brand">
           <span className="workspace-icon">
-            <Shapes size={20} strokeWidth={1.8} aria-hidden="true" />
+            {/* Same mark as the signed-in shell, same mask. */}
+            <span className="workspace-mark" aria-hidden="true" />
           </span>
           <span>
             <strong>Corgi</strong>

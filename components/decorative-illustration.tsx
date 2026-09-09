@@ -1,4 +1,4 @@
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import type { ReactNode } from "react";
 
 // Each illustration is imported as a file, not named by a hand-written string. Next reads its real
@@ -54,6 +54,24 @@ import corgiCourier from "@/public/illustrations/library/093-corgi-courier.webp"
 import corgiElectrician from "@/public/illustrations/library/099-corgi-electrician.webp";
 import corgiMapExplorer from "@/public/illustrations/library/126-corgi-map-explorer.webp";
 
+// The same drawings, cropped to their subject by scripts/crop-band-illustrations.mjs. The library
+// files are drawn on a wide sheet of white paper: right at 200 px in an empty state, and far too
+// small at 52 px in the page band, where the margins ate the frame. Only the sections listed in
+// components/shell/sections.tsx have a cropped copy; anything else falls back to the library file.
+import bandArchivist from "@/public/illustrations/band/071-corgi-archivist.webp";
+import bandBroker from "@/public/illustrations/band/073-corgi-broker-satchel.webp";
+import bandAccountant from "@/public/illustrations/band/074-corgi-accountant.webp";
+import bandChecker from "@/public/illustrations/band/075-corgi-checker.webp";
+import bandResearcher from "@/public/illustrations/band/076-corgi-researcher.webp";
+import bandCourier from "@/public/illustrations/band/093-corgi-courier.webp";
+import bandMechanic from "@/public/illustrations/band/098-corgi-mechanic.webp";
+import bandElectrician from "@/public/illustrations/band/099-corgi-electrician.webp";
+import bandWelcoming from "@/public/illustrations/band/106-corgi-welcoming.webp";
+import bandUmbrella from "@/public/illustrations/band/112-corgi-umbrella.webp";
+import bandReading from "@/public/illustrations/band/118-corgi-reading.webp";
+import bandLaptopWork from "@/public/illustrations/band/119-corgi-laptop-work.webp";
+import bandMapExplorer from "@/public/illustrations/band/126-corgi-map-explorer.webp";
+
 // Only the illustrations used by the interface are listed here.
 const illustrations = {
   "in-tray": inTray,
@@ -103,6 +121,24 @@ const illustrations = {
 
 export type IllustrationName = keyof typeof illustrations;
 
+// The cropped copies, under the same names. Partial on purpose: a name without an entry here is
+// simply drawn from its library file, so adding a section does not break the build.
+const bandIllustrations: Partial<Record<IllustrationName, StaticImageData>> = {
+  "archivist-corgi": bandArchivist,
+  "broker-corgi": bandBroker,
+  "accountant-corgi": bandAccountant,
+  "checker-corgi": bandChecker,
+  "researcher-corgi": bandResearcher,
+  "courier-corgi": bandCourier,
+  "mechanic-corgi": bandMechanic,
+  "cable-corgi": bandElectrician,
+  "welcome-corgi": bandWelcoming,
+  "umbrella-corgi": bandUmbrella,
+  "reading-corgi": bandReading,
+  "laptop-corgi": bandLaptopWork,
+  "explorer-corgi": bandMapExplorer,
+};
+
 // The widest the stylesheet ever draws each variant, from app/globals.css: .banner-illustration is
 // 220 px, .empty-illustration 360 px, .feedback-illustration 300 px. Next turns this into a srcset,
 // so the browser asks for a file the size of the box instead of the full 3456 px original (F-IL-01).
@@ -127,10 +163,13 @@ export function DecorativeIllustration({
   // stylesheet hides below 580 px. Everything else keeps the fixed width above.
   sizes?: string;
 }) {
+  // The band is the one place that draws a 52 px vignette, so it is the one place that wants the
+  // cropped copy. Every other variant keeps the library drawing with its paper margins.
+  const source = (variant === "band" ? bandIllustrations[name] : undefined) ?? illustrations[name];
   return (
     <Image
       className={`decorative-image ${variant}-illustration`}
-      src={illustrations[name]}
+      src={source}
       alt=""
       sizes={sizes ?? displayedWidths[variant]}
       // Lazy everywhere, and never `priority`. A decorative image is worth no preload, and a

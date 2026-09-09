@@ -2,7 +2,7 @@ import "@/app/styles/console.css";
 import Link from "next/link";
 import { PortalShell } from "@/components/portal-shell";
 import { Chip } from "@/components/detail-layout";
-import { EventTable, FailureLine, RailsAbout, consoleViews, railLabel, utc } from "@/components/console-parts";
+import { EventTable, FailureLine, RailsAbout, railLabel, utc } from "@/components/console-parts";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Inspector, factValue } from "@/components/ui/inspector";
@@ -45,9 +45,6 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
   const matches = result?.matches ?? [];
   const trail = result?.trail ?? [];
 
-  // The same nine entries in the same three groups as every other console screen (decision 11).
-  const views = consoleViews("search");
-
   // Every reference of the trail opens the drawer on this same page, exactly as the feed does
   // (cycle 2, decision 5). `?inspect=` is added beside the `reference` parameter, so closing the
   // drawer leaves the search that was typed where it was.
@@ -76,20 +73,16 @@ export default async function ConsoleSearchPage({ searchParams }: { searchParams
     <PortalShell
       user={user}
       active="search"
-      views={views}
-      viewsSubtitle="one reference, its whole trail"
       inspector={
         inspected ? (
           <Inspector reference={inspected} closeHref={closeInspectorHref(PATH, query)} user={user} now={now} context={inspectorContext} />
         ) : undefined
       }
-      trail={[{ label: "Operations console", href: "/ops/console" }, { label: "Search" }]}
       band={{
         title: "Search",
         suffix: reference === "" ? undefined : reference,
-        // One chip: what shape the reference was read as, which is the fact this screen exists to
-        // state. The AF-02 modes are in the top bar (cycle 2, decision 1).
-        meta: reference === "" ? undefined : <Chip tone="neutral">read as {recogniseReference(reference)}</Chip>,
+        // No chip (Yoann, 2026-09-09): when nothing matches, the empty state below says what the
+        // reference was read as, and when something matches each card names what it found.
         actions: (
           <Link href="/ops/console" prefetch={false} className="button-link secondary">
             Back to the feed
