@@ -1,7 +1,13 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { centsFromDatabase } from "@/lib/money/cents";
-import { endorsementFormulaLines, type EndorsementFigures, type FormulaLine } from "@/lib/money/endorsement";
+import {
+  endorsementFormulaLines,
+  recheckEndorsementFigures,
+  type EndorsementFigures,
+  type FiguresRecheck,
+  type FormulaLine,
+} from "@/lib/money/endorsement";
 import { refundStateFromEvents, type RefundState } from "@/lib/payments/refunds";
 import type { MoneyOperationStatus } from "./status";
 import {
@@ -14,9 +20,12 @@ import {
 } from "./endorsement-requests";
 
 // Every read the policy page, the customer page and the approval page need about
-// endorsements. Nothing here computes money: the figures come from the immutable request and
-// 'endorsed' events, and the formula lines are rebuilt from those stored figures by the same
-// pure function that produced them (lib/money/endorsement.ts).
+// endorsements. No money MOVES from here and no figure is invented: the figures come from the
+// immutable request and 'endorsed' events, and the formula lines are rebuilt from those stored
+// figures by the same pure function that produced them (lib/money/endorsement.ts). That same
+// function is then asked to price each applied endorsement again from its stored inputs, and the
+// answer travels with the row so the fold can print a disagreement instead of a claim of one
+// (review finding F-INT-05).
 
 // One endorsement as the pages show it: the request, where it stands, and the money that
 // collected or refunded its delta.
@@ -96,6 +105,9 @@ export type EndorsementScheduleRow = {
   newLimitLabel: string;
   figures: EndorsementFigures;
   lines: FormulaLine[];
+  // The stored figures priced again from the inputs stored beside them, so the fold that explains
+  // this row has something to fail on (review finding F-INT-05). Computed here, on the server.
+  recheck: FiguresRecheck;
   collectionOperationId: string | null;
   stripeReferences: string[]; // payment intent or refund ids, for the explanation block
   // Set when this row is a 'correction_rebook' (slice B8): the endorsement was entered with the
@@ -139,6 +151,7 @@ export async function endorsementScheduleOfPolicy(policyId: string, database: po
       newLimitLabel: String(row.payload.new_limit_label ?? ""),
       figures,
       lines: endorsementFormulaLines(figures),
+      recheck: recheckEndorsementFigures(figures),
       collectionOperationId,
       stripeReferences: await stripeReferencesOfEndorsement(database, row.id, collectionOperationId),
       correctedFromEffectiveAt: typeof row.payload.wrong_effective_at === "string" ? row.payload.wrong_effective_at : null,

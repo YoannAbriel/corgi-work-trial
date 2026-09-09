@@ -6,6 +6,7 @@ import {
   endorsementFormulaLines,
   endorsementQuoteHash,
   EndorsementNotComputable,
+  recheckEndorsementFigures,
   type EndorsementInput,
 } from "./endorsement";
 
@@ -236,4 +237,36 @@ test("a reduction never needs the customer's approval, whatever is waiting", () 
   const reduction = computeEndorsement({ ...RECITED, newAnnualPremiumCents: 60000, otherUnapprovedRequestedCents: 90000 });
   assert.ok(reduction.deltaTotalCents < 0);
   assert.equal(reduction.customerApprovalRequired, false);
+});
+
+// Review finding F-INT-05: the fold that explains an applied endorsement used to compare the
+// stored total with itself, so its alert could not fire. These two tests are the comparison that
+// replaced it, on figures that agree and on figures that do not.
+test("figures priced from their own stored inputs agree with themselves", () => {
+  const stored = computeEndorsement(RECITED);
+  const recheck = recheckEndorsementFigures(stored);
+  assert.equal(recheck.notComputable, null);
+  assert.deepEqual(recheck.disagreements, []);
+  assert.equal(recheck.agrees, true);
+});
+
+test("a stored figure that no longer follows from its inputs is named, and the check fails", () => {
+  // The stored event says 1023 cents of tax were charged (floor(43561 x 235 / 10000)); this one
+  // claims 1500, as a payload written by a path that did not use the pure function would.
+  const tampered = { ...computeEndorsement(RECITED), deltaTaxCents: 1500, deltaTotalCents: 45061 };
+  const recheck = recheckEndorsementFigures(tampered);
+  assert.equal(recheck.agrees, false);
+  assert.equal(recheck.notComputable, null);
+  assert.deepEqual(recheck.disagreements, [
+    { figure: "state premium tax", storedCents: 1500, recomputedCents: 1023 },
+    { figure: "total collected or refunded", storedCents: 45061, recomputedCents: 44584 },
+  ]);
+});
+
+test("figures whose stored inputs cannot be priced at all are reported, never called identical", () => {
+  const stored = computeEndorsement(RECITED);
+  const outsideTheTerm = { ...stored, effectiveAt: "2029-06-01" };
+  const recheck = recheckEndorsementFigures(outsideTheTerm);
+  assert.equal(recheck.agrees, false);
+  assert.match(String(recheck.notComputable), /nothing can be endorsed after that date/);
 });

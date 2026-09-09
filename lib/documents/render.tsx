@@ -210,7 +210,7 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
               <Text style={[styles.endorsementSummaryDateColumn, styles.tableHeaderCell]}>Effective</Text>
               <Text style={[styles.textColumn, styles.tableHeaderCell]}>Change</Text>
               <Text style={[styles.endorsementSummaryAmountColumn, styles.tableHeaderCell]}>
-                Premium delta
+                Amount charged
               </Text>
             </View>
             {snapshot.endorsements.map((endorsement, position) => (
@@ -224,13 +224,14 @@ export async function renderDeclarationsPdf(snapshot: PolicySnapshot): Promise<B
                 </Text>
                 <Text style={styles.textColumn}>{endorsement.description}</Text>
                 <Text style={styles.endorsementSummaryAmountColumn}>
-                  {formatCents(endorsement.premiumDeltaCents)}
+                  {formatCents(endorsement.amountChargedCents)}
                 </Text>
               </View>
             ))}
             <Text style={styles.boxCaption}>
-              Premium delta: the prorated amount charged (positive) or credited (negative) from the
-              effective date to the end of the term.
+              Amount charged: the prorated premium and its {snapshot.stateName} premium tax, charged
+              (positive) or credited (negative) from the effective date to the end of the term. It is
+              the amount that moved, not the change in the annual premium.
             </Text>
           </>
         )}
@@ -352,7 +353,7 @@ export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Pr
           <Text style={[styles.endorsementEffectiveColumn, styles.tableHeaderCell]}>Effective</Text>
           <Text style={[styles.endorsementRecordedColumn, styles.tableHeaderCell]}>Recorded</Text>
           <Text style={[styles.textColumn, styles.tableHeaderCell]}>Change</Text>
-          <Text style={[styles.endorsementAmountColumn, styles.tableHeaderCell]}>Premium delta</Text>
+          <Text style={[styles.endorsementAmountColumn, styles.tableHeaderCell]}>Amount charged</Text>
           <Text style={[styles.endorsementAmountColumn, styles.tableHeaderCell]}>Annual premium</Text>
         </View>
 
@@ -376,7 +377,7 @@ export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Pr
               <Text style={styles.endorsementEffectiveColumn}>{formatCalendarDate(endorsement.effectiveAt)}</Text>
               <Text style={styles.endorsementRecordedColumn}>{formatUtcTimestamp(endorsement.recordedAt)}</Text>
               <Text style={styles.textColumn}>{endorsement.description}</Text>
-              <Text style={styles.endorsementAmountColumn}>{formatCents(endorsement.premiumDeltaCents)}</Text>
+              <Text style={styles.endorsementAmountColumn}>{formatCents(endorsement.amountChargedCents)}</Text>
               <Text style={styles.endorsementAmountColumn}>{formatCents(endorsement.annualPremiumCentsAfter)}</Text>
             </View>
           ))
@@ -399,8 +400,9 @@ export async function renderEndorsementSchedulePdf(snapshot: PolicySnapshot): Pr
         <View style={styles.footer} fixed>
           <Text style={styles.footerSentence}>{asOfStatement(snapshot)}</Text>
           <Text style={styles.footerSentence}>
-            The premium delta is the prorated amount charged (positive) or credited (negative) from the
-            endorsement&apos;s effective date to the end of the term.
+            The amount charged is the prorated premium and its {snapshot.stateName} premium tax, charged
+            (positive) or credited (negative) from the endorsement&apos;s effective date to the end of the
+            term.
           </Text>
           <View style={styles.footerBottomRow}>
             <Text>Generated {formatUtcTimestamp(snapshot.generatedAt)}.</Text>

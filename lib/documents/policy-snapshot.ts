@@ -34,8 +34,16 @@ export type AppliedEndorsement = {
   description: string;
   // Prorated premium for this endorsement, in integer cents, priced from `effectiveAt` to
   // the end of the term. Positive: charged to the customer. Negative: credited back.
-  // This is the amount that moves money; it is NOT the change in the annual premium.
+  // It is NOT the change in the annual premium, and on its own it is NOT what was charged
+  // either: the state premium tax below is charged with it.
   premiumDeltaCents: number;
+  // What the customer was actually charged (positive) or credited (negative) for this
+  // endorsement, in integer cents: the prorated premium above PLUS its state premium tax.
+  // This is the figure the policy page and the journal show, and the one the documents print
+  // (review finding F-INT-07: they printed the premium alone under a caption calling it the
+  // amount charged, $1,101.36 where $1,127.24 had moved). Added by `foldPolicyEvents` from the
+  // two figures stored on the endorsement event, never by a renderer.
+  amountChargedCents: number;
   // The policy's annual premium once this endorsement had applied, in integer cents.
   // The endorsement schedule prints this as the running annual premium.
   annualPremiumCentsAfter: number;

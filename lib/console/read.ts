@@ -41,6 +41,27 @@ import {
 // How much of a payload sentence ever reaches a screen.
 const SANITISED_DETAIL_LENGTH = 220;
 
+// THE STATUS OF A MONEY OPERATION, as one SQL expression. It is evaluated over the events of ONE
+// operation: inside a `group by operation_id`, or inside a subquery correlated on operation_id.
+//
+// WHY NOT SIMPLY THE LAST ROW BY SEQUENCE NUMBER. A terminal event wins over whatever was recorded
+// after it. Stripe can deliver checkout.session.completed after payment_intent.succeeded, and
+// those rows keep that order for ever because the table is append-only (fix F-B2-20). Reading the
+// last row made this console call the live-paid CGP-01707 "accepted and unconfirmed, unknown
+// outcome" while the policy page called the very same operation succeeded, because the policy
+// readers already apply this rule (lib/policy/read.ts, `latestStatus`). That disagreement is
+// review finding F-INT-03, and this expression is the one place the rule lives for the console:
+// every reader below that needs an operation's outcome uses it.
+function statusPreferringTerminal(database: postgres.Sql) {
+  return database`
+    case
+      when bool_or(status = 'succeeded') then 'succeeded'
+      when bool_or(status = 'failed')    then 'failed'
+      else (array_agg(status order by sequence_number desc))[1]
+    end
+  `;
+}
+
 // How many rows each source of the feed contributes before the merge. The page then keeps the
 // newest `limit` of the merged list.
 const ROWS_PER_FEED_SOURCE = 60;
@@ -1213,19 +1234,27 @@ export async function acceptedAndUnconfirmedOperations(
     }[]
   >`
     with latest as (
-      -- The last row of each operation's history, by its total order, within the seven days.
-      -- distinct on is the index-friendly way to ask that question: money_operation_events
-      -- carries the index (operation_id, sequence_number) since migration 0002.
+      -- One row per operation within the seven days: its status by the rule at the top of this
+      -- file, and the instant and reference of its last event. money_operation_events carries the
+      -- index (operation_id, sequence_number) since migration 0002.
+      --
+      -- The status is NOT simply the last row: an operation that also carries a 'succeeded' or a
+      -- 'failed' event is that, whatever was written afterwards, so a paid policy can no longer be
+      -- listed as accepted and unconfirmed (review finding F-INT-03). For a row that does survive
+      -- the filter below, the last event IS the acceptance, so recorded_at is still the instant
+      -- the provider accepted it.
       --
       -- The time bound is not an approximation. A row that survives it is an acceptance
       -- recorded inside the seven days with nothing after it, and any later event of that same
       -- operation would necessarily be inside them too, because events only move forward.
       -- So this reads exactly "accepted in the last seven days and silent since".
-      select distinct on (operation_id)
-             operation_id, status, recorded_at, provider_ref
+      select operation_id,
+             ${statusPreferringTerminal(database)}                      as status,
+             (array_agg(recorded_at  order by sequence_number desc))[1] as recorded_at,
+             (array_agg(provider_ref order by sequence_number desc))[1] as provider_ref
         from money_operation_events
        where recorded_at > ${acceptedAfter}
-       order by operation_id, sequence_number desc
+       group by operation_id
     )
     select operation.id       as operation_id,
            operation.kind,
@@ -1328,6 +1357,14 @@ export async function operationsProblems(
         ) kyb on true
        where event.status in ('failed', 'unknown')
          and event.recorded_at > ${since}
+         -- ... and the operation is still that today. An 'unknown' row that a later 'succeeded'
+         -- event resolved is history, not an open problem, and the same rule as the in-flight
+         -- reader above decides it (review finding F-INT-03).
+         and (
+               select ${statusPreferringTerminal(database)}
+                 from money_operation_events
+                where operation_id = event.operation_id
+             ) in ('failed', 'unknown')
        order by event.recorded_at desc
        limit ${limit}
     `,
@@ -2194,7 +2231,9 @@ export async function operationsOfSubject(
                min(recorded_at) filter (where status = 'provider_accepted') as accepted_at,
                min(recorded_at) filter (where status = 'succeeded')         as succeeded_at,
                max(recorded_at) filter (where status = 'failed')            as failed_at,
-               (array_agg(status order by sequence_number desc))[1]         as latest_status,
+               -- Not the last row: a terminal event wins over whatever came after it, the same
+               -- rule the policy page applies (review finding F-INT-03).
+               ${statusPreferringTerminal(database)}                        as latest_status,
                (array_agg(provider_ref order by sequence_number desc)
                   filter (where provider_ref is not null))[1]               as provider_ref,
                (array_agg(left(payload ->> 'reason', ${SANITISED_DETAIL_LENGTH}) order by sequence_number desc)

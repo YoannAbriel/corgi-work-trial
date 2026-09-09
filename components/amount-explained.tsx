@@ -75,6 +75,33 @@ export function AmountExplained({
               resolved.
             </p>
           )}
+          {/* THE SECOND HALF OF THE CHECK, for a fold that replays stored figures rather than
+              computing them here (review finding F-INT-05): the same inputs, priced again on the
+              server, figure by figure. Nothing below is computed in the browser. */}
+          {explanation.recheck ? (
+            explanation.recheck.notComputable !== null ? (
+              <p className="error" role="alert">
+                These figures could not be priced again from the inputs stored with them:{" "}
+                {explanation.recheck.notComputable}. The figure above is what the ledger holds; nothing here confirms it.
+              </p>
+            ) : explanation.recheck.agrees ? (
+              <p className="note">Recomputed today from the same inputs: identical.</p>
+            ) : (
+              <p className="error" role="alert">
+                Recomputed today from the same inputs, and it does not agree on{" "}
+                {explanation.recheck.disagreements
+                  .map(
+                    (disagreement) =>
+                      `${disagreement.figure} (${formatCentsAsUsd(disagreement.storedCents)} stored, ${formatCentsAsUsd(
+                        disagreement.recomputedCents,
+                      )} recomputed)`,
+                  )
+                  .join(", ")}
+                . The figure above is what the ledger holds; do not read the arithmetic below as an explanation of it
+                until this is resolved.
+              </p>
+            )
+          ) : null}
           {explanation.note ? <p className="note">{explanation.note}</p> : null}
         </>
       }

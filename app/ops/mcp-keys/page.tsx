@@ -8,9 +8,9 @@ import { MCP_TOOLS } from "@/lib/mcp/tools";
 
 // /ops/mcp-keys: the keys that open the MCP endpoint, who holds them, and what they have done.
 //
-// Staff only. Two actions, both of which write one row and never edit one: creating a key
-// (the secret is shown once, on the answer page, and is never stored) and revoking one (a
-// revocation row; the key stays on this list for ever, marked revoked).
+// Staff operations only, never an approver. Two actions, both of which write one row and never
+// edit one: creating a key (the secret is shown once, on the answer page, and is never stored)
+// and revoking one (a revocation row; the key stays on this list for ever, marked revoked).
 //
 // The page also lists the tools and the never-delegated operations, so the rule an agent is
 // held to is readable by the person handing out the key, not only by the agent.
@@ -23,8 +23,11 @@ export default async function McpKeysPage({
   if (!user) {
     redirect("/login");
   }
-  if (user.role !== "staff_ops" && user.role !== "staff_approver") {
-    redirect("/broker");
+  // Staff operations only, the same allowlist as POST /api/mcp-keys and for the same reason
+  // (review finding F-INT-01): the person who decides a money-out must not be able to act as
+  // the person who requests one, and minting a key for the maker is exactly that.
+  if (user.role !== "staff_ops") {
+    redirect(user.role === "staff_approver" ? "/ops" : "/broker");
   }
 
   const [keys, holders, query] = await Promise.all([
