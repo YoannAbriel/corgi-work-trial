@@ -74,7 +74,8 @@ export function usd(amountCents: number): { cents: number; formatted: string } {
 // before a tool sees its arguments, so no tool can ever rely on a guarantee nobody enforces.
 //
 // It stays deliberately small: the shapes this build advertises are strings, numbers, booleans,
-// a required list and a closed `enum`. It is not a JSON Schema implementation, and it says so.
+// a required list, a closed `enum` and the two string lengths. It is not a JSON Schema
+// implementation, and it says so.
 //
 // THE `enum` IS ENFORCED HERE TOO (review finding F-MCPTOOLS-07 of round 1). explain_amount
 // advertises the fifteen figure keys it accepts as an enum; until now nothing read that
@@ -111,6 +112,21 @@ export function argumentsSchemaRefusal(
     const declaredType = (definition as { type?: unknown }).type;
     if (declaredType === "string" && typeof value !== "string") {
       return `"${name}" must be a string`;
+    }
+    // THE ADVERTISED LENGTHS ARE ENFORCED HERE TOO, for the reason the whole function exists:
+    // inspect_reference advertises minLength 1 and maxLength 200 on the reference it opens, and
+    // an advertised bound nothing reads is a promise to the client rather than a control. Refused
+    // here means refused BEFORE the tool runs, so before any database read, and the sentence
+    // names the BOUND and never the value the caller sent (review finding F-B11-02).
+    if (declaredType === "string" && typeof value === "string") {
+      const shortest = (definition as { minLength?: unknown }).minLength;
+      const longest = (definition as { maxLength?: unknown }).maxLength;
+      if (typeof shortest === "number" && value.length < shortest) {
+        return `"${name}" must be at least ${shortest} character(s) long`;
+      }
+      if (typeof longest === "number" && value.length > longest) {
+        return `"${name}" must be at most ${longest} characters long`;
+      }
     }
     if (declaredType === "number" && typeof value !== "number") {
       return `"${name}" must be a number`;

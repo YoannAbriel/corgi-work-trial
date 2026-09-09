@@ -2328,6 +2328,11 @@ export type WebhookTouch = {
   attempts: number | null;
   lastError: string | null;
   objectId: string | null;
+  // When the DELIVERY row last changed, which for a row that reads 'done' is when the event was
+  // processed. It lives on webhook_processing, the nonfinancial delivery table that may be
+  // updated (migration 0001); the event itself, in webhook_events, is append-only and carries
+  // only the instant it was received. Null when nothing has ever tried to process the event.
+  processingLastChangedAt: Date | null;
 };
 
 // The provider events that named one of this subject's Stripe references.
@@ -2360,12 +2365,14 @@ export async function webhooksTouching(
       attempts: number | null;
       last_error: string | null;
       object_id: string | null;
+      processing_updated_at: Date | null;
     }[]
   >`
     select event.id, event.provider, event.provider_event_id, event.event_type, event.received_at,
            processing.status, processing.attempts,
            left(processing.last_error, ${SANITISED_DETAIL_LENGTH}) as last_error,
-           event.payload -> 'data' -> 'object' ->> 'id' as object_id
+           event.payload -> 'data' -> 'object' ->> 'id' as object_id,
+           processing.updated_at as processing_updated_at
       from webhook_events event
       left join webhook_processing processing on processing.webhook_event_id = event.id
      where event.payload -> 'data' -> 'object' ->> 'id' = any(${references})
@@ -2383,6 +2390,7 @@ export async function webhooksTouching(
     attempts: row.attempts,
     lastError: row.last_error,
     objectId: row.object_id,
+    processingLastChangedAt: row.processing_updated_at,
   }));
 }
 
