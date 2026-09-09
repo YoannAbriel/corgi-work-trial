@@ -184,6 +184,41 @@ td.money-decision {
   color: var(--ink-2);
 }
 
+/* The earlier revisions of a month, inside the fold of the row that carries the newest one
+ * (Yoann, 2026-09-09 evening: one row per broker and month). A list and not a second table: it
+ * repeats four facts of the row above it, and a table inside a table row reads as a new screen. */
+.stmt-earlier {
+  display: grid;
+  gap: 6px;
+}
+.stmt-earlier > h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.stmt-earlier > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.stmt-earlier > ul > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+/* The net due of a superseded revision, on the same baseline as the rest of its line. */
+.stmt-earlier-amount {
+  font-variant-numeric: tabular-nums;
+}
+.stmt-earlier-age {
+  color: var(--ink-2);
+}
+
 /* --- The breaks board -------------------------------------------------------------------------
  *
  * The breaks view of /ops/reconciliation carries three disjoint lists (breaks to act on, probe

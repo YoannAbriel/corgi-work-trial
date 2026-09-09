@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
 import { PortalShell } from "@/components/portal-shell";
+import { EarlierRevisions, groupRunsByBrokerAndMonth, type StatementMonthGroup } from "@/components/statement-revisions";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
 import { Legend } from "@/components/ui/legend";
@@ -13,9 +14,12 @@ import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { collectedFigures } from "@/lib/statements/compute";
-import { listStatementRuns, type StatementRunRow } from "@/lib/statements/read";
+import { listStatementRuns } from "@/lib/statements/read";
 
 // /broker/statements: the broker's own monthly statements, read-only.
+//
+// ONE ROW PER MONTH since 2026-09-09 evening (Yoann): the row is the newest revision of that
+// month and the revisions it replaced are folded under it, each one still a link to itself.
 //
 // A broker never runs a statement and never edits one: the list is filtered by the broker id that
 // is attached to the signed-in user, never by an id taken from the URL, so there is no address a
@@ -63,10 +67,11 @@ export default async function BrokerStatementsPage() {
   // The newest revision's own figure, not a total: adding the net due of several revisions of the
   // same month would count the same money once per revision.
   const latestRun = runs[0] ?? null;
-  // The reading order of the table: by age only, newest run first (Yoann, 2026-09-09). Sorting by
-  // month put a rerun of an old month below a newer month's run, which hides the run that just
-  // happened; the Month and Revision columns say which statement each row is.
-  const runsInReadingOrder = [...runs].sort((one, other) => other.createdAt.getTime() - one.createdAt.getTime());
+  // One row per month, showing its newest revision, the ones it replaced folded under it (Yoann,
+  // 2026-09-09 evening). This page reads one broker's runs, so a group of that grouping is one
+  // month. The order across rows is still by age only, newest revision first: sorting by month put
+  // a rerun of an old month below a newer month's run, which hides what has just been produced.
+  const months = groupRunsByBrokerAndMonth(runs);
 
   return (
     <PortalShell
@@ -115,7 +120,7 @@ export default async function BrokerStatementsPage() {
             </tr>
           </tbody>
         ) : (
-          runsInReadingOrder.map((run) => <StatementRow key={run.runId} run={run} now={now} />)
+          months.map((month) => <MonthRow key={month.latest.runId} month={month} now={now} />)
         )}
       </DataTable>
 
@@ -131,7 +136,8 @@ export default async function BrokerStatementsPage() {
         <h4>Revisions</h4>
         <p>
           When a correction lands after a month was closed, the closed statement is not rewritten: a new revision is
-          produced, dated, and it names the revision it replaces. Both stay readable here.
+          produced, dated, and it names the revision it replaces. Both stay readable here: each row is the newest
+          revision of one month, and the ones it replaced are inside its fold, newest first.
         </p>
         <h4>Who produces them</h4>
         <p>Corgi operations produce every statement. This page is read-only, and it shows your broker only.</p>
@@ -140,9 +146,11 @@ export default async function BrokerStatementsPage() {
   );
 }
 
-// One statement: the six columns a broker scans, everything else in the expansion, and the PDF
-// beside the figures it prints.
-function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
+// One month: the six columns a broker scans, read off the NEWEST revision of that month, with
+// everything else about that revision in the expansion, the PDF beside the figures it prints, and
+// the revisions it replaced listed under them.
+function MonthRow({ month, now }: { month: StatementMonthGroup; now: Date }) {
+  const run = month.latest;
   const collected = collectedFigures(run);
   return (
     <ExpandRow
@@ -155,7 +163,9 @@ function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
           <td className="nowrap">
             <When instant={run.createdAt} now={now} />
           </td>
-          <Num>{run.revision}</Num>
+          {/* The revision this row shows, and how many earlier ones the fold holds: without that
+              count the fold looks like the ordinary row detail and the history stays hidden. */}
+          <Num sub={month.earlier.length === 0 ? undefined : `${month.earlier.length} earlier`}>{run.revision}</Num>
           <Num>{formatCentsAsUsd(run.commissionEarnedCents)}</Num>
           <Num>{formatCentsAsUsd(run.netDueCents)}</Num>
           {/* One word per chip; the legend under the table says what each one means (round 1,
@@ -204,6 +214,7 @@ function StatementRow({ run, now }: { run: StatementRunRow; now: Date }) {
           },
         ]}
       />
+      <EarlierRevisions revisions={month.earlier} now={now} />
     </ExpandRow>
   );
 }
