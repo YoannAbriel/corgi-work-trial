@@ -2,6 +2,7 @@ import { sql } from "@/db/client";
 import {
   demoPassword,
   passwordMatches,
+  secureFlag,
   SESSION_COOKIE_NAME,
   SESSION_LIFETIME_SECONDS,
   sessionSecret,
@@ -43,10 +44,6 @@ async function handlePost(request: Request) {
     `${SESSION_COOKIE_NAME}=${cookie}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_LIFETIME_SECONDS}${secureFlag()}`,
   );
   return response;
-}
-
-function secureFlag(): string {
-  return process.env.APP_BASE_URL?.startsWith("https://") ? "; Secure" : "";
 }
 
 // 303 turns the POST into a GET on the next page, so a refresh does not resubmit the form.

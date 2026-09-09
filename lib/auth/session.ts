@@ -85,3 +85,10 @@ export function demoPassword(): string {
   }
   return password;
 }
+
+// "; Secure" on https deployments, nothing on plain-HTTP local development. Shared by the login
+// and the demo-switch routes so the two session cookies always carry the same flags
+// (review finding F-SWITCH-05).
+export function secureFlag(): string {
+  return process.env.APP_BASE_URL?.startsWith("https://") ? "; Secure" : "";
+}
