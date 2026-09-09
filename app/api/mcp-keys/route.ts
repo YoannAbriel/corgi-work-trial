@@ -84,9 +84,20 @@ async function handlePost(request: Request): Promise<Response> {
       if (!isTokenLifetime(expiresIn)) {
         return backToKeys("that is not one of the expirations this screen offers");
       }
+      // THE LABEL IS BOUNDED HERE (review finding F-TK-01). mcp_api_keys is append-only: a row
+      // carrying five thousand characters of pasted nonsense can never be edited or deleted, and
+      // the screen prints that label on one line for ever. 120 characters is a name for a laptop
+      // or a client, which is what the field is for. The matching CHECK constraint on the column
+      // is a week-two line: adding one tonight would mean a migration on the trial database on
+      // the evening of a freeze, and this route is the only path that writes a label from a
+      // browser (scripts/create-mcp-key.ts is a local operator tool).
+      const label = String(form.get("label") ?? "").trim();
+      if (label.length === 0 || label.length > 120) {
+        return backToKeys("a label is one to 120 characters");
+      }
       const created = await createApiKey({
         userId,
-        label: String(form.get("label") ?? ""),
+        label,
         principalKind,
         createdByUserId: user.id,
         expiresAt: expiryInstant(expiresIn, new Date()),
@@ -114,7 +125,10 @@ async function handlePost(request: Request): Promise<Response> {
       return redirectTo("/ops/mcp-keys?revoked=1");
     }
 
-    return backToKeys(`unknown action "${action}"`);
+    // The sentence never quotes what the caller sent (review finding F-TK-05): it would put an
+    // unbounded string into a Location header, a browser history entry and, through the toast,
+    // onto the screen. There are three actions and a reader of this file can see all three.
+    return backToKeys("unknown action");
   } catch (error) {
     if (error instanceof KeyRefused) {
       return backToKeys(error.message);
