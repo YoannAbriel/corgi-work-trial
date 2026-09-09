@@ -81,6 +81,9 @@ export function AmountExplainedMotion({
 
   const figureRef = useRef<HTMLSpanElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  // This fold's own element, so it can tell whether it is the first fold on the page pointing at
+  // its journal entry. See the hash effect below (review finding F-B12-20).
+  const foldRef = useRef<HTMLDivElement>(null);
   // Every timer and animation frame this component started, so closing the fold or leaving the
   // page stops all of them. Without this a half-finished count-up would keep writing into a cell.
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -106,12 +109,23 @@ export function AmountExplainedMotion({
   // A reader who arrives on the address of the proving entry, or who follows the "Trace to the
   // ledger" link of a page that was already loaded, lands on a block that may be inside a closed
   // fold (review finding F-B12-12). Browsers differ on whether a fragment opens the <details> that
-  // holds it, so the one fold that owns this entry opens it and lights it. Every other fold on the
-  // page returns on the first line: the hash names exactly one entry.
+  // holds it, so one fold opens it and lights it.
+  //
+  // ONE ARRIVAL, ONE ENTRY, ONE FOLD (review finding F-B12-20). The hash names exactly one entry,
+  // but SEVERAL FOLDS ON A PAGE CAN NAME THE SAME ENTRY: on CGP-01274, $54.33 and $25.00 are both
+  // proved by one journal entry. Without the test below, one arrival ran the whole routine once
+  // per fold: two smooth scrolls, two timers racing to remove one class, and two connectors drawn
+  // from two different figures to the same block. The first fold of the page pointing at that
+  // entry answers for all of them; document order is what querySelectorAll returns, so the answer
+  // is the same on every visit and needs no shared state.
   useEffect(() => {
     if (!traceEntryElementId) return;
     const openWhenTargeted = () => {
       if (window.location.hash !== `#${traceEntryElementId}`) return;
+      const firstFoldForThisEntry = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-trace-entry]"),
+      ).find((fold) => fold.dataset.traceEntry === traceEntryElementId);
+      if (firstFoldForThisEntry && firstFoldForThisEntry !== foldRef.current) return;
       traceToLedger();
     };
     openWhenTargeted();
@@ -303,7 +317,14 @@ export function AmountExplainedMotion({
   }
 
   return (
-    <div className={size === "inline" ? "amount-explained inline" : "amount-explained"}>
+    <div
+      ref={foldRef}
+      className={size === "inline" ? "amount-explained inline" : "amount-explained"}
+      // The entry this fold points at, readable from the DOM: it is how the folds of a page tell
+      // which of them answers a fragment arrival (F-B12-20). Presentation only, nothing reads it
+      // for a figure.
+      data-trace-entry={traceEntryElementId}
+    >
       <span
         ref={figureRef}
         className="amount-explained-figure"

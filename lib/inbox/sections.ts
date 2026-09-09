@@ -33,6 +33,25 @@ export const INBOX_ANCHORS = {
 
 export type InboxAnchor = (typeof INBOX_ANCHORS)[keyof typeof INBOX_ANCHORS];
 
+// WHOSE INBOX RENDERS EACH KIND OF WORK. The type above cannot say it: it is the union of the
+// twelve VALUES, so a broker task typed `anchor: "claims"` compiles and links a broker to a
+// section only staff have (review finding F-B13-60). This map is the missing half, and
+// lib/inbox/sections.test.ts checks each role's sections against it, without a database.
+export const INBOX_ANCHOR_OWNER: Record<keyof typeof INBOX_ANCHORS, "broker" | "customer" | "staff"> = {
+  brokerPoliciesToPay: "broker",
+  endorsementDeltasToPay: "broker",
+  correctionDifferencesToCollect: "broker",
+  changeRequestsToAnswer: "broker",
+  endorsementsWaitingForTheCustomer: "broker",
+  customerEndorsementsToApprove: "customer",
+  customerCorrectionsToApprove: "customer",
+  approvalRequestsWaiting: "staff",
+  policiesPaidNotBound: "staff",
+  endorsementsPaidNotApplied: "staff",
+  claimPaymentsStillToMove: "staff",
+  openBreaks: "staff",
+};
+
 // One line of the inbox: an object, what is waiting on it, and the one link that acts on it.
 export type InboxItem = {
   subject: string; // the object itself: a policy number, a claim number, a break key
