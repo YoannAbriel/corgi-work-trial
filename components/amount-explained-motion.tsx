@@ -245,10 +245,14 @@ export function AmountExplainedMotion({
     const resultCell = panel.querySelector<HTMLElement>("tr[data-formula-result] td.amount");
 
     if (prefersReducedMotion()) {
-      // Everything at once, in its final state: no stagger, no count-up, no connector.
+      // Everything at once, in its final state: no stagger, no count-up, no connector. The proving
+      // entry is still marked when it is already visible (review finding F-B12-16), with the flat
+      // colour the reduced-motion CSS gives it instead of a pulse, so this reader is not the only
+      // one who never learns which entry proves the figure.
       for (const row of operandRows) row.classList.add("operand-lit");
       setRevealStep(4);
       setTickerText(lastSubtotalOf(operandRows));
+      pointAtLedgerIfAlreadyVisible();
       return;
     }
 
