@@ -57,7 +57,7 @@ test("the surface is five read tools, the reconciliation job, and one write tool
   );
 });
 
-// The two tools of slice B14. They were added to a surface whose whole promise is that an agent
+// The two tools of slice B13-16 (decision 29). They were added to a surface whose whole promise is that an agent
 // reads and asks, so the two assertions that matter are that they only read and that the list of
 // operations never delegated did not have to move to make room for them.
 test("the two tools added last only read", async () => {

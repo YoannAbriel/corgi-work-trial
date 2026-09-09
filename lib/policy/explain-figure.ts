@@ -26,11 +26,11 @@ import { termsInForceOn } from "./terms-in-force";
 
 // One figure of one policy, explained: the fold the policy screen renders, without the screen.
 //
-// WHY THIS FILE EXISTS (slice B14, the MCP tool explain_amount). The explanation under a figure
-// on /policies/{id} is built by the page from lib/money/explain.ts. An agent asking "where does
-// this $28.20 come from" must get THE SAME lines, and the only way to promise that is to call
-// the same functions with the same arguments rather than write a second explanation for
-// machines. So this module composes, once, what the page composes inline:
+// WHY THIS FILE EXISTS (slice B13-16, decision 29: the MCP tool explain_amount). The explanation
+// under a figure on /policies/{id} is built by the page from lib/money/explain.ts. An agent asking
+// "where does this $28.20 come from" must get THE SAME lines, and the only way to promise that
+// is to call the same functions with the same arguments rather than write a second explanation
+// for machines. So this module composes, once, what the page composes inline:
 //
 //   the terms in force on a date   policyAsItStoodOn -> termsInForceOn, then explainStateTax,
 //                                  explainPolicyFee, explainTotalCharge;
