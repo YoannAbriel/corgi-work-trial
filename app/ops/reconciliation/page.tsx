@@ -470,7 +470,7 @@ function BreakTable({
           <th className="col-when">First seen (UTC)</th>
           <th className="col-age">{ageColumn}</th>
           <th className="col-text">What it means</th>
-          {explain ? <th className="col-text">Explain this break</th> : null}
+          {explain ? <th className="col-controls">Explain this break</th> : null}
         </tr>
       </thead>
       <tbody>
@@ -505,7 +505,7 @@ function BreakTable({
             <td className="col-age">{describeAge(row.firstSeenAt, now)}</td>
             <td className="col-text">{row.note}</td>
             {explain ? (
-              <td className="col-text">
+              <td className="col-controls">
                 <ExplainForm breakKey={row.breakKey} />
               </td>
             ) : null}
@@ -525,7 +525,7 @@ function BreakTable({
 // The break key goes in the path and is encoded here: it carries a `|` and a `:`.
 function ExplainForm({ breakKey }: { breakKey: string }) {
   return (
-    <form method="post" action={`/api/reconciliation/breaks/${encodeURIComponent(breakKey)}/explain`} className="inline-form">
+    <form method="post" action={`/api/reconciliation/breaks/${encodeURIComponent(breakKey)}/explain`} className="card">
       <label htmlFor={`note-${breakKey}`} className="note">
         What is this break? ({NOTE_MINIMUM_CHARACTERS} to {NOTE_MAXIMUM_CHARACTERS} characters)
       </label>

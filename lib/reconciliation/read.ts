@@ -275,6 +275,10 @@ const IS_THE_SAME_MONEY_AS_THE_RESOLVED_ROW = `
 export async function resolvedBreaks(database: postgres.Sql, limit: number): Promise<ReconciliationBreakRow[]> {
   const rows = await database<(BreakRowShape & { open_count: number; open_breaks_named: string | null })[]>`
     with latest_report as (${database.unsafe(LATEST_REPORT_OF_EACH_BREAK)}),
+         -- STILL BEING REPORTED, which here is deliberately wider than "a break to act on": a
+         -- probe and an explained break are money that is still exactly where it was, so a
+         -- resolved row sharing a reference with one of them is not resolved either. The
+         -- question this list asks is about the money, not about the operator's queue.
          open_report as (
            select source, break_key, provider_ref, ledger_ref
              from latest_report
