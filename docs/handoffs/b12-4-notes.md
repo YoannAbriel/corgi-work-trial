@@ -115,11 +115,12 @@ in the frames is a real policy, and no claim is made about the deployed applicat
 | Check | Command | Result |
 |---|---|---|
 | Types | `npx tsc --noEmit` | PASS, no output |
-| Unit tests | `npm test` | 445 tests, 444 pass, 1 skipped, 0 fail (11 new in `lib/money/amount-explained-motion.test.ts`) |
+| Unit tests | `npm test` | 447 tests, 446 pass, 1 skipped, 0 fail (11 new in `lib/money/amount-explained-motion.test.ts`) |
 | Production build | `npm run build` | PASS, 30 routes generated, compiled successfully |
 | Secrets, staged | `gitleaks protect --staged --redact` | no leaks found |
 | Secrets, working tree | `gitleaks detect --no-git --redact` | 10 hits, all inside `.next/`, which is gitignored and not committed; nothing in tracked content |
 | Animation | Playwright + Chrome, table above | 8 frames, the reveal, the count-up, the connector and the pulse all observed |
+| Merge | merged `78f93c6`, no conflict | types, tests and build rerun on the merged tree; every result above is the merged one |
 
 ## Not done, and why
 
