@@ -6,6 +6,7 @@ import type { SignedInUser } from "@/lib/auth/current-user";
 import { countClaimsWithPaymentsStillToMove } from "@/lib/claims/read";
 import { countEndorsementsPaidButNotApplied, countPoliciesPaidButNotBound } from "@/lib/policy/read";
 import { countOpenChangeRequests } from "@/lib/policy/change-requests";
+import { INBOX_ANCHORS, type InboxAnchor } from "@/lib/inbox/sections";
 import { countOpenBreaks } from "@/lib/reconciliation/read";
 import { correctionsOfPolicy } from "@/lib/policy/correction-read";
 import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
@@ -24,11 +25,16 @@ import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
 export type WorkspaceSection = "policies" | "claims" | "approvals" | "reconciliation";
 
 export type WorkspaceTask = {
+  // Where the count belongs in the SIDEBAR, which adds several kinds of work into one chip.
   section: WorkspaceSection;
+  // Where the count belongs in the INBOX, which lists each kind of work on its own. The two are
+  // not the same thing, and using the sidebar name for both is what made "2 change requests to
+  // answer" open a panel holding no change request (review findings F-B13-15 and F-B13-16). The
+  // names come from lib/inbox/sections.ts, so a task cannot name a section that does not exist.
+  anchor: InboxAnchor;
   count: number;
   label: string;
   detail: string;
-  href: string;
 };
 
 export async function workspaceTasks(
@@ -66,6 +72,7 @@ async function staffTasks(role: "staff_ops" | "staff_approver"): Promise<Workspa
   const tasks: WorkspaceTask[] = [
     {
       section: "approvals",
+      anchor: INBOX_ANCHORS.approvalRequestsWaiting,
       count: approvals,
       label: isApprover
         ? `${plural(approvals, "money-out request")} waiting for your decision`
@@ -73,35 +80,34 @@ async function staffTasks(role: "staff_ops" | "staff_approver"): Promise<Workspa
       detail: isApprover
         ? "You decide requests somebody else made; you can never decide your own."
         : "A distinct staff approver has to decide them. Nothing leaves before that.",
-      href: "/ops/approvals",
     },
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.policiesPaidNotBound,
       count: paidNotBound,
       label: `${plural(paidNotBound, "policy", "policies")} paid and not bound`,
       detail: "The customer's money is in the suspense account until you bind or send it back.",
-      href: "/ops/policies",
     },
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.endorsementsPaidNotApplied,
       count: paidNotApplied,
       label: `${plural(paidNotApplied, "endorsement")} paid and not in force`,
       detail: "The delta was collected while the broker was not eligible. Apply it from the policy page.",
-      href: "/ops/policies",
     },
     {
       section: "claims",
+      anchor: INBOX_ANCHORS.claimPaymentsStillToMove,
       count: claims,
       label: `${plural(claims, "claim")} with a payment still to move`,
       detail: "Asked for and not sent on the rail: waiting for an approver, or for you to send it.",
-      href: "/ops/claims",
     },
     {
       section: "reconciliation",
+      anchor: INBOX_ANCHORS.openBreaks,
       count: breaks,
       label: `${plural(breaks, "open break")} between a provider and the ledger`,
       detail: "Nobody has explained them yet. The age is counted from the run that first found them.",
-      href: "/ops/reconciliation",
     },
   ];
   return tasks.filter((task) => task.count > 0);
@@ -148,38 +154,38 @@ async function brokerTasks(brokerId: string): Promise<WorkspaceTask[]> {
   const tasks: WorkspaceTask[] = [
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.brokerPoliciesToPay,
       count: toPay,
       label: `${plural(toPay, "policy", "policies")} to pay`,
       detail: "Quoted and not bound yet: the policy is bound when Stripe confirms the payment.",
-      href: "/broker",
     },
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.endorsementDeltasToPay,
       count: deltasToPay,
       label: `${plural(deltasToPay, "endorsement delta")} to pay`,
       detail: "The customer approved the quote; the endorsement takes effect when you pay the delta from the policy page.",
-      href: "/broker",
     },
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.correctionDifferencesToCollect,
       count: differencesToCollect,
       label: `${plural(differencesToCollect, "correction difference")} to collect`,
       detail: "A corrected effective date charges more days of cover; collect the difference from the policy page.",
-      href: "/broker",
     },
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.endorsementsWaitingForTheCustomer,
       count: waitingForCustomer,
       label: `${plural(waitingForCustomer, "endorsement")} waiting for the customer`,
       detail: "The delta cannot be collected until the customer approves the quote from their own screen.",
-      href: "/broker",
     },
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.changeRequestsToAnswer,
       count: changeRequests,
       label: `${plural(changeRequests, "change request")} to answer`,
       detail: "A customer has asked for something on their policy. Answering it changes nothing on its own.",
-      href: "/broker",
     },
   ];
   return tasks.filter((task) => task.count > 0);
@@ -204,17 +210,17 @@ async function customerTasks(customerId: string): Promise<WorkspaceTask[]> {
   const tasks: WorkspaceTask[] = [
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.customerEndorsementsToApprove,
       count: endorsements,
       label: `${plural(endorsements, "endorsement")} waiting for your approval`,
       detail: "Your broker cannot collect the difference until you accept the quote.",
-      href: "/customer",
     },
     {
       section: "policies",
+      anchor: INBOX_ANCHORS.customerCorrectionsToApprove,
       count: corrections,
       label: `${plural(corrections, "correction")} waiting for your approval`,
       detail: "A corrected effective date charges more days of cover; the difference is collected once you accept it.",
-      href: "/customer",
     },
   ];
   return tasks.filter((task) => task.count > 0);
@@ -242,7 +248,13 @@ export function WhatNeedsYou({ tasks }: { tasks: WorkspaceTask[] }) {
         <ul className="needs-you-list">
           {tasks.map((task) => (
             <li key={`${task.section}-${task.label}`}>
-              <Link href={`/inbox#${task.section}`} prefetch={false}>
+              {/*
+                The count opens the inbox section that holds exactly these items, never the screen
+                this block already sits on: that link led back to /broker, which is the complaint
+                the inbox answers (YOA-636), and the sidebar's section name landed it on a panel
+                counting something else (F-B13-15, F-B13-16).
+              */}
+              <Link href={`/inbox#${task.anchor}`} prefetch={false}>
                 <span className="count-chip">{task.count}</span>
                 <span>
                   <strong>{task.label}</strong>
