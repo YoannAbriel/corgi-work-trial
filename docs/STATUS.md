@@ -566,6 +566,12 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 - While indexing the evidence pack, the freeze-package session found five of the 24 screenshots of docs/reviews/ui-cycle-2.md to be byte-identical copies of the signed-out login page (a lost cookie mid-capture, the trap the b13-13 reviewer had documented and guarded against); the coordinator verified the md5 values. The record's sentence that every file was opened before being committed is false for those five, two of which are the named illustration of the breaks-board item; the DOM measurements behind the verdict are not in question, and the genuine recon-explained.png carries the F-BP-02 evidence. The reviewer was resumed to recapture the five signed in, list the 24 md5 values and date the correction in its record; registered as F-UI2-08. The evidence pack records it in its Gaps section until the recapture lands.
 
+## 2026-09-09T19:35:00+00:00 | LIVE-0 done by Yoann on production, evidence merged (3c67d45)
+
+- **Reconciliation click at 18:38:23Z** as `ops` in the interface: 42 Stripe records against 7 ledger records, 32 probes, 4 breaks to act on ($100.00, two of $12.61, one refund of $8.98), claims rail 1 provider record, 3 ledger, 0 break. Board chip, probes tile and inbox badge agree. F-BP-01 and F-UI2-01 closed on that run.
+- **Redwood 2026-09 statement, revision 4 at 18:45:13Z** (run c602abcf, version 3, 16 lines): cash collected $8,328.61, premium collected $8,064.11, commission earned $1,209.61, clawback $780.05, net due $429.56, content hash `7eddb01a…78c` identical to the hash the co-pilot predicted read-only before the click. A first click produced Harbor Point 2026-09 revision 2 ($0.00, identical), disclosed in the handoff.
+- Evidence under `docs/evidence/live-fire-day2/LIVE-0/{before,after}` and `docs/handoffs/live-fire-day2.md`, merged with `--no-ff`. LIVE-8 briefed to Yoann on 92379e2 (preview read by GET: 351 of 365 days, $1,153.97, difference $53.84, commission $7.89, customer approval required); LIVE-9 and LIVE-7 not started.
+
 ## 2026-09-09T19:20:00+00:00 | Cycle-2 evidence corrected, freeze checklist on main, interface batch announced
 
 - **F-UI2-08 fixed and merged** (c8d679d, merge b33edbc): six PNGs recaptured with a login guard, 24 distinct md5 values in section 11 of `docs/reviews/ui-cycle-2.md`, defect and cause in its section 12. The record stamped the correction `20:55Z`, which is local time (18:55Z); coordinator note added on the record. The evidence pack rows for that folder are stale and the freeze-package session is refreshing them on its branch.
@@ -580,7 +586,7 @@ docs/reviews/inbox-and-motion.md: inbox PASS (anonymous refused, ownership from 
 
 ## Earlier status (kept as history)
 
-Updated at 2026-09-08T07:13:45+00:00. Track: **1 — POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
+Updated at 2026-09-08T07:13:45+00:00. Track: **1: POLICY ADMINISTRATION**, explicitly selected by Yoann. Stack and providers: **UNSELECTED**. Repository currently contains instructions and preparation only; there is no product implementation or deployment.
 
 Startup reads: original kit CLAUDE.md, AGENTS.md, WORKFLOW-48H.md and REVIEWER.md; released general and three track briefs supplied in the conversation, extracted in BRIEF-REFERENCE.md. Automatic-fail and readability rules were independently reviewed and corrected. Missing: separately supplied kickoff sandbox rules, chosen stack/providers, actual provider access and product acceptance evidence.
 
