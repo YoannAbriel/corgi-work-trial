@@ -296,6 +296,27 @@ td.dt-actions.lists-row-actions > * + * {
   line-height: 1.5;
   white-space: pre;
 }
+/* The panel that shows a new token, in the drawer. `min-width: 0` on the panel and on everything
+   in it, because the drawer body is a grid and a grid item never shrinks below its own content:
+   the connect command, which is one unbreakable line, would otherwise widen the column and push
+   the token clean off the panel. With this, the command scrolls in its box and the drawer keeps
+   its 440 px. */
+.lists-token-panel {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.lists-token-panel > *,
+.lists-token-panel .lists-snippet {
+  min-width: 0;
+}
+/* The secret itself WRAPS rather than scrolling, unlike the command beside it: a value somebody
+   has to copy in the next two minutes must be on screen whole, and a hidden tail is how half a
+   token ends up pasted into a client configuration. */
+.lists-snippet.lists-token {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 .lists-facts {
   display: grid;
   gap: 4px;
