@@ -73,3 +73,22 @@ export async function postJournalEntry(
 export function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && (error as { code?: string }).code === "23505";
 }
+
+// The constraint Postgres named in the error. postgres.js copies the server's error fields onto
+// the error object, so this is the database's own answer rather than a guess from the message.
+export function violatedConstraintName(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) return null;
+  const named = (error as { constraint_name?: unknown }).constraint_name;
+  return typeof named === "string" ? named : null;
+}
+
+// True when the error is the unique violation OF ONE NAMED INDEX, and of no other.
+//
+// SQLSTATE 23505 on its own says "some unique index refused this write", not which one. A catch
+// that answers "this was already done" on any 23505 turns a future constraint, added under the
+// same call, into a screen saying the work succeeded (review finding F-B13-10). Every caller
+// that answers a success-shaped sentence to a violation names the index it means, so a new one
+// reaches the caller as the failure it is.
+export function isViolationOf(error: unknown, constraintName: string): boolean {
+  return isUniqueViolation(error) && violatedConstraintName(error) === constraintName;
+}

@@ -777,10 +777,13 @@ export async function claimPayments(
            operation.approval_request_id,
            requester.display_name as requested_by_name,
            decision.decision,
+           -- sequence_number, not recorded_at: two rows can carry the same timestamp, and the
+           -- schema gives sequence_number as the total order of recording (migration 0008,
+           -- "ties impossible"). Review finding F-PP-01.
            (select requested.payload -> 'requested_through'
               from claim_events requested
              where requested.money_operation_id = operation.id and requested.event_type = 'payment_requested'
-             order by requested.recorded_at
+             order by requested.sequence_number
              limit 1) as requested_through
       from money_operations operation
       left join users requester on requester.id::text = operation.created_by
@@ -810,6 +813,11 @@ export async function claimPayments(
 
 // Whether the payment_requested event of an operation says an agent asked for it. Read from the
 // immutable claim event, not from the operation, so the answer cannot drift.
+//
+// Ordered by sequence_number, the schema's total order of recording (migration 0008 line 76,
+// "ties impossible"), never by recorded_at: two rows can share a timestamp, and "the first
+// payment_requested of this operation" would then be decided by clock resolution rather than by
+// the order the rows were written (review finding F-PP-01).
 async function wasRaisedByAnAgent(
   database: postgres.Sql | postgres.TransactionSql,
   operationId: string,
@@ -818,7 +826,7 @@ async function wasRaisedByAnAgent(
     select payload -> 'requested_through' ->> 'principalKind' as kind
       from claim_events
      where money_operation_id = ${operationId} and event_type = 'payment_requested'
-     order by recorded_at
+     order by sequence_number
      limit 1
   `;
   return row?.kind === "agent";

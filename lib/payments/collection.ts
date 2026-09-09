@@ -2,7 +2,7 @@ import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
 import { brokerKybState } from "@/lib/broker/kyb";
-import { isUniqueViolation, postJournalEntry } from "@/lib/ledger/post";
+import { isUniqueViolation, postJournalEntry, violatedConstraintName } from "@/lib/ledger/post";
 import { issuanceAndCollectionEntries, unappliedCashReceivedEntry, type CollectedFrom } from "@/lib/ledger/policy-entries";
 import { centsFromDatabase } from "@/lib/money/cents";
 import { foldPolicyEvents, refreshPolicyCurrent } from "@/lib/policy/current";
@@ -141,7 +141,19 @@ async function postCollectionAndBind(
 ): Promise<CollectionOutcome> {
   try {
     await database.begin(async (transaction) => {
-      // One lock per money operation (F-B2-21): the late checkout.session.completed handler takes
+      // TWO LOCKS, POLICY FIRST, THEN THE OPERATION. This posting writes policy_events and
+      // policy_current, so it takes the policy lock that recordEndorsementRequest and the two
+      // correction paths take, exactly as postDeltaAndApply does (review finding F-PP-03). It
+      // was safe without it (policy_events_one_issuance_per_policy refuses a second issuance,
+      // and no endorsement can exist before the policy is bound), but the invariant then rested
+      // on a unique index and on an ordering fact about the product rather than on the lock
+      // discipline every other posting path follows, and a reader comparing the two asked why.
+      //
+      // The order is the one the post-PASS record enumerated over every advisory lock site
+      // (section B.3): the policy is always taken before the operation, and no transaction takes
+      // them the other way round, so adding this lock cannot make a cycle.
+      await transaction`select pg_advisory_xact_lock(hashtext(${operation.policyId}))`;
+      // Then the money operation (F-B2-21): the late checkout.session.completed handler takes
       // the same lock, so it can only look at the operation after this posting has committed.
       await transaction`select pg_advisory_xact_lock(hashtext(${operation.operationId}))`;
       const { terms } = await foldPolicyEvents(transaction, operation.policyId);
@@ -244,14 +256,6 @@ async function interpretUniqueViolation(
     kind: "refused",
     reason: `the posting was refused by ${constraintName ?? "a unique constraint"} and nothing of this payment was journaled; operations must decide what to do with this money`,
   };
-}
-
-// The constraint Postgres named in the error. postgres.js copies the server's error fields onto
-// the error object, so this is the database's own answer rather than a guess from the message.
-function violatedConstraintName(error: unknown): string | null {
-  if (typeof error !== "object" || error === null) return null;
-  const named = (error as { constraint_name?: unknown }).constraint_name;
-  return typeof named === "string" ? named : null;
 }
 
 // Has a correction undone what this operation posted? Two shapes count, because a void writes
@@ -379,6 +383,14 @@ async function recordPaymentWithoutBinding(
 //
 // It matters on the refused path (rule 14): there nothing is posted, so the journal's unique key
 // is not what stops a replay, and this statement is the whole protection.
+//
+// THE INDEX THE `on conflict` INFERS IS `money_operation_events_one_succeeded_per_operation`
+// (migration 0013), partial on `where status = 'succeeded'`. The clause below repeats that
+// predicate because PostgreSQL matches an inferred conflict target to a partial index by its
+// predicate, not by name, so the two ends have to stay in step. Named here rather than in the
+// migration because 0013 is applied and an applied migration is never edited: this comment is
+// the greppable half of the pair (review finding F-PP-09). Dropping or changing the index does
+// not make this statement silently permissive, it makes it raise 42P10 on the money path.
 async function appendSucceededEventOnce(
   transaction: postgres.TransactionSql,
   payment: SuccessfulPayment,
