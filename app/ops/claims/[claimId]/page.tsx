@@ -1,7 +1,7 @@
 import "@/app/styles/policy-detail.css";
 import { PortalShell } from "@/components/portal-shell";
 import { AmountExplained } from "@/components/amount-explained";
-import { SandboxReferences } from "@/components/disclosures";
+import { Disclosure, SandboxReferences } from "@/components/disclosures";
 import { Chip } from "@/components/detail-layout";
 import { JournalTable } from "@/components/journal-table";
 import { MoneyAmountInput } from "@/components/money-amount-input";
@@ -54,9 +54,10 @@ import {
 // Layout, cycle 2 (Yoann, decision 16): TWO views instead of four. The overview is the position,
 // the room left before each limit, the loss, the bank account and, at the bottom, the three
 // decisions as one compact panel; the payments view is the payments with the rail in the
-// expansion and the journal under them. F-YA-05 still holds, so the forms are open on the page
-// and never behind a fold. Every form keeps its endpoint and its fields; the server checks the
-// role, the ceilings and the approval again whatever this page displayed.
+// expansion and the journal under them. F-YA-05 still holds: the three decisions are open on the
+// page, and the one fold left, "Record a bank account", is open whenever no account exists, which
+// is exactly when recording one is the thing to do. Every form keeps its endpoint and its fields;
+// the server checks the role, the ceilings and the approval again whatever this page displayed.
 const VIEWS = ["overview", "payments"] as const;
 const VIEW_LABEL: Record<(typeof VIEWS)[number], string> = {
   overview: "Overview",
@@ -119,6 +120,9 @@ export default async function ClaimPage({
   const perOccurrenceLeftCents = claim.perOccurrenceLimitCents - claim.position.paidCents - claim.pendingCents;
   const aggregateLeftCents = claim.aggregateLimitCents - claim.policyCommittedCents;
   const reserveLeftCents = claim.position.reserveCents - claim.pendingCents;
+  // The prerequisite the payment form names. It is read here for the wording only: the rule that
+  // actually stops a payment is the server's, in the route this form posts to.
+  const hasVerifiedBankAccount = bankAccount?.verificationStatus === "verified";
   const waitingForApproval = payments.filter((payment) => payment.railStatus === "waiting for approval").length;
   const readyToSend = payments.filter((payment) => payment.railStatus === "ready to send").length;
 
@@ -339,7 +343,10 @@ export default async function ClaimPage({
               />
             </section>
 
-            <section className="card">
+            {/* `bank-account` is the anchor the payment form points at when there is no verified
+                account to pay into: the sentence that names the prerequisite and the form that
+                satisfies it are now the same card. */}
+            <section className="card" id="bank-account">
               <h2>Claimant bank account</h2>
               {bankAccount ? (
                 <dl className="pd-facts">
@@ -380,6 +387,47 @@ export default async function ClaimPage({
                   is under its own heading in About (round 1, MEDIUM: four lines of explanation in
                   the reading flow of a card). */}
               <p className="pd-note">LOCAL SIMULATOR: a simulated ownership check, not a live bank integration.</p>
+              {/* The form that records the account, in the card that states the account is missing.
+                  It used to be the only thing behind the three-dot menu beside "Reserve, pay, close",
+                  where Yoann could not find it while this card told him a payment needed one
+                  (LIVE-10, 2026-09-09). Same POST, same fields; only its place on the screen moved.
+
+                  Open on arrival while there is no account, because then recording one is the
+                  blocking prerequisite rather than secondary reading matter (Yoann's rule F-YA-05,
+                  components/disclosures.tsx). Once an account exists, recording another is a rare
+                  act and starts closed. */}
+              {canAct ? (
+                <div className="pd-record-account">
+                  <Disclosure title="Record a bank account" open={!bankAccount}>
+                    <form method="post" action={`/api/claims/${claim.claimId}`} className="card pd-menu-form">
+                      <input type="hidden" name="action" value="add-bank-account" />
+                      <label htmlFor="accountHolderName">Claimant&apos;s account holder name</label>
+                      <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
+                      <label htmlFor="routingNumber">Routing number (nine digits)</label>
+                      <input
+                        id="routingNumber"
+                        name="routingNumber"
+                        autoComplete="off"
+                        spellCheck={false}
+                        inputMode="numeric"
+                        placeholder="110000000"
+                        required
+                      />
+                      <label htmlFor="accountNumber">Account number</label>
+                      <input
+                        id="accountNumber"
+                        name="accountNumber"
+                        autoComplete="off"
+                        spellCheck={false}
+                        inputMode="numeric"
+                        placeholder="000123456789"
+                        required
+                      />
+                      <SubmitButton className="secondary">Check and record</SubmitButton>
+                    </form>
+                  </Disclosure>
+                </div>
+              ) : null}
             </section>
           </div>
 
@@ -437,44 +485,12 @@ export default async function ClaimPage({
               decision 16): they were a view of their own holding three tall cards. Every form
               keeps its endpoint, its method and its field names; the server checks the role, the
               reserve available, both limits and the approval again whatever this panel showed.
-              The bank account is not a decision about this claim's money, so it sits in the menu
-              beside the title rather than taking a third of the panel. */}
+              The bank account is not a decision about this claim's money, so it is not here at
+              all: it is recorded in the "Claimant bank account" card above, which is the card
+              that says whether one exists (LIVE-10). */}
           <section className="card" id="claim-actions">
             <div className="pd-panel-head">
               <h2>{canAct ? "Reserve, pay, close" : "Decisions"}</h2>
-              {canAct ? (
-                <span className="pd-panel-menu">
-                  <RowMenu id="bank-account" label="Record a bank account">
-                    <span className="pop-title">Bank account (LOCAL SIMULATOR)</span>
-                    <form method="post" action={`/api/claims/${claim.claimId}`} className="card pd-menu-form">
-                      <input type="hidden" name="action" value="add-bank-account" />
-                      <label htmlFor="accountHolderName">Claimant&apos;s account holder name</label>
-                      <input id="accountHolderName" name="accountHolderName" defaultValue={claim.claimantName} required />
-                      <label htmlFor="routingNumber">Routing number (nine digits)</label>
-                      <input
-                        id="routingNumber"
-                        name="routingNumber"
-                        autoComplete="off"
-                        spellCheck={false}
-                        inputMode="numeric"
-                        placeholder="110000000"
-                        required
-                      />
-                      <label htmlFor="accountNumber">Account number</label>
-                      <input
-                        id="accountNumber"
-                        name="accountNumber"
-                        autoComplete="off"
-                        spellCheck={false}
-                        inputMode="numeric"
-                        placeholder="000123456789"
-                        required
-                      />
-                      <SubmitButton className="secondary">Check and record</SubmitButton>
-                    </form>
-                  </RowMenu>
-                </span>
-              ) : null}
             </div>
             {canAct ? (
               <>
@@ -494,6 +510,15 @@ export default async function ClaimPage({
                     <input type="hidden" name="action" value="request-payment" />
                     <label htmlFor="paymentAmount">Pay the claimant (USD)</label>
                     <MoneyAmountInput id="paymentAmount" name="paymentAmount" placeholder="1,200.00" required />
+                    {/* The server refuses a payment with no verified account to send it to, so the
+                        form says so before the button rather than after the refusal, and the link
+                        goes to the card that records one. The button is left enabled: the rule is
+                        the server's, and a disabled button is not a control (AGENTS.md). */}
+                    {hasVerifiedBankAccount ? null : (
+                      <p className="pd-note">
+                        No verified bank account yet: <a href="#bank-account">record one first</a>.
+                      </p>
+                    )}
                     <SubmitButton className="orange">Request payment</SubmitButton>
                   </form>
 
