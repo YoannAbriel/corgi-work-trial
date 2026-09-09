@@ -49,6 +49,36 @@ export function policyVisibilityRefusal(
   return POLICY_NOT_VISIBLE;
 }
 
+// WHO MAY READ THE EXPLANATION OF A FIGURE (the tool explain_amount). Seeing a policy is not
+// seeing the explanation behind a figure on it: the customer's own policy screen
+// (app/policies/[policyId]/customer-view.tsx) prints the terms in force and the endorsement
+// schedule as plain amounts, with NO explanation fold under any of them, no journal entries and
+// no broker commission. So there is nothing on that screen for a customer key to explain, and the
+// rule is a whole refusal rather than a list of figure keys it may name.
+//
+// WHY NOT A PER-FIGURE ALLOWLIST, which is what the fix for round 1 shipped and what round 2 of
+// the review then failed (F-MCPTOOLS-02, F-MCPTOOLS-03). An allowlist gates the figure key a caller
+// may NAME; it cannot gate what the answer CONTAINS, and the answer is always the whole fold. The
+// endorsement delta carried the broker's commission line and its rate; the premium tax carried
+// journal entry ids and the cancellation's refunded tax. A caller refused a figure by name still
+// received it inside a figure it was allowed to name. This rule cannot leak that way, because a
+// customer key never reaches the fold at all.
+//
+// FAIL CLOSED: only the two roles named here are allowed, so a role added later is refused until
+// somebody decides otherwise, rather than allowed by omission.
+export const NO_EXPLANATION_FOR_THIS_KEY =
+  "this key's user reads no explanation on their own policy screen: the customer screen prints the terms in force " +
+  "and the endorsement schedule as amounts, with no explanation fold, no journal entries and no broker commission, " +
+  "so explain_amount answers a broker key on its own policies and a staff key, and nobody else; the amounts " +
+  "themselves are on get_policy_as_of";
+
+export function explanationVisibilityRefusal(user: ScopedUser): string | null {
+  if (isStaff(user) || user.role === "broker") {
+    return null;
+  }
+  return NO_EXPLANATION_FOR_THIS_KEY;
+}
+
 // Which broker's statement this key may read. "me" is the broker behind the key, which is the
 // only value a broker key can use; a staff key may name any broker id. A customer has no
 // commission account, so there is nothing for a customer key to read here.

@@ -26,6 +26,7 @@ import { requiredText, requiredWholeNumber, ToolRefused, usd, type McpTool } fro
 export const requestClaimPaymentTool: McpTool = {
   name: "request_claim_payment",
   title: "Request a claim payment (approval queue only)",
+  effect: "queues_for_a_human",
   description:
     "Asks for a payment on a claim. This NEVER moves money: it writes the request and creates an approval request that a distinct human staff approver must decide (always when the key is held by an agent, rule 21; above the cumulative money-out threshold otherwise). A staff operator then sends it from the claim screen. Requires a staff_ops key.",
   inputSchema: {

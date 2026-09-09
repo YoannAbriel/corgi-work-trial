@@ -12,9 +12,14 @@ import postgres from "postgres";
 //      being updated or deleted;
 //   4. a PLANTED PAYOUT MISMATCH is found: a transfer that exists at the claim payout rail and
 //      nowhere in the ledger, and a transfer the rail settled while the ledger did not;
-//   5. a PLANTED PROVIDER-ONLY PAYMENT is found at the real Stripe sandbox: a PaymentIntent this
-//      script creates with a test payment method and no metadata at all;
-//   6. a failed fetch is NEVER reported as a clean reconciliation: it stores a failed run with
+//   5. a PLANTED PROBE PAYMENT is found at the real Stripe sandbox: a PaymentIntent this script
+//      creates with a test payment method and no operation id, classified `probe`, listed under
+//      its own heading and never counted as a break to act on (review finding F-YA-10);
+//   6. an operator can EXPLAIN a break: the note takes it out of the count and the inbox, leaves
+//      it listed with its author and date, repairs nothing, and can never be edited or deleted;
+//      and a break a later run reports DIFFERENTLY is work again, because the note explains the
+//      report it was written against and not the key for ever (review finding F-BREAKSBOARD-01);
+//   7. a failed fetch is NEVER reported as a clean reconciliation: it stores a failed run with
 //      its reason and no items, and it does not clear the breaks the last complete run found.
 //
 // WHERE EACH THING RUNS
@@ -26,7 +31,7 @@ import postgres from "postgres";
 //   * Stripe: two different things, never mixed up. Part 1 uses the SANITIZED CAPTURED LISTING
 //     under lib/reconciliation/fixtures (real objects, no network) with its ids and amounts
 //     rewritten to the operations this script creates, because corgi_test does not contain the
-//     demo policy the captured ids belong to. Part 5 uses the REAL test-mode API.
+//     demo policy the captured ids belong to. Part 8 uses the REAL test-mode API.
 //
 // Run with: npm run check:reconciliation
 
@@ -100,7 +105,12 @@ async function main() {
   const { claimsRailSourceOn } = await import("@/lib/reconciliation/claims-rail-source");
   const { stripeRecordsFromListing } = await import("@/lib/reconciliation/stripe-records");
   const { ledgerCashMovements } = await import("@/lib/reconciliation/ledger-side");
-  const { openBreaks, recentRuns, resolvedBreaks } = await import("@/lib/reconciliation/read");
+  const { countOpenBreaks, explainedBreaksPage, openBreaks, openBreaksPage, probesPage, recentRuns, resolvedBreaks } =
+    await import("@/lib/reconciliation/read");
+  const { BreakNoteRefused, explainBreak, NOTE_MINIMUM_CHARACTERS } = await import("@/lib/reconciliation/break-notes");
+  const { PROBE_AMOUNT_CENTS, PROBE_DESCRIPTION_PREFIX, PROBE_METADATA_MARKER } = await import(
+    "@/lib/reconciliation/diff"
+  );
   const { assertStripeSandbox, stripe } = await import("@/lib/stripe");
   type StripeWindowListing = import("@/lib/reconciliation/stripe-records").StripeWindowListing;
   type ReconciliationSource = import("@/lib/reconciliation/source").ReconciliationSource;
@@ -132,6 +142,10 @@ async function main() {
   const p1 = await createPaidPolicy(recordSuccessfulPayment, people.brokerId, P1_PREMIUM_CENTS, P1_TAX_CENTS);
   const p2 = await createPaidPolicy(recordSuccessfulPayment, people.brokerId, RECITED_PREMIUM_CENTS, RECITED_TAX_CENTS);
   const p3 = await createPaidPolicy(recordSuccessfulPayment, people.brokerId, RECITED_PREMIUM_CENTS, RECITED_TAX_CENTS);
+  // The three policies this check owns. Every "nothing was posted" assertion below counts journal
+  // entries on these and on nothing else, because corgi_test is shared with the other slices'
+  // checks and the whole table moves under this script while it runs.
+  const checkPolicyIds = [p1.policyId, p2.policyId, p3.policyId];
   report(
     "three paid policies were seeded, with their cash on the ledger",
     p1.totalChargeCents === 355684 && p2.totalChargeCents === 125320,
@@ -262,12 +276,15 @@ async function main() {
   // 2. The same breaks, run again: the age is counted from the first run
   // ---------------------------------------------------------------------------
 
-  const journalEntriesBeforeTheRerun = await journalEntryCount();
+  // Counted over THIS CHECK'S OWN POLICIES, and that is review finding F-BREAKSBOARD-05:
+  // corgi_test is shared, other agents commit journal entries while this script runs, so a global
+  // count moves for reasons that have nothing to do with the run being asserted about.
+  const journalEntriesBeforeTheRerun = await journalEntryCountForPolicies(checkPolicyIds);
   const secondRun = await runReconciliation(
     { source: fixtureStripeSource(fixtureListing), window, runByUserId: null, now },
     runtime,
   );
-  const journalEntriesAfterTheRerun = await journalEntryCount();
+  const journalEntriesAfterTheRerun = await journalEntryCountForPolicies(checkPolicyIds);
   const secondItems = await itemsOfRun(secondRun.runId);
   report(
     "running the same window again produces the same breaks, and does not move their first-seen instant",
@@ -279,7 +296,7 @@ async function main() {
   report(
     "a run posts no money and no journal entry: reconciliation only appends to its own two tables",
     journalEntriesAfterTheRerun === journalEntriesBeforeTheRerun,
-    `${journalEntriesBeforeTheRerun} journal entries before the run, ${journalEntriesAfterTheRerun} after`,
+    `${journalEntriesBeforeTheRerun} journal entries on this check's policies before the run, ${journalEntriesAfterTheRerun} after`,
   );
 
   // ---------------------------------------------------------------------------
@@ -297,6 +314,25 @@ async function main() {
     staleItems.get(`op:${refundOperationId}`)?.classification === "stale",
     describeItem(staleItems.get(`op:${refundOperationId}`)),
   );
+  // A NOTE EXPLAINS THE REPORT IT WAS WRITTEN AGAINST, not the key for ever (review finding
+  // F-BREAKSBOARD-01). The refund is explained here, while it is stale; the run just below reports
+  // the same key as provider_only with a real difference, and the break must be work again.
+  const staleRefundKey = staleItems.get(`op:${refundOperationId}`)?.break_key ?? "";
+  await explainBreak(
+    {
+      breakKey: staleRefundKey,
+      note: "waiting on the Stripe refund to confirm; nothing to do while it is only late",
+      actor: maker,
+    },
+    runtime,
+  );
+  const afterExplainingTheStaleRefund = await openBreaks(runtime);
+  report(
+    "a break explained while it is stale leaves the list to act on",
+    staleRefundKey !== "" && !afterExplainingTheStaleRefund.some((row) => row.breakKey === staleRefundKey),
+    `${staleRefundKey} is not among the ${afterExplainingTheStaleRefund.length} breaks to act on`,
+  );
+
   // A break that gets worse: the same refund, now listed as succeeded by Stripe with nothing
   // booked on our side. Different classification, same money (review finding F-B10-02).
   const reclassifiedListing: StripeWindowListing = {
@@ -335,6 +371,31 @@ async function main() {
     "the worse break is not filed as resolved just because its classification moved",
     !afterReclassification.some((row) => row.breakKey === staleRefundItem?.break_key),
     `${afterReclassification.length} resolved breaks on file`,
+  );
+
+  // The same key, reported worse by a later run: the note was about the stale report, so it no
+  // longer applies and the break is back in the count, the inbox, the MCP tool and the window the
+  // daily job widens. Nothing was edited or deleted to get here: the note is still on file.
+  const afterTheWorseReport = await openBreaks(runtime);
+  const explainedAfterTheWorseReport = await explainedBreaksPage(runtime, 500);
+  report(
+    "a break a later run reports differently is WORK AGAIN, and leaves the explained list",
+    afterTheWorseReport.some((row) => row.breakKey === staleRefundKey) &&
+      !explainedAfterTheWorseReport.rows.some((row) => row.breakKey === staleRefundKey),
+    `${staleRefundKey}: open again ${afterTheWorseReport.some((row) => row.breakKey === staleRefundKey)}, still listed as explained ${explainedAfterTheWorseReport.rows.some((row) => row.breakKey === staleRefundKey)}`,
+  );
+  // The board page is ordered oldest first, and corgi_test is shared with the other slices'
+  // checks, so a fixed page would not reach a break first seen a moment ago. The limit is taken
+  // from the count of what is open right now, which puts every open break on the page.
+  const boardAfterTheWorseReport = await openBreaksPage(runtime, (await countOpenBreaks(runtime)) + 50);
+  const reopenedRow = boardAfterTheWorseReport.rows.find((row) => row.breakKey === staleRefundKey);
+  report(
+    "the superseded note is still on file and shown beside the break it no longer explains",
+    reopenedRow?.supersededExplanation?.note.startsWith("waiting on the Stripe refund") === true &&
+      reopenedRow.supersededExplanation.explainedClassification === "stale",
+    reopenedRow?.supersededExplanation
+      ? `note written against ${reopenedRow.supersededExplanation.explainedClassification}, row now ${reopenedRow.classification}`
+      : "no superseded note on the reopened row",
   );
 
   report(
@@ -542,12 +603,20 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
-  // 8. The real Stripe sandbox: a planted payment with no metadata
+  // 8. The real Stripe sandbox: a planted probe payment
   // ---------------------------------------------------------------------------
 
   // AF-04: a test-mode key, a Stripe published test payment method, no real money and no real
-  // person. The PaymentIntent carries NO metadata on purpose, so nothing in any ledger can claim
-  // it, and it is described so a human reading the Stripe dashboard knows what it is.
+  // person. The PaymentIntent names NO operation on purpose, so nothing in any ledger can claim
+  // it. It carries the probe marker in its metadata AND the description that has always been on
+  // these payments, because both are what the classifier recognises: the marker for the ones
+  // planted from now on, the amount and the description for the 28 planted before it existed
+  // (lib/reconciliation/diff.ts, isProbeFromACheckRun, review finding F-YA-10).
+  report(
+    "the amount this script plants is the amount the probe rule knows",
+    PLANTED_PAYMENT_CENTS === PROBE_AMOUNT_CENTS,
+    `${PLANTED_PAYMENT_CENTS} cents planted, ${PROBE_AMOUNT_CENTS} cents in the rule`,
+  );
   await assertStripeSandbox();
   const plantedIntent = await stripe.paymentIntents.create({
     amount: PLANTED_PAYMENT_CENTS,
@@ -555,7 +624,8 @@ async function main() {
     payment_method: "pm_card_visa",
     confirm: true,
     automatic_payment_methods: { enabled: true, allow_redirects: "never" },
-    description: "corgi_probe: reconciliation check, a payment with no operation id (slice B10)",
+    description: `${PROBE_DESCRIPTION_PREFIX} reconciliation check, a payment with no operation id (slice B10)`,
+    metadata: { probe: PROBE_METADATA_MARKER },
   });
   const sandboxWindow: ReconciliationWindow = {
     from: new Date((plantedIntent.created - 30) * 1000),
@@ -567,15 +637,145 @@ async function main() {
   );
   const sandboxItems = await itemsOfRun(sandboxRun.runId);
   report(
-    "THE PLANTED SANDBOX PAYMENT IS FOUND: a real PaymentIntent with no operation id is provider only",
+    "THE PLANTED SANDBOX PAYMENT IS FOUND, and it is classified as the probe it is",
     sandboxRun.status === "complete" &&
-      sandboxItems.get(plantedIntent.id)?.classification === "provider_only" &&
+      sandboxItems.get(plantedIntent.id)?.classification === "probe" &&
       Number(sandboxItems.get(plantedIntent.id)?.provider_amount_cents) === PLANTED_PAYMENT_CENTS,
     `${plantedIntent.id} (${plantedIntent.status}): ${describeItem(sandboxItems.get(plantedIntent.id))}`,
   );
+  const probeBreakKey = sandboxItems.get(plantedIntent.id)?.break_key ?? "";
+  const openWithTheProbe = await openBreaks(runtime);
+  const probesListed = await probesPage(runtime, 200);
+  report(
+    "a probe is NOT a break to act on: it is out of the open list, the count and the inbox",
+    !openWithTheProbe.some((row) => row.breakKey === probeBreakKey) &&
+      (await countOpenBreaks(runtime)) === openWithTheProbe.length,
+    `${openWithTheProbe.length} breaks to act on, the probe ${probeBreakKey} is not one of them`,
+  );
+  report(
+    "a probe is listed under its own heading, with the sentence saying who plants it",
+    probesListed.rows.some(
+      (row) => row.breakKey === probeBreakKey && /planted in the provider's sandbox by a run of/.test(row.note),
+    ),
+    `${probesListed.totalProbes} probes reported, capped: ${probesListed.capped}`,
+  );
+  report(
+    "the run counts probes on their own line, beside the breaks to act on",
+    sandboxRun.counts.probe >= 1,
+    `${sandboxRun.counts.probe} probes, ${breakCountOf(sandboxRun.counts)} breaks to act on in that run`,
+  );
 
   // ---------------------------------------------------------------------------
-  // 9. A failed fetch is never a clean reconciliation
+  // 9. An operator explains a break, and nothing is repaired by saying so
+  // ---------------------------------------------------------------------------
+
+  // The break explained here is the PLANTED RAIL TRANSFER: money the simulated rail shows and the
+  // ledger has never heard of. It is still open at this point (part 6 proved it), so it is a real
+  // open break and not a probe.
+  const openBeforeTheNote = await openBreaks(runtime);
+  const plantedRailBreak = openBeforeTheNote.find((row) => row.providerRef === plantedTransferRef);
+  const countBeforeTheNote = await countOpenBreaks(runtime);
+
+  const refusedForTooShort = await refusalOf(() =>
+    explainBreak({ breakKey: plantedRailBreak?.breakKey ?? "", note: "known", actor: maker }, runtime),
+  );
+  report(
+    "a note shorter than the minimum is refused, so a break cannot be dismissed with one word",
+    refusedForTooShort instanceof BreakNoteRefused &&
+      refusedForTooShort.message.includes(`${NOTE_MINIMUM_CHARACTERS} characters`),
+    `${refusedForTooShort?.constructor.name}: ${refusedForTooShort?.message}`,
+  );
+
+  const refusedForRole = await refusalOf(() =>
+    explainBreak(
+      {
+        breakKey: plantedRailBreak?.breakKey ?? "",
+        note: "an approver trying to explain an operations break",
+        actor: { userId: people.approverId, role: "staff_approver" },
+      },
+      runtime,
+    ),
+  );
+  report(
+    "a user who is not staff operations cannot explain a break",
+    refusedForRole instanceof BreakNoteRefused && refusedForRole.message.includes("only staff operations"),
+    `${refusedForRole?.constructor.name}: ${refusedForRole?.message}`,
+  );
+
+  const refusedForUnknownBreak = await refusalOf(() =>
+    explainBreak(
+      { breakKey: "stripe|pi_no_run_ever_reported_this", note: "a note on a break nobody found", actor: maker },
+      runtime,
+    ),
+  );
+  report(
+    "a note on a break no run has ever reported is refused",
+    refusedForUnknownBreak instanceof BreakNoteRefused &&
+      refusedForUnknownBreak.message.includes("no reconciliation run has ever reported this break"),
+    `${refusedForUnknownBreak?.constructor.name}: ${refusedForUnknownBreak?.message}`,
+  );
+
+  const journalEntriesBeforeTheNote = await journalEntryCountForPolicies(checkPolicyIds);
+  await explainBreak(
+    {
+      breakKey: plantedRailBreak?.breakKey ?? "",
+      note: "planted by this check to prove a rail transfer with no ledger operation is found; not real money",
+      actor: maker,
+    },
+    runtime,
+  );
+  const openAfterTheNote = await openBreaks(runtime);
+  const explainedListed = await explainedBreaksPage(runtime, 200);
+  const explainedRow = explainedListed.rows.find((row) => row.breakKey === plantedRailBreak?.breakKey);
+  report(
+    "an explained break leaves the list to act on and the count the inbox reads",
+    plantedRailBreak !== undefined &&
+      !openAfterTheNote.some((row) => row.breakKey === plantedRailBreak.breakKey) &&
+      (await countOpenBreaks(runtime)) === countBeforeTheNote - 1,
+    `${countBeforeTheNote} breaks to act on before the note, ${await countOpenBreaks(runtime)} after`,
+  );
+  report(
+    "an explained break stays listed, with its note, who wrote it and when",
+    explainedRow !== undefined &&
+      explainedRow.explanation.note.startsWith("planted by this check") &&
+      explainedRow.explanation.explainedByName === "Reconciliation check operator" &&
+      explainedRow.explanation.recordedAt instanceof Date,
+    explainedRow
+      ? `${explainedRow.breakKey}: "${explainedRow.explanation.note}" by ${explainedRow.explanation.explainedByName} at ${explainedRow.explanation.recordedAt.toISOString()}`
+      : "the explained break is not listed",
+  );
+  const journalEntriesAfterTheNote = await journalEntryCountForPolicies(checkPolicyIds);
+  report(
+    "explaining a break repairs nothing: no journal entry, and the break's items are all still on file",
+    journalEntriesAfterTheNote === journalEntriesBeforeTheNote &&
+      (await itemCountForBreakKey(plantedRailBreak?.breakKey ?? "")) > 0,
+    `${journalEntriesBeforeTheNote} journal entries on this check's policies before the note, ${journalEntriesAfterTheNote} after; ${await itemCountForBreakKey(plantedRailBreak?.breakKey ?? "")} items still on file for the break`,
+  );
+
+  // The note table is append-only for every role, exactly like the money tables (migration 0022).
+  const updateRefused = await refusalOf(() =>
+    runtime`update reconciliation_break_notes set note = 'rewritten' where break_key = ${plantedRailBreak?.breakKey ?? ""}`.then(
+      () => undefined,
+    ),
+  );
+  const deleteRefused = await refusalOf(() =>
+    runtime`delete from reconciliation_break_notes where break_key = ${plantedRailBreak?.breakKey ?? ""}`.then(
+      () => undefined,
+    ),
+  );
+  report(
+    "the runtime role cannot UPDATE a break note",
+    updateRefused !== null && /append-only|permission denied/i.test(updateRefused.message),
+    updateRefused?.message ?? "the update was accepted",
+  );
+  report(
+    "the runtime role cannot DELETE a break note",
+    deleteRefused !== null && /append-only|permission denied/i.test(deleteRefused.message),
+    deleteRefused?.message ?? "the delete was accepted",
+  );
+
+  // ---------------------------------------------------------------------------
+  // 10. A failed fetch is never a clean reconciliation
   // ---------------------------------------------------------------------------
 
   const openBeforeTheFailure = await openBreaks(runtime);
@@ -633,7 +833,7 @@ async function main() {
   );
 
   // ---------------------------------------------------------------------------
-  // 10. A failure AFTER the fetch is still a failed run (review finding F-B10-04)
+  // 11. A failure AFTER the fetch is still a failed run (review finding F-B10-04)
   // ---------------------------------------------------------------------------
 
   // A provider whose records carry a date that is not a date: the fetch and the comparison both
@@ -654,6 +854,8 @@ async function main() {
           policyId: null,
           feeCents: null,
           label: "payment",
+          description: null,
+          probeMarker: null,
         },
       ],
       note: "the provider answered normally",
@@ -746,9 +948,32 @@ async function itemCountForBreakKey(breakKey: string): Promise<number> {
   return Number(row.count);
 }
 
-async function journalEntryCount(): Promise<number> {
-  const [row] = await owner<{ count: string }[]>`select count(*)::text as count from journal_entries`;
+// The journal entries of a few policies. corgi_test is shared with the other slices' checks, so
+// an assertion about "no journal entry was posted" has to look at the policies this check owns:
+// the whole table moves under it while it runs.
+async function journalEntryCountForPolicies(policyIds: string[]): Promise<number> {
+  const [row] = await owner<{ count: string }[]>`
+    select count(*)::text as count from journal_entries where policy_id = any(${policyIds}::uuid[])
+  `;
   return Number(row.count);
+}
+
+// The error an action raised, or null when it was accepted. Used for the refusals of the break
+// notes: the check has to see WHICH refusal happened, so the error itself is returned rather than
+// a boolean.
+async function refusalOf(action: () => Promise<unknown>): Promise<Error | null> {
+  try {
+    await action();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error : new Error(String(error));
+  }
+}
+
+// Breaks to act on in a run's counts: everything that is neither matched nor a probe. The same
+// arithmetic as breakCount in lib/reconciliation/run.ts, over the counts alone.
+function breakCountOf(counts: Record<string, number>): number {
+  return counts.local_only + counts.provider_only + counts.amount_mismatch + counts.stale;
 }
 
 // ---------------------------------------------------------------------------
@@ -768,7 +993,7 @@ async function plantRailTransfer(transferRef: string, amountCents: number, statu
   }
 }
 
-async function createPeople(): Promise<{ brokerId: string; makerId: string }> {
+async function createPeople(): Promise<{ brokerId: string; makerId: string; approverId: string }> {
   return owner.begin(async (transaction) => {
     const [broker] = await transaction<{ id: string }[]>`
       insert into brokers (name, commission_rate_bps) values ('Reconciliation check broker', 1500) returning id
@@ -784,7 +1009,15 @@ async function createPeople(): Promise<{ brokerId: string; makerId: string }> {
       values (${`reconciliation-check-${crypto.randomUUID()}@example.invalid`}, 'Reconciliation check operator', 'staff_ops')
       returning id
     `;
-    return { brokerId: broker.id, makerId: maker.id };
+    // A staff APPROVER, whose job is deciding money-out requests somebody else made. Explaining a
+    // reconciliation break is operations work, so this user is refused: that refusal is what the
+    // check proves, and it needs a real user of another role to prove it with.
+    const [approver] = await transaction<{ id: string }[]>`
+      insert into users (email, display_name, role)
+      values (${`reconciliation-check-approver-${crypto.randomUUID()}@example.invalid`}, 'Reconciliation check approver', 'staff_approver')
+      returning id
+    `;
+    return { brokerId: broker.id, makerId: maker.id, approverId: approver.id };
   });
 }
 

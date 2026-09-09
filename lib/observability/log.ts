@@ -117,6 +117,10 @@ export type ActivityRule =
   | "refund gate"
   | "statement run"
   | "change request"
+  // Who may write a note saying what a reconciliation break is: staff operations only
+  // (lib/reconciliation/break-notes.ts). The note repairs nothing, so this gate is about the
+  // record, not about money.
+  | "break note"
   | "webhook signature";
 
 // The one refusal every route shares, and the one the route itself cannot name: there is no

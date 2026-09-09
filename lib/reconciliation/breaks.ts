@@ -1,6 +1,10 @@
 // The identity and the age of a break. Pure: no database, no clock of its own.
 
-export const CLASSIFICATIONS = ["matched", "local_only", "provider_only", "amount_mismatch", "stale"] as const;
+// The sixth value, `probe`, is not a comparison outcome like the other five: it is money one of
+// our own check runs planted at the provider on purpose (lib/reconciliation/diff.ts,
+// isProbeFromACheckRun). It is stored and listed like any other item, and it is never counted as
+// a break to act on.
+export const CLASSIFICATIONS = ["matched", "local_only", "provider_only", "amount_mismatch", "stale", "probe"] as const;
 export type Classification = (typeof CLASSIFICATIONS)[number];
 
 export type ReconciliationSourceName = "stripe" | "claims_rail";

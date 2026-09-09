@@ -19,6 +19,7 @@ const DEFAULT_WINDOW_DAYS = 7;
 export const runReconciliationTool: McpTool = {
   name: "run_reconciliation",
   title: "Run the reconciliation job",
+  effect: "appends_a_run",
   description:
     "Runs the reconciliation for a window ending now, against both sources (Stripe and the LOCAL SIMULATOR claim payout rail), and returns the run ids and the counts. It moves no money: it appends one run and its compared items. A run that could not fetch is stored as failed with its reason and compares nothing. Staff keys only.",
   inputSchema: {

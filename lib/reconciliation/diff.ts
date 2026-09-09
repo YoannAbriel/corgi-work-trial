@@ -13,12 +13,13 @@ import { CLASSIFICATIONS, hoursBetween, type Classification } from "./breaks";
 // Stripe fees are NOT in either figure: cash_stripe is gross of fees and fees are not journaled
 // (disclosed in README, design finding F-13), so the fee is carried on the item as information.
 //
-// The five classifications, one item per record compared:
+// The six classifications, one item per record compared:
 //   matched          same operation, same signed amount (or nothing moved on either side yet)
 //   local_only       the ledger shows cash for an operation the provider shows nothing for
 //   provider_only    the provider shows money that moved and the ledger shows no cash for it
 //   amount_mismatch  same operation, both sides moved money, different amounts (difference signed)
 //   stale            money out promised more than `staleAfterHours` ago and still not confirmed
+//   probe            money one of our own check runs planted at the provider (isProbeFromACheckRun)
 //
 // Worked example (the recited policy, DECISIONS.md): the ledger holds a stripe_checkout
 // operation with cash_stripe +125320 and Stripe lists PaymentIntent pi_1 of 125320 carrying
@@ -46,7 +47,61 @@ export type ProviderRecord = {
   policyId: string | null;
   feeCents: number | null; // what the provider kept on a payment; information only
   label: string; // "payment", "refund", "claim payout": used in the notes
+  // The provider's own description of the record, when it has one (a Stripe PaymentIntent carries
+  // `description`). Read by ONE rule, the probe rule below, and by nothing else.
+  description: string | null;
+  // What the provider's metadata says under the key `probe`, when it says anything. Untrusted
+  // input like every other metadata field: it is compared to one exact string, never interpreted.
+  probeMarker: string | null;
 };
+
+// THE SIXTH CLASSIFICATION, and the whole rule that produces it, in one function (review finding
+// F-YA-10).
+//
+// scripts/check-reconciliation.ts proves that money at Stripe with no operation id behind it is
+// found by this comparison, and to prove it against the REAL sandbox it creates such a payment on
+// every run: 4242 cents, a Stripe test card, no metadata naming any operation. Those payments are
+// real Stripe objects that no ledger entry will ever explain, so every run reported every one of
+// them as a provider-only break, for ever. On the deployed application they were the whole open
+// break list, 28 of them, and nothing on the screen said what they were.
+//
+// A probe is therefore its own classification: still compared, still stored, still listed under
+// its own heading with the sentence naming who creates them, and never counted as a break to act
+// on.
+//
+// THE RULE, STATED EXACTLY, and its residual stated with it (review finding F-BREAKSBOARD-03).
+// A record naming one of our money operations is NEVER a probe: that condition comes first and it
+// is the whole of the guarantee this function gives. Provider metadata is untrusted input, so a
+// record carrying one of our operation ids is real money whatever else its metadata says.
+//
+// A record naming NO operation is a probe only when one of two things holds:
+//   1. it carries the check-run marker probe = "check-reconciliation", which the check script
+//      sets on every PaymentIntent it plants from now on;
+//   2. it matches exactly the planted amount AND its description starts with the prefix the
+//      script sends, which is how the probes planted before the marker existed are recognised.
+//
+// WHAT THIS DOES NOT GUARANTEE. A real payment at the provider that names no operation of ours,
+// carries a forged marker, or happens to be exactly 4242 cents with a forged `corgi_probe:`
+// description, would be classified as a probe and would leave the count. That residual is why
+// probes are NOT dropped: they stay listed on the board under their own heading, with their
+// references and their amounts, so such a record is still on a screen an operator reads rather
+// than silently gone. Narrowing the residual further would need a fact the provider record cannot
+// carry, since anything it does carry can be written by whoever created it.
+export const PROBE_METADATA_MARKER = "check-reconciliation";
+export const PROBE_AMOUNT_CENTS = 4242;
+export const PROBE_DESCRIPTION_PREFIX = "corgi_probe:";
+
+export function isProbeFromACheckRun(provider: ProviderRecord): boolean {
+  if (provider.operationId !== null) {
+    return false;
+  }
+  if (provider.probeMarker === PROBE_METADATA_MARKER) {
+    return true;
+  }
+  return (
+    provider.amountCents === PROBE_AMOUNT_CENTS && (provider.description ?? "").startsWith(PROBE_DESCRIPTION_PREFIX)
+  );
+}
 
 export type LedgerRecord = {
   operationId: string;
@@ -236,6 +291,16 @@ function classifyProviderAlone(provider: ProviderRecord, refIsShared = false): D
     recordAt: provider.createdAt,
     note,
   });
+  // Before anything else: a payment one of our own check runs planted at the provider. Nothing in
+  // the ledger will ever explain it, by construction, so it is not a break; and it is not hidden
+  // either, it is reported under its own classification.
+  if (isProbeFromACheckRun(provider)) {
+    return item(
+      "probe",
+      `a ${provider.amountCents}-cent ${provider.label} planted in the provider's sandbox by a run of scripts/check-reconciliation.ts (${provider.statusWord} at the provider): it carries no operation id on purpose, so no ledger entry is expected for it and it is not a break to act on`,
+    );
+  }
+
   const identity = refIsShared
     ? "MORE THAN ONE LEDGER RECORD CARRIES THIS PROVIDER REFERENCE, so it cannot be used to pair this record; the operations that carry it are reported on their own lines"
     : provider.operationId

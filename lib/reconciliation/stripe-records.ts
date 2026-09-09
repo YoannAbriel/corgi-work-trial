@@ -28,6 +28,10 @@ export type StripePaymentIntentFacts = {
   livemode: boolean;
   metadata: Record<string, string | null> | null;
   latest_charge: string | { id: string } | null;
+  // Optional because the sanitized fixtures under ./fixtures were captured before the probe rule
+  // existed and do not carry the field; Stripe sends it as null when a PaymentIntent has none.
+  // It is read by one rule only, isProbeFromACheckRun in ./diff.ts.
+  description?: string | null;
 };
 
 // A Stripe Refund carries no `livemode` field (checked against the SDK types of stripe 22.6.1
@@ -73,6 +77,8 @@ export function stripeRecordsFromListing(listing: StripeWindowListing): { record
       policyId: readUuid(paymentIntent.metadata?.policy_id),
       feeCents: feeByChargeId.get(idOf(paymentIntent.latest_charge) ?? "") ?? null,
       label: "payment",
+      description: readShortText(paymentIntent.description),
+      probeMarker: readShortText(paymentIntent.metadata?.probe),
     }));
 
   const refunds: ProviderRecord[] = listing.refunds.map((refund) => ({
@@ -88,6 +94,10 @@ export function stripeRecordsFromListing(listing: StripeWindowListing): { record
     policyId: readUuid(refund.metadata?.policy_id),
     feeCents: null,
     label: "refund",
+    // A refund is money going back on a payment we asked for, so it is never a probe: the check
+    // script plants PaymentIntents only. Both fields stay null rather than being read.
+    description: null,
+    probeMarker: null,
   }));
 
   return {
@@ -186,4 +196,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function readUuid(candidate: unknown): string | null {
   return typeof candidate === "string" && UUID.test(candidate) ? candidate : null;
+}
+
+// A description and a metadata value are free text written by whoever created the object, so they
+// are read as text and cut to a length a note can carry. Nothing downstream interprets them: the
+// probe rule compares them, and no screen prints them.
+const MOST_CHARACTERS_OF_A_PROVIDER_TEXT = 300;
+
+function readShortText(candidate: unknown): string | null {
+  return typeof candidate === "string" && candidate.length > 0
+    ? candidate.slice(0, MOST_CHARACTERS_OF_A_PROVIDER_TEXT)
+    : null;
 }

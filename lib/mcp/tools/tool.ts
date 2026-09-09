@@ -33,10 +33,23 @@ export class ToolRefused extends Error {}
 
 export type ToolAnswer = Record<string, unknown>;
 
+// WHAT A TOOL CHANGES, declared by the tool rather than guessed from its name:
+//   'read'                it writes nothing at all;
+//   'appends_a_run'       it appends a reconciliation run and its items, and moves no money;
+//   'queues_for_a_human'  the ONE write tool of this surface: it creates an approval request.
+// tools/list publishes it as the protocol's readOnlyHint, and lib/mcp/never-delegated.test.ts
+// asserts that exactly one tool of the last kind exists, so a future write tool cannot be added
+// without that test saying so.
+export type ToolEffect = "read" | "appends_a_run" | "queues_for_a_human";
+
 export type McpTool = {
   name: string;
   title: string;
   description: string;
+  effect: ToolEffect;
+  // Extra fields for this tool's tools/list annotations, on top of the hints the transport adds
+  // for every tool. Used by explain_amount to publish the closed list of figure keys it accepts.
+  annotations?: Record<string, unknown>;
   inputSchema: {
     type: "object";
     properties: Record<string, unknown>;
@@ -60,8 +73,14 @@ export function usd(amountCents: number): { cents: number; formatted: string } {
 // a promise to the client rather than a control. This is the check, run once by the transport
 // before a tool sees its arguments, so no tool can ever rely on a guarantee nobody enforces.
 //
-// It stays deliberately small: the shapes this build advertises are strings, numbers and a
-// required list. It is not a JSON Schema implementation, and it says so.
+// It stays deliberately small: the shapes this build advertises are strings, numbers, booleans,
+// a required list and a closed `enum`. It is not a JSON Schema implementation, and it says so.
+//
+// THE `enum` IS ENFORCED HERE TOO (review finding F-MCPTOOLS-07 of round 1). explain_amount
+// advertises the fifteen figure keys it accepts as an enum; until now nothing read that
+// declaration, so the tool's own check was the only thing standing behind an advertised
+// guarantee. It is now refused before the tool runs, which means BEFORE ANY DATABASE READ: a
+// caller that misspells a figure key never reaches a policy row.
 //
 // The sentence never repeats what the caller sent, only what the tool declares, because it is
 // written into the append-only call log (review finding F-B11-02).
@@ -98,6 +117,13 @@ export function argumentsSchemaRefusal(
     }
     if (declaredType === "boolean" && typeof value !== "boolean") {
       return `"${name}" must be true or false`;
+    }
+    // The closed list, when the tool declares one. The sentence names the list the TOOL declares
+    // and never the value the CALLER sent, for the same reason as every other refusal here: it
+    // is written into mcp_calls, which can never be updated, deleted or truncated (F-B11-02).
+    const allowedValues = (definition as { enum?: unknown }).enum;
+    if (Array.isArray(allowedValues) && !allowedValues.includes(value)) {
+      return `"${name}" must be one of: ${allowedValues.join(", ")}`;
     }
   }
   return null;

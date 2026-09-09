@@ -41,17 +41,59 @@ test("no tool is named after an operation that is never delegated", async () => 
   }
 });
 
-test("the surface is three read tools, the reconciliation job, and one write tool", async () => {
+test("the surface is five read tools, the reconciliation job, and one write tool", async () => {
   const tools = await loadTools();
   assert.deepEqual(
     tools.map((tool) => tool.name),
     [
       "get_policy_as_of",
       "get_broker_statement",
+      "explain_amount",
+      "list_my_activity",
       "list_reconciliation_breaks",
       "run_reconciliation",
       "request_claim_payment",
     ],
+  );
+});
+
+// The two tools of slice B13-16 (decision 29). They were added to a surface whose whole promise is that an agent
+// reads and asks, so the two assertions that matter are that they only read and that the list of
+// operations never delegated did not have to move to make room for them.
+test("the two tools added last only read", async () => {
+  const tools = await loadTools();
+  for (const name of ["explain_amount", "list_my_activity"]) {
+    const tool = tools.find((candidate) => candidate.name === name);
+    assert.ok(tool, `${name} is not on the surface`);
+    assert.equal(tool.effect, "read", name);
+    assert.match(tool.description, /[Rr]eads only/, name);
+  }
+});
+
+test("neither of them is named anywhere in the never-delegated list, which did not change", async () => {
+  const tools = await loadTools();
+  const list = NEVER_DELEGATED.map((entry) => `${entry.operation} ${entry.reason}`).join(" | ");
+  for (const name of ["explain_amount", "list_my_activity"]) {
+    assert.ok(!list.includes(name), `${name} appears in the never-delegated list`);
+  }
+  // The ten operations of slice B11, still ten: reading a figure's explanation and reading one's
+  // own call log neither add an operation an agent must not do, nor remove one.
+  assert.equal(NEVER_DELEGATED.length, 10);
+  assert.equal(tools.filter((tool) => tool.effect !== "read").length, 2);
+});
+
+test("THE WRITE TOOL COUNT IS STILL ONE: only request_claim_payment queues anything for a human", async () => {
+  const tools = await loadTools();
+  const writeTools = tools.filter((tool) => tool.effect === "queues_for_a_human");
+  assert.deepEqual(
+    writeTools.map((tool) => tool.name),
+    ["request_claim_payment"],
+  );
+  // The reconciliation job is the only other tool that writes at all, and what it writes is a
+  // comparison run: no journal entry, no money row.
+  assert.deepEqual(
+    tools.filter((tool) => tool.effect === "appends_a_run").map((tool) => tool.name),
+    ["run_reconciliation"],
   );
 });
 
