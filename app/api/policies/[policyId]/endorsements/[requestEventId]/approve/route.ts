@@ -1,4 +1,5 @@
 import { currentUser } from "@/lib/auth/current-user";
+import { isUniqueViolation } from "@/lib/ledger/post";
 import { approveEndorsement, EndorsementRefused } from "@/lib/policy/endorse";
 import { badPathIdResponse } from "@/lib/http/path-ids";
 
@@ -36,6 +37,13 @@ export async function POST(request: Request, context: { params: Promise<{ policy
   } catch (error) {
     if (error instanceof EndorsementRefused) {
       return backToApproval(policyId, requestEventId, error.message);
+    }
+    // Two Approve clicks at the same instant: both read the standing, both insert, and the loser
+    // hits policy_events_one_approval_per_request. The database did its job (one approval, never
+    // two) and the customer used to see HTTP 500 for it (review finding F-B4-10). The answer is
+    // the one the winner got, because it is the true one: the endorsement is approved.
+    if (isUniqueViolation(error)) {
+      return redirectTo("/customer?approved=already");
     }
     throw error;
   }
