@@ -15,9 +15,11 @@ import postgres from "postgres";
 //      with the commission earned or clawed back on the premium that moved;
 //   6. correcting a correction is allowed; correcting the same endorsement twice is not, in the
 //      code AND at the database (reverses_entry_id is unique);
-//   7. a correction is refused on a cancelled policy, outside the term, before the issuance, by
-//      anyone who is not staff operations, and while an earlier difference is unsettled;
-//   8. the whole ledger still balances.
+//   7. a correction is refused on a cancelled policy, on a voided policy, on an endorsement whose
+//      delta was refunded, outside the term, before the issuance, by anyone who is not staff
+//      operations, and while an earlier difference is unsettled;
+//   8. a cancellation recorded after a correction gives back the CORRECTED premium segment;
+//   9. the whole ledger still balances.
 //
 // It runs the production functions with the restricted runtime role and calls NO provider: every
 // payment is simulated by calling the webhook-side functions directly with the payloads Stripe
@@ -73,6 +75,7 @@ async function main() {
   // connection pool and read the Stripe key as soon as they are loaded.
   const { recordSuccessfulPayment } = await import("@/lib/payments/collection");
   const { recordCancellation } = await import("@/lib/policy/cancel");
+  const { cancellationBreakdown } = await import("@/lib/money/premium");
   const { recordCompletedRefund } = await import("@/lib/payments/refunds");
   const { planEndorsement, recordEndorsementRequest } = await import("@/lib/policy/endorse");
   const { createEndorsementCheckoutOperation, recordSuccessfulEndorsementPayment } = await import(
@@ -681,6 +684,131 @@ async function main() {
     ),
   );
   report("a cancelled policy cannot have its endorsement corrected", /cancelled/.test(onCancelled), onCancelled);
+
+  // The three claims review finding F-B8-06 found proven by code reading alone. Each one builds
+  // the state on this disposable database and reads the sentence the production function gives.
+
+  // A VOIDED POLICY. The void itself (lib/policy/void-fabricated-binding.ts) asks Stripe whether
+  // the payment intent exists before it writes anything, and this check calls no provider, so the
+  // voided state is written here as the void writes it: a 'correction_reversal' event superseding
+  // the issuance, appended, nothing updated or deleted. The fold then drops the 'issued' event,
+  // which is exactly what policyWasVoided reads. What is proved here is the refusal.
+  const voided = await endorsedPolicy(DAY_100);
+  const [issuedEvent] = await owner<{ id: string }[]>`
+    select id from policy_events where policy_id = ${voided.policyId} and event_type = 'issued'
+  `;
+  await owner`
+    insert into policy_events (policy_id, event_type, effective_at, payload, supersedes_event_id, created_by)
+    values (${voided.policyId}, 'correction_reversal', ${TERM_START},
+            ${owner.json({ reason: "the binding rested on a payment that was never made (check fixture)" })},
+            ${issuedEvent.id}, ${voided.staffUserId})
+  `;
+  const onVoided = await refusal(() =>
+    planEndorsementDateCorrection(
+      {
+        policyId: voided.policyId,
+        correctedEventId: voided.endorsedEventId,
+        correctedEffectiveAt: DAY_130,
+        reason: "trying to correct an endorsement of a voided policy",
+        actor: { userId: voided.staffUserId, role: "staff_ops" },
+      },
+      runtime,
+    ),
+  );
+  report(
+    "a voided policy cannot have its endorsement corrected: there is no policy under it any more",
+    /voided by a correction/.test(onVoided),
+    onVoided,
+  );
+
+  // AN ENDORSEMENT THAT REFUNDED PREMIUM (the disclosed limitation of the slice). A reduction is
+  // applied immediately and opens a refund, so the policy carries an applied endorsement whose
+  // delta went the other way. Correcting its date is refused by name rather than half computed.
+  const reduced = await createPaidPolicy(recordSuccessfulPayment);
+  const reducingBroker: Actor = { userId: reduced.brokerUserId, role: "broker", brokerId: reduced.brokerId, customerId: null };
+  const reducingEndorsement = {
+    policyId: reduced.policyId,
+    effectiveAt: DAY_100,
+    newAnnualPremiumCents: 90000,
+    newPerOccurrenceLimitCents: PER_OCCURRENCE,
+    newAggregateLimitCents: AGGREGATE,
+    reason: "cover reduced, the delta is given back",
+    actor: reducingBroker,
+  };
+  const reducingPlan = await planEndorsement(reducingEndorsement, runtime);
+  const reducingResult = await recordEndorsementRequest(
+    { ...reducingEndorsement, expectedQuoteHash: reducingPlan.figures.quoteHash },
+    runtime,
+  );
+  const reducingEventId = reducingResult.endorsedEventId;
+  if (!reducingEventId) {
+    throw new Error("the fixture reduction was not applied immediately, so there is no endorsement to try to correct");
+  }
+  const onRefundedEndorsement = await refusal(() =>
+    planEndorsementDateCorrection(
+      {
+        policyId: reduced.policyId,
+        correctedEventId: reducingEventId,
+        correctedEffectiveAt: DAY_130,
+        reason: "trying to correct an endorsement whose delta was refunded",
+        actor: { userId: reduced.staffUserId, role: "staff_ops" },
+      },
+      runtime,
+    ),
+  );
+  report(
+    "an endorsement whose delta was REFUNDED is refused by name, not half corrected",
+    reducingPlan.figures.direction === "refund" && /only corrects an endorsement whose delta was collected/.test(onRefundedEndorsement),
+    `direction ${reducingPlan.figures.direction}: ${onRefundedEndorsement}`,
+  );
+
+  // ---------------------------------------------------------------------------
+  // 5b. A cancellation after a correction gives back the CORRECTED figure
+  // ---------------------------------------------------------------------------
+  //
+  // Decision 18's claim, and the one F-B8-06 rated as mattering most: after a correction the
+  // refund is computed from the corrected written premium segments, not from the ones that were
+  // booked. `late` is the policy corrected twice (41095 of premium from 2028-06-24, replacing the
+  // 38630 booked on 2028-07-09) whose refund has completed, so nothing is outstanding on it.
+  // Nothing else reads it after this point.
+  //
+  // The cancellation date is deliberately 2028-07-01, between the corrected date and the date
+  // that was booked: the corrected segment has been earning for a week, and the segment nobody
+  // corrected would not have started at all. The two refunds are then far apart, so the assertion
+  // below cannot pass on a rounding coincidence.
+  const CANCELLED_ON = "2028-07-01";
+  const cancelledAfterCorrection = await recordCancellation(
+    {
+      policyId: late.policyId,
+      effectiveAt: CANCELLED_ON,
+      calculationMethod: "pro_rata",
+      actor: { userId: late.brokerUserId, role: "broker", brokerId: late.brokerId },
+    },
+    runtime,
+  );
+  // The same computation, fed the segment the policy WOULD have had if nobody had corrected it:
+  // the delta as it was first booked, on the date it was first booked. If the cancellation read
+  // the corrected history, the two refunds differ.
+  const ifNobodyHadCorrected = cancellationBreakdown({
+    writtenPremiumSegments: [
+      cancelledAfterCorrection.plan.writtenPremiumSegments[0],
+      { writtenPremiumCents: 38630, startsOn: DAY_130, endsOn: TERM_END },
+    ],
+    taxChargedCents: cancelledAfterCorrection.plan.taxChargedCents,
+    taxRateBps: cancelledAfterCorrection.plan.terms.taxRateBps,
+    commissionRateBps: cancelledAfterCorrection.plan.commissionRateBps,
+    cancellationEffectiveAt: CANCELLED_ON,
+  });
+  const correctedSegment = cancelledAfterCorrection.plan.writtenPremiumSegments[1];
+  report(
+    "a cancellation after a correction gives back the CORRECTED segment: 41095 from 2028-06-24, not the 38630 booked on 2028-07-09",
+    correctedSegment.writtenPremiumCents === 41095 &&
+      correctedSegment.startsOn === "2028-06-24" &&
+      cancelledAfterCorrection.plan.breakdown.totalRefundCents !== ifNobodyHadCorrected.totalRefundCents &&
+      (await policyCurrent(late.policyId)).status === "cancelled",
+    `segments ${cancelledAfterCorrection.plan.writtenPremiumSegments.map((segment) => `${segment.writtenPremiumCents} from ${segment.startsOn}`).join(", ")}; ` +
+      `refund ${cancelledAfterCorrection.plan.breakdown.totalRefundCents}, and ${ifNobodyHadCorrected.totalRefundCents} if nobody had corrected it`,
+  );
 
   // ---------------------------------------------------------------------------
   // 6. The whole ledger still balances
