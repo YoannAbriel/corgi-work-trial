@@ -429,7 +429,9 @@ button.pd-drawer-close {
 .pd-actions button {
   margin-top: 12px;
 }
-/* The title line of the panel: the heading, then the menu that holds the bank-account form. */
+/* The title line of the panel: the heading of "Reserve, pay, close". It used to carry a three-dot
+   menu holding the bank-account form on its right; that form is in the bank account card now
+   (LIVE-10), so the `.pd-panel-menu` rule that pushed it there has nothing left to push. */
 .pd-panel-head {
   display: flex;
   align-items: center;
@@ -439,11 +441,8 @@ button.pd-drawer-close {
 .pd-panel-head h2 {
   margin: 0;
 }
-.pd-panel-head > .pd-panel-menu {
-  margin-left: auto;
-}
-/* A form inside the row menu is a column of fields, not a menu line. Scoped by its own class,
-   so nothing here reaches another screen's menus. */
+/* The bank-account form is a column of fields, not a menu line. Scoped by its own class, so
+   nothing here reaches another screen's forms. */
 form.pd-menu-form input {
   width: 100%;
 }
@@ -485,4 +484,38 @@ form.pd-menu-form input {
 .pd-field-pair input,
 .pd-field-pair select {
   width: 100%;
+}
+
+/* "Record a bank account", inside the card that says whether one exists (LIVE-10, 2026-09-09).
+   It is a native <details>, like every other fold of this application, so it opens with no script
+   of ours; what these rules do is make its summary read as the secondary BUTTON it is, because a
+   grey line of text is what let the form hide from Yoann in the first place. The colours are the
+   ones of `button.secondary` in app/globals.css, written again rather than shared: a <summary>
+   cannot carry a button's own rules without becoming one. */
+.pd-record-account > details.disclosure {
+  margin: 12px 0 0;
+  border: 0;
+  background: none;
+}
+.pd-record-account > details.disclosure > summary {
+  display: inline-flex;
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 1px solid #e1e1e1;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 4px 0 #e1e1e1;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.pd-record-account > details.disclosure > summary:hover {
+  background: #f9fafb;
+}
+.pd-record-account > details.disclosure[open] > summary {
+  border-bottom: 1px solid #e1e1e1;
+  box-shadow: 0 1px 0 #e1e1e1;
+}
+.pd-record-account > details.disclosure > div {
+  padding: 12px 0 0;
 }
