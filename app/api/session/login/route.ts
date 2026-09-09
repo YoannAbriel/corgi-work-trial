@@ -31,7 +31,9 @@ export async function POST(request: Request) {
   // Staff land on the operations map, everybody else on the broker journey (customers find
   // their approvals from there; the screens ask the role question again for themselves).
   const isStaff = user.role === "staff_ops" || user.role === "staff_approver";
-  const response = redirectTo(isStaff ? "/ops" : "/broker");
+  // Each role lands on its own home: a customer on /customer, never on the broker page that
+  // would tell them they are on the wrong screen (recheck finding F-YA-08).
+  const response = redirectTo(isStaff ? "/ops" : user.role === "customer" ? "/customer" : "/broker");
   response.headers.append(
     "set-cookie",
     // HttpOnly: no script can read it. SameSite=Lax: it is not sent from another site's form.
