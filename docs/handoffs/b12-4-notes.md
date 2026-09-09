@@ -19,10 +19,13 @@ fold and builds the proof in front of them:
    after another, 70 ms apart, and a **running total** ticks along beside them.
 3. **t+360 ms, the rounding rule**, as a small badge.
 4. **t+480 ms, the result line**, which then **counts up from 0 to the figure over 600 ms**.
-5. **When it lands**, a thin curve is drawn from the figure to the **journal entry block that
-   proves it**, which lights up for 1.5 s. A **"Trace to the ledger"** link under the fold scrolls
-   to that block and lights it again, opening the journal's "show all" fold if the entry was
-   inside it.
+5. **When it lands**, if the **journal entry block that proves it** is already on screen without
+   anything having to be opened, a thin curve is drawn from the figure to that block and the block
+   lights up for 1.5 s. If it is not, **nothing happens on its own**: the reveal never opens a
+   fold and never moves the page (review finding F-B12-11).
+6. **"Trace to the ledger"**, under the fold, is the one action that changes the page: it opens
+   the folds the entry is hidden in, scrolls to it, lights it, and draws the connector only if the
+   figure is still on screen once the scrolling has settled.
 
 ## The rule the slice rests on, and how it is held
 
@@ -65,8 +68,11 @@ that would mean nothing.
 - The figure is a `<span>`. It is promoted to `role="button"` with `tabIndex` and `aria-expanded`
   **after hydration**, so a control that cannot work is never advertised, and because it is the
   same element with the same box, **the page at rest does not move** when that happens.
-- "Trace to the ledger" is a plain `<a href="#journal-entry-...">`: it jumps to the entry with no
-  JavaScript at all.
+- "Trace to the ledger" is a plain `<a href="#journal-entry-<panel>-<entry>">`: it jumps to the
+  entry with no JavaScript at all. **With JavaScript off, whether the browser also opens the
+  journal's "show all" fold around that entry is the browser's decision and not ours** (review
+  finding F-B12-12). With JavaScript on, the fold that owns the entry opens it, scrolls to it and
+  lights it, on the link and on arrival at that address.
 - The connector is a `position: fixed` SVG portalled into the body, `pointer-events: none`,
   removed after 1.8 s. It takes no space in the layout.
 - `prefers-reduced-motion: reduce` is read at the moment the fold opens: everything appears at
@@ -84,33 +90,52 @@ that would mean nothing.
 4. `components/formula-lines.tsx`: data attributes only (`data-formula-line`,
    `data-formula-result`, `data-final-amount`, `data-subtotal`, `--operand-rank`). Inert for the
    five preview and approval screens that also use this table.
-5. `components/journal-table.tsx`: `journalEntryElementId(entryId)`, and each entry block carries
-   that id.
+5. `components/journal-table.tsx`: `journalEntryElementId(panelKey, entryId)`, and each entry block
+   carries that id. The panel is in the id because a page can print the same entry twice
+   (F-B12-18); `panelKey` is required so no new panel can forget it, and `AmountExplained` says
+   which panel it points at through `tracePanelKey` (`"policy"` by default, `"claim"` on the claim
+   page).
 6. `app/globals.css`, last section: the classes and keyframes, and the reduced-motion block.
 7. `lib/money/amount-explained-motion.test.ts`: the source assertions and the `runningSubtotals`
    cases.
 
 ## Evidence
 
-`docs/evidence/b12-4/`, twelve PNG frames captured with Playwright driving Chrome at 900x940
-against `next dev`, at rest and then at 140, 280, 420, 560, 760, 1000, 1400 and 2200 ms after the
-click, plus the same run under `prefers-reduced-motion: reduce`.
+`docs/evidence/b12-4/`, 16 PNG frames captured with Playwright driving Chrome against `next dev`,
+plus the measurements below taken in the same runs. Re-recorded after the review fixes, so every
+frame shows the corrected behaviour.
 
-Measured in the same run:
+**The reveal, both ends of the connector on screen** (900x940, journal entries visible):
 
-| Moment | data-reveal | operand rows lit | result cell | connector | proving entry |
-|---|---|---|---|---|---|
-| 140 ms | 1 | 0 | `$2,380.44` | 0 | 0 |
-| 280 ms | 2 | 2 | `$2,380.44` | 0 | 0 |
-| 420 ms | 3 | 2 | `$2,380.44` | 0 | 0 |
-| 560 ms | 4 | 2 | `$0,609.18` | 0 | 0 |
-| 760 ms | 4 | 2 | `$2,051.17` | 0 | 0 |
-| 1000 ms | 4 | 2 | `$2,379.52` | 0 | 0 |
-| 1400 ms | 4 | 2 | `$2,380.44` | 1 | 1 |
-| reduced, 140 ms | 4 | 2 | `$2,380.44` | 0 | 0 |
+| Moment | data-reveal | operand rows lit | result cell | connector | proving entry | page scrolled |
+|---|---|---|---|---|---|---|
+| 140 ms | 1 | 0 | `$2,380.44` | 0 | 0 | no |
+| 280 ms | 2-3 | 2 | `$2,380.44` | 0 | 0 | no |
+| 560 ms | 4 | 2 | `$1,787.10` | 0 | 0 | no |
+| 760 ms | 4 | 2 | `$2,371.22` | 0 | 0 | no |
+| 1000 ms | 4 | 2 | `$2,380.44` | 0 | 0 | no |
+| 1400 ms (viewport 1500 px tall) | 4 | 2 | `$2,380.44` | **1** | **1** | no |
+| reduced motion, 140 ms | 4 | 2 | `$2,380.44` | 0 | 0 | no |
 
-The final cell text equals its own `data-final-amount`, `$2,380.44`. The figure's `role` after
-hydration is `button`; the server-rendered HTML carries no `role="button"` and no `data-reveal`.
+`visible-1400ms-connector-drawn.png`. The count-up frames are the browser's; the frame it stops on
+is the server's `data-final-amount`, `$2,380.44`.
+
+**F-B12-11, the entry behind the journal's "show all" fold** (`hidden-1400ms-reveal-opened-nothing.png`,
+`hidden-after-trace-to-the-ledger.png`):
+
+| After | show-all fold open | connector | proving entry | scrollY |
+|---|---|---|---|---|
+| the whole reveal, 1400 ms | **0** | **0** | **0** | **0** |
+| following "Trace to the ledger" | 1 | 0, the figure scrolled off screen | 1 | 450 |
+
+The reveal opened nothing, drew nothing and moved nothing. Only the link acted.
+
+**F-B12-12, arriving on the address of an entry inside the closed fold**
+(`fragment-arrival-opens-the-fold.png`): the fold opened, the entry was lit and the connector drawn,
+with the explanation fold itself still closed (`data-reveal=0`).
+
+**F-B12-18, ids unique per panel:** the two blocks of the journal panel render as
+`journal-entry-policy-1111...` and `journal-entry-policy-2222...`.
 
 **These frames were captured on a fixture page, not on real trial data.** This worktree carries no
 `.env.local` and none may be put in it (AF-05), so there is no database here. A throwaway route was
@@ -134,8 +159,13 @@ in the frames is a real policy, and no claim is made about the deployed applicat
 
 - **Not seen on real data.** The animation has never run on CGP-01274's "Unearned premium,
   refunded" fold, nor on any real policy, claim or statement screen: no database in this worktree.
-  The first thing to check on the next deploy is that fold, and that the connector reaches the
-  cancellation entry block rather than an entry hidden behind the journal's "show all" fold.
+  The first thing to check on the next deploy is that fold: that the reveal leaves the journal
+  alone when the proving entry is behind the "show all" fold, and that "Trace to the ledger"
+  reaches the cancellation entry.
+- **The review record was not in the tree.** `docs/reviews/inbox-and-motion.md` is not on
+  `origin/main` at `8a775f1`, and no `F-B12-11` appears anywhere under `docs/`. The four findings
+  above were closed from the coordinator's description of them; the remaining LOW findings of that
+  record could not be read and are **not addressed**.
 - **No check script was run**, by instruction and because nothing here writes to a database.
 - **No independent review yet** (`REVIEWER.md`). The reviewer should look hardest at two things:
   the count-up writing into a server-rendered cell, and whether the connector can ever be drawn to
