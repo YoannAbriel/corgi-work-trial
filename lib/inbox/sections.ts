@@ -354,9 +354,30 @@ export function staffSections(facts: StaffFacts, role: "staff_ops" | "staff_appr
         amountCents: openBreak.differenceCents,
         since: openBreak.firstSeenAt,
         actionLabel: "Investigate",
-        href: "/ops/reconciliation",
+        // The break itself, not the top of the list of every break (UI-017): "Investigate" on the
+        // last of twenty-two opened the screen on a different first record, and the operator had
+        // to find the same break again by hand. The reconciliation screen carries `break-<key>`
+        // on each of its rows.
+        href: `/ops/reconciliation#break-${openBreak.breakKey}`,
       })),
     },
+  ];
+}
+
+// THE ORDER THE SECTIONS ARE READ IN (UI-016).
+//
+// Each role declares its sections in a fixed order above, empty or not: a queue that exists with
+// nothing in it is an answer, and its anchor has to exist for the sidebar to link to it. On the
+// screen, though, that put five empty states before the work: the operations inbox opened on
+// empty panels while its own badge announced 22 breaks further down.
+//
+// So the sections carrying items come first, and the order each role declared is kept inside each
+// of the two groups. It is a stable partition, not a sort: nothing is reordered among the
+// sections that have work, and nothing is dropped.
+export function sectionsWithWorkFirst(sections: InboxSection[]): InboxSection[] {
+  return [
+    ...sections.filter((section) => section.items.length > 0),
+    ...sections.filter((section) => section.items.length === 0),
   ];
 }
 
