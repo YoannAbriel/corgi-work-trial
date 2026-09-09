@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {
   computeStatement,
   firstDayOfMonth,
+  firstInstantAfterMonth,
   lastDayOfMonth,
   monthOfFirstDay,
+  monthThatEndedBefore,
   monthWasStillRunningAt,
   type BrokerJournalEntry,
 } from "./compute";
@@ -336,4 +338,19 @@ test("the first and last day of a month are counted, not assumed", () => {
   assert.equal(lastDayOfMonth("2029-02"), "2029-02-28");
   assert.equal(lastDayOfMonth("2028-12"), "2028-12-31");
   assert.equal(monthOfFirstDay("2028-03-01"), "2028-03");
+});
+
+test("the month that just ended, and the instant a month is over at, are counted in UTC", () => {
+  // What the monthly close asks on the first day of a month (lib/statements/monthly-job.ts).
+  assert.equal(monthThatEndedBefore(new Date("2028-04-01T06:00:00Z")), "2028-03");
+  // The year boundary, which is the case a plain month-1 subtraction gets wrong.
+  assert.equal(monthThatEndedBefore(new Date("2027-01-01T06:00:00Z")), "2026-12");
+  // 00:30Z on April 1 is still March 31 in New York; the job runs on UTC days, like the ledger.
+  assert.equal(monthThatEndedBefore(new Date("2028-04-01T00:30:00Z")), "2028-03");
+
+  // The instant a month is over at: midnight UTC on the first day of the next one. A run whose
+  // cutoff is at or after it is the definitive statement of that month.
+  assert.equal(firstInstantAfterMonth("2028-03").toISOString(), "2028-04-01T00:00:00.000Z");
+  assert.equal(firstInstantAfterMonth("2028-12").toISOString(), "2029-01-01T00:00:00.000Z");
+  assert.equal(monthWasStillRunningAt("2028-03", firstInstantAfterMonth("2028-03")), false);
 });
