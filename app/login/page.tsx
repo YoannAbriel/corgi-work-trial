@@ -1,94 +1,78 @@
-import { SignedOutFrame } from "@/components/signed-out-frame";
-import { DecorativeIllustration } from "@/components/decorative-illustration";
 import { redirect } from "next/navigation";
+import { DecorativeIllustration } from "@/components/decorative-illustration";
+import { SignedOutFrame } from "@/components/signed-out-frame";
+import { SubmitButton } from "@/components/ui/submit-button";
+import { Toaster } from "@/components/ui/toast";
 import { currentUser } from "@/lib/auth/current-user";
-// UI-003: the width of the signed-out page is fixed there, so opening the demo-account help
-// cannot move the form sideways any more. The rule and its measurements are in that file.
-import "@/app/styles/shell.css";
+import { toastsFromQuery } from "@/lib/ui/views";
+import "@/app/styles/landing.css";
 
-// The only page a signed-out visitor can use. The four demo accounts are created by
-// `npm run seed` and share one password, given to the panel with the deployed URL.
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
+// The only page a signed-out visitor can act on. One centred card, the illustration beside it on a
+// wide screen, the sandbox sentence under it.
+//
+// THE FORM IS UNCHANGED: same method, same action, same field names, so /api/session/login sees
+// exactly what it saw before. Only the submit button is the shared SubmitButton, which shows the
+// post is in flight and changes nothing about what is posted.
+//
+// A refusal arrives as `?error=`. It is printed twice on purpose: as a toast, which is what a
+// person notices, and as the inline `<p className="error" role="alert">` the review scripts read.
+//
+// The four demo accounts are created by `npm run seed` and share one password given to the
+// reviewers with the deployed URL. The password is not in this file, not in the repository and
+// not in any screenshot (AF-05).
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const user = await currentUser();
   if (user) {
     redirect(user.role === "staff_ops" || user.role === "staff_approver" ? "/ops" : user.role === "customer" ? "/customer" : "/broker");
   }
-  const { error } = await searchParams;
+  const query = await searchParams;
+  const toasts = toastsFromQuery(query, { error: { tone: "error", title: "Refused" } });
 
   return (
     <SignedOutFrame>
-      <div className="page-heading">
-        <h1>
-          Welcome to your <em>workspace.</em>
-        </h1>
-        <p className="lead">Sign in to Corgi policy administration.</p>
-        <p className="sandbox-note">Work-trial build on sandbox providers and test data. No real money moves here.</p>
-      </div>
+      <div className="landing-signin">
+        <div className="landing-signin-card">
+          <h1>Sign in</h1>
+          <p>Corgi policy administration.</p>
 
-      <div className="login-grid">
-        <div>
-          {error ? (
-            <p className="error" role="alert">
-              {error}
-            </p>
+          {query.error ? (
+            <div className="notices">
+              <p className="error" role="alert">
+                {query.error}
+              </p>
+            </div>
           ) : null}
 
           <form method="post" action="/api/session/login" className="card">
             <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              autoComplete="username"
-              spellCheck={false}
-            />
+            <input id="email" name="email" type="email" required autoComplete="username" spellCheck={false} />
 
             <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              autoComplete="current-password"
-            />
+            <input id="password" name="password" type="password" required autoComplete="current-password" />
 
-            <button type="submit">Sign in</button>
+            <SubmitButton>Sign in</SubmitButton>
           </form>
 
           <details className="demo-accounts">
             <summary>Demo accounts and access</summary>
             <p className="note">
-              Demo accounts, created by the seed script: broker@example.com,
-              customer@example.com, ops@example.com, approver@example.com. They
-              all use the demo password shared with the reviewers. The broker
-              signs in for policies and business verification; the operations
-              and approver accounts open the operations workspace.
+              Created by the seed script: broker@example.com, customer@example.com, ops@example.com, approver@example.com. They share the demo password given to
+              the reviewers. The broker signs in for policies and business verification; operations and approver open the operations workspace.
             </p>
           </details>
         </div>
-        <section className="login-art-panel">
-          {/* app/globals.css hides .login-art-panel below 580 px. A media query cannot cancel a
+
+        <section className="landing-signin-art">
+          {/* Hidden below 1000 px by app/styles/landing.css. A media query cannot cancel a
               download, so the narrow case asks for the smallest file the optimiser produces. */}
-          <DecorativeIllustration
-            name="welcome-corgi"
-            variant="banner"
-            sizes="(max-width: 580px) 16px, 220px"
-          />
-          <h2>
-            A clearer view. <em>A better next step.</em>
-          </h2>
-          <p>
-            Your policies, payments and next steps,
-            <br />
-            all in one thoughtful workspace.
-          </p>
+          <DecorativeIllustration name="welcome-corgi" variant="banner" sizes="(max-width: 1000px) 16px, 240px" />
+          <p>Your policies, payments and next steps, in one workspace.</p>
         </section>
       </div>
+
+      <p className="sandbox-note landing-signin-note">Work-trial build on sandbox providers and test data. No real money moves here.</p>
+
+      {toasts.length > 0 ? <Toaster notices={toasts} /> : null}
     </SignedOutFrame>
   );
 }
