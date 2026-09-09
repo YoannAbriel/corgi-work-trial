@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
-import { DecorativeIllustration } from "@/components/decorative-illustration";
 import { PortalShell } from "@/components/portal-shell";
+import { LandscapeFooter } from "@/components/ui/landscape";
 import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
@@ -216,15 +216,6 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
         </tbody>
       </DataTable>
 
-      <section className="welcome-card">
-        <div>
-          <h2>
-            Your coverage. <em>Close at hand.</em>
-          </h2>
-          <p>The policy, its documents and every decision live in one clear place.</p>
-        </div>
-        <DecorativeIllustration name="orchard-morning" variant="card" />
-      </section>
 
       <About>
         <h4>Annual premium</h4>
@@ -242,6 +233,10 @@ export default async function CustomerPage({ searchParams }: { searchParams: Pro
         <h4>Documents</h4>
         <p>The declarations and the endorsement schedule are rebuilt for today&apos;s date every time you open them.</p>
       </About>
+
+      <LandscapeFooter name="orchard-morning" title={<>Your coverage. <em>Close at hand.</em></>}>
+        The policy, its documents and every decision live in one clear place.
+      </LandscapeFooter>
     </PortalShell>
   );
 }

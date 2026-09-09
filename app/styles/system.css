@@ -497,20 +497,19 @@ button.sidebar-toggle:hover {
   box-shadow: 0 1px 0 #ffffff, 0 6px 16px -12px #19191933;
 }
 .band-art {
-  width: 46px;
-  height: 46px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
-  border-radius: 13px;
-  overflow: hidden;
-  background: #fff1e8;
   display: grid;
   place-items: center;
 }
+/* The illustrations are drawn on white paper; the mask lets that paper fade into the band
+   instead of showing as a square. */
 .band-art img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  padding: 3px;
+  mask-image: radial-gradient(ellipse, #000 46%, transparent 72%);
 }
 .band-title {
   min-width: 0;
@@ -1748,19 +1747,19 @@ a.section-card:hover {
 a.section-card:active {
   transform: translateY(1px);
 }
-.section-card-art {
-  width: 52px;
-  height: 52px;
+.section-card-icon {
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
-  border-radius: 13px;
-  overflow: hidden;
-  background: #f6f6f7;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: #fff1e8;
+  color: var(--accent);
 }
-.section-card-art img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 4px;
+a.section-card:hover .section-card-icon {
+  background: var(--orange);
+  color: white;
 }
 a.section-card > span {
   flex: 1;
@@ -1814,6 +1813,49 @@ a.section-card > svg {
   object-fit: contain;
   flex-shrink: 0;
   mask-image: radial-gradient(ellipse, #000 48%, transparent 74%);
+}
+
+/* The landscape that closes a home screen (components/ui/landscape.tsx). */
+.landscape {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 38%);
+  align-items: center;
+  margin: 28px calc(-1 * var(--content-x)) 0;
+  padding: 0 0 0 var(--content-x);
+  min-height: 160px;
+  background: linear-gradient(90deg, #ffffff 0%, #fbf5f0 100%);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+}
+.landscape-text {
+  padding: 22px 24px 22px 0;
+  max-width: 560px;
+}
+.landscape-text h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+}
+.landscape-text h2 em {
+  color: var(--orange);
+  font-weight: inherit;
+}
+.landscape-text p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.landscape-art {
+  height: 160px;
+}
+.landscape-art img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+  object-position: center 55%;
+  margin: 0;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 45%);
 }
 
 /* Live status: the only thing on a screen allowed to move on its own. */

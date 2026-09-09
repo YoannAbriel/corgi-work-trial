@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
-import { DecorativeIllustration } from "@/components/decorative-illustration";
 import { PortalShell } from "@/components/portal-shell";
+import { LandscapeFooter } from "@/components/ui/landscape";
 import { WhatNeedsYou, workspaceTasks, type BlockingTask } from "@/components/what-needs-you";
 import { About } from "@/components/ui/about";
 import { EmptyState } from "@/components/ui/empty";
@@ -273,15 +273,6 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
         </tbody>
       </DataTable>
 
-      <section className="welcome-card">
-        <div>
-          <h2>
-            Built for <em>growing businesses.</em>
-          </h2>
-          <p>Coverage, records and the next customer decision stay together.</p>
-        </div>
-        <DecorativeIllustration name="garden-gate" variant="card" />
-      </section>
 
       <About>
         <h4>Total</h4>
@@ -302,6 +293,10 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
           <p>{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
         )}
       </About>
+
+      <LandscapeFooter name="garden-gate" title={<>Built for <em>growing businesses.</em></>}>
+        Coverage, records and the next customer decision stay together.
+      </LandscapeFooter>
     </PortalShell>
   );
 }
