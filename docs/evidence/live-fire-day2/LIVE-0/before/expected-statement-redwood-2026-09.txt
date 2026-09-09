@@ -1,0 +1,5 @@
+database now (the cutoff a fresh run would take): 2026-09-09T18:31:48.440Z
+canonical version: 3
+entries in month: 16
+totals: {"cashCollectedCents":832861,"premiumCollectedCents":806411,"commissionEarnedCents":120961,"clawbackCents":78005,"adjustmentCents":0,"netDueCents":42956}
+content hash of these entries at this instant: 7eddb01ae791314713dc57eb69a11d07bbafc1f4926028417391d6af0919c78c
