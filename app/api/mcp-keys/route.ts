@@ -1,20 +1,53 @@
 import { currentUser } from "@/lib/auth/current-user";
-import { createApiKey, KeyRefused, revokeApiKey } from "@/lib/mcp/keys";
+import { createApiKey, expiryInstant, isTokenLifetime, KeyRefused, revokeApiKey } from "@/lib/mcp/keys";
+import { TOKEN_REVEAL_COOKIE, TOKEN_REVEAL_SECONDS } from "@/lib/mcp/token-reveal";
 import { isUuid } from "@/lib/http/path-ids";
 import { withActivity } from "@/lib/observability/log";
 
-// POST /api/mcp-keys: the two staff actions of /ops/mcp-keys, in one route with a named
-// `action` field, the same shape slice B7 uses for claims.
+// POST /api/mcp-keys: the three staff actions of /ops/mcp-keys (create a token, revoke one,
+// dismiss the token this browser was just shown), in one route with a named `action` field, the
+// same shape slice B7 uses for claims.
 //
 // SESSION COOKIES ONLY. `currentUser()` reads the signed cookie; this route never looks at an
 // Authorization header, so an MCP key cannot be used to mint another MCP key. That is the first
 // entry of lib/mcp/never-delegated.ts, enforced by the absence of any tool for it and by this
 // line.
 //
-// WHY CREATING ANSWERS WITH A PAGE AND NOT A REDIRECT: the secret exists exactly once, in this
-// answer. A redirect would put it in a URL, and a URL lands in the browser history, in the
-// server log and in the referrer of the next request (AF-05). So the answer is a small page
-// that shows it, and nothing else in the system can ever read it back.
+// WHERE THE NEW SECRET TRAVELS, AND WHY IT IS A COOKIE. It exists exactly once, in the answer to
+// this POST. It cannot go in the redirect URL: a URL lands in the browser history, in the server
+// log and in the referrer of the next request (AF-05). It used to be answered as a bare HTML page
+// of its own, outside the workspace; Yoann's decision of 2026-09-09 is to show it inside the
+// screen, which means the next GET has to be able to read it. So it rides in a cookie:
+//
+//   * httpOnly, so no script on the page can read it;
+//   * Path=/ops/mcp-keys, so it is sent to that one screen and to no other request;
+//   * SameSite=Strict, so no other site can cause a request that carries it, not even a
+//     top-level link. The redirect below is this site navigating to itself, which Strict allows;
+//   * Secure in production, decided by NODE_ENV rather than by APP_BASE_URL: `next build` and
+//     `next start` set it, Vercel sets it, and a deployment that forgot to fill an environment
+//     variable would silently lose the flag. Plain-HTTP local development is the only case where
+//     it is absent, and there is no https there to send it over;
+//   * Max-Age=120. That is the trade-off: for at most two minutes the secret is in the browser's
+//     cookie jar instead of nowhere at all. Two minutes is long enough to copy a value into an
+//     MCP client and short enough that a shared screen left open does not keep it. The "Done"
+//     button clears it immediately, and nothing ever stores it server-side: the database still
+//     holds only the sha256 and the public prefix.
+//
+// WHY THE SCREEN CANNOT CLEAR IT ON THE FIRST RENDER. A server component may read cookies and may
+// not write them: calling `cookieStore.delete(...)` from app/ops/mcp-keys/page.tsx raises, word for
+// word, "Cookies can only be modified in a Server Action or Route Handler. Read more:
+// https://nextjs.org/docs/app/api-reference/functions/cookies#options" (Next.js 16.3.4, measured
+// on 2026-09-09). Only a route handler or a server action can send Set-Cookie, so the clearing is
+// the Done button's `action=dismiss` below, and the 120 s Max-Age is the hard ceiling behind it.
+// What follows from that, plainly: reloading the screen inside those two minutes shows the token
+// again. Nothing else on the deployed answer keeps it: that page is answered with
+// `Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate` (measured on a
+// production build the same day).
+//
+// The redirect that carries it names the PUBLIC PREFIX only (`?created=cmk_1a2b3c4d`), which is
+// not a credential, and the screen shows the secret only when the cookie it holds belongs to that
+// prefix. The activity log records the route, the status and the redirect's `error=` sentence and
+// nothing else (lib/observability/log.ts): no cookie, no body.
 export const POST = withActivity({ route: "/api/mcp-keys", rule: "maker-checker" }, handlePost);
 
 async function handlePost(request: Request): Promise<Response> {
@@ -29,7 +62,7 @@ async function handlePost(request: Request): Promise<Response> {
   // claim payment through that key, then approve it as themselves. Revocation is refused here
   // too, for the same reason: taking the maker's key away is also a move in that game.
   if (user.role !== "staff_ops") {
-    return backToKeys("only staff operations can manage MCP API keys");
+    return backToKeys("only staff operations can manage access tokens");
   }
 
   const form = await request.formData();
@@ -43,15 +76,35 @@ async function handlePost(request: Request): Promise<Response> {
       }
       const principalKind = String(form.get("principalKind") ?? "");
       if (principalKind !== "human" && principalKind !== "agent") {
-        return backToKeys('"who holds it" must be a person or an agent');
+        return backToKeys('"used by" must be a person or an agent');
+      }
+      // The five lengths the form offers, checked against the same list the form was drawn from
+      // (lib/mcp/key-format.ts). Anything else is refused rather than quietly turned into "never".
+      const expiresIn = String(form.get("expiresIn") ?? "");
+      if (!isTokenLifetime(expiresIn)) {
+        return backToKeys("that is not one of the expirations this screen offers");
       }
       const created = await createApiKey({
         userId,
         label: String(form.get("label") ?? ""),
         principalKind,
         createdByUserId: user.id,
+        expiresAt: expiryInstant(expiresIn, new Date()),
       });
-      return secretShownOncePage(created.presentedKey, created.keyPrefix);
+      return tokenShownOnce(created.presentedKey, created.keyPrefix);
+    }
+
+    // The "Done" button of the drawer that showed the token: the cookie goes, the screen reloads
+    // without it, and the secret exists nowhere any more.
+    if (action === "dismiss") {
+      const response = redirectTo("/ops/mcp-keys");
+      // Same name, same path and same flags as the cookie it replaces, with Max-Age=0: a browser
+      // only drops a cookie when the deletion matches the attributes it was set with.
+      response.headers.append(
+        "set-cookie",
+        `${TOKEN_REVEAL_COOKIE}=; Path=/ops/mcp-keys; HttpOnly; SameSite=Strict; Max-Age=0${secureFlag()}`,
+      );
+      return response;
     }
 
     if (action === "revoke") {
@@ -72,43 +125,25 @@ async function handlePost(request: Request): Promise<Response> {
   }
 }
 
-// The only page in this application that ever shows a secret. It is not stored anywhere, it is
-// not in the URL, and reloading gives nothing: the answer to a POST is not addressable.
-function secretShownOncePage(presentedKey: string, keyPrefix: string): Response {
-  const html = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>MCP API key created</title>
-<style>
- body { font: 16px/1.5 system-ui, sans-serif; max-width: 760px; margin: 0 auto; padding: 32px 24px; color: #1c1c1c; }
- code { background: #f2f2f2; padding: 2px 6px; }
- pre { background: #f2f2f2; padding: 16px; overflow-x: auto; word-break: break-all; white-space: pre-wrap; }
- .warn { color: #8a1f1f; font-weight: 600; }
-</style></head>
-<body>
-<h1>Key ${escapeHtml(keyPrefix)} created</h1>
-<p class="warn">This is the only time this secret is shown. It is not stored: the database holds its sha256 and its
-public prefix, so nobody, including this application, can read it back. Lost means create another key and revoke this
-one.</p>
-<pre>${escapeHtml(presentedKey)}</pre>
-<p>Use it as a bearer token against <code>POST /api/mcp</code>:</p>
-<pre>curl -s http://localhost:3000/api/mcp \\
-  -H "Authorization: Bearer &lt;the key above&gt;" \\
-  -H "Content-Type: application/json" \\
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'</pre>
-<p>Do not paste it into a document, a ticket or a commit. <a href="/ops/mcp-keys">Back to the keys</a>.</p>
-</body></html>`;
-  return new Response(html, {
-    status: 200,
-    // no-store, and nothing here is cacheable by a proxy: the body is a credential.
-    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store, no-cache, must-revalidate" },
-  });
+// The answer to a creation: back to the screen, with the public prefix in the URL and the secret
+// in the short-lived cookie described at the top of this file. No-store, so no proxy and no
+// browser cache keeps the Set-Cookie header of this answer.
+function tokenShownOnce(presentedKey: string, keyPrefix: string): Response {
+  const response = redirectTo(`/ops/mcp-keys?created=${encodeURIComponent(keyPrefix)}`);
+  response.headers.append(
+    "set-cookie",
+    `${TOKEN_REVEAL_COOKIE}=${presentedKey}; Path=/ops/mcp-keys; HttpOnly; SameSite=Strict; Max-Age=${TOKEN_REVEAL_SECONDS}${secureFlag()}`,
+  );
+  response.headers.set("cache-control", "no-store, no-cache, must-revalidate");
+  return response;
 }
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+// Secure in production and nowhere else. It reads NODE_ENV, which the framework sets itself, and
+// not APP_BASE_URL, which is a variable a deployment can forget to fill: the session cookie of
+// app/api/session/login/route.ts reads that variable, and this cookie carries a credential that
+// is valid for the whole MCP surface, so it takes the flag that cannot be left out by accident.
+function secureFlag(): string {
+  return process.env.NODE_ENV === "production" ? "; Secure" : "";
 }
 
 function backToKeys(message: string): Response {
