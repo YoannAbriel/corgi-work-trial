@@ -31,18 +31,22 @@ export function ChartRow({ children, className }: { children: ReactNode; classNa
 }
 
 function HiddenTable({ caption, points, format }: { caption: string; points: Point[]; format: (value: number) => string }) {
+  // The div carries the hiding: a table's width is a minimum, so a 1 px table still lays out
+  // at its content width and scrolls the page sideways on a narrow screen.
   return (
-    <table className="visually-hidden">
-      <caption>{caption}</caption>
-      <tbody>
-        {points.map((point, index) => (
-          <tr key={point.key ?? `${point.label}-${index}`}>
-            <th scope="row">{point.label}</th>
-            <td>{format(point.value)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="visually-hidden">
+      <table>
+        <caption>{caption}</caption>
+        <tbody>
+          {points.map((point, index) => (
+            <tr key={point.key ?? `${point.label}-${index}`}>
+              <th scope="row">{point.label}</th>
+              <td>{format(point.value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -149,7 +153,8 @@ export function StackedBars({
           );
         })}
       </svg>
-      <table className="visually-hidden">
+      <div className="visually-hidden">
+      <table>
         <caption>{caption}</caption>
         <thead>
           <tr>
@@ -172,6 +177,7 @@ export function StackedBars({
           ))}
         </tbody>
       </table>
+      </div>
     </>
   );
 }
