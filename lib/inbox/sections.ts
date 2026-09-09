@@ -9,8 +9,8 @@
 //
 // A link to /inbox#<anchor> has to land on the section that holds the very items it counted, so
 // the names cannot be typed twice. They are declared here, used by the sections below, and used
-// by components/what-needs-you.tsx to say which section each of its counts belongs to: a task
-// that names an anchor no section has is a type error rather than a link to an empty panel
+// by lib/inbox/tasks.ts to say which section each of its counts belongs to: a task that names an
+// anchor no section has is a type error rather than a link to an empty panel
 // (review findings F-B13-15 and F-B13-16).
 //
 // Several kinds of work share the anchor `policies`, one per role: it is the name the sidebar

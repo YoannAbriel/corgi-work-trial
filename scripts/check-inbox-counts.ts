@@ -1,12 +1,13 @@
 // Proves the one promise of the notification centre: the number and the list say the same thing.
 //
-// components/what-needs-you.tsx counts what is waiting for a person and puts the number on the
-// sidebar; lib/inbox/read.ts lists the same work item by item on /inbox. If the two ever drifted,
-// a badge would send an operator to a screen where the work is not there. This check reads both
-// for a batch of brokers and customers and for one user of each staff role, and compares them
-// ANCHOR BY ANCHOR: not "do the totals match" but "does each count open the very section that
-// holds those items" (review finding F-B13-17). The size of the batch, and why it is not everyone,
-// is explained where it is chosen below; how many were left out is printed at the end.
+// lib/inbox/tasks.ts counts what is waiting for a person, and the sidebar and the "what needs
+// you" block put that number on the screen; lib/inbox/read.ts lists the same work item by item
+// on /inbox. If the two ever drifted, a badge would send an operator to a screen where the work
+// is not there. This check reads both for a batch of brokers and customers and for one user of
+// each staff role, and compares them ANCHOR BY ANCHOR: not "do the totals match" but "does each
+// count open the very section that holds those items" (review finding F-B13-17). The size of the
+// batch, and why it is not everyone, is explained where it is chosen below; how many were left
+// out is printed at the end.
 //
 // WHAT IT WRITES: nothing at all. Every call here is a read, made with the RESTRICTED runtime
 // role, so it can be run on the disposable database without adding a single row.
@@ -47,7 +48,10 @@ function report(name: string, passed: boolean, detail: string) {
 
 async function main() {
   const { sql } = await import("@/db/client");
-  const { workspaceTasks } = await import("@/components/what-needs-you");
+  // The counting, not the block that draws it: lib/inbox/tasks.ts holds no JSX and imports
+  // nothing from components/, so tsx can read it. Importing the component instead reached its
+  // illustrations, imported as .webp files for next/image, and this script could not start.
+  const { workspaceTasks } = await import("@/lib/inbox/tasks");
   const { workspaceInbox } = await import("@/lib/inbox/read");
 
   const [{ current_database: databaseName }] = await sql<{ current_database: string }[]>`select current_database()`;
