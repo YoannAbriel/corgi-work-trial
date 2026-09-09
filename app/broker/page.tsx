@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Chip } from "@/components/detail-layout";
+import { KybEvidenceNote } from "@/components/kyb-evidence-note";
 import { PortalShell } from "@/components/portal-shell";
 import { LandscapeFooter } from "@/components/ui/landscape";
 import { WhatNeedsYou, workspaceTasks, type BlockingTask } from "@/components/what-needs-you";
@@ -14,7 +15,7 @@ import { Chevron, DataTable, Num, Primary, Row } from "@/components/ui/table";
 import { FilterChip, Toolbar, ToolbarCount, ToolbarGroup, ToolbarSpacer } from "@/components/ui/toolbar";
 import { currentUser } from "@/lib/auth/current-user";
 import { bindingIsAllowed } from "@/lib/broker/eligibility";
-import { brokerKybState, KYB_NOT_LIVE_LABEL } from "@/lib/broker/kyb";
+import { brokerKybState } from "@/lib/broker/kyb";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 import { policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { policiesOfBroker, policyDetail } from "@/lib/policy/read";
@@ -345,9 +346,7 @@ export default async function BrokerPage({ searchParams }: { searchParams: Promi
         </p>
         <h4>Your verification</h4>
         <p>{kyb.explanation}</p>
-        {kyb.isProviderEvidence || !kyb.providerAccountId ? null : (
-          <p>{KYB_NOT_LIVE_LABEL}. The status above is a seeded placeholder, not provider evidence.</p>
-        )}
+        <KybEvidenceNote kyb={kyb} />
       </About>
 
       <LandscapeFooter name="garden-gate" title={<>Built for <em>growing businesses.</em></>}>
