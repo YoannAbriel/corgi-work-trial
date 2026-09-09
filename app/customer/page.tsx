@@ -1,26 +1,27 @@
-import { PortalShell } from "@/components/portal-shell";
-import { Chip, DetailHeading, Empty, Panel } from "@/components/detail-layout";
-import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
-import { IllustrationBanner } from "@/components/decorative-illustration";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Chip } from "@/components/detail-layout";
+import { DecorativeIllustration } from "@/components/decorative-illustration";
+import { PortalShell } from "@/components/portal-shell";
+import { WhatNeedsYou, workspaceTasks } from "@/components/what-needs-you";
+import { About } from "@/components/ui/about";
+import { EmptyState } from "@/components/ui/empty";
+import { Legend } from "@/components/ui/legend";
+import { Stat, Stats } from "@/components/ui/stat";
+import { Chevron, DataTable, Num, Primary, Row } from "@/components/ui/table";
 import { sql } from "@/db/client";
 import { currentUser } from "@/lib/auth/current-user";
-import { formatCentsAsUsd } from "@/lib/money/cents";
+import { centsFromDatabase, formatCentsAsUsd } from "@/lib/money/cents";
 import { correctionsOfPolicy, policyAsItStoodOn } from "@/lib/policy/correction-read";
 import { liveEndorsementRequest } from "@/lib/policy/endorsement-requests";
 import { policyDetail } from "@/lib/policy/read";
-import { termsInForceOn } from "@/lib/policy/terms-in-force";
-import { centsFromDatabase } from "@/lib/money/cents";
+import { termsInForceOn, type TermsInForce } from "@/lib/policy/terms-in-force";
+import { toastsFromQuery, type Query } from "@/lib/ui/views";
 
 // The customer's own policies: what is in force, the documents, and any endorsement waiting for
 // their approval. A customer only ever sees the policies of the customer their user account is
 // attached to: the list is queried by customer_id from the session, never by an id in the URL.
-export default async function CustomerPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string; approved?: string; correctionApproved?: string }>;
-}) {
+export default async function CustomerPage({ searchParams }: { searchParams: Promise<Query> }) {
   const user = await currentUser();
   if (!user) {
     redirect("/login");
@@ -61,117 +62,191 @@ export default async function CustomerPage({
       ...policy,
       live,
       correctionsToApprove,
-      annualPremiumInForceCents: await annualPremiumInForceOn(policy.policy_id, policy.effective_at, today, policy.annual_premium_cents),
+      terms: await termsInForceForThisList(policy.policy_id, policy.effective_at, today, policy.annual_premium_cents),
     });
   }
 
   // What is waiting for this customer, read once for the sidebar count and for the block below.
   const tasks = await workspaceTasks(user);
 
-  const notices = [
-    query.error ? <p key="error" className="error" role="alert">{query.error}</p> : null,
-    query.approved === "1" ? <p key="approved" className="note">Thank you, the endorsement is approved. Your broker collects the delta.</p> : null,
-    query.approved === "already" ? <p key="already" className="note">This endorsement was already approved.</p> : null,
-    query.correctionApproved === "1" ? (
-      <p key="capproved" className="note">Thank you, the correction is approved. Your broker collects the difference.</p>
-    ) : null,
-    query.correctionApproved === "already" ? <p key="calready" className="note">This correction was already approved.</p> : null,
-  ].filter(Boolean);
+  const toasts = toastsFromQuery(query, {
+    error: { tone: "error", title: "Refused" },
+    approved: { tone: "ok", title: "Endorsement approved" },
+    correctionApproved: { tone: "ok", title: "Correction approved" },
+  });
+
+  const bound = rows.filter((policy) => policy.status === "bound").length;
+  const waitingForYou = rows.filter((policy) => policy.live?.standing.state === "awaiting_approval" || policy.correctionsToApprove.length > 0).length;
 
   return (
-    <PortalShell user={user} active="policies" tasks={tasks}>
-      <DetailHeading title="Your policies" lead={`${user.displayName} · ${user.email}`} />
+    <PortalShell
+      user={user}
+      active="policies"
+      tasks={tasks}
+      toasts={toasts}
+      band={{
+        title: "Your policies",
+        suffix: user.displayName,
+        meta: (
+          <>
+            <Chip tone={bound > 0 ? "ok" : "neutral"}>{bound} in force</Chip>
+            <Chip tone={waitingForYou > 0 ? "warn" : "ok"}>
+              {waitingForYou === 0 ? "nothing waiting for you" : `${waitingForYou} waiting for you`}
+            </Chip>
+            <Chip tone="ok">Stripe: LIVE SANDBOX</Chip>
+          </>
+        ),
+      }}
+    >
+      {/* The inline sentences the review scripts read, beside the toasts. */}
+      {query.error || query.approved || query.correctionApproved ? (
+        <div className="notices">
+          {query.error ? (
+            <p className="error" role="alert">
+              {query.error}
+            </p>
+          ) : null}
+          {query.approved === "1" ? <p className="note">Thank you, the endorsement is approved. Your broker collects the delta.</p> : null}
+          {query.approved === "already" ? <p className="note">This endorsement was already approved.</p> : null}
+          {query.correctionApproved === "1" ? <p className="note">Thank you, the correction is approved. Your broker collects the difference.</p> : null}
+          {query.correctionApproved === "already" ? <p className="note">This correction was already approved.</p> : null}
+        </div>
+      ) : null}
 
-      {notices.length > 0 ? <div className="notices">{notices}</div> : null}
+      <Stats>
+        <Stat label="Policies" value={rows.length} note="attached to your account" />
+        <Stat label="In force" value={bound} tone={bound > 0 ? "ok" : "neutral"} note="bound today" />
+        <Stat
+          label="Waiting for you"
+          value={waitingForYou}
+          tone={waitingForYou > 0 ? "warn" : "ok"}
+          note="an endorsement or a correction to accept"
+        />
+      </Stats>
 
-      <WhatNeedsYou tasks={tasks} showEmptyIllustration={rows.length > 0} />
+      <WhatNeedsYou tasks={tasks} showEmptyIllustration={false} />
 
-      <Panel title="Policies" className="list-panel">
-        {rows.length === 0 ? (
-          <Empty illustration="coverage-corgi">No policy is attached to your account yet.</Empty>
-        ) : (
-          <div className="table-scroll" role="region" aria-label="Your policies" tabIndex={0}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Policy</th>
-                  <th>Broker</th>
-                  <th>Term</th>
-                  <th>Status</th>
-                  <th className="amount">Annual premium in force</th>
-                  <th>Waiting for you</th>
-                  <th>Documents</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((policy) => (
-                  <tr key={policy.policy_id}>
-                    {/* UI-034: the policy number opens the policy, where the change-request form
-                        is. It was plain text, so the only way in was to know the URL. */}
-                    <td>
-                      <Link href={`/policies/${policy.policy_id}`}>{policy.policy_number}</Link>
-                    </td>
-                    <td>{policy.broker_name}</td>
-                    <td>
-                      {policy.effective_at} to {policy.term_end}
-                    </td>
-                    <td>
-                      <Chip tone={policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "neutral" : "warn"}>
-                        {policy.status.replace(/_/g, " ")}
-                      </Chip>
-                    </td>
-                    <td className="amount">{formatCentsAsUsd(policy.annualPremiumInForceCents)}</td>
-                    <td>
-                      {policy.live?.standing.state === "awaiting_approval" ? (
-                        <Link
-                          href={`/policies/${policy.policy_id}/endorsements/${policy.live.request.eventId}/approve`}
-                          className="button-link orange small"
-                        >
-                          Approve the endorsement, {formatCentsAsUsd(policy.live.request.figures.deltaTotalCents)}
-                        </Link>
-                      ) : policy.live ? (
-                        <span className="note">{policy.live.request.description}: approved, awaiting payment by the broker</span>
-                      ) : null}
-                      {policy.correctionsToApprove.map((correction) => (
-                        <Link
-                          key={correction.rebookEventId}
-                          href={`/policies/${policy.policy_id}/corrections/${correction.rebookEventId}/approve`}
-                          className="button-link orange small"
-                        >
-                          Approve the correction, {formatCentsAsUsd(correction.collection!.amountCents)}
-                        </Link>
-                      ))}
-                      {!policy.live && policy.correctionsToApprove.length === 0 ? <span className="note">nothing</span> : null}
-                    </td>
-                    <td>
-                      <a href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}>Declarations</a>
-                      {" / "}
-                      <a href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}>Schedule</a>
-                    </td>
-                    <td>
-                      <Link href={`/policies/${policy.policy_id}`} className="button-link secondary small">
-                        Open
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
-      <IllustrationBanner
-        name="orchard-morning"
-        title={<>Your coverage. <em>Close at hand.</em></>}
+      <DataTable
+        ariaLabel="Your policies"
+        legend={
+          <Legend
+            items={[
+              { term: "Annual premium", meaning: "the premium in force today, before state tax and the policy fee" },
+              { term: "on the policy record", meaning: "the figures could not be rebuilt for that date, so they are the ones written on the policy" },
+            ]}
+          />
+        }
       >
-        The policy, its documents and every decision live in one clear place.
-      </IllustrationBanner>
+        <thead>
+          <tr>
+            <th>Policy</th>
+            <th className="nowrap">Term</th>
+            <th>Status</th>
+            <th className="num">Annual premium</th>
+            <th>Waiting for you</th>
+            <th>Documents</th>
+            <th aria-label="Open" />
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="dt-empty">
+                <EmptyState illustration="coverage-corgi">No policy is attached to your account yet.</EmptyState>
+              </td>
+            </tr>
+          ) : (
+            rows.map((policy) => (
+              // UI-034: the row opens the policy, where the change-request form is. The policy
+              // number was plain text, so the only way in was to know the URL.
+              <Row key={policy.policy_id} href={`/policies/${policy.policy_id}`}>
+                <Primary href={`/policies/${policy.policy_id}`} sub={policy.broker_name}>
+                  {policy.policy_number}
+                </Primary>
+                <td className="nowrap">
+                  {policy.effective_at}
+                  <span className="dt-sub">to {policy.term_end}</span>
+                </td>
+                <td>
+                  <Chip tone={policy.status === "bound" ? "ok" : policy.status === "cancelled" || policy.status === "voided" ? "neutral" : "warn"}>
+                    {policy.status.replace(/_/g, " ")}
+                  </Chip>
+                </td>
+                {/* F-LU-05: the same wording the broker and staff lists carry. The fold has no
+                    answer on that date (the policy was voided, or was not issued yet), so this is
+                    the policy record's own figure and the row says so. */}
+                <Num sub={policy.terms.onDate === null ? "on the policy record" : undefined}>
+                  {formatCentsAsUsd(policy.terms.annualPremiumCents)}
+                </Num>
+                <td>
+                  {policy.live?.standing.state === "awaiting_approval" ? (
+                    <Link
+                      href={`/policies/${policy.policy_id}/endorsements/${policy.live.request.eventId}/approve`}
+                      className="button-link orange small"
+                      prefetch={false}
+                    >
+                      Approve {formatCentsAsUsd(policy.live.request.figures.deltaTotalCents)}
+                    </Link>
+                  ) : policy.live ? (
+                    <span className="dt-muted">delta awaited from the broker</span>
+                  ) : null}
+                  {policy.correctionsToApprove.map((correction) => (
+                    <Link
+                      key={correction.rebookEventId}
+                      href={`/policies/${policy.policy_id}/corrections/${correction.rebookEventId}/approve`}
+                      className="button-link orange small"
+                      prefetch={false}
+                    >
+                      Approve {formatCentsAsUsd(correction.collection!.amountCents)}
+                    </Link>
+                  ))}
+                  {!policy.live && policy.correctionsToApprove.length === 0 ? <span className="dt-muted">nothing</span> : null}
+                </td>
+                {/* Both links are DIRECT children of the cell, so the stylesheet lifts them above
+                    the row-wide link and a click on either opens the document (F-B13-25). */}
+                <td className="nowrap">
+                  <a href={`/api/policies/${policy.policy_id}/documents/declarations?asOf=${today}`}>Declarations</a>
+                  {" "}
+                  <a href={`/api/policies/${policy.policy_id}/documents/endorsement-schedule?asOf=${today}`}>Schedule</a>
+                </td>
+                <Chevron />
+              </Row>
+            ))
+          )}
+        </tbody>
+      </DataTable>
+
+      <section className="welcome-card">
+        <div>
+          <h2>
+            Your coverage. <em>Close at hand.</em>
+          </h2>
+          <p>The policy, its documents and every decision live in one clear place.</p>
+        </div>
+        <DecorativeIllustration name="orchard-morning" variant="card" />
+      </section>
+
+      <About>
+        <h4>Annual premium</h4>
+        <p>
+          The premium in force today, or on the first day of the term when the term has not begun. An endorsement dated later is not in this figure; the policy page names it under the terms.
+        </p>
+        <h4>On the policy record</h4>
+        <p>
+          A row marked this way could not be rebuilt on that date, because the policy was not issued yet or a correction reversed its issuance. Its figures are the ones written on the policy.
+        </p>
+        <h4>Waiting for you</h4>
+        <p>
+          An endorsement or a correction that charges more than $500 needs your acceptance before your broker may collect it. Nothing is collected until you accept.
+        </p>
+        <h4>Documents</h4>
+        <p>The declarations and the endorsement schedule are rebuilt for today&apos;s date every time you open them.</p>
+      </About>
     </PortalShell>
   );
 }
 
-// THE PREMIUM IN FORCE TODAY, not the latest premium the policy record carries (UI-035).
+// THE TERMS IN FORCE TODAY, not the latest terms the policy record carries (UI-035).
 //
 // `policy_current` applies every event whatever its effective date, so a policy holding an
 // endorsement effective next month already answers next month's premium there. On 2026-09-09 this
@@ -179,9 +254,13 @@ export default async function CustomerPage({
 // day, said $1,200.00 and named the $2,400.00 endorsement as taking effect on 2026-10-08. Both
 // screens now ask the same question of the same helper, lib/policy/terms-in-force.ts.
 //
+// The whole answer is returned, not only the premium: `onDate` is null when the fold could not
+// rebuild the policy on that date, and the row prints "on the policy record" when it is, exactly
+// as the broker and staff lists do (review finding F-LU-05).
+//
 // The date is the one the detail page uses: today, unless the term has not started yet, since a
 // policy cannot be rebuilt on a day before its own first one.
-async function annualPremiumInForceOn(
+async function termsInForceForThisList(
   policyId: string,
   effectiveAt: string,
   today: string,
@@ -189,11 +268,11 @@ async function annualPremiumInForceOn(
   // between that query and this one, which append-only tables do not do: there is no third
   // figure to fall back on, and printing nothing would be worse than printing the stored one.
   storedAnnualPremiumCents: string,
-): Promise<number> {
+): Promise<Pick<TermsInForce, "onDate" | "annualPremiumCents">> {
   const policy = await policyDetail(policyId);
   if (!policy) {
-    return centsFromDatabase(storedAnnualPremiumCents, "annual_premium_cents");
+    return { onDate: null, annualPremiumCents: centsFromDatabase(storedAnnualPremiumCents, "annual_premium_cents") };
   }
   const onDate = today > effectiveAt ? today : effectiveAt;
-  return termsInForceOn(policy, await policyAsItStoodOn(policyId, onDate)).annualPremiumCents;
+  return termsInForceOn(policy, await policyAsItStoodOn(policyId, onDate));
 }

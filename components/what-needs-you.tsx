@@ -1,3 +1,4 @@
+import "@/app/styles/lists.css";
 import Link from "next/link";
 import { ArrowRight, BellRing } from "lucide-react";
 import { DecorativeIllustration } from "./decorative-illustration";
@@ -40,10 +41,13 @@ export function WhatNeedsYou({
   blocking?: BlockingTask | null;
   showEmptyIllustration?: boolean;
 }) {
+  // `lists-needs` is the dense shape of the interface system of 2026-09-09: 32 px rows, the count
+  // as a chip, one line of detail. The rules are in app/styles/lists.css, imported at the top of
+  // this file so that every screen showing this block gets the same density.
   return (
-    <section className="needs-you" aria-labelledby="needs-you-heading">
+    <section className="needs-you lists-needs" aria-labelledby="needs-you-heading">
       <h2 id="needs-you-heading">
-        <BellRing size={18} aria-hidden="true" /> What needs you
+        <BellRing size={15} aria-hidden="true" /> What needs you
       </h2>
       {tasks.length === 0 && !blocking ? (
         <div className="needs-you-empty">
@@ -64,9 +68,9 @@ export function WhatNeedsYou({
                 <span className="count-chip">1</span>
                 <span>
                   <strong>{blocking.label}</strong>
-                  <span>{blocking.detail}</span>
+                  <span title={blocking.detail}>{blocking.detail}</span>
                 </span>
-                <ArrowRight size={18} aria-hidden="true" />
+                <ArrowRight size={16} aria-hidden="true" />
               </Link>
             </li>
           ) : null}
@@ -82,9 +86,11 @@ export function WhatNeedsYou({
                 <span className="count-chip">{task.count}</span>
                 <span>
                   <strong>{task.label}</strong>
-                  <span>{task.detail}</span>
+                  {/* One line, cut with an ellipsis: the whole sentence stays in the title and in
+                      the inbox section this row links to. */}
+                  <span title={task.detail}>{task.detail}</span>
                 </span>
-                <ArrowRight size={18} aria-hidden="true" />
+                <ArrowRight size={16} aria-hidden="true" />
               </Link>
             </li>
           ))}
