@@ -1,0 +1,104 @@
+/* The console's own rules (/ops/console, its search and its infrastructure screens).
+
+   Everything these screens are made of comes from app/styles/system.css: the shell, the band,
+   the stat tiles, the charts, the standard table, the toolbar, the legend and the about fold.
+   This sheet adds only what is specific to the console and nothing else. Every selector names a
+   `console-` class of this area, so no rule here can reach another builder's screen, including
+   the two that repair a shared block: they are keyed on a console class rather than written for
+   everybody.
+
+   Imported by app/ops/console/page.tsx, .../search/page.tsx, .../infra/page.tsx and
+   components/console-parts.tsx. */
+
+/* The AF-02 line under the band: the three integration modes, said in full words, out of any
+   fold, on every console screen (components/console-parts.tsx, IntegrationModes). It is a line
+   of chips rather than a sentence, so the exact wording is read at a glance. */
+.console-modes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0 0 16px;
+}
+.console-modes .badge {
+  margin: 0;
+}
+
+/* The heading of a second table on a screen that already has one. The tables of the system carry
+   no title of their own, so a view holding two of them names the second one here. */
+h2.console-heading {
+  margin: 4px 0 10px;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* HBars draws its fill as a <span> inside .hbar-track. The track is a grid item, so the browser
+   blockifies it; the fill is not, so it stays inline, and width and height on an inline box do
+   nothing: every horizontal bar of the system renders at zero pixels. Measured in the browser on
+   2026-09-09 (getBoundingClientRect().width === 0 while the computed width read 100%).
+
+   The repair belongs in app/styles/system.css, which this builder must not edit, so it is asked
+   for in the report and applied here meanwhile, scoped to the console's own charts. Remove this
+   block once the shared sheet sets the property. */
+.console-charts .hbar-row .hbar-fill {
+  display: block;
+}
+
+/* When the inspector is open, PortalShell puts the screen in `.with-inspector > .stack`. That
+   stack is a grid with no explicit column, so its single column is sized `auto` and takes the
+   MAX-content of what is in it: a row of four stat tiles measured 1098 px inside a 699 px stack
+   and printed straight over the inspector. Measured in the browser on 2026-09-09.
+
+   Naming the column `minmax(0, 1fr)` binds it to the track it was given, and the tiles then wrap.
+   The repair belongs in app/styles/system.css, which this builder must not edit, so it is asked
+   for in the report and applied here meanwhile, on the stacks of the console only. */
+.stack:has(.console-modes) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The feed table (components/console-parts.tsx, EventTable). A Stripe Checkout Session id is
+   sixty characters. In a narrow Object column the browser broke it into a tower of three-letter
+   fragments and made the row twenty lines tall, which is the shape review finding UI-030 named.
+   The token stays on one line; the table's own box scrolls sideways when it has to, and the page
+   never does. */
+.console-event-table .ref {
+  white-space: nowrap;
+}
+
+/* The problems table. Its Reason is the one sentence the console cannot move into a fold: it is
+   what the operator reads before choosing the recovery beside it. Capping it keeps the Recovery
+   column inside the table's box when the inspector is open and the content is 699 px wide:
+   measured, the table then asks for 697 px of a 697 px box. */
+.console-problems .console-reason {
+  display: block;
+  max-width: 30ch;
+}
+/* The What chip is a whole event name ("stripe checkout.session.expired ignored"). The system
+   keeps every chip on one line, which is right in a wide table and wrong in this one: it alone
+   asked for 285 px and pushed Recovery out of the box. Here it wraps. */
+.console-problems table.dt .badge {
+  white-space: normal;
+}
+
+/* A Toolbar that stands on its own rather than on top of a table (the search screen's field).
+   The system draws it as the top edge of a table block, so on its own it needs the block. */
+.console-toolbar {
+  margin: 0 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-block);
+  overflow: hidden;
+}
+.console-toolbar .toolbar {
+  border-bottom: 0;
+}
+
+/* The matches of the search screen: one card per object found, its facts inside as a FactGrid. */
+.console-matches .console-match-label {
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.console-matches .console-match-links {
+  margin-top: 12px;
+}
