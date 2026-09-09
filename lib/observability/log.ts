@@ -161,10 +161,14 @@ export function withActivity<C>(
     const startedAtMs = Date.now();
     let response: Response | null = null;
     let thrown: unknown = null;
+    // A separate flag, and not `thrown !== null`, because `throw null` and `throw ""` are legal
+    // and would otherwise be read as "the handler answered".
+    let handlerThrew = false;
     try {
       response = await handler(request, context, activity);
     } catch (error) {
       thrown = error;
+      handlerThrew = true;
     }
     const durationMs = Date.now() - startedAtMs;
 
@@ -186,7 +190,7 @@ export function withActivity<C>(
     }
 
     // A value the handler set itself always wins: it knows more than the classifier does.
-    const verdict = classify(response, thrown);
+    const verdict = classify(response, thrown, handlerThrew);
     await recordActivity({
       ...activity,
       rule: activity.rule ?? verdict.rule,
@@ -197,7 +201,10 @@ export function withActivity<C>(
       statusCode: verdict.statusCode,
     });
 
-    if (thrown) throw thrown;
+    if (handlerThrew) {
+      throw thrown;
+    }
+    // Never null here: the only path that leaves `response` unset is the throw above.
     return response as Response;
   };
 }
@@ -220,8 +227,8 @@ export function withActivity<C>(
 // the caller is waiting for.
 type Verdict = { outcome: ActivityOutcome; statusCode: number; rule: string | null; message: string | null };
 
-export function classify(response: Response | null, thrown: unknown): Verdict {
-  if (thrown !== null && thrown !== undefined) {
+export function classify(response: Response | null, thrown: unknown, handlerThrew: boolean): Verdict {
+  if (handlerThrew) {
     const rule = refusalRuleOf(thrown);
     // A thrown error that is not a refusal ends as a 500: that is what the framework answers.
     return {
