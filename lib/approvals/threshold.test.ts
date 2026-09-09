@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   claimPayoutNeedsApproval,
   customerApprovalNeeded,
+  endorsementNeedsCustomerApproval,
   MONEY_OUT_APPROVAL_THRESHOLD_CENTS,
   moneyOutNeedsApproval,
   refundNeedsApproval,
@@ -83,13 +84,46 @@ test("an amount that is not whole cents is a programming error on the refund rul
   assert.throws(() => refundNeedsApproval({ amountCents: 100, policyRefundedCents: -1, policyPendingRefundCents: 0 }), /zero or more/);
 });
 
-test("the customer-approval threshold is cumulative per policy as well (F-B4-09)", () => {
-  const THRESHOLD = 50000; // $500, the value lib/money/endorsement.ts passes in
-  // One raise collecting $400 needs no approval; a second one while the first is still
-  // unapproved does, because together they collect $800 from the customer.
-  assert.equal(customerApprovalNeeded({ amountCents: 40000, unapprovedRequestedCents: 0, thresholdCents: THRESHOLD }), false);
-  assert.equal(customerApprovalNeeded({ amountCents: 40000, unapprovedRequestedCents: 40000, thresholdCents: THRESHOLD }), true);
+const CUSTOMER_THRESHOLD = 50000; // $500, the value lib/money/endorsement.ts passes in
+
+test("a correction difference keeps its own base: the difference plus what is still waiting (F-B8-02)", () => {
+  // A difference of $400 needs no approval; the same difference while $400 is still unanswered
+  // on the policy does, because together they collect $800 from the customer.
+  assert.equal(customerApprovalNeeded({ amountCents: 40000, unapprovedRequestedCents: 0, thresholdCents: CUSTOMER_THRESHOLD }), false);
+  assert.equal(customerApprovalNeeded({ amountCents: 40000, unapprovedRequestedCents: 40000, thresholdCents: CUSTOMER_THRESHOLD }), true);
   // Exactly $500 is still not above $500.
-  assert.equal(customerApprovalNeeded({ amountCents: 50000, unapprovedRequestedCents: 0, thresholdCents: THRESHOLD }), false);
-  assert.equal(customerApprovalNeeded({ amountCents: 50001, unapprovedRequestedCents: 0, thresholdCents: THRESHOLD }), true);
+  assert.equal(customerApprovalNeeded({ amountCents: 50000, unapprovedRequestedCents: 0, thresholdCents: CUSTOMER_THRESHOLD }), false);
+  assert.equal(customerApprovalNeeded({ amountCents: 50001, unapprovedRequestedCents: 0, thresholdCents: CUSTOMER_THRESHOLD }), true);
+});
+
+// The endorsement rule, decision 24: per policy, cumulative over the term, premium before tax.
+function endorsementApproval(additionalPremiumSoFarCents: number, additionalPremiumCents: number): boolean {
+  return endorsementNeedsCustomerApproval({ additionalPremiumSoFarCents, additionalPremiumCents, thresholdCents: CUSTOMER_THRESHOLD });
+}
+
+test("Yoann's three-step example: $300, then $300, then $50 of additional premium", () => {
+  assert.equal(endorsementApproval(0, 30000), false); // running total $300.00, no approval
+  assert.equal(endorsementApproval(30000, 30000), true); // running total $600.00, the customer approves
+  assert.equal(endorsementApproval(60000, 5000), true); // running total $650.00, the customer approves
+});
+
+test("exactly $500.00 of additional premium is not above $500.00, one cent more is", () => {
+  assert.equal(endorsementApproval(0, 50000), false);
+  assert.equal(endorsementApproval(20000, 30000), false); // the running total is what is compared
+  assert.equal(endorsementApproval(0, 50001), true);
+  assert.equal(endorsementApproval(20000, 30001), true);
+});
+
+test("an endorsement that lowers the premium never needs the customer's approval (rule 8)", () => {
+  assert.equal(endorsementApproval(60000, -43562), false);
+  assert.equal(endorsementApproval(0, 0), false); // a change that moves no money asks for nothing
+});
+
+test("figures that are not whole cents are a programming error on the endorsement rule too", () => {
+  assert.throws(() => endorsementApproval(-1, 30000), /zero or more/);
+  assert.throws(() => endorsementApproval(0, 30000.5), /whole number of cents/);
+  assert.throws(
+    () => endorsementNeedsCustomerApproval({ additionalPremiumSoFarCents: 0, additionalPremiumCents: 100, thresholdCents: 0 }),
+    /positive whole number of cents/,
+  );
 });

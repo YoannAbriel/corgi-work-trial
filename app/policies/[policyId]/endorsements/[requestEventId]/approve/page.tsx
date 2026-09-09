@@ -72,8 +72,8 @@ export default async function ApproveEndorsementPage({
         </p>
       ) : !standing.approvalRequired ? (
         <p className="note">
-          This endorsement is at or below {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}, counting anything else
-          this policy is waiting on you for, and needs no approval.
+          This endorsement does not take the additional premium of this policy above{" "}
+          {formatCentsAsUsd(CUSTOMER_APPROVAL_THRESHOLD_CENTS)}, so it needs no approval.
         </p>
       ) : null}
 

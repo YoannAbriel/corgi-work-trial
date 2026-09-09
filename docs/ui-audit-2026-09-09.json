@@ -1,0 +1,2304 @@
+{
+  "schema_version": "1.0",
+  "title": "Corgi trial desktop UI audit",
+  "language": "en",
+  "target_url": "https://corgi-work-trial-iota.vercel.app/",
+  "branding_reference_url": "https://app.corgi.insure/portal/coverage",
+  "generated_at": "2026-09-09T09:48:25.759Z",
+  "observation_window_utc": {
+    "first": "2026-09-09T09:12:58.905Z",
+    "last": "2026-09-09T09:44:29.363Z"
+  },
+  "scope": {
+    "mode": "Observed desktop UI and navigation. Findings describe rendered behavior, not inferred implementation causes.",
+    "viewport_width_px": 1512,
+    "viewport_heights_px": [
+      697,
+      698,
+      754
+    ],
+    "mobile": "Excluded at the user's request.",
+    "roles_inspected": [
+      "staff_ops",
+      "staff_approver",
+      "broker",
+      "customer"
+    ],
+    "demo_accounts_inspected": 7,
+    "deployment_observations": [
+      {
+        "revision": "3e9d0958e883a7fee03578c609f9501fb1f6c4c4",
+        "evidence_id": "console-infrastructure"
+      },
+      {
+        "revision_prefix": "5fa3d49f7e7a",
+        "evidence_id": "console-infrastructure-help"
+      }
+    ],
+    "revision_note": "The deployment changed during the audit. Each finding is tied to timestamped evidence, not a claim that every capture belongs to one immutable revision. Login was checked again after the later revision was observed.",
+    "reference_usage": "The connected Corgi portal was used as a visual reference, not as a second defect backlog.",
+    "financial_or_access_changes_performed": false,
+    "linear_tickets_created": 0,
+    "application_code_changes": 0
+  },
+  "summary": {
+    "unique_issue_count": 36,
+    "priority_counts": {
+      "1": 8,
+      "2": 19,
+      "3": 9
+    },
+    "priority_definition": {
+      "1": "Navigation blocked or materially contradictory operational information.",
+      "2": "Substantial readability, layout or workflow problem.",
+      "3": "Minor spacing, consistency, copy or branding mismatch."
+    }
+  },
+  "pages": [
+    {
+      "page": "Shared branding",
+      "routes": [
+        "/",
+        "/login",
+        "/ops",
+        "/broker",
+        "/customer"
+      ],
+      "roles": [
+        "anonymous",
+        "staff_ops",
+        "broker",
+        "customer"
+      ],
+      "states_inspected": [
+        "Headings, illustration style and common shell compared with the connected Corgi portal"
+      ],
+      "evidence_ids": [
+        "ref-coverage",
+        "ref-quotes",
+        "public-home",
+        "login-current",
+        "ops-overview",
+        "broker-overview",
+        "customer-overview"
+      ],
+      "issues": [
+        {
+          "id": "UI-001",
+          "priority": 3,
+          "category": "branding",
+          "title": "Colored watercolor banners differ from the reference portal's monochrome illustration style",
+          "observed": "The reference Coverage screen uses monochrome stippled cutouts. The trial's public home uses a colored landscape vignette; Login and the broker statement banner use a colored, softly painted dog.",
+          "reproduction_steps": [
+            "Open the reference Coverage page and compare it with the trial home, Login and broker Statements banner."
+          ],
+          "impact": "These prominent illustrations use a different visual language from the supplied branding reference.",
+          "evidence": [
+            {
+              "observation_id": "ref-coverage",
+              "url": "https://app.corgi.insure/portal/coverage",
+              "captured_at": "2026-09-09T09:12:58.905Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-coverage.png",
+              "viewport": {
+                "width": 1512,
+                "height": 754,
+                "crop": "Reference sidebar excluded"
+              }
+            },
+            {
+              "observation_id": "public-home",
+              "url": "https://corgi-work-trial-iota.vercel.app/",
+              "captured_at": "2026-09-09T09:39:55.002Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/public-home.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "login-current",
+              "url": "https://corgi-work-trial-iota.vercel.app/login",
+              "captured_at": "2026-09-09T09:44:26.202Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "broker-statements-help",
+              "url": "https://corgi-work-trial-iota.vercel.app/broker/statements",
+              "captured_at": "2026-09-09T09:32:41.962Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-statements-help.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-002",
+          "priority": 3,
+          "category": "branding",
+          "title": "The orange italic heading treatment disappears on most list pages",
+          "observed": "The reference uses orange italic emphasis in 'Your Coverage.' and its other portal section titles. The trial applies that treatment on Operations overview and Login, while 'Your policies', 'Your statements', 'Policies' and 'MCP API keys' are entirely dark and upright.",
+          "reproduction_steps": [
+            "Compare the saved reference heading with the trial overview and list-page headings."
+          ],
+          "impact": "The main page-title treatment varies across closely related screens.",
+          "evidence": [
+            {
+              "observation_id": "ref-coverage",
+              "url": "https://app.corgi.insure/portal/coverage",
+              "captured_at": "2026-09-09T09:12:58.905Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-coverage.png",
+              "viewport": {
+                "width": 1512,
+                "height": 754,
+                "crop": "Reference sidebar excluded"
+              }
+            },
+            {
+              "observation_id": "ref-quotes",
+              "url": "https://app.corgi.insure/portal/quotes",
+              "captured_at": "2026-09-09T09:13:34.165Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ref-quotes.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "ops-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops",
+              "captured_at": "2026-09-09T09:13:55.709Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "broker-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/broker",
+              "captured_at": "2026-09-09T09:32:00.273Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "broker-statements",
+              "url": "https://corgi-work-trial-iota.vercel.app/broker/statements",
+              "captured_at": "2026-09-09T09:32:27.029Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-statements.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "ops-policies",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/policies",
+              "captured_at": "2026-09-09T09:15:06.674Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "ops-mcp-keys",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/mcp-keys",
+              "captured_at": "2026-09-09T09:19:10.009Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-mcp-keys.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Public home",
+      "routes": [
+        "/"
+      ],
+      "roles": [
+        "anonymous"
+      ],
+      "states_inspected": [
+        "Public landing page and sign-in navigation"
+      ],
+      "evidence_ids": [
+        "public-home"
+      ],
+      "issues": []
+    },
+    {
+      "page": "Login",
+      "routes": [
+        "/login"
+      ],
+      "roles": [
+        "anonymous"
+      ],
+      "states_inspected": [
+        "Default form",
+        "Demo accounts and access expanded",
+        "Successful sign-in for seven demo accounts"
+      ],
+      "evidence_ids": [
+        "login-current",
+        "login-current-expanded"
+      ],
+      "issues": [
+        {
+          "id": "UI-003",
+          "priority": 2,
+          "category": "layout",
+          "title": "Expanding demo-account help changes the width and position of the entire login layout",
+          "observed": "At the same 1512px viewport, opening 'Demo accounts and access' moves the title and left card substantially left and widens both the form and illustration card. The form moves from roughly x352 to x192 and its input width grows from roughly 323px to 482px.",
+          "reproduction_steps": [
+            "Open /login with the disclosure closed.",
+            "Open 'Demo accounts and access'."
+          ],
+          "impact": "A secondary help disclosure causes a large, unrelated layout jump.",
+          "evidence": [
+            {
+              "observation_id": "login-current",
+              "url": "https://corgi-work-trial-iota.vercel.app/login",
+              "captured_at": "2026-09-09T09:44:26.202Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "login-current-expanded",
+              "url": "https://corgi-work-trial-iota.vercel.app/login",
+              "captured_at": "2026-09-09T09:44:29.363Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/login-current-expanded.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Operations overview",
+      "routes": [
+        "/ops"
+      ],
+      "roles": [
+        "staff_ops",
+        "staff_approver"
+      ],
+      "states_inspected": [
+        "Overview",
+        "Role guidance",
+        "Task link and lower cards"
+      ],
+      "evidence_ids": [
+        "ops-overview",
+        "ops-overview-lower",
+        "approver-overview"
+      ],
+      "issues": []
+    },
+    {
+      "page": "Operations policies",
+      "routes": [
+        "/ops/policies"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Four existing policies",
+        "How to read this disclosure",
+        "Open policy navigation"
+      ],
+      "evidence_ids": [
+        "ops-policies",
+        "ops-policies-help"
+      ],
+      "issues": [
+        {
+          "id": "UI-004",
+          "priority": 2,
+          "category": "displayed_information",
+          "title": "The policy-list total uses future terms while its help describes today's terms",
+          "observed": "CGP-01707 shows Total charge $2,481.40 in the list. Its help describes the figures as they stand today. The ordinary policy detail instead shows $1,253.20 for 2026-09-09 and explicitly identifies the $2,400 premium as effective only on 2026-10-08. The broker list also shows $2,481.40 without a future-effective qualifier.",
+          "reproduction_steps": [
+            "Open /ops/policies and expand its reading help.",
+            "Open CGP-01707 and compare the dated terms and future-endorsement notice.",
+            "Compare the same row on /broker."
+          ],
+          "impact": "The list and detail give different meanings to the current policy amount.",
+          "evidence": [
+            {
+              "observation_id": "ops-policies-help",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/policies",
+              "captured_at": "2026-09-09T09:15:22.487Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies-help.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-bound",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:20:21.937Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "broker-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/broker",
+              "captured_at": "2026-09-09T09:32:00.273Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ],
+          "also_affected_routes": [
+            "/broker"
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Brokers and verification",
+      "routes": [
+        "/ops/brokers"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Broker list",
+        "Approved, failed and unknown states",
+        "Reading help"
+      ],
+      "evidence_ids": [
+        "ops-brokers",
+        "ops-brokers-help"
+      ],
+      "issues": []
+    },
+    {
+      "page": "Claims list",
+      "routes": [
+        "/ops/claims"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Existing open claim and detail navigation"
+      ],
+      "evidence_ids": [
+        "ops-claims"
+      ],
+      "issues": [
+        {
+          "id": "UI-005",
+          "priority": 3,
+          "category": "visual_consistency",
+          "title": "The same claim status changes color between list and detail",
+          "observed": "CLM-00212 has an amber 'open' badge in the claims list and a green 'open' badge in its detail. Policy statuses also change from gray in lists to amber in their detail, including 'cancelled' and 'voided'.",
+          "reproduction_steps": [
+            "Compare CLM-00212 in the list and its detail.",
+            "Compare CGP-01274 and CGP-01061 in policy lists and details."
+          ],
+          "impact": "Status color does not keep a consistent meaning across the navigation.",
+          "evidence": [
+            {
+              "observation_id": "ops-claims",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/claims",
+              "captured_at": "2026-09-09T09:16:11.130Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-claims.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "claim-detail",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
+              "captured_at": "2026-09-09T09:16:31.634Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-detail.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "ops-policies",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/policies",
+              "captured_at": "2026-09-09T09:15:06.674Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-policies.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-cancelled",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/104d2966-be96-4c36-9956-caf0762f8b15",
+              "captured_at": "2026-09-09T09:23:34.013Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-cancelled.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-voided",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad",
+              "captured_at": "2026-09-09T09:24:39.402Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-voided.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ],
+          "also_affected_routes": [
+            "/ops/claims/[claimId]",
+            "/policies/[policyId]"
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Claim detail",
+      "routes": [
+        "/ops/claims/[claimId]"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "CLM-00212",
+        "Paid amount disclosure",
+        "Payments",
+        "Local simulator return menu, opened only",
+        "Reserve/payment controls, not submitted"
+      ],
+      "evidence_ids": [
+        "claim-detail",
+        "claim-explanation",
+        "claim-lower",
+        "claim-simulator-menu"
+      ],
+      "issues": [
+        {
+          "id": "UI-006",
+          "priority": 2,
+          "category": "layout",
+          "title": "The Payments table splits approval states and squeezes operational controls",
+          "observed": "On CLM-00212 at desktop width, the Approval column breaks 'approved' across lines and the adjacent operational text wraps into short fragments. The requested-by column occupies substantial width. Opening the local simulator return menu shifts the visible portion of the table and separates the control from the amount being acted on.",
+          "reproduction_steps": [
+            "Open CLM-00212 and scroll to Payments.",
+            "Open the LOCAL SIMULATOR menu of the settled payment without submitting it."
+          ],
+          "impact": "Payment state and recovery controls are difficult to read together.",
+          "evidence": [
+            {
+              "observation_id": "claim-lower",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
+              "captured_at": "2026-09-09T09:16:59.038Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-lower.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "claim-simulator-menu",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
+              "captured_at": "2026-09-09T09:17:23.611Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-simulator-menu.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-007",
+          "priority": 2,
+          "category": "layout",
+          "title": "Opening an amount explanation creates very narrow, extremely tall cards",
+          "observed": "The paid explanation opens inside a small KPI card. Its paragraphs and calculation table are squeezed into that card instead of a readable panel. Other KPI cards stretch to the same height and their values move far below their labels. The same behavior is visible in the policy fee explanation and the statement cash explanation.",
+          "reproduction_steps": [
+            "On CLM-00212, open the Paid 'Explain this amount' disclosure.",
+            "Compare the policy fee and statement cash disclosures."
+          ],
+          "impact": "Opening help hides neighboring summary values and requires excessive vertical and horizontal reading.",
+          "evidence": [
+            {
+              "observation_id": "claim-explanation",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
+              "captured_at": "2026-09-09T09:16:45.624Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-explanation.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "claim-payments-actions",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a",
+              "captured_at": "2026-09-09T09:16:46.183Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/claim-payments-actions.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-fee-explanation",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:40:52.402Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-fee-explanation.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "statement-explanation-settled",
+              "url": "https://corgi-work-trial-iota.vercel.app/statements/c775c8ce-34a3-48a3-bea5-558b4d63a546",
+              "captured_at": "2026-09-09T09:33:09.251Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-explanation-settled.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ],
+          "also_affected_routes": [
+            "/policies/[policyId]",
+            "/statements/[runId]"
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Money-out approvals",
+      "routes": [
+        "/ops/approvals"
+      ],
+      "roles": [
+        "staff_ops",
+        "staff_approver"
+      ],
+      "states_inspected": [
+        "Empty pending queue",
+        "Approved and rejected history",
+        "Immutable-intent disclosure"
+      ],
+      "evidence_ids": [
+        "ops-approvals",
+        "approval-intent",
+        "approver-queue"
+      ],
+      "issues": [
+        {
+          "id": "UI-008",
+          "priority": 2,
+          "category": "spacing",
+          "title": "The pending and decided approval panels touch each other",
+          "observed": "The bottom border of 'Waiting for a decision' directly touches the top border of 'Already decided', with no visible gutter. The first row's agent badge also sits directly against the following 'MCP API key' text.",
+          "reproduction_steps": [
+            "Open /ops/approvals and inspect the boundary between the first two panels and the first decided row."
+          ],
+          "impact": "Separate sections and inline metadata visually run together.",
+          "evidence": [
+            {
+              "observation_id": "ops-approvals",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
+              "captured_at": "2026-09-09T09:17:33.366Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-approvals.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "approver-queue",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
+              "captured_at": "2026-09-09T09:37:21.577Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/approver-queue.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-009",
+          "priority": 2,
+          "category": "content",
+          "title": "The below-threshold explanation contradicts a visible approval record",
+          "observed": "The empty-state text says 'A money-out below the threshold never appears here.' The stated threshold is $1,000.00, but the decided table contains a $10.00 claim payment.",
+          "reproduction_steps": [
+            "Read the empty pending-queue explanation.",
+            "Scroll to the $10.00 decided request."
+          ],
+          "impact": "The screen's explanation cannot account for records it actually displays.",
+          "evidence": [
+            {
+              "observation_id": "ops-approvals",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
+              "captured_at": "2026-09-09T09:17:33.366Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-approvals.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "approval-intent",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
+              "captured_at": "2026-09-09T09:17:44.277Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/approval-intent.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-010",
+          "priority": 3,
+          "category": "content",
+          "title": "Rejected requests are labeled 'What was approved, exactly'",
+          "observed": "The immutable-intent disclosure uses 'What was approved, exactly' under rejected requests, including the agent-raised $1,200.00 request.",
+          "reproduction_steps": [
+            "Expand the intent disclosure on the first rejected row."
+          ],
+          "impact": "The disclosure title contradicts the decision beside it.",
+          "evidence": [
+            {
+              "observation_id": "approval-intent",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/approvals",
+              "captured_at": "2026-09-09T09:17:44.277Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/approval-intent.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Reconciliation",
+      "routes": [
+        "/ops/reconciliation"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Latest run and 22 open breaks",
+        "Run form, not submitted",
+        "Resolved-break explanations",
+        "Inbox investigation destination"
+      ],
+      "evidence_ids": [
+        "ops-reconciliation",
+        "reconciliation-lower",
+        "reconciliation-help-bottom",
+        "inbox-investigate-destination"
+      ],
+      "issues": [
+        {
+          "id": "UI-011",
+          "priority": 2,
+          "category": "layout",
+          "title": "The reconciliation table crushes labels and hides diagnostic columns on desktop",
+          "observed": "The table is confined to the left-hand card. Source labels and provider references wrap into short fragments, while right-hand diagnostic information extends outside the initially visible portion of the table. A reader cannot scan the reference, amounts, age and explanation together.",
+          "reproduction_steps": [
+            "Open /ops/reconciliation at 1512px.",
+            "Inspect the first rows without horizontally scrolling."
+          ],
+          "impact": "Investigating a break requires repeated horizontal navigation through dense, tall rows.",
+          "evidence": [
+            {
+              "observation_id": "ops-reconciliation",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/reconciliation",
+              "captured_at": "2026-09-09T09:17:47.792Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-reconciliation.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-012",
+          "priority": 3,
+          "category": "spacing",
+          "title": "The reconciliation form's help text touches the submit button",
+          "observed": "The explanatory text immediately below the run button has no visible vertical separation from the button's lower edge. The statement-generation form and policy document controls show the same tight button-to-help spacing.",
+          "reproduction_steps": [
+            "Inspect the right-hand run form.",
+            "Compare the statement-generation form and policy document controls."
+          ],
+          "impact": "Help copy visually merges with the action above it.",
+          "evidence": [
+            {
+              "observation_id": "inbox-investigate-destination",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/reconciliation",
+              "captured_at": "2026-09-09T09:19:49.966Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-investigate-destination.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "ops-statements",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/statements",
+              "captured_at": "2026-09-09T09:18:23.128Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-statements.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "customer-policy-schedule",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:36:03.923Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy-schedule.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ],
+          "also_affected_routes": [
+            "/ops/statements",
+            "/policies/[policyId]"
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Operations statements",
+      "routes": [
+        "/ops/statements"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Existing statement revisions",
+        "Generate form and reading help, not submitted"
+      ],
+      "evidence_ids": [
+        "ops-statements"
+      ],
+      "issues": [
+        {
+          "id": "UI-013",
+          "priority": 2,
+          "category": "layout",
+          "title": "The statements table shows only its left-hand columns and breaks broker names into fragments",
+          "observed": "The many-column table is placed in a narrow left-hand card beside the generation form. Broker names wrap into fragments such as 'Redw', 'ood' and 'Com'. Monetary totals and document actions lie beyond the initial horizontal view.",
+          "reproduction_steps": [
+            "Open /ops/statements at 1512px.",
+            "Inspect a Redwood row without horizontally scrolling."
+          ],
+          "impact": "The list cannot be scanned as a statement summary.",
+          "evidence": [
+            {
+              "observation_id": "ops-statements",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/statements",
+              "captured_at": "2026-09-09T09:18:23.128Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-statements.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Statement detail",
+      "routes": [
+        "/statements/[runId]"
+      ],
+      "roles": [
+        "staff_ops",
+        "broker"
+      ],
+      "states_inspected": [
+        "September 2026 revision 3",
+        "Five amount disclosures",
+        "Movements",
+        "Revision comparison",
+        "Reproducibility, provisional, format and ledger help"
+      ],
+      "evidence_ids": [
+        "statement-detail",
+        "statement-movements",
+        "statement-revision-delta",
+        "statement-help",
+        "statement-explanation-settled",
+        "statement-explanation-1",
+        "statement-explanation-2",
+        "statement-explanation-3",
+        "statement-explanation-4"
+      ],
+      "issues": [
+        {
+          "id": "UI-014",
+          "priority": 2,
+          "category": "layout",
+          "title": "Long movement explanations become narrow towers in the statement table",
+          "observed": "In the September statement, the Line column contains long narrative notes inside a narrow column. The first reversal note spans many lines, and ordinary movement descriptions also make rows very tall while much of the adjacent area is empty.",
+          "reproduction_steps": [
+            "Open the September 2026 revision 3 statement.",
+            "Scroll to Movements."
+          ],
+          "impact": "Comparing movement dates, policies and amounts requires excessive scrolling.",
+          "evidence": [
+            {
+              "observation_id": "statement-movements",
+              "url": "https://corgi-work-trial-iota.vercel.app/statements/c775c8ce-34a3-48a3-bea5-558b4d63a546",
+              "captured_at": "2026-09-09T09:32:54.410Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-movements.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "statement-help",
+              "url": "https://corgi-work-trial-iota.vercel.app/statements/c775c8ce-34a3-48a3-bea5-558b4d63a546",
+              "captured_at": "2026-09-09T09:32:55.947Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/statement-help.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "MCP keys",
+      "routes": [
+        "/ops/mcp-keys"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Create form, not submitted",
+        "Holder choices",
+        "Existing active/revoked keys",
+        "Tool descriptions and limitations"
+      ],
+      "evidence_ids": [
+        "ops-mcp-keys",
+        "mcp-keys-table"
+      ],
+      "issues": [
+        {
+          "id": "UI-015",
+          "priority": 3,
+          "category": "truncation",
+          "title": "The selected agent option is cut off inside the key-creation form",
+          "observed": "The 'Who holds it' selector displays 'An autonomous agent (requests it raises are marked as agent-' and cuts off the rest of the explanatory label.",
+          "reproduction_steps": [
+            "Open /ops/mcp-keys.",
+            "Read the selected 'Who holds it' option without opening the dropdown."
+          ],
+          "impact": "The full meaning of the selected principal type is not visible in the normal form state.",
+          "evidence": [
+            {
+              "observation_id": "ops-mcp-keys",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/mcp-keys",
+              "captured_at": "2026-09-09T09:19:10.009Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-mcp-keys.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Inbox",
+      "routes": [
+        "/inbox"
+      ],
+      "roles": [
+        "staff_ops",
+        "staff_approver",
+        "broker",
+        "customer"
+      ],
+      "states_inspected": [
+        "Operations with 22 breaks",
+        "Broker empty queues",
+        "Customer empty endorsement/correction queues"
+      ],
+      "evidence_ids": [
+        "ops-inbox",
+        "inbox-breaks",
+        "broker-inbox",
+        "customer-inbox"
+      ],
+      "issues": [
+        {
+          "id": "UI-016",
+          "priority": 2,
+          "category": "information_hierarchy",
+          "title": "Large empty queues appear before the operations inbox's actual work",
+          "observed": "The operations inbox shows several empty sections before the reconciliation section containing all 22 tasks. The first viewport is dominated by empty-state content rather than any of the 22 items advertised by the badge.",
+          "reproduction_steps": [
+            "Open /inbox as operations.",
+            "Compare the first viewport with the reconciliation section lower down."
+          ],
+          "impact": "The operator must scroll through non-actionable content before reaching the work the inbox is signaling.",
+          "evidence": [
+            {
+              "observation_id": "ops-inbox",
+              "url": "https://corgi-work-trial-iota.vercel.app/inbox",
+              "captured_at": "2026-09-09T09:19:28.054Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-inbox.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "inbox-breaks",
+              "url": "https://corgi-work-trial-iota.vercel.app/inbox",
+              "captured_at": "2026-09-09T09:19:37.894Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-breaks.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-017",
+          "priority": 2,
+          "category": "navigation",
+          "title": "Investigate opens an unfiltered reconciliation list and loses the selected break",
+          "observed": "The 22 inbox break links point to /ops/reconciliation without an item reference or anchor. Clicking the last break opens the top of the general reconciliation screen, showing a different first record rather than the selected break.",
+          "reproduction_steps": [
+            "Open the reconciliation section in the operations inbox.",
+            "Click Investigate for a break near the bottom.",
+            "Inspect the destination and the first record shown."
+          ],
+          "impact": "The operator has to find the same break again manually.",
+          "evidence": [
+            {
+              "observation_id": "inbox-breaks",
+              "url": "https://corgi-work-trial-iota.vercel.app/inbox",
+              "captured_at": "2026-09-09T09:19:37.894Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-breaks.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "inbox-investigate-destination",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/reconciliation",
+              "captured_at": "2026-09-09T09:19:49.966Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/inbox-investigate-destination.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-018",
+          "priority": 3,
+          "category": "spacing",
+          "title": "Adjacent inbox sections have no visible gutter",
+          "observed": "The bottom edge of one white inbox section touches the next section. This is visible in both the operations inbox and the broker/customer empty inboxes.",
+          "reproduction_steps": [
+            "Open the inbox and inspect the boundaries between consecutive queue sections."
+          ],
+          "impact": "Distinct queues read as panels accidentally pressed together.",
+          "evidence": [
+            {
+              "observation_id": "ops-inbox",
+              "url": "https://corgi-work-trial-iota.vercel.app/inbox",
+              "captured_at": "2026-09-09T09:19:28.054Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/ops-inbox.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "broker-inbox",
+              "url": "https://corgi-work-trial-iota.vercel.app/inbox",
+              "captured_at": "2026-09-09T09:33:12.943Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-inbox.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "customer-inbox",
+              "url": "https://corgi-work-trial-iota.vercel.app/inbox",
+              "captured_at": "2026-09-09T09:36:50.415Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-inbox.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Policy detail: operations and broker",
+      "routes": [
+        "/policies/[policyId]"
+      ],
+      "roles": [
+        "staff_ops",
+        "broker"
+      ],
+      "states_inspected": [
+        "Bound CGP-01707",
+        "Cancelled CGP-01274",
+        "Voided CGP-01061",
+        "Historical-date selection",
+        "Endorsement schedule, explanations and references",
+        "Journal and recovery/document controls"
+      ],
+      "evidence_ids": [
+        "policy-bound",
+        "policy-cancelled",
+        "policy-voided",
+        "policy-asof",
+        "policy-asof-submit-stale",
+        "policy-schedule",
+        "policy-sandbox-references"
+      ],
+      "issues": [
+        {
+          "id": "UI-019",
+          "priority": 2,
+          "category": "layout",
+          "title": "The endorsement schedule splits words and currency amounts into fragments",
+          "observed": "In CGP-01707's desktop schedule, the Change column is extremely narrow: 'Annual premium' breaks into small fragments, as do the dollar amounts, 'per-occurrence' and 'aggregate'. The Stripe status also wraps 'money moved' across multiple lines.",
+          "reproduction_steps": [
+            "Open CGP-01707.",
+            "Scroll to Endorsement schedule."
+          ],
+          "impact": "The terms being changed cannot be read or compared efficiently.",
+          "evidence": [
+            {
+              "observation_id": "policy-schedule",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:40:53.026Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-schedule.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-endorsement-explained",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:22:08.466Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-endorsement-explained.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-020",
+          "priority": 1,
+          "category": "navigation",
+          "title": "Selecting a historical date leaves the form on the previous date",
+          "observed": "Clicking the 2026-10-08 endorsement date produces a URL and historical result for 2026-10-08, but the date input still visibly contains 09/09/2026. Pressing 'Show the policy on that date' without editing the field returns the page to asOf=2026-09-09.",
+          "reproduction_steps": [
+            "Open CGP-01707 at its default date.",
+            "Click the 2026-10-08 endorsement date in 'As it stood on a date'.",
+            "Read the date input and submit it without changing its value."
+          ],
+          "impact": "The date selector and displayed historical result disagree; a routine submit changes the user's chosen date.",
+          "evidence": [
+            {
+              "observation_id": "policy-asof",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-10-08#as-of",
+              "captured_at": "2026-09-09T09:23:14.871Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-asof.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-asof-submit-stale",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-09#as-of",
+              "captured_at": "2026-09-09T09:23:32.138Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-asof-submit-stale.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-021",
+          "priority": 2,
+          "category": "clipping",
+          "title": "The endorsement's Sandbox references popover is clipped by the table boundary",
+          "observed": "Opening the information icon in the schedule's Stripe column shows only the left portion of the reference popover. The title and Stripe reference extend past the table's visible right edge.",
+          "reproduction_steps": [
+            "Open CGP-01707's endorsement schedule.",
+            "Open the Sandbox references icon in its Stripe column."
+          ],
+          "impact": "The reference disclosure cannot be read in its normal open position.",
+          "evidence": [
+            {
+              "observation_id": "policy-sandbox-references",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:40:53.432Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-sandbox-references.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-022",
+          "priority": 1,
+          "category": "displayed_information",
+          "title": "A voided local payment is still summarized as collected and refunded at Stripe",
+          "observed": "CGP-01061 explicitly states that Stripe never collected its locally signed development payment. On the same page, the summary says 'Premium payment succeeded', 'Collected at Stripe $1,253.20' and 'Refunded from Stripe $1,253.20'. This finding concerns those conflicting UI labels; it does not assert that an external payment happened.",
+          "reproduction_steps": [
+            "Open CGP-01061.",
+            "Compare the correction notice/timeline with 'So far, from the journal'."
+          ],
+          "impact": "The summary presents local reversal history using labels that imply provider money movement.",
+          "evidence": [
+            {
+              "observation_id": "policy-voided",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad",
+              "captured_at": "2026-09-09T09:24:39.402Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-voided.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Endorsement form and preview",
+      "routes": [
+        "/policies/[policyId]/endorse"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Default form",
+        "Invalid default preview",
+        "Valid preview only"
+      ],
+      "evidence_ids": [
+        "policy-endorse",
+        "endorsement-preview-default",
+        "endorsement-preview-valid"
+      ],
+      "issues": [
+        {
+          "id": "UI-023",
+          "priority": 2,
+          "category": "form_flow",
+          "title": "The prefilled endorsement date is rejected and the error screen removes the form",
+          "observed": "For CGP-01707, the form defaults to 2026-09-09 even though the prior endorsement is effective 2026-10-08. Previewing the untouched values produces a red error saying the endorsement cannot precede 2026-10-08. The resulting page contains the error and breadcrumb but no editable fields or direct 'Edit preview' action.",
+          "reproduction_steps": [
+            "Open Endorse on CGP-01707.",
+            "Leave the prefilled fields unchanged and request the preview."
+          ],
+          "impact": "A default path immediately reaches a dead-end validation screen and forces the user to navigate back before fixing the date.",
+          "evidence": [
+            {
+              "observation_id": "policy-endorse",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/endorse",
+              "captured_at": "2026-09-09T09:20:35.856Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-endorse.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "endorsement-preview-default",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/endorse?newAnnualPremium=2%2C400.00&newPerOccurrenceLimit=2%2C000%2C000.00&newAggregateLimit=4%2C000%2C000.00&effectiveAt=2026-09-09&reason=",
+              "captured_at": "2026-09-09T09:20:47.538Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/endorsement-preview-default.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Cancellation form and preview",
+      "routes": [
+        "/policies/[policyId]/cancel"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Effective-date and method form",
+        "Default pro-rata preview",
+        "Refund allocation and approval explanation; not confirmed"
+      ],
+      "evidence_ids": [
+        "policy-cancel",
+        "cancel-preview-default"
+      ],
+      "issues": []
+    },
+    {
+      "page": "Correction form and preview",
+      "routes": [
+        "/policies/[policyId]/corrections/new"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Endorsement/date/reason form",
+        "Preview for moving CGP-01707's endorsement from 2026-10-08 to 2026-09-17; not confirmed"
+      ],
+      "evidence_ids": [
+        "correction-form",
+        "correction-preview"
+      ],
+      "issues": [
+        {
+          "id": "UI-024",
+          "priority": 1,
+          "category": "layout",
+          "title": "Correction-preview labels render nearly one letter per line",
+          "observed": "In 'What changes', the label 'Endorsement' renders vertically with approximately one letter per line; 'Effective date' does the same. The adjacent endorsement description stays on a long clipped line. This happens in a roughly 600px-wide table despite ample empty desktop space beside it.",
+          "reproduction_steps": [
+            "Open the correction preview for CGP-01707's existing endorsement, with corrected date 2026-09-17 and a reason.",
+            "Inspect the first 'What changes' table without confirming the correction."
+          ],
+          "impact": "The main comparison is unreadable and occupies most of the first viewport before the monetary impact.",
+          "evidence": [
+            {
+              "observation_id": "correction-preview",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/corrections/new?endorsedEventId=e3e7c572-def4-47c0-940d-69b10df35d90&correctedEffectiveAt=2026-09-17&reason=UI+audit+preview+only%3B+no+correction+recorded.",
+              "captured_at": "2026-09-09T09:22:47.470Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/correction-preview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Claim intake",
+      "routes": [
+        "/policies/[policyId]/claims/new"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Claim intake and sandbox bank-check form; no claim opened"
+      ],
+      "evidence_ids": [
+        "claim-intake"
+      ],
+      "issues": []
+    },
+    {
+      "page": "Operations console",
+      "routes": [
+        "/ops/console"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Default 60-minute feed",
+        "Errors and unknown outcomes",
+        "Latency",
+        "Window/kind filters",
+        "Reading disclosures",
+        "Navigation-away behavior"
+      ],
+      "evidence_ids": [
+        "console-feed",
+        "console-errors",
+        "console-filters",
+        "console-help",
+        "console-navigation-before",
+        "console-navigation-after"
+      ],
+      "issues": [
+        {
+          "id": "UI-025",
+          "priority": 1,
+          "category": "navigation",
+          "title": "Console refresh returns the user to Console after they navigate away",
+          "observed": "After opening Console and clicking Overview, /ops and its content appear. With no further navigation action, the page returns to /ops/console shortly afterward. The before/after URLs and timestamps were recorded in console-navigation.json.",
+          "reproduction_steps": [
+            "Open /ops/console.",
+            "Click Overview in the sidebar.",
+            "Wait through the next automatic refresh without interacting."
+          ],
+          "impact": "The user loses the page they intentionally navigated to.",
+          "evidence": [
+            {
+              "observation_id": "console-navigation-before",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops",
+              "captured_at": "2026-09-09T09:29:28.235Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-navigation-before.png",
+              "viewport": {
+                "height": 754,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-navigation-after",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
+              "captured_at": "2026-09-09T09:29:49.921Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-navigation-after.png",
+              "viewport": {
+                "height": 754,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ],
+          "additional_evidence": [
+            "docs/evidence/ui-audit-2026-09-09/console-navigation.json"
+          ]
+        },
+        {
+          "id": "UI-026",
+          "priority": 2,
+          "category": "layout",
+          "title": "The console error table breaks labels into tiny fragments and clips Recovery",
+          "observed": "At 1512px, the Errors table splits 'webhook' and 'LIVE SANDBOX' into short fragments. The Reason column is only a few characters wide in places, producing very tall rows. Recovery is cut off at the right edge of the initially visible table. Feed rows show similar compressed text.",
+          "reproduction_steps": [
+            "Open /ops/console and scroll to Errors, refusals and unknown outcomes.",
+            "Inspect the webhook row and its recovery action."
+          ],
+          "impact": "The console makes urgent errors and recovery links difficult to scan.",
+          "evidence": [
+            {
+              "observation_id": "console-errors",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
+              "captured_at": "2026-09-09T09:29:13.994Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-errors.png",
+              "viewport": {
+                "height": 754,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-help",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
+              "captured_at": "2026-09-09T09:43:41.953Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-help.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-027",
+          "priority": 1,
+          "category": "displayed_information",
+          "title": "The console reports CGP-01707 as unknown although its payment is shown as succeeded elsewhere",
+          "observed": "The console lists CGP-01707's original checkout as accepted and unconfirmed. Its Policy 360 row says provider_accepted while also reporting 26.3s from acceptance to success. The ordinary policy screen says the premium payment succeeded.",
+          "reproduction_steps": [
+            "Compare CGP-01707 in the console Errors panel, Policy 360 money operations and its ordinary policy detail."
+          ],
+          "impact": "The operator receives conflicting guidance about whether this payment needs recovery.",
+          "evidence": [
+            {
+              "observation_id": "console-feed",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console",
+              "captured_at": "2026-09-09T09:28:52.633Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-feed.png",
+              "viewport": {
+                "height": 754,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-policy",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:25:01.890Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-bound",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:20:21.937Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Console search",
+      "routes": [
+        "/ops/console/search"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Empty search",
+        "Policy number",
+        "Claim number",
+        "Broker/customer email",
+        "Recognized number with no match",
+        "Prefix help"
+      ],
+      "evidence_ids": [
+        "console-search",
+        "console-search-policy",
+        "console-search-claim",
+        "console-search-no-match",
+        "console-search-help"
+      ],
+      "issues": [
+        {
+          "id": "UI-028",
+          "priority": 1,
+          "category": "displayed_information",
+          "title": "Reference trails include journal entries belonging to other policies",
+          "observed": "Searching CGP-01707 lists the $1,200 claim_payment_settled entry df31a189 and the $2,081.09 refund_completed entry 06f687ea, which appear in CGP-01274's history. Searching CLM-00212, whose policy is CGP-01274, lists the 2026-10-08 endorsement entries of CGP-01707. The same unrelated entries appear in the corresponding Console 360 journal sections.",
+          "reproduction_steps": [
+            "Search CGP-01707 and inspect Its trail.",
+            "Compare its claim/refund entries with CGP-01274.",
+            "Search CLM-00212 and compare its first endorsement entries with CGP-01707."
+          ],
+          "impact": "A reference lookup presents unrelated financial history as the selected object's trail.",
+          "evidence": [
+            {
+              "observation_id": "console-search-policy",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/search?reference=CGP-01707",
+              "captured_at": "2026-09-09T09:24:49.802Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-policy.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-search-claim",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/search?reference=CLM-00212",
+              "captured_at": "2026-09-09T09:30:10.500Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-claim.png",
+              "viewport": {
+                "height": 754,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-policy",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:25:01.890Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-claim",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/claim/2f78c23c-17fc-4746-85dd-77f64d6db45a",
+              "captured_at": "2026-09-09T09:30:29.632Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-claim.png",
+              "viewport": {
+                "height": 754,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-cancelled",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/104d2966-be96-4c36-9956-caf0762f8b15",
+              "captured_at": "2026-09-09T09:23:34.013Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-cancelled.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-bound",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:20:21.937Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ],
+          "also_affected_routes": [
+            "/ops/console/policy/[policyId]",
+            "/ops/console/claim/[claimId]"
+          ]
+        },
+        {
+          "id": "UI-029",
+          "priority": 2,
+          "category": "layout",
+          "title": "Search results fragment even short field names and squeeze the Open links",
+          "observed": "The CLM-00212 search result breaks 'claim' across two lines and 'Description' into fragments. The two Open links wrap into multiple short lines beside the large Facts cell.",
+          "reproduction_steps": [
+            "Search CLM-00212 and inspect What it is."
+          ],
+          "impact": "Basic identity labels and navigation links are harder to read than the available desktop width warrants.",
+          "evidence": [
+            {
+              "observation_id": "console-search-claim",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/search?reference=CLM-00212",
+              "captured_at": "2026-09-09T09:30:10.500Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-search-claim.png",
+              "viewport": {
+                "height": 754,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Console 360 views",
+      "routes": [
+        "/ops/console/policy/[policyId]",
+        "/ops/console/claim/[claimId]",
+        "/ops/console/broker/[brokerId]",
+        "/ops/console/customer/[customerId]"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Policy, claim, broker and customer views",
+        "Money operations",
+        "Provider events",
+        "Journal and timeline",
+        "Identity, breaks, approvals and scope panels"
+      ],
+      "evidence_ids": [
+        "console-policy",
+        "console-claim",
+        "console-broker",
+        "console-customer",
+        "console-customer-timeline"
+      ],
+      "issues": [
+        {
+          "id": "UI-030",
+          "priority": 2,
+          "category": "layout",
+          "title": "Money-operation and timeline columns are unreadably narrow across the 360 views",
+          "observed": "At desktop width, the Kind column breaks stripe_checkout into fragments such as 'stri', 'pe_', 'che', 'cko', 'ut'; LIVE SANDBOX or LOCAL SIMULATOR is stacked into tiny pieces. Provider reference/Object extend outside the initial horizontal view. The customer Timeline similarly splits kind, effective-date text and identifiers.",
+          "reproduction_steps": [
+            "Open each Console 360 view.",
+            "Inspect its first money-operation rows and the customer Timeline."
+          ],
+          "impact": "Operation type, mode, status and reference cannot be reviewed together efficiently.",
+          "evidence": [
+            {
+              "observation_id": "console-policy",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/policy/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:25:01.890Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-policy.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-claim",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/claim/2f78c23c-17fc-4746-85dd-77f64d6db45a",
+              "captured_at": "2026-09-09T09:30:29.632Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-claim.png",
+              "viewport": {
+                "height": 754,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-broker",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/broker/edae60d2-2192-4347-8083-945818e10ce8",
+              "captured_at": "2026-09-09T09:31:16.642Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-broker.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-customer",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/customer/5f55b8dd-c25c-4fec-8843-5a0e43603c97",
+              "captured_at": "2026-09-09T09:31:30.200Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-customer.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "console-customer-timeline",
+              "url": "https://corgi-work-trial-iota.vercel.app/ops/console/customer/5f55b8dd-c25c-4fec-8843-5a0e43603c97",
+              "captured_at": "2026-09-09T09:31:30.538Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/console-customer-timeline.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Console infrastructure",
+      "routes": [
+        "/ops/console/infra"
+      ],
+      "roles": [
+        "staff_ops"
+      ],
+      "states_inspected": [
+        "Measured usage",
+        "Largest tables",
+        "Seven-day activity",
+        "Documented limits",
+        "Scope explanation"
+      ],
+      "evidence_ids": [
+        "console-infrastructure",
+        "console-infrastructure-lower",
+        "console-infrastructure-help"
+      ],
+      "issues": []
+    },
+    {
+      "page": "Broker policies",
+      "routes": [
+        "/broker"
+      ],
+      "roles": [
+        "broker"
+      ],
+      "states_inspected": [
+        "Approved broker with four policies",
+        "Failed broker with no policies",
+        "Unknown verification with no policies"
+      ],
+      "evidence_ids": [
+        "broker-overview",
+        "broker-failed-overview",
+        "broker3-overview"
+      ],
+      "issues": [
+        {
+          "id": "UI-031",
+          "priority": 2,
+          "category": "information_hierarchy",
+          "title": "The broker is told nothing needs attention while verification blocks binding",
+          "observed": "For the failed broker, the page states that Stripe refused verification and corrected details must be submitted, then says 'Nothing is waiting for you right now' in What needs you. The unsubmitted broker similarly has an unknown verification state and an all-clear task panel.",
+          "reproduction_steps": [
+            "Sign in as broker2@example.com or broker3@example.com.",
+            "Compare the verification notice with What needs you."
+          ],
+          "impact": "The task summary omits the next action described immediately above it.",
+          "evidence": [
+            {
+              "observation_id": "broker-failed-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/broker",
+              "captured_at": "2026-09-09T09:33:36.933Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-failed-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "broker3-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/broker",
+              "captured_at": "2026-09-09T09:34:22.133Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker3-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-032",
+          "priority": 3,
+          "category": "information_hierarchy",
+          "title": "A large empty task card pushes the broker's actual policies down the page",
+          "observed": "For the approved broker, a large 'Nothing is waiting' illustration card occupies the main area before the Policies table. At 1512x698 only the first policy row fits fully in the initial viewport. The customer home follows the same order.",
+          "reproduction_steps": [
+            "Open the approved broker home and the customer home."
+          ],
+          "impact": "Existing policies receive less initial screen space than an empty task state.",
+          "evidence": [
+            {
+              "observation_id": "broker-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/broker",
+              "captured_at": "2026-09-09T09:32:00.273Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "customer-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/customer",
+              "captured_at": "2026-09-09T09:35:47.581Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ],
+          "also_affected_routes": [
+            "/customer"
+          ]
+        }
+      ]
+    },
+    {
+      "page": "New policy",
+      "routes": [
+        "/broker/policies/new"
+      ],
+      "roles": [
+        "broker"
+      ],
+      "states_inspected": [
+        "Full form and monetary inputs; no draft created"
+      ],
+      "evidence_ids": [
+        "broker-new-policy",
+        "broker-new-policy-lower"
+      ],
+      "issues": []
+    },
+    {
+      "page": "Broker business verification",
+      "routes": [
+        "/broker/kyb"
+      ],
+      "roles": [
+        "broker"
+      ],
+      "states_inspected": [
+        "Approved",
+        "Failed/resubmission",
+        "Unknown/not submitted",
+        "Three help disclosures",
+        "Agreement control viewed only"
+      ],
+      "evidence_ids": [
+        "broker-kyb-approved",
+        "broker-kyb-help",
+        "broker-kyb-failed",
+        "broker-kyb-resubmit-lower",
+        "broker3-kyb"
+      ],
+      "issues": [
+        {
+          "id": "UI-033",
+          "priority": 3,
+          "category": "content",
+          "title": "The failed verification history prints the same reason twice",
+          "observed": "In the failed broker's Status history row, verification_failed_tax_id_match appears twice consecutively under Reason.",
+          "reproduction_steps": [
+            "Open Business verification as broker2@example.com.",
+            "Scroll to Status history."
+          ],
+          "impact": "The duplicate raw code adds noise to an already technical failure explanation.",
+          "evidence": [
+            {
+              "observation_id": "broker-kyb-resubmit-lower",
+              "url": "https://corgi-work-trial-iota.vercel.app/broker/kyb",
+              "captured_at": "2026-09-09T09:33:58.150Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/broker-kyb-resubmit-lower.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Broker statements",
+      "routes": [
+        "/broker/statements"
+      ],
+      "roles": [
+        "broker"
+      ],
+      "states_inspected": [
+        "Five stored revisions",
+        "No-statement state",
+        "Reading help and detail navigation"
+      ],
+      "evidence_ids": [
+        "broker-statements",
+        "broker-statements-help",
+        "broker-statements-empty"
+      ],
+      "issues": []
+    },
+    {
+      "page": "Customer policies",
+      "routes": [
+        "/customer"
+      ],
+      "roles": [
+        "customer"
+      ],
+      "states_inspected": [
+        "Bay Area Fabrication with bound/voided policies",
+        "Santa CaFE with a cancelled policy",
+        "Document links"
+      ],
+      "evidence_ids": [
+        "customer-overview",
+        "customer2-overview"
+      ],
+      "issues": [
+        {
+          "id": "UI-034",
+          "priority": 1,
+          "category": "navigation",
+          "title": "The customer policy list has no link to the policy detail or change-request form",
+          "observed": "Policy numbers are plain text and the only row links are Declarations and Schedule PDFs. Opening the known policy URL directly as the same customer displays a valid detailed screen with 'Ask for a change', but no link to that screen is provided in the list.",
+          "reproduction_steps": [
+            "Sign in as customer@example.com.",
+            "Try to open CGP-01707 from the Policies list.",
+            "Compare with opening /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483 directly."
+          ],
+          "impact": "The customer's ordinary navigation does not expose the detailed policy or its change-request workflow.",
+          "evidence": [
+            {
+              "observation_id": "customer-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/customer",
+              "captured_at": "2026-09-09T09:35:47.581Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "customer-policy",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:35:48.093Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "customer-change-request",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:36:04.236Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-change-request.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Customer policy detail",
+      "routes": [
+        "/policies/[policyId]"
+      ],
+      "roles": [
+        "customer"
+      ],
+      "states_inspected": [
+        "Bound, cancelled and voided policies",
+        "Endorsement schedule",
+        "Change-request form and answered history",
+        "Timeline",
+        "Help and dated-document controls"
+      ],
+      "evidence_ids": [
+        "customer-policy",
+        "customer-policy-schedule",
+        "customer-change-request",
+        "customer-policy-help",
+        "customer-policy-voided",
+        "customer-cancelled-policy"
+      ],
+      "issues": [
+        {
+          "id": "UI-035",
+          "priority": 1,
+          "category": "displayed_information",
+          "title": "The customer is shown a future endorsement as today's terms",
+          "observed": "On 2026-09-09, CGP-01707's customer list shows Annual premium in force $2,400.00. Its customer detail says 'These are the terms in force today' above $2,400.00 and the increased limits. Its own schedule dates those changes 2026-10-08. The operations detail shows $1,200.00 for 2026-09-09 with an explicit future-change notice.",
+          "reproduction_steps": [
+            "View CGP-01707 as customer@example.com.",
+            "Compare its terms, dated endorsement schedule and operations detail."
+          ],
+          "impact": "The customer receives a different statement of current premium and limits from the dated policy view.",
+          "evidence": [
+            {
+              "observation_id": "customer-overview",
+              "url": "https://corgi-work-trial-iota.vercel.app/customer",
+              "captured_at": "2026-09-09T09:35:47.581Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-overview.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "customer-policy",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:35:48.093Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-bound",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483",
+              "captured_at": "2026-09-09T09:20:21.937Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-bound.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        },
+        {
+          "id": "UI-036",
+          "priority": 2,
+          "category": "displayed_information",
+          "title": "Voided and not-yet-effective customer policies are described as in force today",
+          "observed": "CGP-01061 is marked voided, has a term beginning in 2028, and still says 'Terms in force' and 'These are the terms in force today'. CGP-01274's customer view uses the same wording even though the audit date precedes its 2026-09-17 term start. The voided customer view lacks the explanatory warning visible to operations.",
+          "reproduction_steps": [
+            "Open CGP-01061 as its customer.",
+            "Compare the status, term dates and Terms in force copy.",
+            "Compare CGP-01274's customer detail and its term start."
+          ],
+          "impact": "The customer-facing copy does not communicate whether coverage is currently effective.",
+          "evidence": [
+            {
+              "observation_id": "customer-policy-voided",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad",
+              "captured_at": "2026-09-09T09:36:05.643Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-policy-voided.png",
+              "viewport": {
+                "height": 697,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "customer-cancelled-policy",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/104d2966-be96-4c36-9956-caf0762f8b15",
+              "captured_at": "2026-09-09T09:37:06.769Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/customer-cancelled-policy.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            },
+            {
+              "observation_id": "policy-voided",
+              "url": "https://corgi-work-trial-iota.vercel.app/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad",
+              "captured_at": "2026-09-09T09:24:39.402Z",
+              "screenshot": "docs/evidence/ui-audit-2026-09-09/policy-voided.png",
+              "viewport": {
+                "height": 698,
+                "scrollWidth": 1512,
+                "width": 1512
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "page": "Not found",
+      "routes": [
+        "404"
+      ],
+      "roles": [
+        "anonymous"
+      ],
+      "states_inspected": [
+        "Deliberate missing path",
+        "Back to workspace navigation"
+      ],
+      "evidence_ids": [
+        "not-found"
+      ],
+      "issues": []
+    }
+  ],
+  "coverage_limits": [
+    {
+      "area": "Endorsement approval page",
+      "routes": [
+        "/policies/[policyId]/endorsements/[requestEventId]/approve"
+      ],
+      "status": "not_inspected",
+      "reason": "The inspected customer and broker inboxes contain no pending endorsement approval link. No new request was created solely to expose the page."
+    },
+    {
+      "area": "Correction approval page",
+      "routes": [
+        "/policies/[policyId]/corrections/[rebookEventId]/approve"
+      ],
+      "status": "not_inspected",
+      "reason": "No pending correction approval was available in the inspected inboxes. No correction was booked to manufacture this state."
+    },
+    {
+      "area": "Pending decisions and newly created objects",
+      "status": "not_inspected",
+      "reason": "No approval, payment, return, cancellation, correction, new policy, claim, verification, key, reconciliation run or statement was submitted. Their resulting success/failure states were not manufactured."
+    },
+    {
+      "area": "PDF contents",
+      "status": "blocked_in_browser",
+      "reason": "Opening a declarations document displayed Chrome ERR_BLOCKED_BY_CLIENT. The browser configuration was left intact. This is a coverage limitation, not an attributed application defect.",
+      "evidence": [
+        {
+          "observation_id": "pdf-browser-block",
+          "url": "https://corgi-work-trial-iota.vercel.app/api/policies/de2fb99f-8db4-4aa3-9ee5-827e444ab5ad/documents/declarations?asOf=2028-03-01",
+          "captured_at": "2026-09-09T09:36:49.203Z",
+          "screenshot": "docs/evidence/ui-audit-2026-09-09/pdf-browser-block.png",
+          "viewport": {
+            "width": 1512,
+            "height": 697
+          }
+        }
+      ]
+    },
+    {
+      "area": "Application exception screen",
+      "status": "not_inspected",
+      "reason": "No application exception occurred during the inspected paths. No artificial server failure was induced."
+    },
+    {
+      "area": "Dynamic data and disclosure coverage",
+      "status": "bounded",
+      "reason": "Existing page templates and available representative states were inspected. Repeated rows are not individually certified, and no exhaustive backend, financial-correctness, accessibility or security test is claimed."
+    }
+  ],
+  "reference_screens_inspected": [
+    "Coverage",
+    "Quotes",
+    "Endorsements and Add endorsements",
+    "Certificates",
+    "Claims and File a claim form",
+    "Documents and filters",
+    "Billing",
+    "Quote package selection",
+    "Organization menu/settings",
+    "Business address form",
+    "Account menu/settings",
+    "Changelog",
+    "Support/help menu",
+    "Tutorial entry"
+  ],
+  "additional_brand_measurement": {
+    "reference_heading_font": "F37BoltonFont, F37BoltonFont Fallback, sans-serif",
+    "trial_heading_font": "DM Sans, Inter, sans-serif",
+    "heading_size_px": 30,
+    "note": "Observed through read-only rendered DOM styles. Font difference is recorded as reference context, not a licensing recommendation."
+  },
+  "evidence_manifest": "docs/evidence/ui-audit-2026-09-09/observations.json",
+  "notes": [
+    "An empty issues array means no additional finding was retained for the inspected state, not a product-readiness PASS.",
+    "Only directly observed issues are listed. No code fix, deployment, commit, push or Linear write was performed by this audit.",
+    "Screenshots include synthetic trial data. Reference sidebar details were excluded from retained branding evidence.",
+    "Some amount-disclosure captures include animation in progress. Findings concern the persistent narrow layout, not intermediate animated values."
+  ]
+}

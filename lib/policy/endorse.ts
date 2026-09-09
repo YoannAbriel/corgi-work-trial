@@ -27,8 +27,8 @@ import Stripe from "stripe";
 import { collectionsStillRefundable, countRefundOperations } from "./cancel";
 import { foldPolicyEvents, refreshPolicyCurrent, type PolicyFold } from "./current";
 import {
+  additionalPremiumOfTheTerm,
   endorsementRequestPayload,
-  endorsementRequestsOfPolicy,
   endorsementRequestStanding,
   readEndorsementRequest,
   type EndorsementRequest,
@@ -99,6 +99,11 @@ export type EndorsementPlan = {
   // True when the reduction gives back more than $1,000, which needs a distinct human approver
   // before anything leaves (lib/approvals/threshold.ts). The preview says so before confirming.
   refundNeedsApproval: boolean;
+  // The running total the $500 customer threshold was read against, THIS endorsement included:
+  // the additional premium of the term's endorsements, applied and open together (decision 24).
+  // The preview prints it beside the verdict, so a broker never reads a yes or a no without the
+  // figure behind it.
+  additionalPremiumOfTheTermCents: number;
 };
 
 type Queryable = postgres.Sql | postgres.TransactionSql;
@@ -148,6 +153,14 @@ export async function planEndorsement(input: EndorsementInputFromForm, database:
     throw new EndorsementRefused("nothing changes: the premium and the limits are the ones already in force");
   }
 
+  // The base of the customer-approval threshold, read once for this preview and read the same
+  // way by the standing that gates the payment (lib/policy/endorsement-requests.ts).
+  const additionalPremiumSoFarCents = await additionalPremiumOfTheTerm(database, {
+    policyId: policy.policyId,
+    termStart: fold.terms.termStart,
+    exceptRequestEventId: null, // nothing is recorded yet: this quote is not among the events
+  });
+
   let figures: EndorsementFigures;
   try {
     figures = computeEndorsement({
@@ -162,9 +175,9 @@ export async function planEndorsement(input: EndorsementInputFromForm, database:
       taxRateBps: fold.terms.taxRateBps,
       taxChargedSoFarCents: await premiumTaxStillHeldForPolicy(database, policy.policyId),
       commissionRateBps: policy.commissionRateBps,
-      // The customer-approval threshold counts what this policy has already asked this customer
-      // for and not had answered (review finding F-B4-09).
-      otherUnapprovedRequestedCents: await additionalPremiumAwaitingTheCustomer(database, policy.policyId),
+      // The customer-approval threshold is cumulative per policy over the term (decision 24,
+      // review findings F-B4-09 and F-INT-12).
+      additionalPremiumSoFarCents,
     });
   } catch (error) {
     if (error instanceof EndorsementNotComputable) {
@@ -198,6 +211,8 @@ export async function planEndorsement(input: EndorsementInputFromForm, database:
         policyRefundedCents: refundsSoFar.refundedCents,
         policyPendingRefundCents: refundsSoFar.pendingCents,
       }),
+    // A reduction adds nothing to the total, so only a positive delta moves it.
+    additionalPremiumOfTheTermCents: additionalPremiumSoFarCents + Math.max(0, figures.deltaPremiumCents),
   };
 }
 
@@ -677,23 +692,6 @@ async function loadPolicy(database: Queryable, policyId: string): Promise<Policy
     customerId: row.customer_id,
     commissionRateBps: row.commission_rate_bps,
   };
-}
-
-// Additional premium this policy has asked the customer for and not had answered: the requests
-// that are still waiting for a yes, none of them applied. A request the customer already
-// approved is money they said yes to and does not make the next one need a second yes.
-async function additionalPremiumAwaitingTheCustomer(database: Queryable, policyId: string): Promise<number> {
-  let total = 0;
-  for (const request of await endorsementRequestsOfPolicy(database, policyId)) {
-    if (request.figures.deltaTotalCents <= 0) {
-      continue; // a reduction gives money back, and the customer is never asked about it
-    }
-    const standing = await endorsementRequestStanding(database, request);
-    if (standing.state === "awaiting_approval") {
-      total += request.figures.deltaTotalCents;
-    }
-  }
-  return total;
 }
 
 // Premium tax charged on this policy and not given back yet: the credit balance of

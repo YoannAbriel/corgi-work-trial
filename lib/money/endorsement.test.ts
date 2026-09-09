@@ -68,7 +68,7 @@ test("the refunded tax is capped at the tax charged so far on the policy", () =>
   assert.equal(figures.deltaTotalCents, -44562);
 });
 
-test("customer approval is required above $500 of premium plus tax, not at $500", () => {
+test("customer approval is required above $500 of PREMIUM, tax excluded, and not at $500", () => {
   // +$1,200 annual on day 100: floor(120000 x 265 / 365) = 87123, tax floor(87123 x 2.35%) = 2047.
   const large = computeEndorsement({ ...RECITED, newAnnualPremiumCents: 240000 });
   assert.equal(large.deltaPremiumCents, 87123);
@@ -76,20 +76,21 @@ test("customer approval is required above $500 of premium plus tax, not at $500"
   assert.equal(large.deltaTotalCents, 89170);
   assert.equal(large.customerApprovalRequired, true);
 
-  // Exactly at the threshold: a $500.00 total does not need approval; one cent more does.
+  // Exactly at the threshold: $500.00 of premium does not need approval; one cent more does.
+  // The tax rides along at 2.35% and takes the TOTAL above $500 without deciding anything, which
+  // is what decision 24 asks for: the base is the premium before tax.
   assert.equal(CUSTOMER_APPROVAL_THRESHOLD_CENTS, 50000);
   const atThreshold = computeEndorsement({
     ...RECITED,
-    termStart: "2028-03-01",
-    termEnd: "2029-03-01",
     effectiveAt: "2028-03-01", // the whole term remains: delta = annual difference
-    taxRateBps: 0,
     newAnnualPremiumCents: 120000 + 50000,
   });
-  assert.equal(atThreshold.deltaTotalCents, 50000);
+  assert.equal(atThreshold.deltaPremiumCents, 50000);
+  assert.equal(atThreshold.deltaTaxCents, 1175);
+  assert.equal(atThreshold.deltaTotalCents, 51175);
   assert.equal(atThreshold.customerApprovalRequired, false);
-  const oneCentAbove = computeEndorsement({ ...atThreshold, newAnnualPremiumCents: 120000 + 50001, effectiveAt: "2028-03-01", taxRateBps: 0 });
-  assert.equal(oneCentAbove.deltaTotalCents, 50001);
+  const oneCentAbove = computeEndorsement({ ...RECITED, effectiveAt: "2028-03-01", newAnnualPremiumCents: 120000 + 50001 });
+  assert.equal(oneCentAbove.deltaPremiumCents, 50001);
   assert.equal(oneCentAbove.customerApprovalRequired, true);
 });
 
@@ -215,27 +216,27 @@ test("inputs must be non-negative integer cents", () => {
   assert.throws(() => computeEndorsement({ ...RECITED, taxChargedSoFarCents: -1 }), /integer number of cents/);
 });
 
-test("the customer-approval threshold counts the requests already waiting for this customer (F-B4-09)", () => {
-  // Two raises of $400 in a row on the recited policy. Priced on day 100, +$400 of annual
-  // premium collects 29041 + 682 = 29723, which is under $500 on its own.
+test("the threshold counts the term's other endorsements, applied or open (decision 24, F-B4-09)", () => {
+  // Two raises of $400 annual in a row on the recited policy. Priced on day 100, +$400 of annual
+  // premium adds floor(40000 x 265 / 365) = 29041 cents of premium, under $500 on its own.
   const first = computeEndorsement({ ...RECITED, newAnnualPremiumCents: 160000 });
-  assert.equal(first.deltaTotalCents, 29723);
+  assert.equal(first.deltaPremiumCents, 29041);
   assert.equal(first.customerApprovalRequired, false);
 
-  // The same quote computed while the first one is still unanswered: together they collect
-  // 59446, so this one has to be approved.
+  // The same quote computed while the first one counts against the policy: together they add
+  // 58082 cents of premium, so this one has to be approved.
   const second = computeEndorsement({
     ...RECITED,
     newAnnualPremiumCents: 160000,
-    otherUnapprovedRequestedCents: first.deltaTotalCents,
+    additionalPremiumSoFarCents: first.deltaPremiumCents,
   });
-  assert.equal(second.deltaTotalCents, 29723);
+  assert.equal(second.deltaPremiumCents, 29041);
   assert.equal(second.customerApprovalRequired, true);
 });
 
-test("a reduction never needs the customer's approval, whatever is waiting", () => {
-  const reduction = computeEndorsement({ ...RECITED, newAnnualPremiumCents: 60000, otherUnapprovedRequestedCents: 90000 });
-  assert.ok(reduction.deltaTotalCents < 0);
+test("a reduction never needs the customer's approval, whatever the policy already added", () => {
+  const reduction = computeEndorsement({ ...RECITED, newAnnualPremiumCents: 60000, additionalPremiumSoFarCents: 90000 });
+  assert.ok(reduction.deltaPremiumCents < 0);
   assert.equal(reduction.customerApprovalRequired, false);
 });
 

@@ -1,7 +1,7 @@
 import type postgres from "postgres";
 import { sql } from "@/db/client";
 import { centsFromDatabase } from "@/lib/money/cents";
-import { customerApprovalNeeded } from "@/lib/approvals/threshold";
+import { endorsementNeedsCustomerApproval } from "@/lib/approvals/threshold";
 import { CUSTOMER_APPROVAL_THRESHOLD_CENTS, type EndorsementDirection, type EndorsementFigures } from "@/lib/money/endorsement";
 
 // Reading endorsement requests back from policy_events.
@@ -125,40 +125,88 @@ export async function endorsementRequestStanding(
 }
 
 // Does this request need the customer's explicit yes? Recomputed from the events, never read
-// from the request's own payload (review finding F-B4-08), and cumulative per policy (F-B4-09):
-// the base is the additional premium of the OTHER requests still waiting for this customer, plus
-// this one. Two raises of $400 asked for one after the other collect $800 from a customer who
-// was never asked, unless they are counted together.
-//
-// Only a charge is counted: a reduction gives money back and needs no customer approval.
+// from the request's own payload (review finding F-B4-08), and cumulative per policy over the
+// term (decision 24): the base is the additional premium of the term's OTHER endorsements, the
+// applied ones and the open requests together, plus this one. Two raises of $300 asked for one
+// after the other collect $600 from a customer who was never asked, unless they are counted
+// together. The rule itself is in lib/approvals/threshold.ts and is shared with the preview
+// (lib/money/endorsement.ts), so the screen, this standing and the payment gate cannot disagree
+// (review finding F-INT-12).
 async function customerApprovalIsRequired(database: Queryable, request: EndorsementRequest): Promise<boolean> {
-  if (request.figures.deltaTotalCents <= 0) {
-    return false;
-  }
-  const others = await endorsementRequestsOfPolicy(database, request.policyId);
-  const approvedRequestEventIds = await approvedOrAppliedRequestEventIds(database, request.policyId);
-  const stillWaitingCents = others
-    .filter((other) => other.eventId !== request.eventId)
-    .filter((other) => other.figures.deltaTotalCents > 0)
-    .filter((other) => !approvedRequestEventIds.has(other.eventId))
-    .reduce((total, other) => total + other.figures.deltaTotalCents, 0);
-  return customerApprovalNeeded({
-    amountCents: request.figures.deltaTotalCents,
-    unapprovedRequestedCents: stillWaitingCents,
+  const additionalPremiumSoFarCents = await additionalPremiumOfTheTerm(database, {
+    policyId: request.policyId,
+    // The term this quote was priced against, which is the term the threshold is read over.
+    termStart: request.figures.termStart,
+    exceptRequestEventId: request.eventId,
+  });
+  return endorsementNeedsCustomerApproval({
+    additionalPremiumSoFarCents,
+    // Premium before tax, never the total: the tax follows the premium and never decides the
+    // question (decision 24).
+    additionalPremiumCents: request.figures.deltaPremiumCents,
     thresholdCents: CUSTOMER_APPROVAL_THRESHOLD_CENTS,
   });
 }
 
-// The requests this customer has already said yes to, or that are already in force. Money they
-// agreed to does not make the next endorsement need a second yes.
-async function approvedOrAppliedRequestEventIds(database: Queryable, policyId: string): Promise<Set<string>> {
-  const rows = await database<{ request_event_id: string | null }[]>`
-    select payload ->> 'request_event_id' as request_event_id
-      from policy_events
-     where policy_id = ${policyId}
-       and event_type in ('endorsement_approved', 'endorsed')
+// THE RUNNING TOTAL THE $500 CUSTOMER THRESHOLD IS READ AGAINST, in one query and in one place.
+//
+// It is the additional premium (before tax) that this policy's endorsements have added over the
+// CURRENT TERM. What counts, and what does not:
+//
+//   counts    an endorsement in force: its 'endorsed' event, or the 'correction_rebook' that
+//             replaced it after a correction, which carries the re-priced figures;
+//   counts    an open request: asked for, not applied, and not superseded by any later event,
+//             whether it is waiting for the customer or already approved and waiting to be paid.
+//             Counting it is what stops two raises asked for in the same minute from both
+//             looking small enough to skip the question;
+//   does not  a request superseded by a later event (a second request, a cancellation, a
+//             correction): it is a quote nobody can pay any more. There is no reject or expire
+//             event on a quote in this build; a request is dropped by being superseded, and an
+//             expired hosted payment page kills the payment attempt, never the request;
+//   does not  an endorsement an earlier correction superseded: the re-book beside it is the one
+//             that counts, and counting both would count the same cover twice;
+//   does not  a reduction: it gives money back and the customer is never asked about it;
+//   does not  an endorsement of another term, or the endorsement being decided (excluded by
+//             `exceptRequestEventId`, on both sides: its request and its application).
+//
+// Tax is never in the total: the base is the premium alone.
+export async function additionalPremiumOfTheTerm(
+  database: Queryable,
+  input: { policyId: string; termStart: string; exceptRequestEventId: string | null },
+): Promise<number> {
+  const [row] = await database<{ additional_premium_cents: string }[]>`
+    select coalesce(sum(counted.additional_premium_cents), 0)::text as additional_premium_cents
+      from (
+             -- endorsements in force, and the re-books that replaced corrected ones
+             select (applied.payload ->> 'delta_premium_cents')::bigint as additional_premium_cents
+               from policy_events applied
+              where applied.policy_id = ${input.policyId}
+                and (applied.event_type = 'endorsed'
+                     or (applied.event_type = 'correction_rebook'
+                         and applied.payload ->> 'rebooked_event_type' = 'endorsed'))
+                and applied.payload ->> 'term_start' = ${input.termStart}
+                and (applied.payload ->> 'delta_premium_cents')::bigint > 0
+                and not exists (select 1 from policy_events correction
+                                 where correction.supersedes_event_id = applied.id)
+                and (${input.exceptRequestEventId}::uuid is null
+                     or applied.payload ->> 'request_event_id' is distinct from ${input.exceptRequestEventId}::uuid::text)
+             union all
+             -- requests still open: not applied, and no later event superseded them
+             select (request.payload ->> 'delta_premium_cents')::bigint
+               from policy_events request
+              where request.policy_id = ${input.policyId}
+                and request.event_type = 'endorsement_requested'
+                and request.payload ->> 'term_start' = ${input.termStart}
+                and (request.payload ->> 'delta_premium_cents')::bigint > 0
+                and (${input.exceptRequestEventId}::uuid is null or request.id <> ${input.exceptRequestEventId}::uuid)
+                and not exists (select 1 from policy_events later
+                                 where later.policy_id = request.policy_id
+                                   and later.sequence_number > request.sequence_number
+                                   and not (later.event_type = 'endorsement_approved'
+                                            and later.payload ->> 'request_event_id' = request.id::text))
+           ) counted
   `;
-  return new Set(rows.map((row) => row.request_event_id).filter((id): id is string => id !== null));
+  return centsFromDatabase(row.additional_premium_cents, "additional premium of the term");
 }
 
 // The request the policy page acts on: the latest one that is neither applied nor superseded.
