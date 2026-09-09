@@ -142,6 +142,10 @@ async function main() {
   const p1 = await createPaidPolicy(recordSuccessfulPayment, people.brokerId, P1_PREMIUM_CENTS, P1_TAX_CENTS);
   const p2 = await createPaidPolicy(recordSuccessfulPayment, people.brokerId, RECITED_PREMIUM_CENTS, RECITED_TAX_CENTS);
   const p3 = await createPaidPolicy(recordSuccessfulPayment, people.brokerId, RECITED_PREMIUM_CENTS, RECITED_TAX_CENTS);
+  // The three policies this check owns. Every "nothing was posted" assertion below counts journal
+  // entries on these and on nothing else, because corgi_test is shared with the other slices'
+  // checks and the whole table moves under this script while it runs.
+  const checkPolicyIds = [p1.policyId, p2.policyId, p3.policyId];
   report(
     "three paid policies were seeded, with their cash on the ledger",
     p1.totalChargeCents === 355684 && p2.totalChargeCents === 125320,
@@ -272,12 +276,15 @@ async function main() {
   // 2. The same breaks, run again: the age is counted from the first run
   // ---------------------------------------------------------------------------
 
-  const journalEntriesBeforeTheRerun = await journalEntryCount();
+  // Counted over THIS CHECK'S OWN POLICIES, and that is review finding F-BREAKSBOARD-05:
+  // corgi_test is shared, other agents commit journal entries while this script runs, so a global
+  // count moves for reasons that have nothing to do with the run being asserted about.
+  const journalEntriesBeforeTheRerun = await journalEntryCountForPolicies(checkPolicyIds);
   const secondRun = await runReconciliation(
     { source: fixtureStripeSource(fixtureListing), window, runByUserId: null, now },
     runtime,
   );
-  const journalEntriesAfterTheRerun = await journalEntryCount();
+  const journalEntriesAfterTheRerun = await journalEntryCountForPolicies(checkPolicyIds);
   const secondItems = await itemsOfRun(secondRun.runId);
   report(
     "running the same window again produces the same breaks, and does not move their first-seen instant",
@@ -289,7 +296,7 @@ async function main() {
   report(
     "a run posts no money and no journal entry: reconciliation only appends to its own two tables",
     journalEntriesAfterTheRerun === journalEntriesBeforeTheRerun,
-    `${journalEntriesBeforeTheRerun} journal entries before the run, ${journalEntriesAfterTheRerun} after`,
+    `${journalEntriesBeforeTheRerun} journal entries on this check's policies before the run, ${journalEntriesAfterTheRerun} after`,
   );
 
   // ---------------------------------------------------------------------------
@@ -708,10 +715,6 @@ async function main() {
     `${refusedForUnknownBreak?.constructor.name}: ${refusedForUnknownBreak?.message}`,
   );
 
-  // Counted over THIS CHECK'S OWN POLICIES, not over the whole table: corgi_test is shared with
-  // the other slices' checks, which commit journal entries while this one runs, so a global count
-  // would move for reasons that have nothing to do with the note being written.
-  const checkPolicyIds = [p1.policyId, p2.policyId, p3.policyId];
   const journalEntriesBeforeTheNote = await journalEntryCountForPolicies(checkPolicyIds);
   await explainBreak(
     {
@@ -942,11 +945,6 @@ async function itemCountForBreakKey(breakKey: string): Promise<number> {
   const [row] = await owner<{ count: string }[]>`
     select count(*)::text as count from reconciliation_items where break_key = ${breakKey}
   `;
-  return Number(row.count);
-}
-
-async function journalEntryCount(): Promise<number> {
-  const [row] = await owner<{ count: string }[]>`select count(*)::text as count from journal_entries`;
   return Number(row.count);
 }
 

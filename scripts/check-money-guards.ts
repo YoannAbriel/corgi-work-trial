@@ -257,11 +257,20 @@ async function insertFixtureRows(tx: postgres.TransactionSql): Promise<Fixture> 
   `;
   // The note an operator wrote on that break (migration 0022). It is filed under the break key,
   // not under the item's id: a break has one item per run that reported it.
+  //
+  // The three columns of migration 0025 are filled in with the report the item above describes,
+  // and that is review finding F-BREAKSBOARD-10: they are nullable, so the guard proof used to
+  // pass without ever writing them, and a guard that never sees the real shape of a row is not
+  // proof about that row. Same classification and same two amounts as the item.
   const [breakNote] = await tx<{ id: string }[]>`
-    insert into reconciliation_break_notes (break_key, note, explained_by)
+    insert into reconciliation_break_notes (
+      break_key, note, explained_by,
+      explained_classification, explained_provider_amount_cents, explained_ledger_amount_cents
+    )
     values ('stripe|provider_only|pi_guard_check',
             'guard check note, always rolled back: a probe payment from a check run',
-            ${maker.id})
+            ${maker.id},
+            'provider_only', 4242, null)
     returning id
   `;
 
