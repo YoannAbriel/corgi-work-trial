@@ -357,3 +357,206 @@ cannot certify understanding on his behalf.
 | F-B12-07 | LOW | The claim "Paid" evidence table nets to zero (Cr 120000, Dr 120000) under a $1,200.00 figure | One sentence saying the settlement moves the payable out again | OPEN |
 | F-B12-08 | LOW | The new tax fold displays the open F-YA-07: "Terms in force" prints the post-endorsement $2,400.00 and $56.40 on 2026-09-09 while its own evidence lists $54.08 booked | Close F-YA-07 in the same file | OPEN, duplicate of F-YA-07 |
 | F-B12-09 | LOW | `docs/handoffs/b12-2-3-notes.md` says the endorsement lines are "stored on the event"; they are rebuilt from the stored figures by `endorsementFormulaLines` | Reword to what the code does | OPEN |
+
+---
+
+# Re-review after the fixes, 2026-09-09T09:20Z
+
+New revision reviewed: **`19baf15`** (merge of `worktree-agent-acc7e1cd088537310` into main,
+"B12 explanation fixes (F-B12-02 to 07, 09) and terms in force on today (F-YA-07)"). The eight fix
+commits are `986e1eb`, `5b31899`, `94debbc`, `41807f0`, `612ece6`, `339b5c4`, `bdb9c22`, `3b11db4`.
+The isolated fix diff is `19baf15^1..19baf15`: 9 files, +482/-101.
+
+My worktree branch `worktree-agent-ae1296a4ce5b46bb2` merged `origin/main` and fast-forwarded to
+`bb54cce` (the coordinator had already carried the first review record, `ad242c8`, onto main;
+`bb54cce` is a docs-only commit on top of `19baf15`, which is why production reports `19baf15`).
+
+Deployed revision measured: `/api/health` returning
+`{"ok":true,"database":"ok","revision":"19baf1599e7829ec2f780e4971dfcd477588bb09"}`.
+
+Prior findings and the prior verdict above are preserved unchanged. This section only records what
+changed.
+
+## Checks executed in the re-review
+
+| Check | Command | Result |
+|---|---|---|
+| Unit tests | `npm test` | 434 tests, 433 pass, 1 skipped, 0 fail (8 added since the first review) |
+| Types | `npx tsc --noEmit` | clean, no output |
+| Secrets | `gitleaks detect --log-opts="19baf15^1..19baf15"` | 8 commits scanned, no leaks found |
+| Guards and forms unchanged by the fixes | `19baf15^1` against `19baf15`: guard lines of the three changed pages, `name="…"` multiset, `<form action=…>` targets, `"use client"` file list | all four IDENTICAL |
+| Deployed screens | 7 authenticated fetches as ops and broker | all 200 |
+
+Note on the guard comparison: measured against `369671d` (the parent of the slice's original merge)
+the `name="…"` multiset now differs by `comment`, `lines`, `outcome`, `text` and two extra `asOf`
+fields. Those come from the customer change-requests slice (`a6aca56..b40e803`, YOA-634), not from
+this scope: the B12 comparison in isolation, `19baf15^1` against `19baf15`, is identical.
+
+## Measurements on the deployed application, revision 19baf15
+
+| Screen | Folds | Alerts | As-of steps (was) |
+|---|---|---|---|
+| CGP-01274 (cancelled, term start 2026-09-17) | 14 | 0 | **2** (was 3): 2026-09-17 term start, 2026-10-31 cancellation |
+| CGP-01707 (endorsed 2026-10-08, term start 2026-09-08) | 8 | 0 | **3** (unchanged): term start, today, endorsement |
+| CGP-01062 (cancelled, term start 2026-10-01) | 14 | 0 | **2** (was 3): term start, cancellation |
+| CGP-01061 (voided, term start 2028-03-01) | 7 | 0 | **1** (was 2): term start |
+| CGP-01707 as broker | 8 | 0 | 3 |
+| Claim `2f78c23c` | 3 | 0 | n/a |
+| Statement `c775c8ce` (v2) | 5 | 0 | n/a |
+| Statement `c2a6aa84` (v1) | 0 | n/a | n/a, still "not stored on this revision" |
+
+**Fold counts unchanged, alerts still zero on every screen.** No figure moved: CGP-01274 still
+$2,391.33 collected, $2,081.09 refunded, $41.81 commission payable, $0.00 unearned, and the seven
+cancellation figures are the same cents as before.
+
+## Per-finding verdict
+
+### F-B12-02 (MEDIUM) RESOLVED
+
+`explainAccountSum` now skips a line whose contribution is zero under `"debits"` or `"credits"`
+(every line is kept under `"credits_minus_debits"`, where a zero is meaningful), takes the side
+from the rule rather than from whichever column is filled, and names the side in the empty state.
+The total still comes from `accountSumCents`, so no figure could move. Live on CGP-01274:
+
+```
+Collected at Stripe $2,391.33
+  premium_collected, effective 2026-09-08 ; Dr Cash held at Stripe 239133 ; $2,391.33
+  Collected at Stripe, all debits added   ; 239133                        ; $2,391.33
+
+Refunded from Stripe $2,081.09
+  refund_completed, effective 2026-09-08  ; Cr Cash held at Stripe 208109 ; $2,081.09
+  Refunded from Stripe, all credits added ; 208109                        ; $2,081.09
+```
+
+The refund credit is gone from the collection fold and the collection debit is gone from the refund
+fold, in the formula table and in the evidence table. Two tests added.
+
+### F-B12-03 (MEDIUM) RESOLVED
+
+The earned line no longer prints a concrete ratio. Live on CGP-01274:
+
+> Earned premium kept by the insurer, rounded down on each segment (the term had run 44 of its 365
+> days) | `sum over each written segment of floor(its written premium x its own elapsed days / its
+> own window)` | $278.70
+
+and the earned and unearned folds carry a sentence saying the cancellation event stores the totals
+and not the segment list, pointing the reader at the endorsement schedule and the `premium_written`
+journal entries for the windows themselves. That is the honest fix: it stops printing arithmetic
+the ledger never ran instead of inventing segments that are not stored. A test asserts the exact
+formula string and that no `100 / 365`-shaped ratio survives.
+
+### F-B12-04 (LOW) RESOLVED
+
+`policyAsOfStepsFrom` (moved to the new pure `lib/policy/as-of-steps.ts`, with its own test file)
+adds the today step only when `today >= termStart`. Live: the today step is gone from CGP-01274
+(2 steps), CGP-01062 (2) and CGP-01061 (1), and is still there on CGP-01707 (3), whose term began
+2026-09-08. No step now leads to a refusal, and none sits outside the date field's own `min`.
+Moving the function to a pure module and testing it without a database is a readability gain
+beyond the finding.
+
+### F-B12-05 (LOW) RESOLVED
+
+`joinSignedCents` writes a negative contribution as a subtraction. Live on CGP-01274:
+`34680 - 30499` for commission payable and `231200 - 203330 - 27870` for unearned premium, against
+`34680 + -30499` and `231200 + -203330 + -27870` before. The net-due clawback line is
+`String(-clawbackCents)`, so an empty month prints `0` and no longer `-0`.
+
+### F-B12-06 (LOW) RESOLVED
+
+`explainable` is now `run.canonicalVersion === CANONICAL_STATEMENT_VERSION`. Live: the v2 run
+`c775c8ce` still renders its 5 folds and the v1 run `c2a6aa84` still renders none with "not stored
+on this revision", so the tightening did not cost anything on today's data while closing the
+future-v3 hole.
+
+### F-B12-07 (LOW) RESOLVED
+
+`evidenceFromJournal` takes an optional entry-type filter and the paid fold passes
+`["claim_payment_sent", "claim_reserve_restored"]`, the two entry types that actually move the paid
+figure. Live on claim `2f78c23c` the evidence is now the single line
+`claim_payment_sent … Cr Claim payments sent and not yet settled on the rail 120000`, equal to the
+$1,200.00 figure above it; the offsetting `claim_payment_settled` debit that made the table net to
+zero is gone, and the label explains that a settlement is the rail confirming a payment already
+counted as paid. A test asserts the kept entries add up to the paid figure.
+
+### F-B12-08 (LOW) RESOLVED, with a residual raised as F-B12-10
+
+F-YA-07 is fixed at its root: the panel now asks `policyAsItStoodOn` for today, the same fold the
+"as it stood on" panel below uses, instead of reading `policy_current`. Live on CGP-01707 on
+2026-09-09:
+
+- panel heading **"Terms in force on 2026-09-09"**;
+- **annual premium $1,200.00**, **CA premium tax (2.35%) $28.20** with the fold reading
+  `floor(120000 x 235 / 10000)` and the label "on the annual premium in force on 2026-09-09";
+- full annual term `120000 + 2820 + 2500 = $1,253.20`;
+- limits $1,000,000 / $2,000,000, the ones in force today;
+- and under the facts: "An endorsement effective **2026-10-08** brings the annual premium to
+  **$2,400.00** ($2,000,000.00 per occurrence / $4,000,000.00 aggregate). It is in the schedule
+  below with the delta it collected; the figures above are the ones in force on 2026-09-09."
+
+The fallback when the fold has no answer (policy not issued on that date, or its issuance
+reversed) drops back to the policy record and drops the date from the heading rather than claiming
+one, which is the right failure path. `policy_current` still drives the rest of the page,
+correctly: a future-dated endorsement IS on the policy.
+
+### F-B12-09 (LOW) RESOLVED
+
+`docs/handoffs/b12-2-3-notes.md` now reads "rebuilt from the figures stored on the event by the
+function that priced it" and records the correction of its own earlier wording.
+
+## New finding
+
+### F-B12-10 (LOW): the tax fold's evidence still lists a future-dated entry that is not part of the figure
+
+`evidenceFromJournal(entries, "premium_tax_payable")` on the terms panel is not filtered by date,
+so on CGP-01707 the fold under **$28.20** still lists both:
+
+```
+tax_and_fee_billed      ; 2026-09-08 ; Cr State premium tax collected 2820
+endorsement_tax_billed  ; 2026-10-08 ; Cr State premium tax collected 2588
+```
+
+The figure now equals the first row, and the second is visibly dated a month ahead and matches the
+endorsement the panel names, so this is a large improvement on the reviewed state (figure $56.40
+against entries totalling $54.08 with no relation between them). It is not fully closed: a reader
+who adds the evidence gets 5408 against a figure of 2820. The `evidenceLabel` denies the sum in
+words ("They are what was charged over time; the figure above is the tax on the annual premium in
+force on this date"), which is why this is LOW and not a reopening of F-B12-08.
+
+Required correction: pass the panel's date into the evidence and keep the entries effective on or
+before it, so the fold under a dated figure shows dated evidence.
+
+Not a regression: the same unfiltered evidence was there before the fix.
+
+## Re-review verdict
+
+**PASS** at `19baf15`, deployed and measured.
+
+Resolved: F-B12-02, F-B12-03, F-B12-04, F-B12-05, F-B12-06, F-B12-07, F-B12-08 (with F-YA-07 at
+its root), F-B12-09. Open: F-B12-10 (LOW, new).
+
+The property the slice rests on still holds and is now better served: 49 folds rendered across the
+same screens plus the broker view, zero disagreement alerts, no figure changed by any fix, and the
+two MEDIUM findings are closed by making the explanation say less rather than by making it say
+something new, which is the right direction for this feature. Guards, form field names, form
+actions and the client-file list are untouched by the fixes.
+
+Residual limitations, unchanged from the first review: no visual check in a browser, and the
+`correction_rebook` step and the two-events-on-one-day merge remain unverified live because the
+trial database still holds no corrected endorsement. `lib/policy/as-of-steps.test.ts` now covers
+both cases as unit tests, which is a real improvement on that gap without closing the live one.
+
+**Candidate walkthrough status: NOT REVIEWED WITH YOANN.** Unchanged; no walkthrough took place.
+
+## Register lines for the coordinator, re-review
+
+| ID | Severity | Status after 19baf15 |
+|---|---|---|
+| F-B12-02 | MEDIUM | RESOLVED 986e1eb, verified live on CGP-01274 (both cash folds list only their own side) |
+| F-B12-03 | MEDIUM | RESOLVED 5b31899, verified live (the earned line prints the rule, not a ratio) |
+| F-B12-04 | LOW | RESOLVED 94debbc, verified live (no today step on CGP-01274, CGP-01062, CGP-01061; kept on CGP-01707) |
+| F-B12-05 | LOW | RESOLVED 41807f0, verified live (`34680 - 30499`, `231200 - 203330 - 27870`) |
+| F-B12-06 | LOW | RESOLVED 612ece6, verified live (v1 still no fold, v2 still 5) |
+| F-B12-07 | LOW | RESOLVED 339b5c4, verified live (paid evidence is the single `claim_payment_sent` line, equal to the figure) |
+| F-B12-08 | LOW | RESOLVED 3b11db4 with F-YA-07 at its root, verified live on CGP-01707 ("Terms in force on 2026-09-09", $1,200.00, $28.20, endorsement 2026-10-08 named) |
+| F-B12-09 | LOW | RESOLVED bdb9c22 |
+| F-B12-10 | LOW | NEW, OPEN: the tax fold's evidence is not filtered by the panel's date, so a future-dated `endorsement_tax_billed` row sits under a figure it is not part of; the label denies the sum in words. Filter the evidence by effective date |
