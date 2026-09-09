@@ -493,70 +493,78 @@ export default async function PolicyPage({
             </p>
           ) : null}
 
-          <div className="cards pd-cards-4">
-            <section className="card">
-              <h2>Cover</h2>
-              <FactGrid
-                items={[
-                  ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
-                  { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
-                  { label: "State", value: policy.stateCode },
-                  { label: "Commission rate", value: `${(policy.commissionRateBps / 100).toFixed(2)}%` },
-                ]}
-              />
-            </section>
+          {/* Two stacks rather than one grid row of four: a short card and a tall card sharing a
+              grid row left the short one ending far above the row, so the card under it started
+              below an empty gap (Yoann, 2026-09-09). The two short records are the left stack, the
+              two blocks that grow with the policy are the right one, and each stack sits tight. */}
+          <div className="pd-columns">
+            <div className="pd-column">
+              <section className="card">
+                <h2>Cover</h2>
+                <FactGrid
+                  items={[
+                    ...terms.limits.map((limit) => ({ label: limit.label, value: formatCentsAsUsd(limit.cents) })),
+                    { label: "Term", value: `${policy.effectiveAt} to ${policy.termEnd}` },
+                    { label: "State", value: policy.stateCode },
+                    { label: "Commission rate", value: `${(policy.commissionRateBps / 100).toFixed(2)}%` },
+                  ]}
+                />
+              </section>
 
-            <section className="card">
-              <h2>So far, from the journal</h2>
-              <LedgerSoFarFacts
-                ledger={ledger}
-                entries={entriesStillStanding}
-                operation={operation}
-                openClaims={openClaims.length}
-                openClaimReserveCents={openClaimReserveCents}
-                referenceHref={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
-                inspected={inspected}
-              />
-              {reversedPairCount > 0 ? (
-                // UI-022: said out loud rather than left to be inferred from four figures that no
-                // longer match the journal line by line. One line here, the reason in About.
-                <p className="pd-note">
-                  {reversedPairCount === 1
-                    ? "One reversed entry is left out, with its mirror."
-                    : `${reversedPairCount} reversed entries are left out, with their mirrors.`}
-                </p>
-              ) : null}
-            </section>
+              <section className="card">
+                <h2>Broker</h2>
+                <dl className="pd-facts">
+                  <div>
+                    <dt>Name</dt>
+                    <dd>{policy.brokerName}</dd>
+                  </div>
+                  <div>
+                    <dt>Verification</dt>
+                    <dd>
+                      <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>{kyb.status}</Chip>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Customer</dt>
+                    <dd>{policy.customerEmail}</dd>
+                  </div>
+                </dl>
+                {/* AF-02 on the record itself when the status is not provider evidence; what the
+                    status means is under its own heading in About (cycle 2, decision 9). */}
+                {kyb.isProviderEvidence ? null : (
+                  <p className="pd-note">{KYB_NOT_LIVE_LABEL}: a seeded placeholder, not provider evidence.</p>
+                )}
+              </section>
+            </div>
 
-            <section className="card">
-              <h2>Broker</h2>
-              <dl className="pd-facts">
-                <div>
-                  <dt>Name</dt>
-                  <dd>{policy.brokerName}</dd>
-                </div>
-                <div>
-                  <dt>Verification</dt>
-                  <dd>
-                    <Chip tone={kyb.status === "approved" ? "ok" : "warn"}>{kyb.status}</Chip>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Customer</dt>
-                  <dd>{policy.customerEmail}</dd>
-                </div>
-              </dl>
-              {/* AF-02 on the record itself when the status is not provider evidence; what the
-                  status means is under its own heading in About (cycle 2, decision 9). */}
-              {kyb.isProviderEvidence ? null : (
-                <p className="pd-note">{KYB_NOT_LIVE_LABEL}: a seeded placeholder, not provider evidence.</p>
-              )}
-            </section>
+            <div className="pd-column">
+              <section className="card">
+                <h2>So far, from the journal</h2>
+                <LedgerSoFarFacts
+                  ledger={ledger}
+                  entries={entriesStillStanding}
+                  operation={operation}
+                  openClaims={openClaims.length}
+                  openClaimReserveCents={openClaimReserveCents}
+                  referenceHref={isStaff ? (reference) => inspectHref(path, query, reference) : undefined}
+                  inspected={inspected}
+                />
+                {reversedPairCount > 0 ? (
+                  // UI-022: said out loud rather than left to be inferred from four figures that no
+                  // longer match the journal line by line. One line here, the reason in About.
+                  <p className="pd-note">
+                    {reversedPairCount === 1
+                      ? "One reversed entry is left out, with its mirror."
+                      : `${reversedPairCount} reversed entries are left out, with their mirrors.`}
+                  </p>
+                ) : null}
+              </section>
 
-            <section className="card">
-              <h2>Documents</h2>
-              <PolicyDocuments policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
-            </section>
+              <section className="card">
+                <h2>Documents</h2>
+                <PolicyDocuments policyId={policy.policyId} documentDate={documentDate} termStart={policy.effectiveAt} />
+              </section>
+            </div>
           </div>
 
           {/* Slice B13-6: what the customer has asked for on this policy, and the box to answer

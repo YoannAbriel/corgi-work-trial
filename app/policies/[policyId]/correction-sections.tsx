@@ -84,15 +84,15 @@ export function policyFormViews({
   ];
 }
 
-// The two documents of a policy, in the Documents card of the overview: one line each, the date
-// they are rebuilt on beside the button that opens them (cycle 2, decision 16 folded the
-// Documents view into this card). Same action, same method, same field name as before: the route
-// reads `asOf` and rebuilds the PDF from the events effective on or before it.
+// The two documents of a policy, in the Documents card of the overview: one compact line each,
+// the name on the left, the date they are rebuilt on in the middle, the download on the right
+// (cycle 2, decision 16 folded the Documents view into this card). Same action, same method, same
+// field name as before: the route reads `asOf` and rebuilds the PDF from the events effective on
+// or before it.
 //
-// The label of a button is two words, so neither wraps at any desktop width (round 1: both ran to
-// two lines everywhere), and the icon says what pressing it does. The date the browser draws in
-// its own locale is said again underneath in the ISO format the rest of the product prints, so
-// one screen never shows a date two ways (round 1).
+// The name is plain text and the button is the icon alone, because a button carrying the name of
+// the document repeated it and made the row as wide as the card for no gain (Yoann, 2026-09-09).
+// What pressing it does is said once, under the list, instead of once per row.
 export function PolicyDocuments({
   policyId,
   documentDate,
@@ -120,6 +120,7 @@ export function PolicyDocuments({
         documentDate={documentDate}
         termStart={termStart}
       />
+      <p className="pd-note">PDF as of the chosen date, opens in a new tab.</p>
     </>
   );
 }
@@ -143,13 +144,15 @@ function DocumentRow({
 }) {
   return (
     // The PDF is reached through this GET form, so the new tab is asked for on the form
-    // rather than on a link: same action, same method, same field name.
+    // rather than on a link: same action, same method, same field name. One row is one form,
+    // because the date field belongs to the document it rebuilds and to no other.
     <form
       method="get"
       action={`/api/policies/${policyId}/documents/${endpoint}`}
       className="pd-doc-row"
       target="_blank"
     >
+      <span className="pd-doc-name">{label}</span>
       <input
         id={fieldId}
         name="asOf"
@@ -159,11 +162,16 @@ function DocumentRow({
         required
         aria-label={`${label} as of`}
       />
-      <button type="submit" className="secondary">
-        <Download size={14} aria-hidden="true" />
-        {label}
+      {/* The icon alone, so the name is not printed twice on one row. The label a screen reader
+          and a hover both get says which document and what comes back. */}
+      <button
+        type="submit"
+        className="secondary pd-doc-download"
+        aria-label={`Download ${label} as PDF`}
+        title={`Download ${label} as PDF`}
+      >
+        <Download size={15} aria-hidden="true" />
       </button>
-      <span className="pd-doc-asof">as of {documentDate}, PDF</span>
     </form>
   );
 }
