@@ -12,7 +12,7 @@ import { withActivity } from "@/lib/observability/log";
 // The route moves no money at all. It reads the journal and appends one run and its lines, so the
 // worst a repeated submission can do is store another revision, which is exactly what the model
 // says a re-run is: an event, not an edit.
-export const POST = withActivity({ route: "/api/statements/run" }, handlePost);
+export const POST = withActivity({ route: "/api/statements/run", rule: "statement run" }, handlePost);
 
 async function handlePost(request: Request) {
   const user = await currentUser();

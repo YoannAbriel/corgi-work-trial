@@ -10,7 +10,7 @@ import { withActivity } from "@/lib/observability/log";
 // customer saw; the server checks that it is the hash on file and that the quote is still the
 // live one, so a stale page or a forged field is refused. Only the policy's own customer, read
 // from the session, can approve; the broker, staff and any agent are refused.
-export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/approve", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/approve", rule: "endorsement", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
   const user = await currentUser();

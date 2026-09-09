@@ -14,7 +14,7 @@ import { withActivity } from "@/lib/observability/log";
 //
 // The three refusals an approver can meet are all sentences on the approvals screen:
 // wrong role, own request, already decided.
-export const POST = withActivity({ route: "/api/approvals/[requestId]" }, handlePost);
+export const POST = withActivity({ route: "/api/approvals/[requestId]", rule: "maker-checker" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ requestId: string }> }) {
   const user = await currentUser();

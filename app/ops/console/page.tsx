@@ -285,9 +285,15 @@ export default async function OperationsConsolePage({
                   Every route handler, every job and the MCP endpoint are wrapped in one helper
                   (<code>lib/observability/log.ts</code>) that writes one append-only row in <code>activity_log</code>{" "}
                   and prints the same fields as one JSON line in the server log. A row is <strong>refused</strong>{" "}
-                  when a rule said no: the handler threw one of the application&apos;s refusal classes, answered a
-                  4xx, or redirected with an error message, which is how most screens here say no. It is{" "}
-                  <strong>error</strong> when something broke.
+                  when a rule said no: the handler answered a 4xx, or redirected with an error message, which is how
+                  most screens here say no. It is <strong>error</strong> when something broke, and the HTTP status is
+                  the one the caller actually received.
+                </p>
+                <p>
+                  The <strong>Rule</strong> column is named by the route, which declares the gate it enforces. A
+                  request refused <em>before</em> that gate reads <code>sign in</code> when there was no session, and
+                  names no rule at all when the URL itself was malformed: this column is a record that can never be
+                  corrected, so it says nothing rather than guessing. The sentence next to it is always the real one.
                 </p>
                 <p>
                   <strong>No payload is ever stored</strong>: the table has no column for one. The reason is a single

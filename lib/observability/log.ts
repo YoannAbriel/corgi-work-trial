@@ -1,18 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { sql } from "@/db/client";
-import { ApprovalRefused } from "@/lib/approvals/approvals";
 import { currentUser } from "@/lib/auth/current-user";
-import { ClaimRefused } from "@/lib/claims/claims";
 import { isUuid } from "@/lib/http/path-ids";
-import { JobNotAuthorised } from "@/lib/jobs/authorize";
-import { KeyRefused } from "@/lib/mcp/keys";
-import { ToolRefused } from "@/lib/mcp/tools/tool";
-import { EndorsementNotComputable } from "@/lib/money/endorsement";
-import { RefundCannotBeAllocated } from "@/lib/money/refund-allocation";
-import { ChangeRequestRefused } from "@/lib/policy/change-requests";
-import { PolicyDraftRefused } from "@/lib/policy/issue";
-import { BankAccountRejected } from "@/lib/rails/bank-verification-simulator";
-import { WindowRefused } from "@/lib/reconciliation/window";
 import { redact, sanitisedSentence } from "./redact";
 
 // withActivity: the one wrapper every route handler of this application is wrapped in.
@@ -65,7 +54,7 @@ export type Activity = {
   actorRole: string | null;
   subjectKind: ActivitySubjectKind | null;
   subjectId: string | null;
-  rule: string | null;
+  rule: ActivityRule | null;
   message: string | null;
   // The outcome when the handler knows it better than the classifier below can. The MCP endpoint
   // is the case this exists for: the protocol answers a REFUSED tool call with HTTP 200 and an
@@ -82,6 +71,13 @@ export type ActivityDescriptor = {
   // it is a well-formed uuid, so a malformed URL cannot put junk in the column the 360 pages
   // read.
   subject?: ActivitySubjectKind;
+  // THE RULE THIS ROUTE ENFORCES, named for the refusals the route answers itself: the redirect
+  // it builds with ?error= and the 401 or 403 it returns. It is NOT applied to a request that
+  // was refused before this route's gate was reached, which is the whole reason it can be
+  // trusted: a missing session redirects to /login and reads "sign in", and a malformed path id
+  // answers 400 and names no rule at all. Left out on a route with no gate of its own
+  // (/api/health) and on the MCP endpoint, which names its rule per call.
+  rule?: ActivityRule;
   // Who the caller is:
   //   'session'    (the default) a signed-in person, or nobody;
   //   'anonymous'  nobody, by construction: the login form has no actor before it succeeds, and
@@ -92,41 +88,42 @@ export type ActivityDescriptor = {
   actor?: "session" | "anonymous" | "cron" | "stripe" | "declared";
 };
 
-// The refusal classes this file recognises, each with the name of the rule it enforces.
+// The rules this application refuses by, in the words a person uses. A closed list rather than
+// free text, so the console's Rule column can never hold two spellings of the same rule, and so
+// a typo in a route's descriptor is a compile error.
 //
-// WHY `instanceof` AND NOT THE CLASS NAME. Reading `thrown.constructor.name` would have needed
-// no imports at all, and it does not work: the production server bundle mangles class names
-// (`class a extends Error` in .next/server/chunks after `npm run build`), so the test would pass
-// in development and in the check scripts and silently fail on the deployed application, which
-// is the worst possible behaviour for a diagnostic. `instanceof` compares prototypes and is
-// unaffected by the renaming.
-//
-// WHY THIS LIST AND NOT ALL TWENTY-TWO. Every route file of the application imports this module,
-// so anything imported here is bundled into every serverless function, /api/health included.
-// The refusals below cost nothing to import: their modules pull the database client, the money
-// helpers and nothing else. The ones deliberately left out (CheckoutRefused, RefundSendRefused,
-// EndorsementRefused, CancellationRefused, CorrectionRefused and the payment gates) live in
-// modules that import the Stripe SDK, and every one of them is CAUGHT by its own handler and
-// answered as a redirect carrying ?error=, which the response branch below already classifies as
-// a refusal. Their loss is the rule name on a row that would say "refused" either way.
-const RULE_OF_REFUSAL: { refusal: abstract new (...args: never[]) => Error; rule: string }[] = [
-  { refusal: ApprovalRefused, rule: "maker-checker" },
-  { refusal: ClaimRefused, rule: "claim rules" },
-  { refusal: KeyRefused, rule: "MCP key" },
-  { refusal: ToolRefused, rule: "MCP tool scope" },
-  { refusal: JobNotAuthorised, rule: "cron secret" },
-  { refusal: WindowRefused, rule: "reconciliation window" },
-  { refusal: PolicyDraftRefused, rule: "policy draft" },
-  { refusal: ChangeRequestRefused, rule: "change request" },
-  { refusal: BankAccountRejected, rule: "bank account check" },
-  { refusal: RefundCannotBeAllocated, rule: "refund allocation" },
-  { refusal: EndorsementNotComputable, rule: "endorsement pricing" },
-];
+// WHY A LIST OF NAMES AND NOT A LIST OF REFUSAL CLASSES (review finding F-OB-01). The first
+// version mapped eleven refusal classes to rule names with `instanceof`, on the branch where a
+// handler THROWS. No shipped route reaches that branch: every one of them catches its own
+// refusal and answers with a redirect carrying ?error=, or with a status code. So the column
+// read "none named" on every real refusal while eleven business modules were imported into all
+// 34 serverless bundles for a code path nothing took. The names now come from the route, which
+// is the only place that knows which gate it enforces.
+export type ActivityRule =
+  | "sign in"
+  | "maker-checker"
+  | "cron secret"
+  | "MCP key"
+  | "MCP tool scope"
+  | "claim rules"
+  | "ownership"
+  | "policy draft"
+  | "broker eligibility"
+  | "broker verification"
+  | "payment eligibility"
+  | "endorsement"
+  | "cancellation"
+  | "correction"
+  | "refund gate"
+  | "statement run"
+  | "change request"
+  | "webhook signature";
 
-function refusalRuleOf(thrown: unknown): string | null {
-  if (!(thrown instanceof Error)) return null;
-  return RULE_OF_REFUSAL.find((known) => thrown instanceof known.refusal)?.rule ?? null;
-}
+// The one refusal every route shares, and the one the route itself cannot name: there is no
+// session, so the rule is the session rule and not the gate the route was about to apply. The
+// wrapper recognises it by where the redirect goes, which is exact: /login is where this
+// application sends a request it could not identify, and nowhere else.
+const SIGN_IN_PATH = "/login";
 
 // A caller may bring its own correlation id (a proxy, a reviewer's curl, a load test), which is
 // how a trace crosses systems. It is untrusted text, so it is reduced to the characters an id is
@@ -144,6 +141,13 @@ export function withActivity<C>(
   handler: (request: Request, context: C, activity: Activity) => Promise<Response>,
 ): (request: Request, context: C) => Promise<Response> {
   return async (request: Request, context: C): Promise<Response> => {
+    // The clock starts on the FIRST line of the wrapper and not around the handler (review
+    // finding F-OB-05), so everything this slice adds before the answer is inside the figure the
+    // latency panel shows: reading the correlation id, awaiting the path parameters, the handler
+    // itself, and the session lookup below. Only the INSERT is outside, and deliberately: it
+    // happens after the response is built and cannot change it, and a request whose row fails to
+    // be written must still be timed.
+    const startedAtMs = Date.now();
     const activity: Activity = {
       correlationId: correlationIdOf(request),
       route: descriptor.route,
@@ -158,7 +162,6 @@ export function withActivity<C>(
     };
     await attachSubject(activity, descriptor, context);
 
-    const startedAtMs = Date.now();
     let response: Response | null = null;
     let thrown: unknown = null;
     // A separate flag, and not `thrown !== null`, because `throw null` and `throw ""` are legal
@@ -170,12 +173,12 @@ export function withActivity<C>(
       thrown = error;
       handlerThrew = true;
     }
-    const durationMs = Date.now() - startedAtMs;
 
     // The signed-in person is read AFTER the handler, so the extra lookup is never on the path
-    // between a request and the work it asks for. `cookies()` throws outside a request scope
-    // (a check script calling a wrapped handler directly), and that is not a reason to lose the
-    // row: the actor is simply unknown.
+    // between a request and the work it asks for. It IS inside the measured duration, because it
+    // is a cost this slice added. `cookies()` throws outside a request scope (a check script
+    // calling a wrapped handler directly), and that is not a reason to lose the row: the actor
+    // is simply unknown.
     if (descriptor.actor === undefined || descriptor.actor === "session" || descriptor.actor === "cron") {
       try {
         const user = await currentUser();
@@ -189,8 +192,12 @@ export function withActivity<C>(
       }
     }
 
+    // Everything the request cost is now known. The insert below is outside the figure, because
+    // it happens after the response is built.
+    const durationMs = Date.now() - startedAtMs;
+
     // A value the handler set itself always wins: it knows more than the classifier does.
-    const verdict = classify(response, thrown, handlerThrew);
+    const verdict = classify(response, thrown, handlerThrew, descriptor);
     await recordActivity({
       ...activity,
       rule: activity.rule ?? verdict.rule,
@@ -215,7 +222,10 @@ export function withActivity<C>(
 
 // The three outcomes, decided from what the handler did and never from what it meant to do:
 //
-//   a throw       a refusal class -> 'refused' with its rule; anything else -> 'error';
+//   a throw       -> 'error', HTTP 500, with the sanitised sentence. No shipped route lets a
+//                    refusal escape: every one of them catches its own and answers. If one ever
+//                    did escape, the caller would receive the framework's 500, and this row says
+//                    what the caller received rather than what the code meant (finding F-OB-02);
 //   a redirect    carrying ?error= in its location -> 'refused' with the sentence it carries.
 //                 This is how nearly every screen of this application says no, so it is the
 //                 branch that matters most;
@@ -223,25 +233,51 @@ export function withActivity<C>(
 //   a 5xx         -> 'error';
 //   anything else -> 'ok'.
 //
+// THE RULE A REFUSAL NAMED (review finding F-OB-01) comes from the route's descriptor, on the
+// three shapes that mean "this route's own gate said no", and from nowhere else:
+//
+//   a redirect carrying ?error=   the route's gate, unless it goes to /login, which is the
+//                                 session rule whatever the route was about to do;
+//   403                           the route's gate: identified, and not allowed;
+//   401                           NOT identified, so the rule is "sign in" and not the route's
+//                                 gate. The exception is a cron endpoint, where the identity
+//                                 that failed IS the cron secret, which is the route's gate.
+//
+// Anything else names no rule: a 400 (a malformed path id, an unparseable body, a date that is
+// not a date) is refused before the route reaches its gate, and calling that "endorsement" or
+// "claim rules" would be a false statement in a record that can never be corrected.
+//
 // The response BODY is never read: a body can be a PDF, and reading it would consume the stream
 // the caller is waiting for.
-type Verdict = { outcome: ActivityOutcome; statusCode: number; rule: string | null; message: string | null };
+type Verdict = { outcome: ActivityOutcome; statusCode: number; rule: ActivityRule | null; message: string | null };
 
-export function classify(response: Response | null, thrown: unknown, handlerThrew: boolean): Verdict {
+export function classify(
+  response: Response | null,
+  thrown: unknown,
+  handlerThrew: boolean,
+  descriptor: ActivityDescriptor,
+): Verdict {
   if (handlerThrew) {
-    const rule = refusalRuleOf(thrown);
-    // A thrown error that is not a refusal ends as a 500: that is what the framework answers.
-    return {
-      outcome: rule ? "refused" : "error",
-      statusCode: rule ? 400 : 500,
-      rule,
-      message: sanitisedSentence(thrown),
-    };
+    return { outcome: "error", statusCode: 500, rule: null, message: sanitisedSentence(thrown) };
   }
+  // The status the caller actually received, never a status this function decided (F-OB-02).
   const status = response?.status ?? 500;
-  const refusalInRedirect = status >= 300 && status < 400 ? errorInLocation(response) : null;
-  if (refusalInRedirect) {
-    return { outcome: "refused", statusCode: status, rule: null, message: refusalInRedirect };
+  const location = response?.headers.get("location") ?? "";
+  const routeRule = descriptor.rule ?? null;
+
+  if (status >= 300 && status < 400) {
+    const refusalInRedirect = errorInLocation(location);
+    if (refusalInRedirect) {
+      const rule = location.startsWith(SIGN_IN_PATH) ? "sign in" : routeRule;
+      return { outcome: "refused", statusCode: status, rule, message: refusalInRedirect };
+    }
+  }
+  if (status === 401) {
+    const rule = descriptor.actor === "cron" ? routeRule : "sign in";
+    return { outcome: "refused", statusCode: status, rule, message: null };
+  }
+  if (status === 403) {
+    return { outcome: "refused", statusCode: status, rule: routeRule, message: null };
   }
   if (status >= 400 && status < 500) return { outcome: "refused", statusCode: status, rule: null, message: null };
   if (status >= 500) return { outcome: "error", statusCode: status, rule: null, message: null };
@@ -250,9 +286,8 @@ export function classify(response: Response | null, thrown: unknown, handlerThre
 
 // The sentence a screen puts in its own redirect: /policies/{id}?error=only+staff+may+bind.
 // Read from the location header, decoded by URL, and redacted like every other sentence.
-function errorInLocation(response: Response | null): string | null {
-  const location = response?.headers.get("location");
-  if (!location || !location.includes("error=")) return null;
+function errorInLocation(location: string): string | null {
+  if (!location.includes("error=")) return null;
   try {
     const reason = new URL(location, "http://relative.invalid").searchParams.get("error");
     return reason ? redact(reason) : null;

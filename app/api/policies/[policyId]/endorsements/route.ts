@@ -9,7 +9,7 @@ import { withActivity } from "@/lib/observability/log";
 // optional reason, and the quote hash the preview was computed with. Everything is recomputed
 // on the server under a lock, so calling this URL directly goes through the same gates as the
 // button.
-export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements", rule: "endorsement", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();

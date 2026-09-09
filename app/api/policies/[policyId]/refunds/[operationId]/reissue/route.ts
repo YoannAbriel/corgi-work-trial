@@ -14,7 +14,7 @@ import { withActivity } from "@/lib/observability/log";
 //
 // Restricted to staff operations: re-sending money is an operations decision, and a broker
 // should not be able to trigger a second payout attempt from the policy page.
-export const POST = withActivity({ route: "/api/policies/[policyId]/refunds/[operationId]/reissue", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/refunds/[operationId]/reissue", rule: "refund gate", subject: "policy" }, handlePost);
 
 async function handlePost(
   request: Request,

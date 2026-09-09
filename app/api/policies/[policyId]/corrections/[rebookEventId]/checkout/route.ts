@@ -11,7 +11,7 @@ import { withActivity } from "@/lib/observability/log";
 // whether the policy is still in force, and whether the customer has approved a difference above
 // $500. The endorsement is already in force at the corrected date whether or not this is paid;
 // what is outstanding is the receivable, visible on the reconciliation screen.
-export const POST = withActivity({ route: "/api/policies/[policyId]/corrections/[rebookEventId]/checkout", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/corrections/[rebookEventId]/checkout", rule: "correction", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string; rebookEventId: string }> }) {
   const { policyId, rebookEventId } = await context.params;

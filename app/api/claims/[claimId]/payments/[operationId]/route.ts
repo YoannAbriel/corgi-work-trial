@@ -20,7 +20,7 @@ import { withActivity } from "@/lib/observability/log";
 //           and the screen says so.
 //   return  a LOCAL SIMULATOR control: the receiving bank sends the money back. The cash comes
 //           home and the reserve is restored.
-export const POST = withActivity({ route: "/api/claims/[claimId]/payments/[operationId]", subject: "claim" }, handlePost);
+export const POST = withActivity({ route: "/api/claims/[claimId]/payments/[operationId]", rule: "maker-checker", subject: "claim" }, handlePost);
 
 async function handlePost(
   request: Request,

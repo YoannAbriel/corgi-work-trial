@@ -9,7 +9,7 @@ import { withActivity } from "@/lib/observability/log";
 // then never sent because the process died (review finding F-B5-03, ARCHITECTURE.md section 7).
 // The recovery rules themselves are in lib/payments/recover.ts, so the same code runs from this
 // endpoint and from scripts/check-claims-and-approvals.ts.
-export const POST = withActivity({ route: "/api/jobs/recover-operations", actor: "cron" }, handlePost);
+export const POST = withActivity({ route: "/api/jobs/recover-operations", rule: "cron secret", actor: "cron" }, handlePost);
 
 async function handlePost(request: Request) {
   try {

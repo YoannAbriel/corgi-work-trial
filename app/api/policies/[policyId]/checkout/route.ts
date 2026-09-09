@@ -6,7 +6,7 @@ import { withActivity } from "@/lib/observability/log";
 // POST /api/policies/{policyId}/checkout, called by the "Pay with Stripe" button.
 // Authorisation and eligibility are checked here and again inside startCheckout: a direct
 // call to this URL goes through exactly the same gates as the button.
-export const POST = withActivity({ route: "/api/policies/[policyId]/checkout", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/checkout", rule: "payment eligibility", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();

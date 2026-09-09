@@ -1,3 +1,5 @@
+import { sanitisedSentence } from "@/lib/observability/redact";
+
 // One panel of the console must never take the whole page down with it.
 //
 // WHY THIS EXISTS. The console is the screen an operator opens WHILE something is broken. If a
@@ -12,19 +14,18 @@
 
 export type Attempted<T> = { ok: true; value: T } | { ok: false; failure: string };
 
-// The message is cut and stripped of newlines: a database error can carry a query, and a query
-// can carry a value. What reaches the screen is one short sentence.
-const MOST_CHARACTERS_OF_A_FAILURE = 300;
-
+// The failure sentence goes through the SAME redaction as every log line
+// (lib/observability/redact.ts, review finding F-OB-03). It used to be cut and stripped of
+// newlines here, by hand, which stopped a query from reaching the screen but not a credential:
+// a postgres.js connection error carries the connection string, and the connection string
+// carries the password of the runtime role. This line renders on all seven console screens and
+// from there into a screenshot, which AF-05 names as something to redact. `sanitisedSentence`
+// also reads the message and never the stack, and caps the length.
 export async function attempt<T>(what: string, read: Promise<T>): Promise<Attempted<T>> {
   try {
     return { ok: true, value: await read };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      ok: false,
-      failure: `${what} could not be read: ${message.replace(/\s+/g, " ").slice(0, MOST_CHARACTERS_OF_A_FAILURE)}`,
-    };
+    return { ok: false, failure: `${what} could not be read: ${sanitisedSentence(error)}` };
   }
 }
 

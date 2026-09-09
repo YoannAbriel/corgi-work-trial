@@ -15,7 +15,7 @@ import { withActivity } from "@/lib/observability/log";
 // answer. A redirect would put it in a URL, and a URL lands in the browser history, in the
 // server log and in the referrer of the next request (AF-05). So the answer is a small page
 // that shows it, and nothing else in the system can ever read it back.
-export const POST = withActivity({ route: "/api/mcp-keys" }, handlePost);
+export const POST = withActivity({ route: "/api/mcp-keys", rule: "maker-checker" }, handlePost);
 
 async function handlePost(request: Request): Promise<Response> {
   const user = await currentUser();

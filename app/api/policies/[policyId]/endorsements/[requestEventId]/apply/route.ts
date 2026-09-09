@@ -10,7 +10,7 @@ import { withActivity } from "@/lib/observability/log";
 // and nothing was journaled; this re-runs the same posting transaction a first delivery would
 // have run, once the broker is verified. Staff operations only, and the eligibility question is
 // asked again inside retryEndorsementApplication.
-export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/apply", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/endorsements/[requestEventId]/apply", rule: "endorsement", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string; requestEventId: string }> }) {
   const user = await currentUser();

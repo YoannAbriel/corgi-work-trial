@@ -8,7 +8,7 @@ import { withActivity } from "@/lib/observability/log";
 // Every check is on the server: who is signed in, whether the policy was ever bound, and
 // whether the loss falls inside the period the policy actually covered (which is shorter than
 // the term when the policy was cancelled). Calling this URL directly changes nothing.
-export const POST = withActivity({ route: "/api/policies/[policyId]/claims", subject: "policy" }, handlePost);
+export const POST = withActivity({ route: "/api/policies/[policyId]/claims", rule: "claim rules", subject: "policy" }, handlePost);
 
 async function handlePost(request: Request, context: { params: Promise<{ policyId: string }> }) {
   const user = await currentUser();
