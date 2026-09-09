@@ -97,6 +97,22 @@ export function AmountExplainedMotion({
 
   useEffect(() => stopEverything, []);
 
+  // A reader who arrives on the address of the proving entry, or who follows the "Trace to the
+  // ledger" link of a page that was already loaded, lands on a block that may be inside a closed
+  // fold (review finding F-B12-12). Browsers differ on whether a fragment opens the <details> that
+  // holds it, so the one fold that owns this entry opens it and lights it. Every other fold on the
+  // page returns on the first line: the hash names exactly one entry.
+  useEffect(() => {
+    if (!traceEntryElementId) return;
+    const openWhenTargeted = () => {
+      if (window.location.hash !== `#${traceEntryElementId}`) return;
+      traceToLedger();
+    };
+    openWhenTargeted();
+    window.addEventListener("hashchange", openWhenTargeted);
+    return () => window.removeEventListener("hashchange", openWhenTargeted);
+  }, [traceEntryElementId]);
+
   // The reader asked not to be animated. Checked at the moment the fold opens rather than once at
   // mount, because the setting can change while the page is open.
   function prefersReducedMotion(): boolean {
