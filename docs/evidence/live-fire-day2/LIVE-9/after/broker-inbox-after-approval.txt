@@ -1,0 +1,41 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /broker] CorgiPolicy administration
+Broker workspace
+[a /inbox] Inbox
+[a /inbox] 1 waiting for you, open the inbox
+[a /broker] Policies
+[a /inbox#policies] 1 waiting for you, open the inbox
+[a /broker/statements] Statements
+[a /broker/kyb] Business verification
+Dana Ruiz, brokerBroker
+Sign out
+[a /broker] Policies
+Inbox
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+InboxDana Ruiz, broker
+1 waiting Inbox
+[a /inbox] All1
+[a /inbox?section=endorsement-deltas] Endorsement deltas1
+[a /inbox?section=policies] Policies0
+[a /inbox?section=correction-differences] Correction differences0
+[a /inbox?section=change-requests] Change requests0
+[a /inbox?section=waiting-for-the-customer] Waiting for the customer0
+[a /inbox?section=statements] Statements0
+Endorsement deltas to pay1
+|
+| Object | What is waiting | Amount | Approved |
+|
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] CGP-01707 | Annual premium $2,400.00 to $2,700.00: the customer approved the quote, the endorsement takes effect when the delta is paid | $287.69 | 4 min |
+Policies to pay
+No policy of yours is waiting for a payment.
+Correction differences to collect
+No correction has left a difference to collect.
+Change requests to answer
+No customer is waiting for an answer.
+Endorsement quotes waiting for the customer
+No endorsement quote is waiting for a customer.
+Your monthly statement
+No statement has been produced for you this month; the monthly close runs on the first day of a month.Corgi · Policy administration
