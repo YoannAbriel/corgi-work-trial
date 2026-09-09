@@ -200,6 +200,9 @@ function DocumentRow({
       action={`/api/policies/${policyId}/documents/${endpoint}`}
       className="pd-doc-row"
       target="_blank"
+      // F-EV-07: a target="_blank" without this hands the opened tab a window.opener back into
+      // this page. The five anchors that open a PDF already carry it; these two forms did not.
+      rel="noopener"
     >
       <span className="pd-doc-name">{label}</span>
       <input
