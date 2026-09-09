@@ -70,7 +70,7 @@ internal view; this is an engineering assessment, not a compliance opinion.
 
 The eleven documented provider limits in `lib/console/infra.ts` carry a `readOn` date of
 2026-09-09. All eleven were independently re-fetched from the providers' own pages during this
-review and all eleven are accurate; two carry a wording caveat (F-B13-28). Details in section 6.
+review and all eleven are accurate; two carry a wording caveat (F-B13-29). Details in section 6.
 
 ## 3. Requirement matrix
 
@@ -84,18 +84,18 @@ review and all eleven are accurate; two carry a wording caveat (F-B13-28). Detai
 | 2c | Agent role refused | `access.ts` (`agent` falls through to `/broker`), `app/api/session/login/route.ts:24` | an `agent` principal cannot obtain a session at all (login refuses `role === "agent"`); `check:console`: "an agent principal is sent away from the console (/broker)"; the MCP surface exposes no console tool (5 tools listed, none of them console) | PASS |
 | 2d | Malformed ids answer 404 | the four wrappers, `lib/http/path-ids.ts` | production, signed in: `/policy/not-a-uuid`, `/claim/1`, `/broker/%27` all **404**; a well-formed unknown uuid also **404**; no 500 | PASS |
 | 2e | Every path id through `isUuid` | the four wrappers | all four call `isUuid` then `notFound()` before rendering `Console360`; `resolveReference` gates every branch on a shape regex before any query, so no unvalidated text reaches a uuid cast | PASS |
-| 3a | Every reader wrapped; a failing query shows a line and never blanks the page | `lib/console/safe-read.ts`, `FailureLine` in every panel | proven live: `?since=999999d` makes two panels print a red line and the rest of the page render at HTTP 200 (see F-B13-20, which is the input defect, not the net) | PASS |
-| 3b | Every query bounded | `read.ts` | 44 of 46 queries carry a `limit` or are a single-row aggregate. Two do not: `openBreaks` reached through `openBreaksOfSubject` (F-B13-21) and the `latest` CTE of `acceptedAndUnconfirmedOperations` (F-B13-22) | **FAIL** |
-| 3c | The `since` cursor and the filters sanitised | `parseSince`, `isConsoleEventKind` | filters: PASS, an unknown `kind` is dropped before any reader is chosen and an unticked kind costs no query. Cursor: **FAIL**, `parseSince` bounds the digits but not the resulting instant (F-B13-20) | **FAIL** |
+| 3a | Every reader wrapped; a failing query shows a line and never blanks the page | `lib/console/safe-read.ts`, `FailureLine` in every panel | proven live: `?since=999999d` makes two panels print a red line and the rest of the page render at HTTP 200 (see F-B13-21, which is the input defect, not the net) | PASS |
+| 3b | Every query bounded | `read.ts` | 44 of 46 queries carry a `limit` or are a single-row aggregate. Two do not: `openBreaks` reached through `openBreaksOfSubject` (F-B13-22) and the `latest` CTE of `acceptedAndUnconfirmedOperations` (F-B13-23) | **FAIL** |
+| 3c | The `since` cursor and the filters sanitised | `parseSince`, `isConsoleEventKind` | filters: PASS, an unknown `kind` is dropped before any reader is chosen and an unticked kind costs no query. Cursor: **FAIL**, `parseSince` bounds the digits but not the resulting instant (F-B13-21) | **FAIL** |
 | 3d | No N+1 over an unbounded set | `consoleSubject`, `claimIdsOfPolicies`, the 360 panels | the policy and claim id lists are read once (capped at 200 each) and passed to every panel as an `any(...::uuid[])` array; no panel iterates rows issuing queries. `byUuid` issues up to 7 serial primary-key lookups, which is a fixed number, not a fan-out | PASS |
 | 3e | Seven pages under 3 s on production | measured, section 5 | worst single sample 0.89 s, worst p50 0.447 s | PASS |
 | 4a | Latency figures are Postgres `percentile_cont` over 24 hours | `latencyTiles`, `LATENCY_WINDOW_HOURS = 24` | five `percentile_cont(0.5\|0.95) within group` aggregates, computed in SQL, window `now() - 24h` on the closing instant with a 48-hour lookback for the opening one; the page prints "over the last 24 hours" from the same constant and puts the sample count on every row | PASS |
 | 4b | The 15-minute rule stated on screen as an assumption | `app/ops/console/page.tsx`, errors panel disclosure | rendered HTML contains "an assumption of this build" and "not a rule of Stripe and not a rule of Corgi", next to the panel the rule governs | PASS |
 | 4c | Infra: measured facts next to documented limits, with source URL and date, never a documented limit presented as measured | `app/ops/console/infra/page.tsx`, `lib/console/infra.ts` | the table has separate "Measured today" and "Documented limit" columns; a headroom is computed for the one row where the units match and every other row says why it cannot be (`not a number: the limit is a frequency, this is an instant`); the documented aside says "documented facts, not measurements", carries 11 source links and the read date; the page states what it cannot measure (Vercel duration, memory, invocations, bandwidth) instead of showing a figure | PASS |
-| 4c-bis | The eleven documented limits actually say what the code quotes | `lib/console/infra.ts:38` to `:118` | all eleven re-fetched from the providers' pages during this review: **11 accurate, 0 inaccurate, 0 unverifiable**; two carry a wording caveat (F-B13-28) | PASS |
+| 4c-bis | The eleven documented limits actually say what the code quotes | `lib/console/infra.ts:38` to `:118` | all eleven re-fetched from the providers' pages during this review: **11 accurate, 0 inaccurate, 0 unverifiable**; two carry a wording caveat (F-B13-29) | PASS |
 | 4d | No raw payload and no secret in the rendered HTML | `SANITISED_DETAIL_LENGTH = 220`, the payload keys read | scan of the seven rendered pages: **zero** matches for `sk_`, `whsec_`, `rk_`; the only `cmk_` tokens are 12 characters, that is `cmk_` plus the 8-hex public prefix, never a key; no `"livemode"`, no `"object":`, no `Bearer `, no connection string | PASS |
 | 4e | No email unmasked when the fold is closed | `Masked` in `components/console-parts.tsx` | scan of the seven pages: 3 email addresses in total, **3 of 3 inside a closed `<details>` body**, 0 outside a fold. See the caveat in section 7 | PASS |
-| 5 | Personal data masked by default with a reveal fold | `maskToFirstThree`, `Masked` | names, emails, claimant names, requester and approver names all render as `abc***` inside a native `<details>`; non-person actors (`stripe`, the ledger, a key prefix) print plainly, driven by `actorIsPerson` on every feed row | PASS (one broken fold, F-B13-24) |
+| 5 | Personal data masked by default with a reveal fold | `maskToFirstThree`, `Masked` | names, emails, claimant names, requester and approver names all render as `abc***` inside a native `<details>`; non-person actors (`stripe`, the ledger, a key prefix) print plainly, driven by `actorIsPerson` on every feed row | PASS (one broken fold, F-B13-25) |
 | 6a | The meta refresh is in the head | `app/ops/console/page.tsx` | rendered HTML: `<meta http-equiv="refresh" content="10"/>` at byte 1120, `</head>` at byte 1244. **In the head.** | PASS |
 | 6b | "Refresh now" is a GET | same | rendered HTML: `<form class="inline-form" action="/ops/console" method="get">`. The only POST form on the page is the shell's logout | PASS |
 | 7 | AF-06: is `read.ts` explainable line by line, or is a split required | section 8 | no split required before submission; a reading map is | PASS with a recommendation |
@@ -103,7 +103,7 @@ review and all eleven are accurate; two carry a wording caveat (F-B13-28). Detai
 
 ## 4. Findings
 
-### F-B13-20 (MEDIUM, blocking) `parseSince` bounds the digits but not the instant, and the two main panels go dark
+### F-B13-21 (MEDIUM, blocking) `parseSince` bounds the digits but not the instant, and the two main panels go dark
 
 **Trigger.** Sign in as staff, open `/ops/console?since=999999d`, or type `999999d` into the
 "Since" box the page itself provides.
@@ -137,7 +137,7 @@ migration, or simply `now - 10 years`) is enough, with the `reading` sentence sa
 was clamped and to what. Two lines, one new assertion in `scripts/check-console.ts` next to the
 existing "a since cursor that is not an instant falls back to the default window".
 
-### F-B13-21 (LOW) `openBreaksOfSubject` reads every open break in the system, then filters in TypeScript
+### F-B13-22 (LOW) `openBreaksOfSubject` reads every open break in the system, then filters in TypeScript
 
 **Location.** `lib/console/read.ts:2352`, calling `openBreaks` in `lib/reconciliation/read.ts:173`.
 
@@ -157,7 +157,7 @@ explicitly with a `limit` and a sentence saying the panel shows at most N of thi
 breaks. `openBreaks` is owned by B10 and is used by `/ops/reconciliation` too, so the smaller
 change is a console-local bounded reader rather than editing the shared function.
 
-### F-B13-22 (LOW) the `latest` CTE of `acceptedAndUnconfirmedOperations` scans the whole event table, twice per feed render
+### F-B13-23 (LOW) the `latest` CTE of `acceptedAndUnconfirmedOperations` scans the whole event table, twice per feed render
 
 **Location.** `lib/console/read.ts:1097`.
 
@@ -186,7 +186,7 @@ that gets slower as the ledger grows, and it is on the page that reloads itself.
 is not "in flight", it is a stale break the recovery job owns), and pass the single result down
 from the page into `operationsProblems` instead of reading it twice.
 
-### F-B13-23 (LOW) `consoleSubject` is the one read on a 360 page not wrapped in `attempt`
+### F-B13-24 (LOW) `consoleSubject` is the one read on a 360 page not wrapped in `attempt`
 
 **Location.** `components/console-360.tsx:50`.
 
@@ -209,7 +209,7 @@ something is already broken" applies most to the page that identifies the object
 panels that need no scope, instead of throwing. If that is judged not worth the code, say so in
 the handoff note rather than leaving the header claim unqualified.
 
-### F-B13-24 (LOW) the masked customer name on a broker 360 page cannot be revealed: a `<details>` inside an `<a>`
+### F-B13-25 (LOW) the masked customer name on a broker 360 page cannot be revealed: a `<details>` inside an `<a>`
 
 **Location.** `components/console-360.tsx:311`.
 
@@ -227,7 +227,7 @@ the customer page instead. The masking works; the reveal does not, on that one c
 name as a plain `Masked`, and a separate "open" link, which is the pattern the same table already
 uses in its last column.
 
-### F-B13-25 (LOW) a failed search is displayed as "nothing matches"
+### F-B13-26 (LOW) a failed search is displayed as "nothing matches"
 
 **Location.** `app/ops/console/search/page.tsx:60` and `:113`.
 
@@ -242,7 +242,7 @@ answer is that "nothing found" must never be ambiguous.
 "the search could not be run" rather than "nothing matches". Not observed live; found by reading,
 and not reproducible on production without breaking a query on purpose.
 
-### F-B13-26 (LOW, accepted as written) `(payload ->> 'raised_by_agent')::boolean` depends on a payload shape
+### F-B13-27 (LOW, accepted as written) `(payload ->> 'raised_by_agent')::boolean` depends on a payload shape
 
 **Location.** `lib/console/read.ts:510` and `:2269`.
 
@@ -254,7 +254,7 @@ raise `invalid input syntax for type boolean` and take out the approvals panel a
 feed. `attempt` contains it. Recorded so that the dependency is visible, not because a fix is
 required for the trial; the cheap version is `= 'true'` on the text.
 
-### F-B13-27 (INFO) the failure line prints the raw Postgres message
+### F-B13-28 (INFO) the failure line prints the raw Postgres message
 
 **Location.** `lib/console/safe-read.ts:24`.
 
@@ -264,7 +264,7 @@ is staff-only and the reads are all `SELECT`, so no constraint violation can pri
 secret is ever a bound parameter here. Recorded as a known property of the design, not a finding
 against it: naming the real error is what makes the red line useful.
 
-### F-B13-28 (LOW) two of the eleven documented limits are a reading of the page rather than a quotation of it
+### F-B13-29 (LOW) two of the eleven documented limits are a reading of the page rather than a quotation of it
 
 All eleven quoted limits in `lib/console/infra.ts` were re-fetched from the providers' own pages
 during this review and all eleven are accurate. Two put a word in the provider's mouth:
@@ -332,7 +332,7 @@ panels. The feed does not become slow when it is asked for everything.
 | Access control, customer | login as `customer@example.com`, 4 console paths | 4 × 307 → `/customer` |
 | Access control, approver | login as `approver@example.com`, 4 console paths | 4 × 200 |
 | Malformed path ids | 4 shapes, signed in | 4 × 404, no 500 |
-| Hostile query strings | 11 inputs: SQL injection in `since` and `reference`, `NaN`, far future, epoch, a bogus `kind`, `<script>` as a `kind`, a 500-character reference, a 300-character `pi_` | all HTTP 200, all correctly handled, **1 input produced failed panels** (F-B13-20) |
+| Hostile query strings | 11 inputs: SQL injection in `since` and `reference`, `NaN`, far future, epoch, a bogus `kind`, `<script>` as a `kind`, a 500-character reference, a 300-character `pi_` | all HTTP 200, all correctly handled, **1 input produced failed panels** (F-B13-21) |
 | Output escaping | `<img src=x onerror=alert(1)>` through the search | escaped in the HTML, 0 raw occurrences, 0 injected script tags; no `dangerouslySetInnerHTML` anywhere in the slice |
 | Secret scan of the rendered HTML | 7 pages, unescaped, regex for `sk_`, `whsec_`, `rk_`, `cmk_` | zero secrets; 3 `cmk_` tokens, all 12 characters, that is the public prefix only |
 | Personal-data scan of the rendered HTML | 7 pages, emails inside vs outside a `<details>` body | 3 emails, 3 behind a closed fold, **0 outside** |
@@ -340,7 +340,7 @@ panels. The feed does not become slow when it is asked for everything.
 | Panel health on real trial data | 7 pages plus a 10-year window | 0 failed panels on all 8 |
 | Slice diffstat | `git diff --stat 020fd86^1 5d405d2` | 18 files, +5650, -0, no migration |
 | Provenance of the two POST targets | `git log -1` on each route file | e93b549 and 2a0737a, both 2026-09-08, both before the console |
-| The eleven documented provider limits | each `sourceUrl` re-fetched from the provider's own page during this review | **11 accurate, 0 inaccurate, 0 unverifiable**; the Vercel cron, duration, memory, payload and usage rows, the four Neon Free rows and the two Stripe rate-limit rows all match the pages as they read today. Two wording caveats, F-B13-28 |
+| The eleven documented provider limits | each `sourceUrl` re-fetched from the provider's own page during this review | **11 accurate, 0 inaccurate, 0 unverifiable**; the Vercel cron, duration, memory, payload and usage rows, the four Neon Free rows and the two Stripe rate-limit rows all match the pages as they read today. Two wording caveats, F-B13-29 |
 
 The documented-limits check is the one that matters for honesty, so its result is worth stating
 plainly: the numbers on the infrastructure page are not stale and not invented. Neon Free is
@@ -357,10 +357,10 @@ Checks **not** executed, and why:
   is deployed and rendering, which is stronger evidence for this scope than a local build.
 - No load or concurrency test: `STRESS-TEST-PLAN.md` was not read and no performance profile was
   run. The seven measurements above are single-user response times, not a capacity claim.
-- The `attempt` net was proven live on exactly one failure mode (F-B13-20). The other 45 readers
+- The `attempt` net was proven live on exactly one failure mode (F-B13-21). The other 45 readers
   were read, not made to fail.
 - Browser behaviour was not observed: every measurement is `curl` against the rendered HTML. The
-  meta refresh, the `<details>` folds and F-B13-24 were assessed from the markup, not from a
+  meta refresh, the `<details>` folds and F-B13-25 were assessed from the markup, not from a
   browser session.
 
 ## 6-bis. Automatic-fail gate for this scope
@@ -456,7 +456,7 @@ It does **not** prove: that the HTTP guard redirects (it tests `consoleAccessFor
 function, not `requireStaff`; the redirects are proven by the production measurements in section
 6 instead); that `attempt` degrades a real failing panel (no assertion makes a query fail); that
 the meta refresh reaches the head; that anything is masked in the rendered HTML; that any page is
-fast; and it does not cover the `since` overflow of F-B13-20, because its only cursor-fallback
+fast; and it does not cover the `since` overflow of F-B13-21, because its only cursor-fallback
 assertion uses an unparseable string, which takes the other branch.
 
 **Contention, observed and reported, not looped.** `corgi_test` is shared with other agents'
@@ -485,7 +485,7 @@ Four of the five properties this slice was asked to have are met, and are met ca
   the rendered HTML of the seven pages carries a secret, a key beyond its public prefix, or a
   provider payload. The eleven documented limits were re-fetched from the providers' pages during
   this review and all eleven are accurate; two are summarised where the file's own rule says
-  quoted (F-B13-28), which is a wording fix, not a wrong number.
+  quoted (F-B13-29), which is a wording fix, not a wrong number.
 - **Masked by default**: every email and every person's name is behind a closed fold, non-persons
   are printed plainly on purpose, and the code is candid that this is decluttering rather than
   redaction.
@@ -495,11 +495,11 @@ one failure I could produce on production left the page at HTTP 200 with two nam
 eleven healthy panels, which is exactly the design intent. But the input that produced it came
 from the page's own form, `parseSince` is the one sanitiser in the slice that bounds the wrong
 thing, and two queries are unbounded against the assignment's explicit "every query bounded".
-Under `REVIEWER.md`, an observed violation is a FAIL, and F-B13-20 is observed, on production,
+Under `REVIEWER.md`, an observed violation is a FAIL, and F-B13-21 is observed, on production,
 against the exact scenario the console was built for.
 
-The distance to PASS is small. F-B13-20 is a clamp in a pure function plus one assertion in a
-script that already tests its sibling branch. F-B13-21 and F-B13-22 are a `limit` and a time
+The distance to PASS is small. F-B13-21 is a clamp in a pure function plus one assertion in a
+script that already tests its sibling branch. F-B13-22 and F-B13-23 are a `limit` and a time
 bound. None of the three touches money, authorisation, a migration or a provider. A re-review of
 that diff, with the check script rerun once, should flip this to PASS.
 
@@ -515,12 +515,12 @@ Candidate walkthrough status: **NOT REVIEWED WITH YOANN**.
 
 | ID | Severity | Finding | Required correction | Status |
 |---|---|---|---|---|
-| F-B13-20 | MEDIUM | `parseSince` bounds the digit count but not the resulting instant, so `since=999999d` (year -712) makes Postgres refuse the parameter and the feed and errors panels both go dark; proven on production, boundary measured between 700000d and 740000d | Clamp the computed instant in the pure function, print that the window was clamped, and assert it in `check:console` | OPEN (blocking) |
-| F-B13-21 | LOW | `openBreaksOfSubject` calls `openBreaks`, which has no `LIMIT`: every 360 page reads every open break in the system and filters in TypeScript, against the slice's own "every read is bounded" | A console-local bounded reader, or an explicit cap stated on the panel | OPEN |
-| F-B13-22 | LOW | The `latest` CTE of `acceptedAndUnconfirmedOperations` reduces the whole `money_operation_events` table with no time bound, and the feed page runs it twice per render, twelve times a minute under the 10-second refresh | Bound the CTE by time and read it once, passing the result into `operationsProblems` | OPEN |
-| F-B13-23 | LOW | `consoleSubject` is the only read on a 360 page not wrapped in `attempt`: its failure replaces the page with the framework error page instead of a named line | Wrap it and render the heading plus the failure line, or qualify the header claim in the handoff note | OPEN |
-| F-B13-24 | LOW | On a broker 360 page the masked customer name is a `<details>` nested inside a `<Link>`: invalid HTML, and the click navigates instead of opening the fold, so that one value can never be revealed | Put the fold and the link side by side, as the last column of the same table already does | OPEN |
-| F-B13-25 | LOW | When the search read fails, the page prints the red line and, under it, "Nothing in this database matches that reference"; the trail panel prints "Nothing to show yet" with no line at all: a failed read reported as a fact about the data | Branch on `found.ok` before the empty branch in both panels | OPEN |
-| F-B13-26 | LOW | `(payload ->> 'raised_by_agent')::boolean` is the one payload value cast rather than read as text; safe against every writer that exists, but a non-boolean string would take out the approvals panel and the feed | Compare as text (`= 'true'`), or accept and record the payload-shape dependency | ACCEPTED as recorded |
-| F-B13-27 | INFO | The failure line prints the driver's raw message, which echoed the operator's own input in the case measured here | None: naming the real error is what makes the line useful; recorded as a known property | ACCEPTED |
-| F-B13-28 | LOW | All eleven documented provider limits re-verified accurate, but two are summarised where the file's own rule says quoted: "per month" is added to Neon's "100 CU-hours/project", and Stripe's unqualified per-endpoint 25/second row is presented under the sandbox heading | Quote the two cells verbatim and move the inference into the `what` field | OPEN |
+| F-B13-21 | MEDIUM | `parseSince` bounds the digit count but not the resulting instant, so `since=999999d` (year -712) makes Postgres refuse the parameter and the feed and errors panels both go dark; proven on production, boundary measured between 700000d and 740000d | Clamp the computed instant in the pure function, print that the window was clamped, and assert it in `check:console` | OPEN (blocking) |
+| F-B13-22 | LOW | `openBreaksOfSubject` calls `openBreaks`, which has no `LIMIT`: every 360 page reads every open break in the system and filters in TypeScript, against the slice's own "every read is bounded" | A console-local bounded reader, or an explicit cap stated on the panel | OPEN |
+| F-B13-23 | LOW | The `latest` CTE of `acceptedAndUnconfirmedOperations` reduces the whole `money_operation_events` table with no time bound, and the feed page runs it twice per render, twelve times a minute under the 10-second refresh | Bound the CTE by time and read it once, passing the result into `operationsProblems` | OPEN |
+| F-B13-24 | LOW | `consoleSubject` is the only read on a 360 page not wrapped in `attempt`: its failure replaces the page with the framework error page instead of a named line | Wrap it and render the heading plus the failure line, or qualify the header claim in the handoff note | OPEN |
+| F-B13-25 | LOW | On a broker 360 page the masked customer name is a `<details>` nested inside a `<Link>`: invalid HTML, and the click navigates instead of opening the fold, so that one value can never be revealed | Put the fold and the link side by side, as the last column of the same table already does | OPEN |
+| F-B13-26 | LOW | When the search read fails, the page prints the red line and, under it, "Nothing in this database matches that reference"; the trail panel prints "Nothing to show yet" with no line at all: a failed read reported as a fact about the data | Branch on `found.ok` before the empty branch in both panels | OPEN |
+| F-B13-27 | LOW | `(payload ->> 'raised_by_agent')::boolean` is the one payload value cast rather than read as text; safe against every writer that exists, but a non-boolean string would take out the approvals panel and the feed | Compare as text (`= 'true'`), or accept and record the payload-shape dependency | ACCEPTED as recorded |
+| F-B13-28 | INFO | The failure line prints the driver's raw message, which echoed the operator's own input in the case measured here | None: naming the real error is what makes the line useful; recorded as a known property | ACCEPTED |
+| F-B13-29 | LOW | All eleven documented provider limits re-verified accurate, but two are summarised where the file's own rule says quoted: "per month" is added to Neon's "100 CU-hours/project", and Stripe's unqualified per-endpoint 25/second row is presented under the sandbox heading | Quote the two cells verbatim and move the inference into the `what` field | OPEN |
