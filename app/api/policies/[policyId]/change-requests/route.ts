@@ -1,6 +1,6 @@
 import { currentUser } from "@/lib/auth/current-user";
 import { badPathIdResponse } from "@/lib/http/path-ids";
-import { ChangeRequestRefused, createChangeRequest } from "@/lib/policy/change-requests";
+import { ChangeRequestRefused, createChangeRequest, workspaceHomeOf } from "@/lib/policy/change-requests";
 
 // POST /api/policies/{policyId}/change-requests
 //
@@ -34,7 +34,11 @@ export async function POST(request: Request, context: { params: Promise<{ policy
     return redirectTo(`/policies/${policyId}?changeRequest=sent`);
   } catch (error) {
     if (error instanceof ChangeRequestRefused) {
-      return redirectTo(`/policies/${policyId}?error=${encodeURIComponent(error.message)}`);
+      // A refusal goes to a page this person may actually open. Sending an ownership refusal back
+      // to the policy page would lose it: that page redirects a customer who does not own the
+      // policy to /customer, and the message would go with the redirect (F-B13-02).
+      const destination = error.readableFrom === "policy" ? `/policies/${policyId}` : workspaceHomeOf(user.role);
+      return redirectTo(`${destination}?error=${encodeURIComponent(error.message)}`);
     }
     throw error;
   }

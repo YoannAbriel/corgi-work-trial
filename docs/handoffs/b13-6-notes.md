@@ -175,8 +175,9 @@ The migration was applied to `corgi_test` only; the coordinator applies it to th
 
 **What is not done.**
 
-- No independent review yet: this is the implementer's own account. AGENTS.md requires a reviewer
-  before the slice is marked done.
+- The independent review of the first version is PASS with seven LOW
+  (`docs/reviews/b13-6-change-requests.md`); five are fixed in section 6 below and need a
+  re-review, F-B13-05 and F-B13-07 stay open by the coordinator's decision.
 - Not exercised in a browser, and not deployed. Everything above is the check script, the unit
   suite, the type checker and the build. The two screens have not been looked at by a human.
 - No notification of any kind: the broker learns about a request by opening a screen. No email, no
@@ -191,7 +192,53 @@ The migration was applied to `corgi_test` only; the coordinator applies it to th
 - No MCP tool reads or writes these tables.
 - The migration is applied to `corgi_test` only.
 
-## 6. README lines to add (the coordinator owns the file)
+## 6. Review fixes, 2026-09-09 (docs/reviews/b13-6-change-requests.md, PASS with seven LOW)
+
+Five findings fixed after the merge at `b40e803`, one commit each. F-B13-05 and F-B13-07 stay
+open by the coordinator's decision.
+
+**F-B13-01, the dead parameter.** The reply route redirected to `?changeRequest=answered` and the
+policy page declared no such field, so a successful answer showed nothing. `page.tsx` gains the
+field in its `searchParams` type and one entry in its notices array; nothing else on that page is
+touched, because another builder owns its panels.
+
+**F-B13-02, the refusal nobody could read.** A customer refused on a foreign policy was sent to
+that policy page, which redirects them to `/customer` and drops the `?error`. `ChangeRequestRefused`
+now carries `readableFrom`: `'policy'` for a form the person may fix where they are, `'home'` for
+the four ownership refusals, which go to `workspaceHomeOf(role)`. The same applies to a
+non-owning broker's refused reply.
+
+**F-B13-03, truthiness instead of the fact.** `changeRequestsOfPolicy` built its reply from five
+truthy joined columns, one of them `users.display_name`, which is `not null` with no non-empty
+CHECK: an operator with an empty name would have rendered an answered request as open while the
+SQL counter said zero. It now reads `row.reply_id !== null`, which is what the left join reports.
+
+**F-B13-04, the repeated line.** `checkedLines` folded a repeat away through a `Set`; it refuses
+it now, because a checkbox cannot produce one and a hand-made request deserves an answer.
+**The database gap stays open and is stated**, in `checkedLines` and in the last check of the
+script: the CHECK of migration 0019 is `cardinality between 1 and 7` plus `lines <@ <closed
+list>`, which a direct INSERT of `['other','other']` satisfies. Uniqueness is an application
+invariant here, not a database one. Migration 0019 is applied on the trial database and is never
+rewritten, so no migration was added.
+
+**F-B13-06, the operator's words on a customer's screen.** `policyTimeline` and `PolicyTimeline`
+take an `audience` (`'operator'` by default, so every existing caller is unchanged); the customer
+view asks for `'customer'`. The audience decides the words, never the rows: both sides see the
+same events, the same two dates and the same amounts. A customer no longer reads the reason a
+staff operator typed into a correction (on CGP-01061: a payment-intent reference, the id F-B2-01
+and the word "coordinator"), nor the superseded-event id and the sentence about the fold, which
+becomes "Put right by a later correction: this line no longer counts".
+
+Checks after the five fixes: typecheck pass; `npm test` **426 tests, 425 pass, 1 skipped, 0
+fail**; build compiled with both routes present; `npm run check:change-requests` **43 checks, 43
+PASS**. The script gained eight checks: the two refusal destinations, the empty-display-name
+reply, the repeated line refused by the application, the same repeat still accepted by the
+database (the stated gap), and three on the two timeline audiences. **Disclosed deviation:** the
+check ran TWICE on `corgi_test`, not once. The second run was only to count the PASS lines the
+first run's tail had cut off; both runs printed "all checks passed" and each builds its own fresh
+fixture, so nothing depends on the other, but the instruction said one run and this was two.
+
+## 7. README lines to add (the coordinator owns the file)
 
 In the run block of "Run it from a clean clone", next to the other check scripts:
 
