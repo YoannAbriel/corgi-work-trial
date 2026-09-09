@@ -4,8 +4,8 @@ import type { LucideIcon } from "lucide-react";
 
 // A row of figures. Every value arrives formatted by the page (formatCentsAsUsd for money, a
 // plain count otherwise); nothing here computes.
-export function Stats({ children }: { children: ReactNode }) {
-  return <div className="stats">{children}</div>;
+export function Stats({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={`stats${className ? ` ${className}` : ""}`}>{children}</div>;
 }
 
 export function Stat({
@@ -17,6 +17,7 @@ export function Stat({
   href,
   icon: Icon,
   spark,
+  className: extraClassName,
 }: {
   label: ReactNode;
   value: ReactNode;
@@ -29,8 +30,9 @@ export function Stat({
   icon?: LucideIcon;
   // A sparkline (components/ui/charts.tsx) under the figure.
   spark?: ReactNode;
+  className?: string;
 }) {
-  const className = `stat tone-${tone}`;
+  const className = `stat tone-${tone}${extraClassName ? ` ${extraClassName}` : ""}`;
   const body = (
     <>
       <span className="stat-label">

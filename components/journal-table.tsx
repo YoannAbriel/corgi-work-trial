@@ -1,4 +1,3 @@
-import "@/app/styles/policy-detail.css";
 import { formatCentsAsUsd } from "@/lib/money/cents";
 
 // The journal of one thing (a policy, a claim, a correction), read straight from the entries

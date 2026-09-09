@@ -487,6 +487,11 @@ p.error {
   background: #edf6ee;
   border: 1px solid #c6dfca;
 }
+.badge-danger {
+  color: #8d3027;
+  background: #fff1ef;
+  border: 1px solid #dfb5ae;
+}
 .badge-warn {
   color: #855318;
   background: #fff4dc;

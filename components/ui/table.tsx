@@ -13,15 +13,17 @@ export function DataTable({
   legend,
   footer,
   children,
+  className,
 }: {
   ariaLabel: string;
   toolbar?: ReactNode;
   legend?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="dt-wrap">
+    <div className={`dt-wrap${className ? ` ${className}` : ""}`}>
       {toolbar}
       <div className="dt-scroll" role="region" aria-label={ariaLabel} tabIndex={0}>
         <table className="dt">{children}</table>
@@ -80,7 +82,7 @@ export function Chevron() {
 // A reference token (a Stripe id, a policy number, a uuid). With `inspectHref` it opens the
 // inspector beside the table; `open` marks the one currently open.
 export function Ref({ value, inspectHref, open, title }: { value: string; inspectHref?: string; open?: boolean; title?: string }) {
-  if (!inspectHref) return <code className="ref">{value}</code>;
+  if (!inspectHref) return <code className="ref" title={title}>{value}</code>;
   return (
     <Link href={inspectHref} prefetch={false} className={`ref${open ? " is-open" : ""}`} title={title ?? "Open the trail of this reference"} scroll={false}>
       {value}

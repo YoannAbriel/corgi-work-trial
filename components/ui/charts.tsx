@@ -9,12 +9,13 @@ import type { ReactNode } from "react";
 
 const PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "#ffb27a", "#5d5e63"];
 
-export type Point = { label: string; value: number; color?: string };
+// `key` is only needed when two points share a label (one bar per run, say).
+export type Point = { label: string; value: number; color?: string; key?: string };
 
 // The frame of a chart: a small heading, an optional big figure at the right, the picture.
-export function Chart({ title, figure, children, legend }: { title: ReactNode; figure?: ReactNode; children: ReactNode; legend?: ReactNode }) {
+export function Chart({ title, figure, children, legend, className }: { title: ReactNode; figure?: ReactNode; children: ReactNode; legend?: ReactNode; className?: string }) {
   return (
-    <section className="chart">
+    <section className={`chart${className ? ` ${className}` : ""}`}>
       <h3>
         <span>{title}</span>
         {figure ? <b>{figure}</b> : null}
@@ -25,8 +26,8 @@ export function Chart({ title, figure, children, legend }: { title: ReactNode; f
   );
 }
 
-export function ChartRow({ children }: { children: ReactNode }) {
-  return <div className="chart-row">{children}</div>;
+export function ChartRow({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={`chart-row${className ? ` ${className}` : ""}`}>{children}</div>;
 }
 
 function HiddenTable({ caption, points, format }: { caption: string; points: Point[]; format: (value: number) => string }) {
@@ -34,8 +35,8 @@ function HiddenTable({ caption, points, format }: { caption: string; points: Poi
     <table className="visually-hidden">
       <caption>{caption}</caption>
       <tbody>
-        {points.map((point) => (
-          <tr key={point.label}>
+        {points.map((point, index) => (
+          <tr key={point.key ?? `${point.label}-${index}`}>
             <th scope="row">{point.label}</th>
             <td>{format(point.value)}</td>
           </tr>
@@ -71,7 +72,7 @@ export function Bars({
   const barWidth = Math.min(28, slot * 0.62);
   return (
     <>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={caption} preserveAspectRatio="none" style={{ height }}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={caption} preserveAspectRatio="xMinYMid meet" style={{ maxHeight: height }}>
         <title>{caption}</title>
         <line x1={0} x2={width} y1={top + plotHeight + 0.5} y2={top + plotHeight + 0.5} stroke="var(--line)" />
         {points.map((point, index) => {
@@ -79,7 +80,7 @@ export function Bars({
           const x = index * slot + (slot - barWidth) / 2;
           const y = top + plotHeight - barHeight;
           return (
-            <g key={point.label}>
+            <g key={point.key ?? `${point.label}-${index}`}>
               <rect className="bar" x={x} y={y} width={barWidth} height={barHeight} rx={4} fill={point.color ?? PALETTE[0]} style={{ animationDelay: `${index * 25}ms` }} />
               {showValues && point.value > 0 ? (
                 <text className="value-label" x={x + barWidth / 2} y={y - 4} textAnchor="middle">
@@ -123,14 +124,14 @@ export function StackedBars({
   const barWidth = Math.min(28, slot * 0.62);
   return (
     <>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={caption} preserveAspectRatio="none" style={{ height }}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={caption} preserveAspectRatio="xMinYMid meet" style={{ maxHeight: height }}>
         <title>{caption}</title>
         <line x1={0} x2={width} y1={top + plotHeight + 0.5} y2={top + plotHeight + 0.5} stroke="var(--line)" />
         {labels.map((label, index) => {
           let stackTop = top + plotHeight;
           const x = index * slot + (slot - barWidth) / 2;
           return (
-            <g key={label}>
+            <g key={`${label}-${index}`}>
               {series.map((one, seriesIndex) => {
                 const value = Math.max(0, one.values[index] ?? 0);
                 const barHeight = Math.round((value / max) * plotHeight);
@@ -162,7 +163,7 @@ export function StackedBars({
         </thead>
         <tbody>
           {labels.map((label, index) => (
-            <tr key={label}>
+            <tr key={`${label}-${index}`}>
               <th scope="row">{label}</th>
               {series.map((one) => (
                 <td key={one.name}>{format(one.values[index] ?? 0)}</td>
@@ -194,7 +195,7 @@ export function HBars({
   return (
     <div className="hbars" role="img" aria-label={caption}>
       {rows.map((row, index) => (
-        <div className="hbar-row" key={row.label}>
+        <div className="hbar-row" key={row.key ?? `${row.label}-${index}`}>
           <span className="hbar-label" title={row.label}>
             {row.label}
           </span>
@@ -228,7 +229,7 @@ export function Donut({ slices, center, format = plain, caption, size = 132 }: {
           const length = share * circumference;
           const element = (
             <circle
-              key={slice.label}
+              key={slice.key ?? `${slice.label}-${index}`}
               className="arc"
               cx={50}
               cy={50}
@@ -255,7 +256,7 @@ export function Donut({ slices, center, format = plain, caption, size = 132 }: {
       </svg>
       <div className="chart-legend" style={{ flexDirection: "column", gap: 4, marginTop: 0 }}>
         {slices.map((slice, index) => (
-          <span key={slice.label} style={{ ["--swatch" as string]: slice.color ?? PALETTE[index % PALETTE.length] }}>
+          <span key={slice.key ?? `${slice.label}-${index}`} style={{ ["--swatch" as string]: slice.color ?? PALETTE[index % PALETTE.length] }}>
             {slice.label} <b>{format(slice.value)}</b>
           </span>
         ))}

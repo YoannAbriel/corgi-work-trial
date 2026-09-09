@@ -89,8 +89,8 @@ export function AsideList({ items }: { items: { label: ReactNode; value: ReactNo
 }
 
 // A small status word with a colour that says whether it is fine, needs attention, or is neutral.
-export function Chip({ tone = "neutral", children }: { tone?: "ok" | "warn" | "neutral"; children: ReactNode }) {
-  return <span className={`badge ${tone === "ok" ? "badge-ok" : tone === "warn" ? "badge-warn" : "badge-neutral"}`}>{children}</span>;
+export function Chip({ tone = "neutral", children }: { tone?: "ok" | "warn" | "neutral" | "danger"; children: ReactNode }) {
+  return <span className={`badge ${tone === "ok" ? "badge-ok" : tone === "warn" ? "badge-warn" : tone === "danger" ? "badge-danger" : "badge-neutral"}`}>{children}</span>;
 }
 
 // The sentence a table or a list would otherwise have replaced.

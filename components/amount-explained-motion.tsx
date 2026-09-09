@@ -1,6 +1,5 @@
 "use client";
 
-import "@/app/styles/policy-detail.css";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PopoverButton, PopoverPanel } from "@/components/ui/popover";

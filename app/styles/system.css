@@ -723,6 +723,7 @@ a.stat:hover {
   display: block;
   width: 100%;
   height: auto;
+  max-height: 240px;
   overflow: visible;
 }
 .chart .axis-label {
@@ -733,6 +734,10 @@ a.stat:hover {
   font-size: 11px;
   fill: var(--ink);
   font-variant-numeric: tabular-nums;
+}
+.chart table.visually-hidden {
+  display: block;
+  height: 1px;
 }
 .chart-empty {
   font-size: 13px;
@@ -809,7 +814,11 @@ a.stat:hover {
   background: #f0f0f2;
   overflow: hidden;
 }
+.hbar-row .hbar-track {
+  display: block;
+}
 .hbar-row .hbar-fill {
+  display: block;
   height: 100%;
   border-radius: 5px;
   background: var(--swatch, var(--chart-1));
@@ -920,15 +929,16 @@ table.dt tr.dt-row:hover td.dt-chevron {
   color: var(--ink-2);
   font-size: 12px;
 }
-table.dt td .dt-sub {
+.dt-sub {
   display: block;
   margin-top: 2px;
   font-size: 12px;
   color: var(--ink-2);
+  font-weight: 400;
 }
 table.dt .badge {
   margin: 0;
-  white-space: nowrap;
+  white-space: normal;
 }
 table.dt td button,
 table.dt td .button-link {
@@ -1196,6 +1206,9 @@ table.dt tr.dt-expansion > td {
   max-width: min(420px, calc(100vw - 24px));
   animation: pop-in 0.16s var(--ease);
 }
+[popover].pop:not(:popover-open) {
+  display: none;
+}
 [popover].pop::backdrop {
   background: transparent;
 }
@@ -1207,6 +1220,9 @@ table.dt tr.dt-expansion > td {
     top: anchor(bottom);
     left: anchor(left);
     margin-top: 4px;
+    max-height: -webkit-fill-available;
+    max-height: stretch;
+    overflow: auto;
     position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
   }
   [popover].pop.pop-right {
@@ -1297,6 +1313,131 @@ button.row-menu-button:hover {
   max-width: calc(100vw - 24px);
 }
 
+/* The amount explanation (components/amount-explained-motion.tsx) and the journal lines
+   (components/journal-table.tsx): rules written by the policy builder, owned by the system. */
+/* --- The figure that opens its explanation --------------------------------------------------
+   The figure IS the button now (components/amount-explained-motion.tsx), so it has to lose every
+   inch of the button style of app/globals.css and keep the type of the cell, the tile or the
+   facts row it sits in. The dotted underline is the only thing that says it can be opened. */
+button.amount-explained-figure {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: #b9bcc4;
+  cursor: pointer;
+  /* A money figure never breaks across two lines, whatever the column it sits in. */
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+button.amount-explained-figure:hover {
+  background: none;
+  color: var(--accent);
+  text-decoration-color: currentColor;
+}
+button.amount-explained-figure:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+
+/* --- The explanation panel, in the top layer ------------------------------------------------
+   `.pop-explain` (app/styles/system.css) gives it its box. The panel is written inside the cell
+   or the tile it explains, so it inherits that type: a figure tile is 24 px and right aligned,
+   and the explanation is neither. Everything it needs is set back here, once. */
+[popover].pop.pop-explain {
+  /* Wider than a menu: the arithmetic is a table of three columns and it has to be read, not
+     scrolled word by word. Never wider than the window. */
+  width: min(520px, calc(100vw - 24px));
+  max-width: min(520px, calc(100vw - 24px));
+  max-height: min(72dvh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  color: var(--ink);
+}
+/* A figure in the right-hand column opens a panel wider than the room left beside it, and a
+   figure low on the screen opens one taller than the room under it. The system stylesheet already
+   asks the browser to flip the panel to the other side in that case, and MEASURED ON 2026-09-09 IT
+   NEVER DID: a browser only takes a fallback position that overflows in NO direction, and a panel
+   of a fixed 640 px still ran off the bottom whichever side it was flipped to, so the original
+   position won every time and the panel was cut off by the window.
+   `stretch` is what unties it: the panel takes at most the space actually left between the figure
+   and the edge, nothing overflows any more, and the sideways flip is then chosen on its own. The
+   line above it is the same rule for a browser that has neither. */
+@supports (position-anchor: --x) {
+  [popover].pop.pop-explain {
+    max-height: -webkit-fill-available;
+    max-height: stretch;
+    position-try-fallbacks: flip-inline, flip-block, flip-block flip-inline;
+  }
+}
+[popover].pop-explain .table-scroll {
+  margin: 10px 0 0;
+}
+/* The three columns keep a readable width and the box scrolls sideways, rather than every label
+   collapsing to one word per line. */
+[popover].pop-explain table.formula {
+  min-width: 440px;
+}
+[popover].pop-explain .amount-explain-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+[popover].pop-explain .note,
+[popover].pop-explain .error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+[popover].pop-explain table.formula {
+  font-size: 12px;
+}
+[popover].pop-explain table.formula code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+
+/* --- The header of a journal entry's lines (F-LU-02) ----------------------------------------
+   The three columns are named inside the table now, so the header scrolls with the amounts it
+   labels and is still there at 375 px. Same type as the decorative header it replaces. */
+table.entry-lines > thead > tr > th {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  color: var(--ink-2);
+  background: #fbfbfc;
+  border-bottom: 1px solid #ededee;
+  white-space: nowrap;
+}
+table.entry-lines > thead > tr > th.amount {
+  text-align: right;
+}
+
+
 /* ---------------------------------------------------------------------------
    The inspector: one record and its whole trail, beside the table it came from
    --------------------------------------------------------------------------- */
@@ -1308,6 +1449,9 @@ button.row-menu-button:hover {
 }
 .with-inspector > * {
   min-width: 0;
+}
+.with-inspector > .stack {
+  grid-template-columns: minmax(0, 1fr);
 }
 .inspector {
   position: sticky;
@@ -1568,7 +1712,6 @@ button.row-menu-button:hover {
   padding: 0;
   border: 0;
   margin: 0;
-  max-width: none;
   background: transparent;
 }
 .card form.card label:first-child {
@@ -1586,6 +1729,18 @@ button.row-menu-button:hover {
 .card .empty img {
   width: min(140px, 100%);
   max-height: 100px;
+}
+main > .card + .card,
+main > .card + .dt-wrap,
+main > .dt-wrap + .card {
+  margin-top: 16px;
+}
+.card > .dt-wrap:not(:last-child) {
+  margin-bottom: 12px;
+  border-radius: 0;
+}
+.card form.card {
+  max-width: 560px;
 }
 /* A link card that opens a section. */
 a.section-card {
@@ -1788,7 +1943,7 @@ button.secondary.is-working::after {
    Motion
    --------------------------------------------------------------------------- */
 .reveal > * {
-  animation: rise 0.36s var(--ease) both;
+  animation: rise 0.36s var(--ease) backwards;
 }
 .reveal > *:nth-child(2) {
   animation-delay: 40ms;
