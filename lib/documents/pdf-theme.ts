@@ -1,6 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { Styles } from "@react-pdf/renderer";
+import { CORGI_WORDMARK_PNG_BASE64 } from "./brand-wordmark";
 
 // The look of every PDF this application produces: the two policy documents
 // (lib/documents/render.tsx) and the broker statement (lib/statements/pdf.tsx).
@@ -107,9 +106,8 @@ export const WATERMARK_TEXT = "SPECIMEN, TEST DATA";
 // unchanged and only exists to type it. It is passed in as an argument rather than imported
 // at the top of this file because @react-pdf/renderer is published as ES modules only and
 // both documents load it with `await import(...)` (the reason is written out in
-// render.tsx). `import type` above is erased at compile time, so the only thing this file
-// requires at runtime is node:fs, for the logo below, which is a builtin and loads the same
-// way under both module systems.
+// render.tsx). `import type` above is erased at compile time, and the one real import is a
+// generated module of plain constants, so this file still pulls nothing heavy at runtime.
 type PdfStyleSheet = { create: <T extends Styles>(styles: T) => T };
 
 // The other half of the same module, for the one typography decision that is not a style.
@@ -133,24 +131,28 @@ export function applyPdfTypography(Font: PdfFontRegistry): void {
 
 // The Corgi wordmark printed at the top of every document.
 //
-// It is read off disk rather than imported, because @react-pdf/renderer draws an image from
-// its BYTES: `<Image src={{ data, format }} />`. A Next.js image import would hand back a URL
-// and a width, which is what a browser needs and not what a PDF writer needs.
+// @react-pdf/renderer draws an image from its BYTES: `<Image src={{ data, format }} />`. A
+// Next.js image import would hand back a URL and a width, which is what a browser needs and
+// not what a PDF writer needs, so the bytes have to come from somewhere else.
 //
-// The file is the one scripts/brand-assets.mjs produces (public/brand/corgi-logo.png). It is
-// resolved from process.cwd(), which is the repository root under `next dev` and `node --test`
-// and the function's own root on Vercel. next.config.ts names this file in
-// `outputFileTracingIncludes` for the two document routes, so the deployment actually carries
-// it: public/ is uploaded to the CDN as static assets and is not otherwise guaranteed to be
-// inside the serverless function.
+// WHY A GENERATED MODULE AND NOT A FILE READ
+// The obvious version of this was readFileSync(process.cwd() + "/public/brand/corgi-logo.png").
+// It works locally and it is a gamble in production: everything under public/ is uploaded to
+// the CDN as a static asset, and whether a copy also lands inside the serverless function is
+// a deployment detail this trial cannot observe before shipping. A missing file there is a
+// 500 on a document download, found by a reviewer rather than by us. Importing the bytes from
+// brand-wordmark.ts moves the problem to compile time: the constant is bundled into the two
+// routes by the same toolchain that bundles this file, so there is no runtime path to resolve
+// and nothing to leave behind. public/brand/corgi-logo.png stays as the web-facing copy, and
+// scripts/brand-assets.mjs writes both from one source so they cannot disagree.
 //
-// Read once per process and kept, for the same reason the module is: rendering a statement
-// must not do a file read per page. The same bytes every time also keeps a render
-// byte-identical to the one before it, which lib/documents/render.test.ts asserts.
+// Decoded once per process and kept: rendering a statement must not decode 91 KB per page.
+// The same bytes every time also keeps a render byte-identical to the one before it, which
+// lib/documents/render.test.ts asserts.
 let cachedWordmarkPng: Buffer | undefined;
 
 export function corgiWordmarkPng(): { data: Buffer; format: "png" } {
-  cachedWordmarkPng ??= readFileSync(join(process.cwd(), "public", "brand", "corgi-logo.png"));
+  cachedWordmarkPng ??= Buffer.from(CORGI_WORDMARK_PNG_BASE64, "base64");
   return { data: cachedWordmarkPng, format: "png" };
 }
 
