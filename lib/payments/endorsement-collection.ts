@@ -360,16 +360,25 @@ async function postDeltaAndApply(
 ): Promise<EndorsementCollectionOutcome> {
   try {
     await database.begin(async (transaction) => {
-      // ONE ENDORSEMENT AT A TIME PER POLICY, the same lock recordEndorsementRequest takes
-      // (review finding F-B4-12). Without it, the checks above ran outside any lock: a new
-      // request could commit between the standing check and the 'endorsed' insert, and this
-      // payment would apply a quote that had just been superseded. From here until this
-      // transaction ends, no new request on this policy can commit.
+      // TWO LOCKS, ALWAYS IN THIS ORDER. This is the only transaction that holds both, and the
+      // order is what keeps it that way: everything else takes one or the other on its own
+      // (recordEndorsementRequest and the corrections take the policy; the collection handlers
+      // take the operation), so no cycle can form.
+      //
+      // The policy first, the same lock recordEndorsementRequest takes (review finding F-B4-12).
+      // Without it the checks above ran outside any lock: a new request could commit between the
+      // standing check and the 'endorsed' insert, and this payment would apply a quote that had
+      // just been superseded. From here until this transaction ends, no new request on this
+      // policy can commit.
       await transaction`select pg_advisory_xact_lock(hashtext(${link.policyId}))`;
-      // And the standing is read AGAIN, under the lock, because the lock cannot undo a request
-      // that committed a moment before it was taken. 'applied' is deliberately not handled here:
-      // it is the unique-violation branch below, which can tell an already-posted delta from a
-      // delta another attempt applied.
+      // Then the money operation (review finding F-B2-21): the late checkout.session.completed
+      // handler takes the same lock, so it can only look at the operation after this posting has
+      // committed.
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.operationId}))`;
+      // And the standing is read AGAIN, under the policy lock, because a lock cannot undo a
+      // request that committed a moment before it was taken. 'applied' is deliberately not
+      // handled here: it is the unique-violation branch below, which can tell an already-posted
+      // delta from a delta another attempt applied.
       const standingUnderLock = await endorsementRequestStanding(transaction, request);
       if (standingUnderLock.state === "superseded") {
         throw new EndorsementNoLongerApplicable(
@@ -641,6 +650,7 @@ async function parkPaymentWithoutApplying(
 ): Promise<void> {
   try {
     await database.begin(async (transaction) => {
+      await transaction`select pg_advisory_xact_lock(hashtext(${link.operationId}))`;
       const parked = unappliedCashReceivedEntry({
         operationId: link.operationId,
         policyId: link.policyId,
