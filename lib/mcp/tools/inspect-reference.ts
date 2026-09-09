@@ -1,3 +1,4 @@
+// Deployed with the eighth tool on 2026-09-09; its production confirmation is recorded in docs/reviews.
 import type postgres from "postgres";
 import { claimHeader } from "@/lib/claims/read";
 import {
