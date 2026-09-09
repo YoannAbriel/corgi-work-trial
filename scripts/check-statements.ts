@@ -11,7 +11,11 @@ import { CANONICAL_STATEMENT_VERSION } from "@/lib/statements/compute";
 //   3. A CORRECTION RECORDED AFTER THE CUTOFF is invisible to a run with that cutoff, and produces
 //      a new revision, dated, showing the corrected figure and naming the revision it supersedes;
 //   4. a VOIDED operation nets to zero: the collection and the commission are listed with their
-//      reversals, and the month's net due goes back to what it was before the policy existed.
+//      reversals, and the month's net due goes back to what it was before the policy existed;
+//   5. THE MONTHLY CLOSE the daily job runs (section 9): on the first day of a month it publishes
+//      the month that just ended, once per active broker, with the cutoff it was given; called
+//      again the same day it publishes nothing twice; called on any other day it does nothing;
+//      and the document it produces is the one a staff member re-running that month reproduces.
 //
 // The recited example (DECISIONS.md) is the arithmetic throughout: $1,200 annual premium written
 // and paid on 2028-03-01, California premium tax 2820 cents, $25 fee, 15% commission, cancelled
@@ -82,6 +86,7 @@ async function main() {
   const { recordCompletedRefund } = await import("@/lib/payments/refunds");
   const { voidFabricatedBinding } = await import("@/lib/policy/void-fabricated-binding");
   const { runStatement, StatementRunRefused } = await import("@/lib/statements/run");
+  const { MONTHLY_STATEMENT_ROUTE, produceMonthlyStatements } = await import("@/lib/statements/monthly-job");
   const { commissionPayableMovementCents } = await import("@/lib/statements/journal");
   const { changesAgainstPrevious, listStatementRuns, statementRun } = await import("@/lib/statements/read");
   const { collectedFigures } = await import("@/lib/statements/compute");
@@ -852,6 +857,176 @@ async function main() {
     `${runsOfBrokerA.length} runs for broker A, ${runsOfEveryBroker.length} in the staff list`,
   );
 
+  // ---------------------------------------------------------------------------
+  // 9. The monthly close, the way the daily job runs it
+  // ---------------------------------------------------------------------------
+  //
+  // IT IS THE LAST SECTION OF THIS FILE ON PURPOSE. The job publishes the closed month for EVERY
+  // broker with a policy in force, brokers A to E included, so any assertion counting a broker's
+  // runs has to have been made before it. The one exception is checked right here: broker A's
+  // closed month was already published in section 1, and the job must leave it alone.
+  //
+  // THE MONTH IS THE ONE THAT JUST ENDED, in real time, not in 2028: a knowledge cutoff can never
+  // be in the future (lib/statements/run.ts), so the job is called with the first instant of the
+  // current month, which is the instant the cron would call it at.
+  //
+  //   broker F  paid on the first day of the closed month, so its journal MOVED INSIDE IT: it is
+  //             picked up by the first half of the rule;
+  //   broker G  paid in 2028 like every other fixture, so nothing of its moved in the closed
+  //             month. It is on the list all the same, because its policy is in force, and its
+  //             statement says "nothing moved, net due 0".
+  //
+  // WHY BROKER F'S STATEMENT IS EMPTY ALL THE SAME, and why that is the cutoff working rather
+  // than a bug: its money is EFFECTIVE on the first day of the closed month, but it was RECORDED
+  // by the database a moment ago, which is after the close read the ledger. A close on the first
+  // of the month reads what the ledger knew on the first of the month, and no fixture can be
+  // recorded in the past (recorded_at is set by the database, migrations 0001 and 0003). Both
+  // facts are asserted below: the run ties to the ledger AT ITS OWN CUTOFF, and the same ledger
+  // read a moment later holds the 18000 the run correctly does not show.
+
+  const closedMonth = monthBeforeThisOne();
+  const firstInstantOfThisMonth = firstInstantOfTheCurrentMonth();
+  const brokerF = await createBroker("Statement check broker F, closed month");
+  const brokerG = await createBroker("Statement check broker G, quiet month");
+  const policyF = await createPaidPolicy(recordSuccessfulPayment, brokerF, `${closedMonth}-01`);
+  const policyG = await createPaidPolicy(recordSuccessfulPayment, brokerG);
+  report(
+    "two brokers are active in different ways: one whose ledger moved in the closed month, one with only a policy in force",
+    (await policyStatus(policyF.policyId)) === "bound" && (await policyStatus(policyG.policyId)) === "bound",
+    `${policyF.policyNumber} paid on ${closedMonth}-01, ${policyG.policyNumber} paid on ${TERM_START}`,
+  );
+
+  // The correlation id the job would carry. A fresh one per run, so the activity rows counted
+  // below are this run's and not a previous one's.
+  const jobCorrelationId = `check-statements-${crypto.randomUUID()}`;
+  const firstClose = await produceMonthlyStatements(
+    { now: firstInstantOfThisMonth, correlationId: jobCorrelationId },
+    runtime,
+  );
+  const producedBrokerIds = firstClose.produced.map((statement) => statement.brokerId);
+  report(
+    "the monthly job publishes the month that just ended, once per active broker",
+    firstClose.itIsTheFirstDayOfAMonth &&
+      firstClose.statementMonth === closedMonth &&
+      new Set(producedBrokerIds).size === producedBrokerIds.length &&
+      producedBrokerIds.includes(brokerF) &&
+      producedBrokerIds.includes(brokerG) &&
+      firstClose.refused.length === 0,
+    `month ${firstClose.statementMonth}, ${firstClose.produced.length} produced, ${firstClose.alreadyPublished} already published, ${firstClose.refused.length} refused`,
+  );
+
+  const runsOfBrokerF = await listStatementRuns(runtime, { brokerId: brokerF, limit: 10 });
+  const closeOfF = runsOfBrokerF[0];
+  report(
+    "the run the job produced carries the right month, the cutoff it was given, and no author",
+    runsOfBrokerF.length === 1 &&
+      closeOfF.statementMonth === closedMonth &&
+      closeOfF.knowledgeCutoff.getTime() === firstInstantOfThisMonth.getTime() &&
+      closeOfF.revision === 1 &&
+      closeOfF.runByName === null &&
+      // Definitive, not provisional: the cutoff is the first instant after the month it covers.
+      closeOfF.monthWasStillRunning === false,
+    `revision ${closeOfF?.revision} of ${closeOfF?.statementMonth}, cutoff ${closeOfF?.knowledgeCutoff.toISOString()}, run by ${closeOfF?.runByName ?? "a job"}`,
+  );
+  const ledgerAtTheCutoff = await commissionPayableMovementCents(
+    { brokerId: brokerF, statementMonth: closedMonth, knowledgeCutoff: closeOfF.knowledgeCutoff },
+    runtime,
+  );
+  report(
+    "THE PRODUCED RUN TIES TO THE LEDGER TO THE CENT, at its own knowledge cutoff, exactly as a manual run does",
+    closeOfF?.netDueCents === ledgerAtTheCutoff,
+    `statement ${closeOfF?.netDueCents}, journal ${ledgerAtTheCutoff}`,
+  );
+  const ledgerReadAMomentLater = await commissionPayableMovementCents(
+    { brokerId: brokerF, statementMonth: closedMonth, knowledgeCutoff: new Date() },
+    runtime,
+  );
+  report(
+    "and the cutoff is doing its work: the money of that month is real, and was recorded after the close read the ledger",
+    ledgerReadAMomentLater === COMMISSION_CENTS && closeOfF?.netDueCents === 0,
+    `the same month reads ${ledgerReadAMomentLater} at a cutoff of now and ${closeOfF?.netDueCents} at ${closeOfF?.knowledgeCutoff.toISOString()}`,
+  );
+  const runsOfBrokerG = await listStatementRuns(runtime, { brokerId: brokerG, limit: 10 });
+  report(
+    "a broker whose month was quiet still gets a statement, and it says nothing moved",
+    runsOfBrokerG.length === 1 && runsOfBrokerG[0].statementMonth === closedMonth && runsOfBrokerG[0].netDueCents === 0,
+    `${runsOfBrokerG.length} run(s), net due ${runsOfBrokerG[0]?.netDueCents}`,
+  );
+
+  const activityRows = await owner<{ rows: string }[]>`
+    select count(*)::text as rows
+      from activity_log
+     where correlation_id = ${jobCorrelationId}
+       and route = ${MONTHLY_STATEMENT_ROUTE}
+       and subject_kind = 'broker'
+  `;
+  report(
+    "the job wrote one activity row per statement it produced, all under the correlation id of the job",
+    Number(activityRows[0].rows) === firstClose.produced.length,
+    `${activityRows[0].rows} rows for ${firstClose.produced.length} statements`,
+  );
+
+  const secondClose = await produceMonthlyStatements(
+    { now: firstInstantOfThisMonth, correlationId: `${jobCorrelationId}-again` },
+    runtime,
+  );
+  const runsOfBrokerFAfterTheSecondClose = await listStatementRuns(runtime, { brokerId: brokerF, limit: 10 });
+  const runsOfBrokerGAfterTheSecondClose = await listStatementRuns(runtime, { brokerId: brokerG, limit: 10 });
+  // THE PROPERTY IS PER BROKER, not a global count, and the reason is the database this runs on:
+  // corgi_test is shared, other builders' checks create brokers with policies in force while this
+  // one runs, and the second close legitimately publishes the month of a broker that did not
+  // exist during the first. What idempotency means is that a broker already published is not
+  // published again, which is what these three facts say.
+  report(
+    "RUNNING THE JOB AGAIN THE SAME DAY PUBLISHES NOTHING TWICE: every broker of the first close is skipped",
+    secondClose.produced.every((statement) => statement.brokerId !== brokerF && statement.brokerId !== brokerG) &&
+      secondClose.alreadyPublished >= firstClose.produced.length &&
+      runsOfBrokerFAfterTheSecondClose.length === 1 &&
+      runsOfBrokerGAfterTheSecondClose.length === 1,
+    `${secondClose.alreadyPublished} already published, ${secondClose.produced.length} brokers created since the first close, brokers F and G still hold ${runsOfBrokerFAfterTheSecondClose.length} and ${runsOfBrokerGAfterTheSecondClose.length} run`,
+  );
+
+  const midMonth = await produceMonthlyStatements(
+    { now: middleOfTheClosedMonth(), correlationId: `${jobCorrelationId}-mid-month` },
+    runtime,
+  );
+  report(
+    "called on any day but the first of a month, the job produces nothing at all",
+    midMonth.itIsTheFirstDayOfAMonth === false &&
+      midMonth.statementMonth === null &&
+      midMonth.produced.length === 0,
+    `${middleOfTheClosedMonth().toISOString().slice(0, 10)} is not the first of a month`,
+  );
+
+  const runsOfBrokerAAfterTheJob = await listStatementRuns(runtime, { brokerId: brokerA, limit: 50 });
+  report(
+    "a month a staff member had already closed is not closed a second time by the job",
+    runsOfBrokerAAfterTheJob.length === runsOfBrokerA.length,
+    `broker A still has ${runsOfBrokerAAfterTheJob.length} runs, and its ${closedMonth} was published in section 1`,
+  );
+
+  // The last question of the slice: is the document the job produced the document a person would
+  // have produced? Re-run the same broker and month with the job's own cutoff, by hand, as staff:
+  // same entries in, same canonical text out, same hash, stored as the next revision naming the
+  // job's run as the one it supersedes. Nothing is rewritten, and the job is not a special path.
+  const manualRerun = await runStatement(
+    {
+      brokerId: brokerF,
+      statementMonth: closedMonth,
+      knowledgeCutoff: closeOfF.knowledgeCutoff,
+      actorUserId: staffUserId,
+    },
+    runtime,
+  );
+  report(
+    "A STAFF MEMBER RE-RUNNING THAT MONTH WITH THE JOB'S CUTOFF REPRODUCES IT: same hash, new revision",
+    manualRerun.contentHash === closeOfF.contentHash &&
+      manualRerun.revision === 2 &&
+      manualRerun.identicalToPrevious &&
+      manualRerun.supersedesRunId === closeOfF.runId,
+    `revision ${manualRerun.revision}, hash ${manualRerun.contentHash.slice(0, 16)} identical ${manualRerun.identicalToPrevious}`,
+  );
+
   console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}.`);
   await owner.end();
   await runtime.end();
@@ -894,6 +1069,31 @@ function monthBeforeThisOne(): string {
   return firstOfLastMonth.toISOString().slice(0, 7);
 }
 
+// Midnight UTC on the first day of the current month: the instant the cron would run the monthly
+// close at, and the knowledge cutoff every statement it produces is read at. It is in the past
+// (or, on the first of the month, the present), which is what runStatement requires.
+function firstInstantOfTheCurrentMonth(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+// A day that is not the first of a month, and is safely in the past: the fifteenth of the month
+// that just ended.
+function middleOfTheClosedMonth(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15));
+}
+
+// The status the policy_current cache holds. Read here to say out loud that the two brokers of
+// section 9 really do have a policy in force, which is one of the two reasons the job picks a
+// broker up.
+async function policyStatus(policyId: string): Promise<string> {
+  const [row] = await owner<{ status: string }[]>`
+    select status from policy_current where policy_id = ${policyId}
+  `;
+  return row?.status ?? "unknown";
+}
+
 // A broker at the demo commission rate, with the KYB status binding needs. Provider 'seed' on
 // purpose: the two-minute settling window applies to Stripe Connect statuses only, so a row
 // written a moment ago is usable straight away.
@@ -922,9 +1122,16 @@ type PaidPolicy = { policyId: string; policyNumber: string; operationId: string;
 
 // A bound, paid policy, built exactly as slice B2 builds one: the draft and its money operation as
 // the owner, then the real collection code under the restricted runtime role.
+//
+// `paidOn` is the day the money arrived, and it is what the collection and commission entries are
+// EFFECTIVE on (lib/ledger/policy-entries.ts), so it is the day that decides which monthly
+// statement they belong to. It defaults to the term start, which is what every other section of
+// this file uses; section 9 passes a day inside the month that just ended so that a real month
+// of this year has real money in it.
 async function createPaidPolicy(
   recordSuccessfulPayment: typeof import("@/lib/payments/collection").recordSuccessfulPayment,
   brokerId: string,
+  paidOn: string = TERM_START,
 ): Promise<PaidPolicy> {
   const { policyId, policyNumber, operationId } = await owner.begin(async (transaction) => {
     const [customer] = await transaction<{ id: string }[]>`
@@ -968,7 +1175,7 @@ async function createPaidPolicy(
       // A reference Stripe does not know: this is a disposable database and no money exists.
       paymentIntentId: `pi_statements_check_${operationId.slice(0, 8)}`,
       amountReceivedCents: TOTAL_CHARGE_CENTS,
-      paidOn: TERM_START,
+      paidOn,
     },
     runtime,
   );
