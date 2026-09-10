@@ -1,0 +1,146 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=overview] Overview
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=endorsements] Endorsements
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=claims] Claims2
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=money] Money
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=billing] Billing
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?view=timeline] Timeline
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/corrections/new] Correct
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] Access tokens
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+Policy CGP-01707
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Policy CGP-01707Bay Area Fabrication LLCcancelled
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/claims/new] Open a claim Policies
+|
+| | Effective | Change | Prorated delta | New annual premium | Ref
+|
+| 2026-09-225 h | $1,200.00 to $2,400.00corrected date |
+$1,181.08
+Explain this amount
+Prorated delta of the endorsement effective 2026-09-22
+Recomputed today from the same inputs: identical.
+351 of 365 days remained from 2026-09-22. The delta is the money that moved, not the change in the annual premium.
+|
+| Amount | How it was computed (integer cents) | Result
+| Annual premium difference (new minus old) | 240000 - 120000 | $1,200.00
+| Prorated premium charged, 351 of 365 days remain from 2026-09-22 (rounded down) | floor(120000 x 351 / 365) | $1,153.97
+| State premium tax on the charged premium (rounded down) | floor(115397 x 235 / 10000) | $27.11
+| Policy fee (charged at issuance only, never again, never refunded) | 0 | $0.00
+| Total collected from the customer through Stripe | 115397 + 2711 | $1,181.08
+| Broker commission earned on the collected premium (rounded down) | floor(115397 x 1500 / 10000) | $173.09
+Rounding Rounded down (floor) on the premium charged and its tax: the customer pays this, so the insurer absorbs the fraction of a cent.
+The Stripe references of the money that moved for this endorsement (the journal entries are in the money view). The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| Stripe reference | 2026-09-22 | 2026-09-09 19:33:07 | payment pi_3UDf5YK6R3v50tIy1GkJdCCi$1,153.97 premium, $27.11 tax | $2,400.00 |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?inspect=pi_3UDf5YK6R3v50tIy1GkJdCCi&view=endorsements] pi_3UDf5YK6R3v50tIy1GkJdCCi
+|
+What changed
+Annual premium $1,200.00 to $2,400.00; per-occurrence limit $1,000,000.00 to $2,000,000.00; aggregate limit $2,000,000.00 to $4,000,000.00
+Limits after it
+$2,000,000.00 per occurrence / $4,000,000.00 aggregate
+Days left in the term
+351 of 365
+Recorded
+2026-09-09 19:33:07
+Entered as
+2026-10-08, put right to 2026-09-22
+Sandbox references
+Stripe reference 1
+payment pi_3UDf5YK6R3v50tIy1GkJdCCi
+|
+| Amount | How it was computed (integer cents) | Result
+| Annual premium difference (new minus old) | 240000 - 120000 | $1,200.00
+| Prorated premium charged, 351 of 365 days remain from 2026-09-22 (rounded down) | floor(120000 x 351 / 365) | $1,153.97
+| State premium tax on the charged premium (rounded down) | floor(115397 x 235 / 10000) | $27.11
+| Policy fee (charged at issuance only, never again, never refunded) | 0 | $0.00
+| Total collected from the customer through Stripe | 115397 + 2711 | $1,181.08
+| Broker commission earned on the collected premium (rounded down) | floor(115397 x 1500 / 10000) | $173.09
+|
+| 2026-10-015 h | $2,400.00 to $2,700.00 |
+$287.69
+Explain this amount
+Prorated delta of the endorsement effective 2026-10-01
+Recomputed today from the same inputs: identical.
+342 of 365 days remained from 2026-10-01. The delta is the money that moved, not the change in the annual premium.
+|
+| Amount | How it was computed (integer cents) | Result
+| Annual premium difference (new minus old) | 270000 - 240000 | $300.00
+| Prorated premium charged, 342 of 365 days remain from 2026-10-01 (rounded down) | floor(30000 x 342 / 365) | $281.09
+| State premium tax on the charged premium (rounded down) | floor(28109 x 235 / 10000) | $6.60
+| Policy fee (charged at issuance only, never again, never refunded) | 0 | $0.00
+| Total collected from the customer through Stripe | 28109 + 660 | $287.69
+| Broker commission earned on the collected premium (rounded down) | floor(28109 x 1500 / 10000) | $42.16
+Rounding Rounded down (floor) on the premium charged and its tax: the customer pays this, so the insurer absorbs the fraction of a cent.
+The Stripe references of the money that moved for this endorsement (the journal entries are in the money view). The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| Stripe reference | 2026-10-01 | 2026-09-09 20:17:43 | payment pi_3UDrw9K6R3v50tIy1XjCYQsU$281.09 premium, $6.60 tax | $2,700.00 |
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?inspect=pi_3UDrw9K6R3v50tIy1XjCYQsU&view=endorsements] pi_3UDrw9K6R3v50tIy1XjCYQsU
+|
+What changed
+Annual premium $2,400.00 to $2,700.00
+Limits after it
+$2,000,000.00 per occurrence / $4,000,000.00 aggregate
+Days left in the term
+342 of 365
+Recorded
+2026-09-09 20:17:43
+Sandbox references
+Stripe reference 1
+payment pi_3UDrw9K6R3v50tIy1XjCYQsU
+|
+| Amount | How it was computed (integer cents) | Result
+| Annual premium difference (new minus old) | 270000 - 240000 | $300.00
+| Prorated premium charged, 342 of 365 days remain from 2026-10-01 (rounded down) | floor(30000 x 342 / 365) | $281.09
+| State premium tax on the charged premium (rounded down) | floor(28109 x 235 / 10000) | $6.60
+| Policy fee (charged at issuance only, never again, never refunded) | 0 | $0.00
+| Total collected from the customer through Stripe | 28109 + 660 | $287.69
+| Broker commission earned on the collected premium (rounded down) | floor(28109 x 1500 / 10000) | $42.16
+Prorated delta the money that moved, priced over the days left in the termNew annual premium the yearly rate after the change, not the money that movedRef the Stripe reference of the money that moved, in the row's details
+About this screen
+Prorated delta
+The money that actually moved: the annual premium difference priced over the days remaining from the effective date to the end of the term, plus the state premium tax on it, rounded in the customer's favour. It is not the change in the annual premium, which is the last column.
+A change in progress
+The policy terms stay as they are until the delta is paid. Above $500.00 of additional premium in the term, the customer approves the quote from their own screen first.
+Correcting a date
+A correction reverses what was booked and re-books the endorsement on the right date. Nothing is deleted, and the money already collected stays where it is; the difference is collected or given back.Corgi · Policy administration

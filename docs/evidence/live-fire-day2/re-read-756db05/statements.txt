@@ -1,0 +1,170 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] Access tokens
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+Statements
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Broker statements Statements
+ProvisionalA provisional run stays as it is. The run made after the month ends is the next revision and the definitive one.3months whose newest revision is provisional
+Latest month2026-09business month of the newest run
+|
+| | Broker | Month | Revision | Net due | Status
+|
+|
+[a /statements/bb208608-e026-4893-8d18-2b88dfe297d7] Redwood Commercial Brokers2 h | 2026-09 | 87 earlier shown | $142.30 | provisional
+|
+Produced
+2026-09-09 22:46:39 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-09 22:46:39 UTC
+Premium collected, the commission base
+$8,397.81
+Cash collected from customers
+$8,670.14
+Commission earned
+$1,259.66
+Commission clawed back
+-$1,117.36
+Net due to the broker
+$142.30
+References
+Sandbox references
+Statement run id
+bb208608-e026-4893-8d18-2b88dfe297d7
+Content hash
+b95791248f03258c457f1abf20fa4e42bd578667db134cf7972627cacbaf47fe
+Canonical format version
+3
+Supersedes run id
+63fb085e-d1e8-4f69-96e4-df804641cb73
+Earlier revisions in the last 30 runs
+[a /statements/63fb085e-d1e8-4f69-96e4-df804641cb73] Revision 75 h$437.45provisionalidentical
+[a /statements/8df46119-a401-41a6-b8c2-c093a7c1ba02] Revision 65 h$437.45provisional
+[a /statements/c0f845bd-a57c-4086-8796-c36375a021ba] Revision 55 h$429.56provisionalidentical
+[a /statements/c602abcf-7113-4256-a8c5-711778cf4000] Revision 46 h$429.56provisionalformat changed
+[a /statements/c775c8ce-34a3-48a3-bea5-558b4d63a546] Revision 331 h$389.35provisionalformat changed
+[a /statements/5321274f-b35e-46ae-997c-35364969ca90] Revision 232 h$389.35provisionalidentical
+[a /statements/de8416cd-5161-404a-b3ea-91b3a60a847f] Revision 132 h$389.35provisional
+|
+|
+[a /statements/e4ba3f53-3150-4c82-9dd3-ce350af2e541] Harbor Point Insurance Services6 h | 2026-09 | 21 earlier shown | $0.00 | provisionalidentical
+|
+Produced
+2026-09-09 18:42:37 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-09 18:42:37 UTC
+Premium collected, the commission base
+$0.00
+Cash collected from customers
+$0.00
+Commission earned
+$0.00
+Commission clawed back
+$0.00
+Net due to the broker
+$0.00
+References
+Sandbox references
+Statement run id
+e4ba3f53-3150-4c82-9dd3-ce350af2e541
+Content hash
+6842875b8cd02666b5254b7fd55d750d7e67098c54c575575b69a4a54af08c5a
+Canonical format version
+3
+Supersedes run id
+245893de-d70c-4e48-8ea6-7cdc7c75ee52
+Earlier revisions in the last 30 runs
+[a /statements/245893de-d70c-4e48-8ea6-7cdc7c75ee52] Revision 18 h$0.00provisional
+|
+|
+[a /statements/d314152f-4c0b-4e27-9079-fcae498d92b6] Redwood Commercial Brokers12 h | 2027-09 | 54 earlier shown | $0.00 | provisionalidentical
+|
+Produced
+2026-09-09 12:39:57 UTC, Sam Patel, operations
+Knowledge cutoff
+2026-09-08 17:26:29 UTC
+Premium collected, the commission base
+$0.00
+Cash collected from customers
+$0.00
+Commission earned
+$0.00
+Commission clawed back
+$0.00
+Net due to the broker
+$0.00
+References
+Sandbox references
+Statement run id
+d314152f-4c0b-4e27-9079-fcae498d92b6
+Content hash
+7c23c7e316995c608ff18bb1d52d4bf4362e921e70c615c9754a336cee136d67
+Canonical format version
+3
+Supersedes run id
+199281ee-631a-4bd4-aaf4-68752c42a84d
+Earlier revisions in the last 30 runs
+[a /statements/199281ee-631a-4bd4-aaf4-68752c42a84d] Revision 412 h$0.00provisionalidentical
+[a /statements/5265f3fb-c6b4-45db-b7ce-f88a893d00c0] Revision 312 h$0.00provisionalformat changed
+[a /statements/8effa7c1-318a-4f96-a762-5661fec92a8b] Revision 231 h$0.00provisionalformat changed
+[a /statements/c2a6aa84-3aad-4ac0-91ef-488d0b59bd8c] Revision 132 h$0.00provisional
+provisional produced before its month was over; a run made after the month ends is the next revisionidentical the same content hash as the revision before it, so nothing changedformat changed written in a newer statement format than the revision before it, so the two hashes cannot be comparedformat v1 an old format whose premium column held the cash collected; the commission base was not stored
+This table reads the 30 most recent runs. Earlier revisions of a month beyond them are not counted here; each run page names the revision it supersedes.
+Run a statement
+Broker
+[option value=46db73c9-686e-41f0-a894-bb2bb072eb46] Harbor Point Insurance Services
+[option value=edae60d2-2192-4347-8083-945818e10ce8] Redwood Commercial Brokers
+[option value=2612b695-ffc2-4cc3-9d58-8b14564c4d2c] Sierra Crest Brokerage
+Month, business dates, as 2028-03
+Knowledge cutoff (UTC, optional)
+Run the statement
+Leave the cutoff empty for a fresh close. See About for what the cutoff decides.
+About this screen
+What a statement is
+One broker’s commission account for one calendar month, read from the journal and frozen. Every figure is a movement of a ledger account; nothing on this screen is computed in the browser.
+The two dates
+The month is the business month the entries belong to, by effective date. The knowledge cutoff is the instant up to which the ledger was read. Running the same month again with the same cutoff produces the same content hash, which the list shows as identical to the previous revision.
+The cutoff of a new run
+Leave the knowledge cutoff empty for a fresh close, which reads everything the ledger knows right now. Fill it with the cutoff of an earlier revision to reproduce that revision: the run is stored again, because a re-run is evidence, and is flagged as identical when its content hash matches.
+The two collected figures
+They answer two questions. The cash is what the customers paid, premium plus state premium tax plus policy fee. The premium is the part of it commission is earned on. Commission earned and clawbacks are the movements of the broker’s commission payable account, and the net due is the sum of those movements for the month.
+Provisional and revisions
+A run made before the month is over is marked provisional and stays exactly as it is. Running the month again stores a new revision that names the one it replaces. Nothing is rewritten, so both stay readable.
+One row per broker and month
+Each row is the newest revision of one broker’s month, and the revisions it replaced are inside its fold, newest first, each one a link to the run it was, with the same chips it would carry as a row. The rows are ordered by the age of the revision they show, so the month somebody has just run is the first row. The fold holds the revisions inside the 30 runs this page reads and no more: on an old month it can be fewer than the month has, and the way past that window is the run page of a revision, which names the one it supersedes.Corgi · Policy administration

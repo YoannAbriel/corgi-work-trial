@@ -1,0 +1,169 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c?view=overview] Overview
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c?view=payments] Payments
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] Access tokens
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+[a /ops/claims] Claims
+Claim CLM-00214
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Claim CLM-00214CGP-01707open
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483] The policy
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c?view=overview#claim-actions] Reserve or pay Claims
+|
+| | When | Amount | Status | Approval | Action
+|
+| 3 h | $1,200.00 | returnedon 2026-09-09LOCAL SIMULATOR | approvedby Alex Kim, approver | nothing to do
+|
+Requested by
+Sam Patel, operations
+Requested
+2026-09-09 21:20:35
+Approval
+approved, asked by Sam Patel, operations, decided by Alex Kim, approver
+Transfer
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c?inspect=sim_tr_edbd330eb019836c1a9704e8afac5339&view=payments] sim_tr_edbd330eb019836c1a9704e8afac5339
+Sandbox references
+Money operation id
+e009ad87-fb51-40da-85fb-da189d773df3
+Simulated transfer reference
+sim_tr_edbd330eb019836c1a9704e8afac5339
+Approval request id
+7562fcd1-af1c-4869-aee0-f3776123ad08
+|
+| 3 h | $500.00 | sentsettles on 2026-09-11LOCAL SIMULATOR | approvedby Alex Kim, approver |
+LOCAL SIMULATOR
+[input action=settle]
+Settle now (it would settle on its own after 2 days)
+|
+Requested by
+Sam Patel, operations
+Requested
+2026-09-09 21:23:12
+Approval
+approved, asked by Sam Patel, operations, decided by Alex Kim, approver
+Transfer
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c?inspect=sim_tr_127e3e7e412f63ef0f8a0ca1a91d7bbf&view=payments] sim_tr_127e3e7e412f63ef0f8a0ca1a91d7bbf
+Sandbox references
+Money operation id
+73f79f94-ca69-44ea-a54a-0fe514edfe3c
+Simulated transfer reference
+sim_tr_127e3e7e412f63ef0f8a0ca1a91d7bbf
+Approval request id
+4e092ab2-030a-4a0a-8f2a-0f8b57914061
+|
+| 3 h | $300.00 | sentsettles on 2026-09-11LOCAL SIMULATOR | approvedby Alex Kim, approver |
+LOCAL SIMULATOR
+[input action=settle]
+Settle now (it would settle on its own after 2 days)
+|
+Requested by
+Sam Patel, operations
+Requested
+2026-09-09 21:26:02
+Approval
+approved, asked by Sam Patel, operations, decided by Alex Kim, approver
+Transfer
+[a /ops/claims/65fca884-2960-40f3-ae0f-0a10fabbfa0c?inspect=sim_tr_64acae2d7f00dfdcdfd7eac9ef357561&view=payments] sim_tr_64acae2d7f00dfdcdfd7eac9ef357561
+Sandbox references
+Money operation id
+1b8d851f-c25c-4c9b-8d91-289bbb373b2f
+Simulated transfer reference
+sim_tr_64acae2d7f00dfdcdfd7eac9ef357561
+Approval request id
+61dfb899-0e76-4dfe-96fa-c57c6b482e08
+waiting for approval above the threshold: a second person decides before anything movesready to send approved or below the threshold, waiting for a person to send itrejected the second person refused it; nothing was sentrefused a rule refused it: the reserve, a limit, or the maker-checker gatesent on the simulated rail, not settled yetsettled the simulator confirmed the money arrivedreturned the bank sent it back and the reserve was restored
+Entries
+claim_reserve_restoredeffective 2026-09-09 · recorded 2026-09-09 21:30:45 UTC
+Claim CLM-00214: reserve restored after the return
+|
+| Account | Debit | Credit
+| Claim payments sent and not yet settled on the rail | $1,200.00 |
+| Open case reserves (estimates) | | $1,200.00
+claim_payment_returnedeffective 2026-09-09 · recorded 2026-09-09 21:30:45 UTC
+Claim CLM-00214: payment returned by the bank
+|
+| Account | Debit | Credit
+| Money at the claim payout rail after settlement | $1,200.00 |
+| Claim payments sent and not yet settled on the rail | | $1,200.00
+claim_payment_senteffective 2026-09-09 · recorded 2026-09-09 21:30:39 UTC
+Claim CLM-00214: payment sent on the payout rail
+|
+| Account | Debit | Credit
+| Open case reserves (estimates) | $300.00 |
+| Claim payments sent and not yet settled on the rail | | $300.00
+claim_payment_settledeffective 2026-09-09 · recorded 2026-09-09 21:27:58 UTC
+Claim CLM-00214: payment settled on the payout rail
+|
+| Account | Debit | Credit
+| Claim payments sent and not yet settled on the rail | $1,200.00 |
+| Money at the claim payout rail after settlement | | $1,200.00
+Show all 8 entries (4 older)
+claim_payment_senteffective 2026-09-09 · recorded 2026-09-09 21:27:19 UTC
+Claim CLM-00214: payment sent on the payout rail
+|
+| Account | Debit | Credit
+| Open case reserves (estimates) | $500.00 |
+| Claim payments sent and not yet settled on the rail | | $500.00
+claim_payment_senteffective 2026-09-09 · recorded 2026-09-09 21:27:02 UTC
+Claim CLM-00214: payment sent on the payout rail
+|
+| Account | Debit | Credit
+| Open case reserves (estimates) | $1,200.00 |
+| Claim payments sent and not yet settled on the rail | | $1,200.00
+claim_reserve_adjustedeffective 2026-09-09 · recorded 2026-09-09 21:17:27 UTC
+Claim CLM-00214: reserve decreased
+|
+| Account | Debit | Credit
+| Open case reserves (estimates) | $500.00 |
+| Claims expense recognised when a reserve is set | | $500.00
+claim_reserve_seteffective 2026-09-09 · recorded 2026-09-09 21:13:53 UTC
+Claim CLM-00214: reserve set
+|
+| Account | Debit | Credit
+| Claims expense recognised when a reserve is set | $3,000.00 |
+| Open case reserves (estimates) | | $3,000.00
+Credit: where the money comes from. Debit: where it goes. Every entry takes as much as it brings.
+About this screen
+The rail is a simulator
+LOCAL SIMULATOR on every row: no bank is reached. Send is a business action; settle and return are controls of the simulated bank, and a real rail would send those events itself.
+Paid counts from sending
+A payment counts as paid from the moment it is sent on the rail. A return puts the money back and restores the reserve; it is a new entry, never an edit of the first one.
+The same story in double entry
+Setting a reserve, paying, settling and returning each append their own balanced entry. The position at the top of this screen is folded from the same events.Corgi · Policy administration

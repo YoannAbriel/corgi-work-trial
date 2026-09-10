@@ -1,0 +1,205 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-15&view=overview] Overview
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-15&view=endorsements] Endorsements
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-15&view=claims] Claims2
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-15&view=money] Money
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-15&view=billing] Billing
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-15&view=timeline] Timeline
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/corrections/new] Correct
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] Access tokens
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+Policy CGP-01707
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Policy CGP-01707Bay Area Fabrication LLCcancelled
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/claims/new] Open a claim Policies
+As it stood on
+[input asOf=2026-09-15]
+[input view=timeline]
+Show
+The policy on 2026-09-15
+Status
+in force
+Annual premium
+$1,200.00
+California tax (2.35%)
+$28.20
+Policy fee
+$25.00
+Full annual term
+$1,253.20
+General Liability - Each Occurrence
+$1,000,000.00
+General Liability - Aggregate
+$2,000,000.00
+|
+| From | Recorded | What | Written premium
+| 2026-09-08 | at issuance | Annual premium written at issuance | $1,200.00
+The same date as a PDF:
+[a /api/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/documents/declarations?asOf=2026-09-15] declarations /
+[a /api/policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483/documents/endorsement-schedule?asOf=2026-09-15] schedule.
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-08&view=timeline] 2026-09-08term start
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-10&view=timeline] 2026-09-10today
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-09-22&view=timeline] 2026-09-22corrected endorsement
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-10-01&view=timeline] 2026-10-01endorsement
+[a /policies/3c3697b7-33f8-45a4-beaf-5a1892fc9483?asOf=2026-11-08&view=timeline] 2026-11-08cancellation
+|
+| | Effective | Recorded | Event | What
+|
+| 2026-09-08 | 30 h | quoted | Quote priced at $1,200.00 of annual premium
+|
+What it says
+Quote priced at $1,200.00 of annual premium
+Effective
+2026-09-08
+Recorded
+2026-09-08 18:37:28
+|
+| 2026-09-08 | 30 h | issued | Policy bound at $1,200.00 of annual premium
+|
+What it says
+Policy bound at $1,200.00 of annual premium
+Effective
+2026-09-08
+Recorded
+2026-09-08 18:57:00
+|
+| 2026-10-08 | 18 h | endorsement requested | Annual premium $1,200.00 to $2,400.00
+|
+What it says
+Endorsement quoted: Annual premium $1,200.00 to $2,400.00; per-occurrence limit $1,000,000.00 to $2,000,000.00; aggregate limit $2,000,000.00 to $4,000,000.00, $1,127.24 to settle
+Effective
+2026-10-08
+Recorded
+2026-09-09 06:28:25
+|
+| 2026-10-08 | 18 h | endorsement approved | The customer approved that quote ($1,127.24)
+|
+What it says
+The customer approved that quote ($1,127.24)
+Effective
+2026-10-08
+Recorded
+2026-09-09 06:29:33
+|
+| 2026-10-08 | 18 h | endorsed | Annual premium $1,200.00 to $2,400.00
+|
+What it says
+Endorsement in force: Annual premium $1,200.00 to $2,400.00; per-occurrence limit $1,000,000.00 to $2,000,000.00; aggregate limit $2,000,000.00 to $4,000,000.00, $1,101.36 of prorated premium
+Effective
+2026-10-08
+Recorded
+2026-09-09 06:34:34
+Superseded
+by the correction_reversal recorded later (4c6de9d0)
+|
+| 2026-10-08 | 5 h | correction reversal | effective date 2026-10-08 put right to 2026-09-22 (The endorsement was agreed on 2026-09-22)
+|
+What it says
+Correction: effective date 2026-10-08 put right to 2026-09-22 (The endorsement was agreed on 2026-09-22)
+Effective
+2026-10-08
+Recorded
+2026-09-09 19:33:07
+|
+| 2026-09-22 | 5 h | correction rebook | $1,153.97 of prorated premium, difference $53.84
+|
+What it says
+Endorsement re-booked on 2026-09-22: $1,153.97 of prorated premium, difference $53.84
+Effective
+2026-09-22
+Recorded
+2026-09-09 19:33:07
+|
+| 2026-09-22 | 5 h | correction approved | The customer approved paying the correction difference of $53.84
+|
+What it says
+The customer approved paying the correction difference of $53.84
+Effective
+2026-09-22
+Recorded
+2026-09-09 19:39:27
+|
+| 2026-10-01 | 5 h | endorsement requested | Annual premium $2,400.00 to $2,700.00, $287.69 to settle
+|
+What it says
+Endorsement quoted: Annual premium $2,400.00 to $2,700.00, $287.69 to settle
+Effective
+2026-10-01
+Recorded
+2026-09-09 20:11:09
+|
+| 2026-10-01 | 5 h | endorsement approved | The customer approved that quote ($287.69)
+|
+What it says
+The customer approved that quote ($287.69)
+Effective
+2026-10-01
+Recorded
+2026-09-09 20:13:44
+|
+| 2026-10-01 | 5 h | endorsed | Annual premium $2,400.00 to $2,700.00, $281.09 of prorated premium
+|
+What it says
+Endorsement in force: Annual premium $2,400.00 to $2,700.00, $281.09 of prorated premium
+Effective
+2026-10-01
+Recorded
+2026-09-09 20:17:43
+|
+| 2026-11-08 | 4 h | cancelled | Policy cancelled, $2,301.62 refunded
+|
+What it says
+Policy cancelled, $2,301.62 refunded
+Effective
+2026-11-08
+Recorded
+2026-09-09 20:32:36
+About this screen
+Two clocks, never merged
+Effective is the business date a fact applies from: it prices the money, and it can be in the past or in the future. Recorded is the instant the row was written, set by the database and never by a client: it answers what we knew that day.
+A struck-through row
+It was superseded by a correction. The row stays in the table for ever; the fold that rebuilds the policy no longer applies it.
+The dates this policy changed
+The term start, every change still in force, and today. A change a correction put right is not a step. Picking one rebuilds the policy from the events effective on or before it.
+Written premium segments
+Each piece of premium earns over its own window. The issuance premium earns over the whole term; an endorsement earns its prorated amount from its own effective date to the end of the term. This is why the annual premium in force is not the written premium once a policy has been endorsed.
+The same date as a document
+Both PDFs are rebuilt from the same events: between two endorsements the declarations page shows the premium and the limits that were in force that day. They are in the Documents card of the overview, and the answer above links to them for the date it is showing.Corgi · Policy administration

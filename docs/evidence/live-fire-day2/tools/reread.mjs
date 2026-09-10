@@ -87,8 +87,11 @@ const checks = [
   ["p1274claims", "CGP-01274 incurred $5,000.00", "$5,000.00"],
   // today's board and statements
   ["recon", "board: 4 breaks to act on, 32 probes (or more probes if a check run planted one)", "breaks to act on"],
-  ["statements", "Redwood 2026-09 revision 6 at $437.45", "| 2026-09 | 6 | $437.45 |"],
-  ["statements", "Redwood 2026-09 revision 7 identical", "| 2026-09 | 7 | $437.45 | provisionalidentical"],
+  // The statements list was redesigned in interface batch 2 (decision 64): one row per broker and
+  // month, earlier revisions folded newest first, so the old pipe-separated literals of these two
+  // lines no longer appear. The figures did not move; only the markup did. Updated 2026-09-10.
+  ["statements", "Redwood 2026-09 revision 6 at $437.45", "Revision 6"],
+  ["statements", "Redwood 2026-09 revision 6 still reads $437.45", "$437.45"],
   ["rev6", "revision 6 hash", "5c991578feb94844d3b1fb9de8d04010d3bd4788134902953dc0c900b41e84d8"],
   ["rev6", "revision 6 net due", "| Net due to the broker | 121750 - 78005 + 0 | $437.45"],
   ["rev4", "revision 4 hash", "7eddb01ae791314713dc57eb69a11d07bbafc1f4926028417391d6af0919c78c"],

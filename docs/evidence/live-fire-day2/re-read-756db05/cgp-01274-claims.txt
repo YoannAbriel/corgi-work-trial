@@ -1,0 +1,62 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15?view=overview] Overview
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15?view=endorsements] Endorsements
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15?view=claims] Claims1
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15?view=money] Money
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15?view=billing] Billing
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15?view=timeline] Timeline
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15/corrections/new] Correct
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] Access tokens
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+Policy CGP-01274
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Policy CGP-01274Santa CaFEcancelled
+[a /policies/104d2966-be96-4c36-9956-caf0762f8b15/claims/new] Open a claim Policies
+|
+| Claim | Loss | State | Reserve | Paid | Incurred |
+|
+[a /ops/claims/2f78c23c-17fc-4746-85dd-77f64d6db45a] CLM-00212Bay Area Fabrication LLC | 2026-09-20 | open | $3,800.00 | $1,200.00 | $5,000.00 |
+Reserve what the claim is still expected to costIncurred paid plus the reserve still outstandingLOCAL SIMULATOR claim payments move on a simulated rail, never a live one
+About this screen
+Incurred, reserve, paid
+Incurred is what a claim has cost so far: paid plus the reserve still outstanding. A claim can be opened on a cancelled policy too, as long as the loss happened while the policy was in force.
+Cancelling with a claim open
+Cancelling never touches an open claim or its reserve. The refund covers unearned premium only, because the loss happened while the policy was in force.Corgi · Policy administration

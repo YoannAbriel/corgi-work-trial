@@ -1,0 +1,151 @@
+Corgi policy administration (trial)
+[a #main-content] Skip to content
+[a /ops] CorgiPolicy administration
+Work
+[a /ops] Overview
+[a /inbox] Inbox
+[a /inbox] 4 waiting for you, open the inbox
+[a /ops/console] Console
+[a /ops/ledger] Ledger
+[a /ops/console/search] Search
+Records
+[a /ops/policies] Policies
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=overview] Overview
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=endorsements] Endorsements
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=claims] Claims
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=money] Money
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=billing] Billing
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?view=timeline] Timeline
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/corrections/new] Correct
+[a /ops/brokers] Brokers
+[a /ops/claims] Claims
+Money
+[a /ops/approvals] Approvals
+[a /ops/reconciliation] Reconciliation
+[a /inbox#reconciliation] 4 waiting for you, open the inbox
+[a /ops/statements] Statements
+System
+[a /ops/console/infra] Infrastructure
+[a /ops/mcp-keys] Access tokens
+Sam Patel, operationsStaff operations
+Demo accounts
+[input email=broker@example.com]
+broker@example.combroker
+[input email=broker2@example.com]
+broker2@example.combroker
+[input email=broker3@example.com]
+broker3@example.combroker
+[input email=customer@example.com]
+customer@example.comcustomer
+[input email=ops@example.com]
+ops@example.comoperations
+[input email=approver@example.com]
+approver@example.comapprover
+Sign out
+[a /ops] Overview
+[a /ops/policies] Policies
+Policy CGP-01709
+Stripe: LIVE SANDBOX · claim rail: LOCAL SIMULATOR · bank check: LOCAL SIMULATOR
+Sandbox
+Sandbox providers and test data. No real money.
+Policy CGP-01709TestCustomer2bound
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/endorse] Endorse
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/cancel] Cancel the policy
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d/claims/new] Open a claim Policies
+So far, from the journal
+Premium payment
+succeeded
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?inspect=cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj&view=money] cs_test_b1wtJSGZ12iatcX7FZ8BJKcWu633YJVzyo5neloEfXmyZfZX1iFMVHJmWj
+[a /policies/f8ed1db7-2c99-40b7-8809-daf3c606865d?inspect=4513eab4-f2d0-4358-922f-c43ff57d57a9&view=money] 4513eab4-f2d0-4358-922f-c43ff57d57a9
+Collected at Stripe
+$12,307.00
+Explain this amount
+Money that arrived on the Stripe cash account for this policy
+Every debit of cash_stripe on this policy that a correction has not reversed: the premium collection and any endorsement or correction difference the customer paid.
+|
+| Amount | How it was computed (integer cents) | Result
+| premium_collected, effective 2026-09-09 | Dr Cash held at Stripe (gross of Stripe fees) 1230700 | $12,307.00
+| Collected at Stripe, all debits added | 1230700 | $12,307.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_collected | 2026-09-09 | 2026-09-09 20:54:28 | Dr Cash held at Stripe (gross of Stripe fees) 1230700
+[a #journal-entry-policy-d4526bea-e273-4433-97cf-542b5b6760bd] Trace to the ledger
+Refunded from Stripe
+$0.00
+Explain this amount
+Money that left the Stripe cash account for this policy
+Every credit of cash_stripe on this policy that is not the mirror of a reversed entry. A refund appears here only once Stripe's webhook confirms the money left.
+|
+| Amount | How it was computed (integer cents) | Result
+| Refunded from Stripe, all credits added | no credit on this account yet | $0.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Commission owed, net
+$1,800.00
+Explain this amount
+Balance of this broker's commission payable on this policy
+Commission earned when premium was collected, less every clawback on premium given back. Entries a correction reversed, and their mirrors, are left out.
+|
+| Amount | How it was computed (integer cents) | Result
+| commission_earned, effective 2026-09-09 | Cr Commission owed to brokers, reduced by clawbacks 180000 | $1,800.00
+| Commission payable, credits minus debits | 180000 | $1,800.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| commission_earned | 2026-09-09 | 2026-09-09 20:54:28 | Cr Commission owed to brokers, reduced by clawbacks 180000
+[a #journal-entry-policy-add5a5a3-4463-467e-bc5f-f2784ded6fa3] Trace to the ledger
+Unearned premium held
+$12,000.00
+Explain this amount
+Balance of unearned premium on this policy
+Premium written and not yet earned: what would be owed back if the policy stopped today. Entries a correction reversed, and their mirrors, are left out.
+|
+| Amount | How it was computed (integer cents) | Result
+| premium_written, effective 2026-09-26 | Cr Written premium not yet earned (owed back on cancel) 1200000 | $12,000.00
+| Unearned premium, credits minus debits | 1200000 | $12,000.00
+Rounding nothing is rounded here: this figure is a sum of whole cents.
+Proved by these journal entries. The effective date is the business date the entry belongs to; the recorded time is when the database wrote it.
+|
+| Entry | Effective | Recorded (UTC) | Line
+| premium_written | 2026-09-26 | 2026-09-09 20:54:28 | Cr Written premium not yet earned (owed back on cancel) 1200000
+[a #journal-entry-policy-bdb957b8-727c-4036-9456-50d07205ff68] Trace to the ledger
+Open claims
+none
+Journal entries
+tax_and_fee_billedeffective 2026-09-26 · recorded 2026-09-09 20:54:28 UTC
+Policy CGP-01709 state premium tax and policy fee
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $307.00 |
+| State premium tax collected, owed to the state | | $282.00
+| Flat policy fee, fully earned at issuance | | $25.00
+commission_earnedeffective 2026-09-09 · recorded 2026-09-09 20:54:28 UTC
+Broker commission on the collected premium of policy CGP-01709
+|
+| Account | Debit | Credit
+| Broker commission on collected premium | $1,800.00 |
+| Commission owed to brokers, reduced by clawbacks | | $1,800.00
+premium_writteneffective 2026-09-26 · recorded 2026-09-09 20:54:28 UTC
+Policy CGP-01709 written premium
+|
+| Account | Debit | Credit
+| Premium, tax and fee billed and not yet collected | $12,000.00 |
+| Written premium not yet earned (owed back on cancel) | | $12,000.00
+premium_collectedeffective 2026-09-09 · recorded 2026-09-09 20:54:28 UTC
+Policy CGP-01709 premium, tax and fee collected at Stripe
+|
+| Account | Debit | Credit
+| Cash held at Stripe (gross of Stripe fees) | $12,307.00 |
+| Premium, tax and fee billed and not yet collected | | $12,307.00
+Credit: where the money comes from. Debit: where it goes. Every entry takes as much as it brings.
+About this screen
+Reading an entry
+Credit: where the money comes from. Debit: where it goes. Every entry takes as much as it brings. The sentence under each entry's header is the one the posting stored when it was written.
+Where a figure comes from
+Each sum above is the addition of the journal lines of this policy; open one to see the lines it added and follow it to the entry that proves it. Nothing here is recomputed from the terms.
+A correction never changes a row
+It appends a reversal entry mirroring the original on the same effective date, and a re-booked event on the corrected date. Both stay in the journal for ever.
+Refunds
+A refund counts as completed only when Stripe's webhook confirms the money left. A failed refund reverses nothing: the customer is still owed the money.Corgi · Policy administration

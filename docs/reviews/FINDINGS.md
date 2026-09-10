@@ -688,3 +688,10 @@ Fourteen rules checked by one small agent each against a fetched official source
 | F-NEWBROKER-08 | LOW | spendPasswordCheckTime memoised the promise, so one failed derivation would answer 500 for the life of the process | Memoise the hash | FIXED 2998117, cost measured by r3 (40 cold calls 442 ms against 221 ms warm) |
 | F-NEWBROKER-09 | LOW | The hostile-account sum covered two of the three addresses and its comment was left dangling | Add the separator address, rename the line | FIXED d3e45b3, check:new-broker 45 PASS |
 | F-NEWBROKER-10 | LOW | A comment still asserted "a vertical bar cannot appear in an email address", the false invariant behind F-NEWBROKER-06, and credited the wrong function | Say what this build enforces and where | FIXED d3e45b3 |
+
+## MCP surface tested from outside on the deployed revision 756db05 (00:50Z, an agent holding the demo key, read tools only)
+
+| ID | Severity | Finding | Required action | Status |
+|---|---|---|---|---|
+| F-MCP2-01 | LOW | `explain_amount` on `premium_tax` cites two journal entries (2820 and 2711 cents) whose sum, 5531, is not the figure explained, 5640: the entries are what was charged over time, the figure is the tax on the annual premium in force on that date | The `evidenceLabel` already says so in advance, so nothing is hidden; a hurried reader could still take the two entries as a proof of the figure. Print the arithmetic of the difference, or label the block "what was charged" rather than evidence | OPEN, week two |
+| F-MCP2-02 | LOW | `inspect_reference` reports `policyStatus: "cancelled"` for CGP-01707 beside a block labelled `termsInForceToday`, while `get_policy_as_of` for today answers `issued`: the cancellation is recorded and effective 2026-11-08, which no field of the inspection says | Carry `cancelledEffectiveAt` into `belongsTo` so a reader cannot read "cancelled today" | OPEN, week two |
