@@ -278,3 +278,8 @@ Five independent review records (`docs/reviews/ui-evening-2-tokens.md`, `-statem
 67. KYB evidence note (LIVE-3): "Not submitted yet: no verification on file." on unknown status with no provider account; the seeded-placeholder sentence only when the latest event's provider is "seed"; the label otherwise (components/kyb-evidence-note.tsx; inline on the policy Broker card; the ops brokers list with the New broker route).
 68. Billing view after review (F-BL-01): reversed money reads as reversed (struck amount, "reversed" chip, the void record's sentence) on every reader's Billing view including the customer; refund words shared; owed rows say why they cannot be collected.
 69. Claims (LIVE-10): the claimant bank account form in the "Claimant bank account" card behind a button-styled fold, open while no account exists; "Request payment" says a verified account is needed first; the Approval column names the decider under the chip, the requester stays in the expansion.
+
+
+## 2026-09-10T01:05:49.979900+00:00 | Authorized session credential remediation and public evidence hosting
+
+Yoann explicitly authorized rotating SESSION_SECRET, redeploying to invalidate existing sessions, removing cookie files from Git tracking, strengthening secret detection, then publishing the repository and screenshot folder and completing the portal without submitting. Preserve the committed-credential incident and original history; no force-push or claim that remediation erases AF-05.

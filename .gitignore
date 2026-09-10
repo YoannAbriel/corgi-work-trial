@@ -30,3 +30,6 @@ skills-lock.json
 
 # F-RC-01: the .env* line above re-ignored the example file; keep it tracked
 !.env.example
+
+# Browser session credentials are local-only, including evidence-tool cookies.
+docs/evidence/live-fire-day2/tools/cookies/

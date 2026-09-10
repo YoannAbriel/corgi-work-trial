@@ -1,0 +1,35 @@
+[
+  {
+    "check": "health",
+    "status": 200,
+    "body": {
+      "ok": true,
+      "database": "ok",
+      "databaseTime": "2026-09-10T01:07:13.614Z",
+      "revision": "756db05d071d5aff32eaae47cc73a474eb60db02"
+    }
+  },
+  {
+    "check": "committed cookie rejected",
+    "status": 307,
+    "location": "/login"
+  },
+  {
+    "check": "broker@example.com",
+    "loginStatus": 303,
+    "location": "/broker",
+    "pageStatus": 200
+  },
+  {
+    "check": "ops@example.com",
+    "loginStatus": 303,
+    "location": "/ops",
+    "pageStatus": 200
+  },
+  {
+    "check": "customer@example.com",
+    "loginStatus": 303,
+    "location": "/customer",
+    "pageStatus": 200
+  }
+]
