@@ -48,7 +48,7 @@ Counting images only would drop the very readings the live-fire steps rest on. W
 |---|---|
 | Records walked | **84** (51 review, 29 handoff, 2 checkpoint, STATUS, COMPLIANCE-MATRIX) |
 | Review records carrying a verdict | **50** (`instructions-2026-09-08.md` is an instruction-review record, not a slice review) |
-| Evidence files under `docs/evidence/` | **384**, 34.7 MB, in 10 directories |
+| Evidence files under `docs/evidence/` | **391**, 36 MB, in 10 directories (the 384 counted at the last full index plus the seven read-only tools of `docs/evidence/live-fire-day2/tools/`, merged after it; recounted by the coordinator at the freeze check) |
 | Evidence files named individually by a record or its own manifest | **145** |
 | of which by an index or manifest the folder carries itself | **139** (`observations.json` 121, `evidence-manifest.json` and `SHA256SUMS.txt` 14, the cycle-2 md5 table 24, overlapping) |
 | Evidence files covered by their directory's citation, a stated count or a step record | **226** |
